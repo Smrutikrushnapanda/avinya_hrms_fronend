@@ -12,7 +12,7 @@ import AxiosInstance from "../../api/api";
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date());
   const [data, setData] = useState([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(""); 
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
