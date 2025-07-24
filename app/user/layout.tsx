@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       {/* Below topbar: Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 bg-gray-50 overflow-y-auto p-4">
+        <main className="flex-1 bg-gradient-to-b from-white to-slate-100 dark:from-slate-900 dark:to-black overflow-y-auto p-4">
           {children}
         </main>
       </div>

@@ -6,34 +6,50 @@ import { columns } from "./components/columns";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
 import AxiosInstance from "../../api/api";
+import { SortingState } from "@tanstack/react-table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date());
   const [data, setData] = useState([]);
-  const [search, setSearch] = useState(""); 
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [state, setState] = useState<{
+    page: number;
+    pageSize: number;
+    search: string;
+    sorting: SortingState;
+  }>({
+    page: 0,
+    pageSize: 50,
+    search: "",
+    sorting: [],
+  });
 
   useEffect(() => {
     const fetchData = async () => {
       const formattedDate = format(date, "yyyy-MM-dd");
+
       const res = await AxiosInstance.get("/attendance/by-date", {
         params: {
           organizationId: "24facd21-265a-4edd-8fd1-bc69a036f755",
           date: formattedDate,
-          page,
-          limit: 50,
-          search,
-          status: "present",
+          page: state.page + 1, // backend expects 1-based
+          limit: state.pageSize,
+          search: state.search,
+          status: "all",
+          sortBy: state.sorting[0]?.id,
+          sortOrder: state.sorting[0]?.desc ? "desc" : "asc",
         },
       });
+
       setData(res.data.results || []);
       setTotalPages(res.data.pagination?.totalPages || 1);
     };
+
     fetchData();
-  }, [date, search, page]);
+  }, [date, state]);
 
   const handlePrevDate = () =>
     setDate((prev) => new Date(prev.setDate(prev.getDate() - 1)));
@@ -61,37 +77,89 @@ export default function AttendancePage() {
         <Button>Attendance Report</Button>
       </div>
 
-      {/* Search and Pagination Controls */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <Input
-          className="w-full md:w-1/3"
-          placeholder="Search employee"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-          >
-            Prev
-          </Button>
-          <Button
-            variant="outline"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
-        </div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+        {/* Present Summary */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1">
+              <ClipboardList className="w-5 h-5 text-foreground" />
+              Present Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 divide-x text-center mt-4">
+              <div>
+                <p className="text-xl font-bold">265</p>
+                <p className="text-xs text-muted-foreground">On time</p>
+                <p className="text-xs text-green-600">+12 vs yesterday</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">62</p>
+                <p className="text-xs text-muted-foreground">Late clock-in</p>
+                <p className="text-xs text-orange-500">-6 vs yesterday</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">224</p>
+                <p className="text-xs text-muted-foreground">Early clock-in</p>
+                <p className="text-xs text-orange-500">-6 vs yesterday</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">0</p>
+                <p className="text-xs text-muted-foreground">Failed clock-in</p>
+                <p className="text-xs text-muted-foreground">0 vs yesterday</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Not Present Summary */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-1">
+              <ClipboardList className="w-5 h-5 text-foreground" />
+              Not Present Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 divide-x text-center mt-4">
+              <div>
+                <p className="text-xl font-bold">42</p>
+                <p className="text-xs text-muted-foreground">Absent</p>
+                <p className="text-xs text-green-600">+12 vs yesterday</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">36</p>
+                <p className="text-xs text-muted-foreground">No clock-in</p>
+                <p className="text-xs text-orange-500">-6 vs yesterday</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">0</p>
+                <p className="text-xs text-muted-foreground">No clock-out</p>
+                <p className="text-xs text-muted-foreground">0 vs yesterday</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">0</p>
+                <p className="text-xs text-muted-foreground">Invalid</p>
+                <p className="text-xs text-muted-foreground">0 vs yesterday</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Data Table */}
-      <DataTable columns={columns} data={data} />
+      {/* Data Table with server-side search, pagination, sorting */}
+      <Card>
+        <CardContent>
+          <DataTable
+            columns={columns}
+            data={data}
+            pageCount={totalPages}
+            state={state}
+            setState={setState}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
