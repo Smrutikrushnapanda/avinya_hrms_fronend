@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const fallbackURL = 'http://localhost:8080/';
+const fallbackURL = 'https://hrms-backend-346486007446.asia-south1.run.app';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || fallbackURL,

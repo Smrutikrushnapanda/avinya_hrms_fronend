@@ -49,14 +49,14 @@ export const columns: ColumnDef<Attendance>[] = [
     cell: ({ row }) => {
       const { userName, employeeCode, profileImage } = row.original;
       return (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-[250px]">
           <img
             src={profileImage || "/default-avatar.png"}
             alt={userName}
             className="w-10 h-10 rounded-full object-cover ring-1 ring-muted-foreground/20"
           />
           <div className="flex flex-col">
-            <span className="font-semibold">{userName}</span>
+            <span className="font-semibold whitespace-normal break-words">{userName}</span>
             <div className="w-full border-b my-0.5" />
             <span className="text-xs text-muted-foreground font-semibold">
               {employeeCode}
@@ -210,7 +210,7 @@ export const columns: ColumnDef<Attendance>[] = [
   {
     id: "location",
     header: () => (
-      <div className="flex items-center gap-1 w-[200px]">
+      <div className="flex items-center gap-1 w-[150px]">
         <MapPin className="w-4 h-4" />
         <span>Location</span>
       </div>
