@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date());
   const [data, setData] = useState([]);
+  const [stats, setStats] = useState<any>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [state, setState] = useState<{
     page: number;
@@ -31,11 +32,12 @@ export default function AttendancePage() {
     const fetchData = async () => {
       const formattedDate = format(date, "yyyy-MM-dd");
 
+      // Fetch table data
       const res = await AxiosInstance.get("/attendance/by-date", {
         params: {
           organizationId: "24facd21-265a-4edd-8fd1-bc69a036f755",
           date: formattedDate,
-          page: state.page + 1, // backend expects 1-based
+          page: state.page + 1,
           limit: state.pageSize,
           search: state.search,
           status: "all",
@@ -46,6 +48,16 @@ export default function AttendancePage() {
 
       setData(res.data.results || []);
       setTotalPages(res.data.pagination?.totalPages || 1);
+
+      // Fetch daily stats
+      const statsRes = await AxiosInstance.get("/attendance/daily-stats", {
+        params: {
+          organizationId: "24facd21-265a-4edd-8fd1-bc69a036f755",
+          date: formattedDate,
+        },
+      });
+
+      setStats(statsRes.data);
     };
 
     fetchData();
@@ -55,6 +67,9 @@ export default function AttendancePage() {
     setDate((prev) => new Date(prev.setDate(prev.getDate() - 1)));
   const handleNextDate = () =>
     setDate((prev) => new Date(prev.setDate(prev.getDate() + 1)));
+
+  const formatDiff = (value: number) =>
+    `${value >= 0 ? "+" : ""}${value ?? 0} vs yesterday`;
 
   return (
     <div className="space-y-6">
@@ -90,24 +105,36 @@ export default function AttendancePage() {
           <CardContent>
             <div className="grid grid-cols-4 divide-x text-center mt-4">
               <div>
-                <p className="text-xl font-bold">265</p>
-                <p className="text-xs text-muted-foreground">On time</p>
-                <p className="text-xs text-green-600">+12 vs yesterday</p>
+                <p className="text-xl font-bold">
+                  {stats?.presentSummary?.total_present ?? "-"}
+                </p>
+                <p className="text-xs text-muted-foreground">Total Present</p>
+                <p className="text-xs text-green-600">
+                  {formatDiff(stats?.presentSummary?.total_presentDiff ?? 0)}
+                </p>
               </div>
               <div>
-                <p className="text-xl font-bold">62</p>
-                <p className="text-xs text-muted-foreground">Late clock-in</p>
-                <p className="text-xs text-orange-500">-6 vs yesterday</p>
-              </div>
-              <div>
-                <p className="text-xl font-bold">224</p>
+                <p className="text-xl font-bold">
+                  {stats?.presentSummary?.earlyClockIn ?? "-"}
+                </p>
                 <p className="text-xs text-muted-foreground">Early clock-in</p>
-                <p className="text-xs text-orange-500">-6 vs yesterday</p>
+                <p className="text-xs text-green-600">
+                  {formatDiff(stats?.presentSummary?.earlyClockInDiff ?? 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xl font-bold">
+                  {stats?.presentSummary?.lateClockIn ?? "-"}
+                </p>
+                <p className="text-xs text-muted-foreground">Late clock-in</p>
+                <p className="text-xs text-orange-500">
+                  {formatDiff(stats?.presentSummary?.lateClockInDiff ?? 0)}
+                </p>
               </div>
               <div>
                 <p className="text-xl font-bold">0</p>
                 <p className="text-xs text-muted-foreground">Failed clock-in</p>
-                <p className="text-xs text-muted-foreground">0 vs yesterday</p>
+                <p className="text-xs text-muted-foreground text-red-500">0 vs yesterday</p>
               </div>
             </div>
           </CardContent>
@@ -124,31 +151,47 @@ export default function AttendancePage() {
           <CardContent>
             <div className="grid grid-cols-4 divide-x text-center mt-4">
               <div>
-                <p className="text-xl font-bold">42</p>
+                <p className="text-xl font-bold">
+                  {stats?.notPresentSummary?.absent ?? "-"}
+                </p>
                 <p className="text-xs text-muted-foreground">Absent</p>
-                <p className="text-xs text-green-600">+12 vs yesterday</p>
+                <p className="text-xs text-green-600">
+                  {formatDiff(stats?.notPresentSummary?.absentDiff ?? 0)}
+                </p>
               </div>
               <div>
-                <p className="text-xl font-bold">36</p>
+                <p className="text-xl font-bold">
+                  {stats?.notPresentSummary?.noClockIn ?? "-"}
+                </p>
                 <p className="text-xs text-muted-foreground">No clock-in</p>
-                <p className="text-xs text-orange-500">-6 vs yesterday</p>
+                <p className="text-xs text-orange-500">
+                  {formatDiff(stats?.notPresentSummary?.noClockInDiff ?? 0)}
+                </p>
               </div>
               <div>
-                <p className="text-xl font-bold">0</p>
+                <p className="text-xl font-bold">
+                  {stats?.notPresentSummary?.noClockOut ?? "-"}
+                </p>
                 <p className="text-xs text-muted-foreground">No clock-out</p>
-                <p className="text-xs text-muted-foreground">0 vs yesterday</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatDiff(stats?.notPresentSummary?.noClockOutDiff ?? 0)}
+                </p>
               </div>
               <div>
-                <p className="text-xl font-bold">0</p>
+                <p className="text-xl font-bold">
+                  {stats?.notPresentSummary?.invalid ?? "-"}
+                </p>
                 <p className="text-xs text-muted-foreground">Invalid</p>
-                <p className="text-xs text-muted-foreground">0 vs yesterday</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatDiff(stats?.notPresentSummary?.invalidDiff ?? 0)}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Data Table with server-side search, pagination, sorting */}
+      {/* Data Table */}
       <Card>
         <CardContent>
           <DataTable
