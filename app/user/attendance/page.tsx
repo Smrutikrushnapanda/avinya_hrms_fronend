@@ -114,6 +114,11 @@ export default function AttendancePage() {
                 </p>
               </div>
               <div>
+                <p className="text-xl font-bold">0</p>
+                <p className="text-xs text-muted-foreground">On Time</p>
+                <p className="text-xs text-green-500">0 vs yesterday</p>
+              </div>
+              <div>
                 <p className="text-xl font-bold">
                   {stats?.presentSummary?.earlyClockIn ?? "-"}
                 </p>
@@ -127,14 +132,9 @@ export default function AttendancePage() {
                   {stats?.presentSummary?.lateClockIn ?? "-"}
                 </p>
                 <p className="text-xs text-muted-foreground">Late clock-in</p>
-                <p className="text-xs text-orange-500">
+                <p className="text-xs text-red-600">
                   {formatDiff(stats?.presentSummary?.lateClockInDiff ?? 0)}
                 </p>
-              </div>
-              <div>
-                <p className="text-xl font-bold">0</p>
-                <p className="text-xs text-muted-foreground">Failed clock-in</p>
-                <p className="text-xs text-muted-foreground text-red-500">0 vs yesterday</p>
               </div>
             </div>
           </CardContent>

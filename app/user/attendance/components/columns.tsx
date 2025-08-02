@@ -39,6 +39,13 @@ export type Attendance = {
 
 export const columns: ColumnDef<Attendance>[] = [
   {
+    id: "serial",
+    header: () => <span>Sr. No.</span>,
+    cell: ({ row }) => row.index + 1,
+    enableSorting: false,
+    size: 40,
+  },
+  {
     accessorKey: "userName",
     header: () => (
       <div className="flex items-center gap-1">
@@ -49,7 +56,7 @@ export const columns: ColumnDef<Attendance>[] = [
     cell: ({ row }) => {
       const { userName, employeeCode, profileImage } = row.original;
       return (
-        <div className="flex items-center gap-3 w-[250px]">
+        <div className="flex items-center gap-3 w-[200px]">
           <img
             src={profileImage || "/default-avatar.png"}
             alt={userName}
