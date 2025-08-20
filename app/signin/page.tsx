@@ -5,8 +5,68 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [userId, setUserId] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(""); // ✅ Error message state
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(""); // Clear any old errors
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userName: userId,
+          password: password,
+          clientInfo: {}
+        }),
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("Invalid User ID or Password");
+        throw new Error("Something went wrong. Please try again.");
+      }
+
+      const data = await res.json();
+
+      // Store token & user data in localStorage/sessionStorage
+      localStorage.setItem("access_token", data.access_token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      // Extract roles
+      const roles: { roleName: string }[] = data.user.roles || [];
+      const roleNames = roles.map((r) => r.roleName);
+      const isAdmin = roleNames.includes("ADMIN");
+      const isEmployee = roleNames.includes("EMPLOYEE");
+      // ✅ Redirect based on role
+      if (isAdmin) {
+        toast.success("Login successful! 🎉");
+        router.push("/admin/dashboard");
+      } else if(isEmployee){
+        toast.success("Login successful! 🎉");
+        router.push(`/user/dashboard/${data.user.id}`);
+      }
+      else{
+        toast.error("You are not assigned with any role!");
+      }
+    } catch (error: any) {
+      setError(error.message || "Login failed"); // ✅ Show error in form
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       {/* Mobile Topbar Logo */}
@@ -42,33 +102,42 @@ export default function LoginPage() {
               <h2 className="text-2xl font-semibold text-center mb-6">
                 Sign in to your account
               </h2>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleLogin}>
                 <div>
-                  <label
-                    className="block text-sm font-medium mb-1"
-                    htmlFor="email"
-                  >
-                    Email
+                  <label className="block text-sm font-medium mb-1" htmlFor="userid">
+                    User ID
                   </label>
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
+                    id="userid"
+                    type="text"
+                    placeholder="User ID"
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label
-                    className="block text-sm font-medium mb-1"
-                    htmlFor="password"
-                  >
+                  <label className="block text-sm font-medium mb-1" htmlFor="password">
                     Password
                   </label>
-                  <Input id="password" type="password" placeholder="••••••••" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
                 </div>
-                <Button type="submit" className="w-full text-base mt-2">
-                  Sign In
+
+                {/* ✅ Error Message */}
+                {error && (
+                  <p className="text-red-500 text-sm mt-2">{error}</p>
+                )}
+
+                <Button type="submit" className="w-full text-base mt-2" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
+
               <div className="text-center mt-4 text-sm text-muted-foreground">
                 Don’t have an account?{" "}
                 <Link
