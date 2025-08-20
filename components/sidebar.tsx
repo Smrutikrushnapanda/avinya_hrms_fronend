@@ -23,17 +23,19 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
   } from "@/components/ui/dropdown-menu";
+
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 const menu = [
-  { name: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { name: "Employees", icon: Users, href: "/employees" },
-  { name: "Departments", icon: Boxes, href: "/departments" },
-  { name: "Reports", icon: BookMarked, href: "/reports" },
-  { name: "Payroll", icon: BadgeDollarSign, href: "/payroll" },
+  { name: "Dashboard", icon: LayoutDashboard, href: "/user/dashboard" },
+  { name: "Employees", icon: Users, href: "/user/employees" },
+  { name: "Departments", icon: Boxes, href: "/user/departments" },
+  { name: "Reports", icon: BookMarked, href: "/user/reports" },
+  { name: "Payroll", icon: BadgeDollarSign, href: "/user/payroll" },
 ];
+
 
 type SidebarMode = "expanded" | "collapsed" | "hover";
 
@@ -81,9 +83,11 @@ export default function Sidebar() {
         <div className="absolute bottom-4 left-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="p-2 rounded-md text-muted-foreground hover:bg-muted transition">
-                <PanelRight className="h-4 w-4" />
-              </button>
+              <button className="p-2 rounded-md text-muted-foreground hover:bg-accent">
+  <PanelRight className="h-4 w-4" />
+  <span className="sr-only">Toggle Sidebar</span>
+</button>
+
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Sidebar Control</DropdownMenuLabel>

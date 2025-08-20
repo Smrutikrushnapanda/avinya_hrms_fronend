@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
-import AxiosInstance from "../../api/api"; // adjust path if needed
+import axios from "axios";// adjust path if needed
 import { startOfMonth } from "date-fns";
 
 interface AttendanceRecord {
@@ -34,7 +34,7 @@ const DashboardCalendarSection = () => {
   useEffect(() => {
     const fetchAttendance = async () => {
       try {
-        const res = await AxiosInstance.get("/attendance/monthly", {
+         const res = await axios.get("/attendance/monthly", {
           params: {
             userId,
             organizationId,
