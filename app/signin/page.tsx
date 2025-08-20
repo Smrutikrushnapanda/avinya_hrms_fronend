@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { login } from "../api/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,49 +20,38 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(""); // Clear any old errors
+    setError(""); // clear old error
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userName: userId,
-          password: password,
-          clientInfo: {}
-        }),
+      const response = await login({
+        password: password,
+        userName: userId,
       });
 
-      if (!res.ok) {
-        if (res.status === 401) throw new Error("Invalid User ID or Password");
-        throw new Error("Something went wrong. Please try again.");
-      }
+      // ✅ Extract user + token properly
+      const { user: responseUser, access_token } = response.data;
 
-      const data = await res.json();
+      // ✅ Store token & user in localStorage
+      localStorage.setItem("access_token", access_token);
+      localStorage.setItem("user", JSON.stringify(responseUser));
 
-      // Store token & user data in localStorage/sessionStorage
-      localStorage.setItem("access_token", data.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-      // Extract roles
-      const roles: { roleName: string }[] = data.user.roles || [];
+      // ✅ Extract roles
+      const roles: { roleName: string }[] = responseUser.roles || [];
       const roleNames = roles.map((r) => r.roleName);
-      const isAdmin = roleNames.includes("ADMIN");
-      const isEmployee = roleNames.includes("EMPLOYEE");
+
       // ✅ Redirect based on role
-      if (isAdmin) {
+      if (roleNames.includes("ADMIN")) {
         toast.success("Login successful! 🎉");
         router.push("/admin/dashboard");
-      } else if(isEmployee){
+      } else if (roleNames.includes("EMPLOYEE")) {
         toast.success("Login successful! 🎉");
-        router.push(`/user/dashboard/${data.user.id}`);
-      }
-      else{
+        router.push(`/user/dashboard/${responseUser.id}`);
+      } else {
         toast.error("You are not assigned with any role!");
       }
     } catch (error: any) {
-      setError(error.message || "Login failed"); // ✅ Show error in form
+      // show backend error if available
+      setError(error.response?.data?.message || error.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -104,7 +94,10 @@ export default function LoginPage() {
               </h2>
               <form className="space-y-4" onSubmit={handleLogin}>
                 <div>
-                  <label className="block text-sm font-medium mb-1" htmlFor="userid">
+                  <label
+                    className="block text-sm font-medium mb-1"
+                    htmlFor="userid"
+                  >
                     User ID
                   </label>
                   <Input
@@ -116,7 +109,10 @@ export default function LoginPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1" htmlFor="password">
+                  <label
+                    className="block text-sm font-medium mb-1"
+                    htmlFor="password"
+                  >
                     Password
                   </label>
                   <Input
@@ -133,7 +129,11 @@ export default function LoginPage() {
                   <p className="text-red-500 text-sm mt-2">{error}</p>
                 )}
 
-                <Button type="submit" className="w-full text-base mt-2" disabled={loading}>
+                <Button
+                  type="submit"
+                  className="w-full text-base mt-2"
+                  disabled={loading}
+                >
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>

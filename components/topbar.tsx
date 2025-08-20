@@ -29,7 +29,7 @@ export default function Topbar() {
       </div>
 
       {/* Center: Horizontal menu */}
-      <nav className="hidden md:flex items-center gap-6 text-sm text-foreground">
+      {/* <nav className="hidden md:flex items-center gap-6 text-sm text-foreground">
         <a href="#" className="hover:text-primary transition-colors">
           Dashboard
         </a>
@@ -42,7 +42,7 @@ export default function Topbar() {
         <a href="#" className="hover:text-primary transition-colors">
           Reports
         </a>
-      </nav>
+      </nav> */}
 
       {/* Right: Notification + Avatar */}
       <div className="flex items-center gap-4">

@@ -9,7 +9,7 @@ export default function LayoutWrapper({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isUserPath = pathname.startsWith("/user");
+  const isUserPath = pathname.startsWith("/user") || pathname.startsWith("/admin");
 
   return (
     <>
