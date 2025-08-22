@@ -11,23 +11,9 @@ interface User {
   role: string;
 }
 
-export default function UserDashboardPage({ params }: { params: { id: string } }) {
+export default function UserDashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-       const res = await axios.get(`/users/${params.id}`);
-        setUser(res.data);
-      } catch (error) {
-        console.error("Failed to fetch user:", error);
-      } finally {
-        setLoading(false); 
-      }
-    };
-    fetchUser();
-  }, [params.id]);
 
   if (loading) return <p className="p-6">Loading...</p>;
 
