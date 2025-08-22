@@ -304,7 +304,7 @@ export default function EmployeesPage() {
       );
       setManagers(potentialManagers);
 
-      toast.success("Employees loaded successfully");
+      //toast.success("Employees loaded successfully");
     } catch (error: any) {
       console.error("Failed to fetch employees:", error);
       toast.error("Failed to fetch employees");
