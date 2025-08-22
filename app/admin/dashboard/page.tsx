@@ -1032,15 +1032,34 @@ export default function HRDashboardPage() {
     { name: 'Absent', value: attendanceBreakdown.absent, color: '#ef4444' },
   ];
 
+  // const [currentTime, setCurrentTime] = useState(new Date());
+
+  // // useEffect(() => {
+  // //   const timer = setInterval(() => {
+  // //     setCurrentTime(new Date());
+  // //   }, 1000);
+
+  // //   return () => clearInterval(timer);
+  // // }, []);
+
+function LiveClock() {
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  const tick = () => {
+    setCurrentTime(new Date());
+    setTimeout(tick, 1000);
+  };
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+  setTimeout(tick, 1000);
 
-    return () => clearInterval(timer);
-  }, []);
+  return (
+    <div className="text-sm font-medium">
+      {format(currentTime, 'MMM dd, yyyy HH:mm:ss')}
+    </div>
+  );
+}
+
+
 
   if (loading) {
     return (
@@ -1080,8 +1099,8 @@ export default function HRDashboardPage() {
         <div className="flex items-center gap-5">
           <h1 className="text-2xl font-bold border-r pr-5">Dashboard</h1>
           <div className="flex items-center gap-2">
-            <div className="text-sm font-medium">
-              {format(new Date(), 'MMM dd, yyyy HH:mm:ss')}
+            <div className="flex items-center gap-2">
+              <LiveClock />
             </div>
           </div>
         </div>
