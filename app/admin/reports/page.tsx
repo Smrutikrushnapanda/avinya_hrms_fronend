@@ -57,8 +57,6 @@ import {
   getProfile,
   getAttendanceReport,
   getLeaveReport,
-  getPayrollReport,
-  getPerformanceReport,
 } from "@/app/api/api";
 import {
   exportAttendanceReport,
@@ -69,6 +67,7 @@ import {
   exportChartData,
 } from "@/utils/reportExport";
 import { adaptAttendanceData, generateMockAttendanceData } from "@/utils/dataAdapter";
+
 interface WeeklyAttendanceData {
   name: string;
   present: number;
@@ -88,6 +87,31 @@ interface DepartmentData {
   color: string;
 }
 
+// Mock API functions for missing endpoints
+const getPayrollReport = async (params: any) => {
+  console.warn('Payroll report API not implemented, using mock data');
+  toast.warning("Payroll API is not available. Using sample data.");
+  return {
+    data: {
+      success: true,
+      data: [],
+      total: 0,
+    }
+  };
+};
+
+const getPerformanceReport = async (params: any) => {
+  console.warn('Performance report API not implemented, using mock data');
+  toast.warning("Performance API is not available. Using sample data.");
+  return {
+    data: {
+      success: true,
+      data: [],
+      total: 0,
+    }
+  };
+};
+
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [reportLoading, setReportLoading] = useState<string | null>(null);
@@ -96,10 +120,9 @@ export default function ReportsPage() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [selectedPeriod, setSelectedPeriod] = useState("this-month");
   const [selectedReport, setSelectedReport] = useState("attendance");
-const [attendanceData, setAttendanceData] = useState<WeeklyAttendanceData[]>([]);
-const [departmentData, setDepartmentData] = useState<DepartmentData[]>([]);
-const [monthlyTrendData, setMonthlyTrendData] = useState<MonthlyTrendData[]>([]);
-
+  const [attendanceData, setAttendanceData] = useState<WeeklyAttendanceData[]>([]);
+  const [departmentData, setDepartmentData] = useState<DepartmentData[]>([]);
+  const [monthlyTrendData, setMonthlyTrendData] = useState<MonthlyTrendData[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -111,34 +134,59 @@ const [monthlyTrendData, setMonthlyTrendData] = useState<MonthlyTrendData[]>([])
     }
   }, [selectedPeriod, userProfile]);
 
+  // FIXED: Enhanced error handling with API availability checks
   const fetchData = async () => {
     try {
       setLoading(true);
+      
       const [statsRes, profileRes] = await Promise.allSettled([
         getDashboardStats(),
         getProfile(),
       ]);
 
+      // Handle dashboard stats with error feedback
       if (statsRes.status === 'fulfilled') {
-        setDashboardStats(statsRes.value.data);
+        setDashboardStats(statsRes.value?.data || null);
+      } else {
+        console.error("Dashboard stats API error:", statsRes.reason);
+        toast.error("Dashboard stats API is currently unavailable");
+        setDashboardStats(null);
       }
+
+      // Handle profile with error feedback
       if (profileRes.status === 'fulfilled') {
-        setUserProfile(profileRes.value.data);
+        setUserProfile(profileRes.value?.data || null);
         
         // Fetch employees after getting profile
-        if (profileRes.value.data?.organizationId) {
-          const employeesRes = await getEmployees(profileRes.value.data.organizationId);
-          setEmployees(employeesRes.data || []);
+        if (profileRes.value?.data?.organizationId) {
+          try {
+            const employeesRes = await getEmployees(profileRes.value.data.organizationId);
+            setEmployees(Array.isArray(employeesRes.data) ? employeesRes.data : []);
+          } catch (error) {
+            console.error("Employees API error:", error);
+            toast.error("Employees API is currently unavailable");
+            setEmployees([]);
+          }
         }
+      } else {
+        console.error("Profile API error:", profileRes.reason);
+        toast.error("User profile API is currently unavailable");
+        setUserProfile(null);
+        setEmployees([]);
       }
     } catch (error) {
       console.error("Failed to fetch reports data:", error);
-      toast.error("Failed to load dashboard data");
+      toast.error("Multiple APIs are currently unavailable. Please try again later.");
+      // Set safe defaults
+      setDashboardStats(null);
+      setUserProfile(null);
+      setEmployees([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // FIXED: Enhanced chart data fetching with error handling
   const fetchChartData = async () => {
     if (!userProfile?.organizationId) return;
 
@@ -173,13 +221,18 @@ const [monthlyTrendData, setMonthlyTrendData] = useState<MonthlyTrendData[]>([])
         toDate: format(endDate, 'yyyy-MM-dd'),
       };
 
-      const attendanceRes = await getAttendanceReport(params);
-      const adaptedData = adaptAttendanceData(attendanceRes.data);
+      try {
+        const attendanceRes = await getAttendanceReport(params);
+        const adaptedData = adaptAttendanceData(attendanceRes.data);
 
-      if (adaptedData.length > 0) {
-        processAttendanceData(adaptedData);
-      } else {
-        // Generate mock chart data if no real data
+        if (Array.isArray(adaptedData) && adaptedData.length > 0) {
+          processAttendanceData(adaptedData);
+        } else {
+          generateMockChartData();
+        }
+      } catch (error) {
+        console.error("Attendance report API error:", error);
+        toast.warning("Attendance report API is not available. Using sample chart data.");
         generateMockChartData();
       }
 
@@ -188,95 +241,121 @@ const [monthlyTrendData, setMonthlyTrendData] = useState<MonthlyTrendData[]>([])
       
     } catch (error) {
       console.error("Failed to fetch chart data:", error);
+      toast.warning("Chart data APIs are not available. Using sample data.");
       generateMockChartData();
     }
   };
 
-const processAttendanceData = (data: any[]) => {
-  // Process attendance data for weekly chart with proper typing
-  const weeklyData: WeeklyAttendanceData[] = [];
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  
-  days.forEach(day => {
-    const dayData = data.filter(record => {
-      const recordDay = format(new Date(record.date), 'EEE');
-      return recordDay === day;
-    });
+  const processAttendanceData = (data: any[]) => {
+    try {
+      // Process attendance data for weekly chart with proper typing
+      const weeklyData: WeeklyAttendanceData[] = [];
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      
+      days.forEach(day => {
+        const dayData = Array.isArray(data) ? data.filter(record => {
+          if (!record?.date) return false;
+          try {
+            const recordDay = format(new Date(record.date), 'EEE');
+            return recordDay === day;
+          } catch {
+            return false;
+          }
+        }) : [];
 
-    weeklyData.push({
-      name: day,
-      present: dayData.filter(d => d.status === 'PRESENT' || d.status === 'present').length,
-      absent: dayData.filter(d => d.status === 'ABSENT' || d.status === 'absent').length,
-      halfDay: dayData.filter(d => d.status === 'HALF_DAY' || d.status === 'half-day').length,
-    });
-  });
+        weeklyData.push({
+          name: day,
+          present: dayData.filter(d => d.status === 'PRESENT' || d.status === 'present').length,
+          absent: dayData.filter(d => d.status === 'ABSENT' || d.status === 'absent').length,
+          halfDay: dayData.filter(d => d.status === 'HALF_DAY' || d.status === 'half-day').length,
+        });
+      });
 
-  setAttendanceData(weeklyData);
+      setAttendanceData(weeklyData);
 
-  // Generate monthly trend data with proper typing
-  const monthlyTrend: MonthlyTrendData[] = [
-    { month: 'Jan', attendance: 92, leaves: 8 },
-    { month: 'Feb', attendance: 89, leaves: 11 },
-    { month: 'Mar', attendance: 94, leaves: 6 },
-    { month: 'Apr', attendance: 91, leaves: 9 },
-    { month: 'May', attendance: 88, leaves: 12 },
-    { month: 'Jun', attendance: 93, leaves: 7 },
-    { month: 'Jul', attendance: 90, leaves: 10 },
-    { month: 'Aug', attendance: 95, leaves: 5 },
-  ];
-  setMonthlyTrendData(monthlyTrend);
-};
+      // Generate monthly trend data with proper typing
+      const monthlyTrend: MonthlyTrendData[] = [
+        { month: 'Jan', attendance: 92, leaves: 8 },
+        { month: 'Feb', attendance: 89, leaves: 11 },
+        { month: 'Mar', attendance: 94, leaves: 6 },
+        { month: 'Apr', attendance: 91, leaves: 9 },
+        { month: 'May', attendance: 88, leaves: 12 },
+        { month: 'Jun', attendance: 93, leaves: 7 },
+        { month: 'Jul', attendance: 90, leaves: 10 },
+        { month: 'Aug', attendance: 95, leaves: 5 },
+      ];
+      setMonthlyTrendData(monthlyTrend);
+    } catch (error) {
+      console.error("Error processing attendance data:", error);
+      generateMockChartData();
+    }
+  };
 
+  const generateMockChartData = () => {
+    try {
+      // Mock weekly attendance data with proper typing
+      const mockWeeklyData: WeeklyAttendanceData[] = [
+        { name: 'Mon', present: 120, absent: 5, halfDay: 3 },
+        { name: 'Tue', present: 115, absent: 8, halfDay: 5 },
+        { name: 'Wed', present: 125, absent: 3, halfDay: 2 },
+        { name: 'Thu', present: 118, absent: 7, halfDay: 3 },
+        { name: 'Fri', present: 110, absent: 12, halfDay: 6 },
+        { name: 'Sat', present: 85, absent: 25, halfDay: 18 },
+        { name: 'Sun', present: 0, absent: 0, halfDay: 0 },
+      ];
+      setAttendanceData(mockWeeklyData);
 
-const generateMockChartData = () => {
-  // Mock weekly attendance data with proper typing
-  const mockWeeklyData: WeeklyAttendanceData[] = [
-    { name: 'Mon', present: 120, absent: 5, halfDay: 3 },
-    { name: 'Tue', present: 115, absent: 8, halfDay: 5 },
-    { name: 'Wed', present: 125, absent: 3, halfDay: 2 },
-    { name: 'Thu', present: 118, absent: 7, halfDay: 3 },
-    { name: 'Fri', present: 110, absent: 12, halfDay: 6 },
-    { name: 'Sat', present: 85, absent: 25, halfDay: 18 },
-    { name: 'Sun', present: 0, absent: 0, halfDay: 0 },
-  ];
-  setAttendanceData(mockWeeklyData);
+      // Mock monthly trend data with proper typing
+      const mockMonthlyTrend: MonthlyTrendData[] = [
+        { month: 'Jan', attendance: 92, leaves: 8 },
+        { month: 'Feb', attendance: 89, leaves: 11 },
+        { month: 'Mar', attendance: 94, leaves: 6 },
+        { month: 'Apr', attendance: 91, leaves: 9 },
+        { month: 'May', attendance: 88, leaves: 12 },
+        { month: 'Jun', attendance: 93, leaves: 7 },
+        { month: 'Jul', attendance: 90, leaves: 10 },
+        { month: 'Aug', attendance: 95, leaves: 5 },
+      ];
+      setMonthlyTrendData(mockMonthlyTrend);
+    } catch (error) {
+      console.error("Error generating mock chart data:", error);
+      // Set empty arrays as fallback
+      setAttendanceData([]);
+      setMonthlyTrendData([]);
+    }
+  };
 
-  // Mock monthly trend data with proper typing
-  const mockMonthlyTrend: MonthlyTrendData[] = [
-    { month: 'Jan', attendance: 92, leaves: 8 },
-    { month: 'Feb', attendance: 89, leaves: 11 },
-    { month: 'Mar', attendance: 94, leaves: 6 },
-    { month: 'Apr', attendance: 91, leaves: 9 },
-    { month: 'May', attendance: 88, leaves: 12 },
-    { month: 'Jun', attendance: 93, leaves: 7 },
-    { month: 'Jul', attendance: 90, leaves: 10 },
-    { month: 'Aug', attendance: 95, leaves: 5 },
-  ];
-  setMonthlyTrendData(mockMonthlyTrend);
-};
+  const processDepartmentData = () => {
+    try {
+      if (!Array.isArray(employees) || employees.length === 0) {
+        setDepartmentData([]);
+        return;
+      }
 
+      const deptCounts: Record<string, number> = employees.reduce((acc, emp) => {
+        const dept = emp?.department?.name || 'Unassigned';
+        acc[dept] = (acc[dept] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
-const processDepartmentData = () => {
-  const deptCounts: Record<string, number> = employees.reduce((acc, emp) => {
-    const dept = emp.department?.name || 'Unassigned';
-    acc[dept] = (acc[dept] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+      const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+      const deptData: DepartmentData[] = Object.entries(deptCounts).map(([name, value], index) => ({
+        name,
+        value,
+        color: colors[index % colors.length],
+      }));
 
-  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-  const deptData: DepartmentData[] = Object.entries(deptCounts).map(([name, value], index) => ({
-    name,
-    value,
-    color: colors[index % colors.length],
-  }));
+      setDepartmentData(deptData);
+    } catch (error) {
+      console.error("Error processing department data:", error);
+      setDepartmentData([]);
+    }
+  };
 
-  setDepartmentData(deptData);
-};
-
-
+  // FIXED: Enhanced report generation with better API error handling
   const generateReport = async (reportType: string) => {
     if (!userProfile?.organizationId) {
-      toast.error("Organization not found");
+      toast.error("Organization not found. Cannot generate reports.");
       return;
     }
 
@@ -332,19 +411,15 @@ const processDepartmentData = () => {
           try {
             console.log("Fetching attendance report with params:", params);
             
-            // Use our enhanced multi-endpoint fetcher
             const response = await getAttendanceReport(params);
-            
-            // Adapt the data using our utility
             let attendanceData = adaptAttendanceData(response.data);
             
             console.log("Adapted attendance data:", attendanceData);
 
-            if (attendanceData.length === 0) {
-              // Generate mock data when no real data exists
+            if (!Array.isArray(attendanceData) || attendanceData.length === 0) {
               console.log("No real data found, generating mock data");
               attendanceData = generateMockAttendanceData(employees, params);
-              toast.warning("No attendance records found for selected period. Sample data generated for demonstration.");
+              toast.warning("Attendance API returned no data. Sample report generated.");
             } else {
               toast.success("Real attendance data found and processed!");
             }
@@ -357,8 +432,9 @@ const processDepartmentData = () => {
             }
           } catch (error) {
             console.error("Attendance report error:", error);
+            toast.error("Attendance API is currently unavailable");
             
-            // Even if API fails, generate mock data
+            // Generate mock data as fallback
             const mockData = generateMockAttendanceData(employees, params);
             exportAttendanceReport(mockData, periodLabel);
             toast.warning("API failed. Sample attendance report generated.");
@@ -366,20 +442,24 @@ const processDepartmentData = () => {
           break;
 
         case 'employee':
-          if (employees.length > 0) {
-            exportEmployeeReport(employees);
-            toast.success(`Employee report exported successfully! (${employees.length} employees)`);
-          } else {
-            toast.error("No employees found to export");
+          try {
+            if (Array.isArray(employees) && employees.length > 0) {
+              exportEmployeeReport(employees);
+              toast.success(`Employee report exported successfully! (${employees.length} employees)`);
+            } else {
+              toast.error("No employees found to export");
+            }
+          } catch (error) {
+            console.error("Employee report error:", error);
+            toast.error("Failed to generate employee report");
           }
           break;
 
         case 'leave':
           try {
             const response = await getLeaveReport(params);
-            let leaveData = response.data || [];
+            let leaveData = response?.data || [];
             
-            // Adapt leave data format
             if (Array.isArray(leaveData) && leaveData.length > 0) {
               const adaptedLeaveData = leaveData.map((leave: any) => ({
                 employeeId: leave.user?.id || leave.employeeId || leave.userId || '',
@@ -401,7 +481,7 @@ const processDepartmentData = () => {
               toast.success(`Leave report exported successfully! (${adaptedLeaveData.length} records)`);
             } else {
               // Generate mock leave data
-              const mockLeaveData = employees.slice(0, Math.min(employees.length, 8)).map((emp, index) => ({
+              const mockLeaveData = (Array.isArray(employees) ? employees : []).slice(0, Math.min(employees.length, 8)).map((emp, index) => ({
                 employeeId: emp.id,
                 employeeName: `${emp.firstName} ${emp.lastName || ''}`,
                 employeeCode: emp.employeeCode || `EMP${String(index + 1).padStart(3, '0')}`,
@@ -416,11 +496,11 @@ const processDepartmentData = () => {
               }));
               
               exportLeaveReport(mockLeaveData, periodLabel);
-              toast.warning("No leave records found. Sample leave report generated.");
+              toast.warning("Leave API returned no data. Sample leave report generated.");
             }
           } catch (error) {
             console.error("Leave report error:", error);
-            toast.error("Failed to generate leave report");
+            toast.error("Leave API is currently unavailable");
           }
           break;
 
@@ -429,28 +509,24 @@ const processDepartmentData = () => {
             const response = await getPayrollReport(params);
             
             // Generate mock payroll data since API is not implemented
-            const mockPayrollData = employees.map((emp, index) => ({
-              employeeId: emp.id,
-              employeeName: `${emp.firstName} ${emp.lastName || ''}`,
-              employeeCode: emp.employeeCode || `EMP${String(index + 1).padStart(3, '0')}`,
-              basicSalary: (30000 + (index * 5000) + Math.floor(Math.random() * 20000)).toString(),
-              allowances: (8000 + (index * 1000) + Math.floor(Math.random() * 5000)).toString(),
-              deductions: (3000 + (index * 300) + Math.floor(Math.random() * 2000)).toString(),
-              grossSalary: '',  // Will be calculated
-              netSalary: '',    // Will be calculated
-              payDate: format(endOfMonth(startDate), 'yyyy-MM-dd'),
-              status: ['Paid', 'Processing', 'Pending'][index % 3],
-            })).map(pay => {
-              const basic = parseInt(pay.basicSalary);
-              const allowances = parseInt(pay.allowances);
-              const deductions = parseInt(pay.deductions);
+            const mockPayrollData = (Array.isArray(employees) ? employees : []).map((emp, index) => {
+              const basic = 30000 + (index * 5000) + Math.floor(Math.random() * 20000);
+              const allowances = 8000 + (index * 1000) + Math.floor(Math.random() * 5000);
+              const deductions = 3000 + (index * 300) + Math.floor(Math.random() * 2000);
               const gross = basic + allowances;
               const net = gross - deductions;
-              
+
               return {
-                ...pay,
+                employeeId: emp.id,
+                employeeName: `${emp.firstName} ${emp.lastName || ''}`,
+                employeeCode: emp.employeeCode || `EMP${String(index + 1).padStart(3, '0')}`,
+                basicSalary: basic.toString(),
+                allowances: allowances.toString(),
+                deductions: deductions.toString(),
                 grossSalary: gross.toString(),
                 netSalary: net.toString(),
+                payDate: format(endOfMonth(startDate), 'yyyy-MM-dd'),
+                status: ['Paid', 'Processing', 'Pending'][index % 3],
               };
             });
             
@@ -458,7 +534,7 @@ const processDepartmentData = () => {
             toast.success(`Payroll report exported successfully! (${mockPayrollData.length} records)`);
           } catch (error) {
             console.error("Payroll report error:", error);
-            toast.error("Failed to generate payroll report");
+            toast.error("Payroll API is currently unavailable");
           }
           break;
 
@@ -467,9 +543,9 @@ const processDepartmentData = () => {
             const response = await getPerformanceReport(params);
             
             // Generate mock performance data since API is not implemented
-            const mockPerformanceData = employees.slice(0, Math.min(employees.length, 15)).map((emp, index) => {
-              const baseScore = 3.0 + (Math.random() * 2); // 3.0 to 5.0
-              const goals = 4 + Math.floor(Math.random() * 6); // 4 to 9 goals
+            const mockPerformanceData = (Array.isArray(employees) ? employees : []).slice(0, Math.min(employees.length, 15)).map((emp, index) => {
+              const baseScore = 3.0 + (Math.random() * 2);
+              const goals = 4 + Math.floor(Math.random() * 6);
               
               return {
                 employeeId: emp.id,
@@ -494,12 +570,12 @@ const processDepartmentData = () => {
             toast.success(`Performance report exported successfully! (${mockPerformanceData.length} records)`);
           } catch (error) {
             console.error("Performance report error:", error);
-            toast.error("Failed to generate performance report");
+            toast.error("Performance API is currently unavailable");
           }
           break;
 
         case 'custom':
-          toast.info("Custom report builder will be available soon!");
+          toast.info("Custom report builder API is not yet available");
           break;
 
         default:
@@ -507,7 +583,7 @@ const processDepartmentData = () => {
       }
     } catch (error: any) {
       console.error(`Failed to generate ${reportType} report:`, error);
-      toast.error(`Failed to generate ${reportType} report: ${error.message}`);
+      toast.error(`Failed to generate ${reportType} report. API may be unavailable.`);
     } finally {
       setReportLoading(null);
     }
@@ -515,9 +591,15 @@ const processDepartmentData = () => {
 
   const exportChartAsExcel = (chartName: string, data: any[]) => {
     try {
+      if (!Array.isArray(data) || data.length === 0) {
+        toast.error(`No ${chartName} data available to export`);
+        return;
+      }
+      
       exportChartData(data, chartName);
       toast.success(`${chartName} data exported successfully!`);
     } catch (error) {
+      console.error(`Chart export error:`, error);
       toast.error(`Failed to export ${chartName} data`);
     }
   };
@@ -543,18 +625,21 @@ const processDepartmentData = () => {
     );
   }
 
-  const totalEmployees = employees.length;
-  const activeEmployees = employees.filter(e => e.status === 'active').length;
-  const attendanceRate = activeEmployees > 0 ? ((activeEmployees / totalEmployees) * 100).toFixed(1) : '0';
+  // Safe calculations with fallbacks
+  const totalEmployees = Array.isArray(employees) ? employees.length : 0;
+  const activeEmployees = Array.isArray(employees) ? employees.filter(e => e.status === 'active').length : 0;
+  const attendanceRate = totalEmployees > 0 ? ((activeEmployees / totalEmployees) * 100).toFixed(1) : '0';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="container mx-auto p-6">
         <motion.div initial="hidden" animate="visible" variants={containerVariants} className="space-y-6">
           
           {/* Header */}
           <motion.div variants={itemVariants} className="flex items-center justify-between">
             <div>
-
+              <h1 className="text-3xl font-bold">Reports & Analytics</h1>
+              <p className="text-muted-foreground">Generate comprehensive reports and insights</p>
             </div>
             <div className="flex items-center space-x-3">
               <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
@@ -670,18 +755,28 @@ const processDepartmentData = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={attendanceData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" />
-                            <YAxis />
-                            <Tooltip />
-                            <Legend />
-                            <Bar dataKey="present" fill="#10b981" name="Present" />
-                            <Bar dataKey="halfDay" fill="#f59e0b" name="Half Day" />
-                            <Bar dataKey="absent" fill="#ef4444" name="Absent" />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        {Array.isArray(attendanceData) && attendanceData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={attendanceData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey="present" fill="#10b981" name="Present" />
+                              <Bar dataKey="halfDay" fill="#f59e0b" name="Half Day" />
+                              <Bar dataKey="absent" fill="#ef4444" name="Absent" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-muted-foreground">
+                            <div className="text-center">
+                              <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                              <p>No attendance data available</p>
+                              <p className="text-sm">API may be unavailable</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -705,17 +800,26 @@ const processDepartmentData = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={monthlyTrendData}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
-                            <YAxis />
-                            <Tooltip />
-                            <Legend />
-                            <Line type="monotone" dataKey="attendance" stroke="#3b82f6" name="Attendance %" />
-                            <Line type="monotone" dataKey="leaves" stroke="#ef4444" name="Leaves %" />
-                          </LineChart>
-                        </ResponsiveContainer>
+                        {Array.isArray(monthlyTrendData) && monthlyTrendData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={monthlyTrendData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="month" />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Line type="monotone" dataKey="attendance" stroke="#3b82f6" name="Attendance %" />
+                              <Line type="monotone" dataKey="leaves" stroke="#ef4444" name="Leaves %" />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-muted-foreground">
+                            <div className="text-center">
+                              <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">No trend data available</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -739,25 +843,34 @@ const processDepartmentData = () => {
                     </CardHeader>
                     <CardContent>
                       <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RechartsPieChart>
-                            <Pie
-                              data={departmentData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={40}
-                              outerRadius={80}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {departmentData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                            <Legend />
-                          </RechartsPieChart>
-                        </ResponsiveContainer>
+                        {Array.isArray(departmentData) && departmentData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                              <Pie
+                                data={departmentData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={40}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="value"
+                              >
+                                {departmentData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip />
+                              <Legend />
+                            </RechartsPieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-muted-foreground">
+                            <div className="text-center">
+                              <PieChart className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">No department data available</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -791,7 +904,9 @@ const processDepartmentData = () => {
                           <div className="space-y-3">
                             <div className="flex items-center justify-between text-sm">
                               <span>Records</span>
-                              <Badge variant="outline">{attendanceData.reduce((sum, day) => sum + day.present + day.absent + day.halfDay, 0)}</Badge>
+                              <Badge variant="outline">
+                                {Array.isArray(attendanceData) ? attendanceData.reduce((sum, day) => sum + day.present + day.absent + day.halfDay, 0) : 0}
+                              </Badge>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Period</span>
@@ -831,12 +946,12 @@ const processDepartmentData = () => {
                           <div className="space-y-3">
                             <div className="flex items-center justify-between text-sm">
                               <span>Employees</span>
-                              <Badge variant="outline">{employees.length}</Badge>
+                              <Badge variant="outline">{totalEmployees}</Badge>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Departments</span>
                               <span className="text-muted-foreground">
-                                {new Set(employees.map(e => e.department?.name).filter(Boolean)).size}
+                                {new Set((Array.isArray(employees) ? employees : []).map(e => e.department?.name).filter(Boolean)).size}
                               </span>
                             </div>
                             <Button 
@@ -917,7 +1032,7 @@ const processDepartmentData = () => {
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Employees</span>
-                              <span className="text-muted-foreground">{employees.length}</span>
+                              <span className="text-muted-foreground">{totalEmployees}</span>
                             </div>
                             <Button 
                               size="sm" 
@@ -1141,5 +1256,6 @@ const processDepartmentData = () => {
           </motion.div>
         </motion.div>
       </div>
+    </div>
   );
 }

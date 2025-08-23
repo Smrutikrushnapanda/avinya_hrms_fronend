@@ -122,6 +122,17 @@ export default function PayrollPage() {
       console.error("Failed to fetch profile:", error);
     }
   };
+  // 💰 Payroll report (Mock - no API yet)
+const getPayrollReport = async (params: any) => {
+  console.warn('Payroll report API not implemented, using mock data');
+  return {
+    data: {
+      success: true,
+      data: [],
+      total: 0,
+    }
+  };
+};
 
   const fetchEmployees = async () => {
     try {

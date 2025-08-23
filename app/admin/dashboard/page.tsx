@@ -1,39 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import api, {
-  getDashboardStats,
-  getEmployees,
-  getDepartments,
+  getDashboardSummary,
   getUserActivities,
   getTodayAnomalies,
-  getLeaveTypes,
-  getActiveNotices,
   getPolls,
-  getActivePoll,
-  getPoll,
+  getNotices,
+  getProfile,
   getQuestions,
   saveResponse,
-  createPoll,
-  addQuestion,
-  getPendingLeaves,
-  getAttendanceByDate,
-  getDailyStats,
-  getCurrentTime,
-  getProfile,
-  getNotices,
-  getEmployeeBirthdays,
+  createPoll
 } from "@/app/api/api";
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardDescription,
+  Card, CardHeader, CardTitle, CardContent, CardDescription
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,64 +25,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
-import { format, isAfter, isBefore, isToday, addDays } from "date-fns";
+import { format, isAfter, isBefore } from "date-fns";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
-  Users,
-  UserCheck,
-  Calendar,
-  AlertTriangle,
-  TrendingUp,
-  Clock,
-  Bell,
-  Settings,
-  Activity,
-  PieChart,
-  BarChart3,
-  Eye,
-  EyeOff,
-  Vote,
-  MessageSquare,
-  CheckCircle,
-  XCircle,
-  Plus,
-  Cake,
-  Gift,
-  PartyPopper,
-  X,
+  Users, UserCheck, Calendar, AlertTriangle, TrendingUp, Clock, Bell, Settings, Activity,
+  PieChart, BarChart3, Eye, EyeOff, Vote, MessageSquare, Plus, Cake, Gift, PartyPopper, X
 } from "lucide-react";
 import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  PieChart as RechartsPieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
+  PieChart as RechartsPieChart, Pie, Cell
 } from "recharts";
 
-// Widget Configuration
+// --- Widget Configuration and Types ---
 interface Widget {
   id: string;
   title: string;
@@ -112,7 +55,7 @@ interface Widget {
 const DEFAULT_WIDGETS: Widget[] = [
   { id: 'dashboard-stats', title: 'Dashboard Statistics', isEnabled: true, hasAPI: true, isImportant: true, category: 'stats' },
   { id: 'employee-list', title: 'Employee Overview', isEnabled: true, hasAPI: true, isImportant: true, category: 'stats' },
-  { id: 'attendance-today', title: 'Today\'s Attendance', isEnabled: true, hasAPI: true, isImportant: true, category: 'stats' },
+  { id: 'attendance-today', title: "Today's Attendance", isEnabled: true, hasAPI: true, isImportant: true, category: 'stats' },
   { id: 'leave-requests', title: 'Leave Requests', isEnabled: true, hasAPI: true, isImportant: true, category: 'activities' },
   { id: 'active-polls', title: 'Active Polls', isEnabled: true, hasAPI: true, isImportant: true, category: 'notifications' },
   { id: 'company-notices', title: 'Company Notices', isEnabled: true, hasAPI: true, isImportant: true, category: 'notifications' },
@@ -120,15 +63,11 @@ const DEFAULT_WIDGETS: Widget[] = [
   { id: 'department-breakdown', title: 'Department Breakdown', isEnabled: true, hasAPI: true, isImportant: true, category: 'charts' },
   { id: 'attendance-trends', title: 'Attendance Trends', isEnabled: true, hasAPI: true, isImportant: false, category: 'charts' },
   { id: 'user-activities', title: 'Recent Activities', isEnabled: true, hasAPI: true, isImportant: false, category: 'activities' },
-  { id: 'attendance-anomalies', title: 'Attendance Anomalies', isEnabled: true, hasAPI: true, isImportant: true, category: 'notifications' },
-  { id: 'payroll-summary', title: 'Payroll Summary', isEnabled: false, hasAPI: false, isImportant: true, category: 'stats' },
-  { id: 'performance-metrics', title: 'Performance Metrics', isEnabled: false, hasAPI: false, isImportant: false, category: 'charts' },
-  { id: 'company-events', title: 'Company Events', isEnabled: false, hasAPI: false, isImportant: false, category: 'notifications' },
+  { id: 'attendance-anomalies', title: 'Attendance Anomalies', isEnabled: true, hasAPI: true, isImportant: true, category: 'notifications' }
 ];
 
-// Skeleton Components
+// --- Skeleton Components ---
 function StatCardSkeleton() {
-
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
@@ -168,15 +107,7 @@ function WidgetCardSkeleton({ height = "h-48" }: { height?: string }) {
   );
 }
 
-// Components
-function StatCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  trend,
-  color = "blue"
-}: {
+function StatCard({ title, value, subtitle, icon: Icon, trend, color = "blue" }: {
   title: string;
   value: number | string;
   subtitle: string;
@@ -216,7 +147,7 @@ function WidgetCard({ children, className = "" }: { children: React.ReactNode; c
   );
 }
 
-// FIXED Poll Management Component
+// --- Poll Management Component ---
 function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => void; currentUser: any }) {
   const [isOpen, setIsOpen] = useState(false);
   const [pollData, setPollData] = useState({
@@ -261,7 +192,6 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
     setQuestions(updated);
   };
 
-  // FIXED handleCreatePoll function
   const handleCreatePoll = async () => {
     if (!pollData.title || !pollData.start_time || !pollData.end_time) {
       toast.error('Please fill in all required fields');
@@ -275,18 +205,16 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
 
     setCreating(true);
     try {
-      // Format questions according to CreatePollQuestionDto structure
       const formattedQuestions = questions
         .filter(q => q.text.trim())
         .map(question => ({
           text: question.text.trim(),
-          questionType: question.type, // Use exact backend enum values
+          questionType: question.type,
           options: question.type === 'single_choice' || question.type === 'multiple_choice'
             ? question.options.filter(opt => opt.trim())
             : []
         }));
 
-      // Format poll data according to CreatePollDto structure
       const formattedPollData = {
         title: pollData.title.trim(),
         description: pollData.description.trim() || undefined,
@@ -297,25 +225,14 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
         questions: formattedQuestions,
       };
 
-      console.log('Creating poll with formatted data:', formattedPollData);
-
-      const pollResponse = await createPoll(formattedPollData);
-      console.log('Poll created successfully:', pollResponse.data);
-
+      await createPoll(formattedPollData);
       toast.success('Poll created successfully!');
       onPollCreated();
       setIsOpen(false);
-
-      // Reset form
       setPollData({ title: '', description: '', start_time: '', end_time: '', is_anonymous: false });
       setQuestions([]);
-
     } catch (error: any) {
-      console.error('Error creating poll:', error);
-      const errorMessage = error.response?.data?.message ||
-        error.response?.data?.error ||
-        'Failed to create poll';
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.message || 'Failed to create poll');
     } finally {
       setCreating(false);
     }
@@ -332,102 +249,62 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Poll</DialogTitle>
-          <DialogDescription>
-            Create a poll for employees to participate in
-          </DialogDescription>
+          <DialogDescription>Create a poll for employees to participate in</DialogDescription>
         </DialogHeader>
-
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-4">
             <div>
               <Label htmlFor="title">Poll Title *</Label>
-              <Input
-                id="title"
-                value={pollData.title}
+              <Input id="title" value={pollData.title}
                 onChange={(e) => setPollData({ ...pollData, title: e.target.value })}
-                placeholder="Enter poll title"
-              />
+                placeholder="Enter poll title" />
             </div>
-
             <div>
               <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={pollData.description}
+              <Textarea id="description" value={pollData.description}
                 onChange={(e) => setPollData({ ...pollData, description: e.target.value })}
-                placeholder="Enter poll description"
-                rows={3}
-              />
+                placeholder="Enter poll description" rows={3} />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="start_time">Start Time *</Label>
-                <Input
-                  id="start_time"
-                  type="datetime-local"
-                  value={pollData.start_time}
-                  onChange={(e) => setPollData({ ...pollData, start_time: e.target.value })}
-                />
+                <Input id="start_time" type="datetime-local" value={pollData.start_time}
+                  onChange={(e) => setPollData({ ...pollData, start_time: e.target.value })} />
               </div>
               <div>
                 <Label htmlFor="end_time">End Time *</Label>
-                <Input
-                  id="end_time"
-                  type="datetime-local"
-                  value={pollData.end_time}
-                  onChange={(e) => setPollData({ ...pollData, end_time: e.target.value })}
-                />
+                <Input id="end_time" type="datetime-local" value={pollData.end_time}
+                  onChange={(e) => setPollData({ ...pollData, end_time: e.target.value })} />
               </div>
             </div>
-
             <div className="flex items-center space-x-2">
-              <Switch
-                id="anonymous"
-                checked={pollData.is_anonymous}
-                onCheckedChange={(checked) => setPollData({ ...pollData, is_anonymous: checked })}
-              />
+              <Switch id="anonymous" checked={pollData.is_anonymous}
+                onCheckedChange={(checked) => setPollData({ ...pollData, is_anonymous: checked })} />
               <Label htmlFor="anonymous">Anonymous Poll</Label>
             </div>
           </div>
-
           <div>
             <div className="flex items-center justify-between mb-4">
               <Label className="text-base font-semibold">Questions</Label>
               <Button type="button" size="sm" onClick={addNewQuestion}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Question
+                <Plus className="h-4 w-4 mr-2" />Add Question
               </Button>
             </div>
-
             <div className="space-y-4">
               {questions.map((question, qIndex) => (
                 <div key={qIndex} className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
                   <div className="space-y-3">
                     <div className="flex items-start gap-2">
-                      <Input
-                        placeholder="Enter question text"
-                        value={question.text}
-                        onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => removeQuestion(qIndex)}
-                      >
+                      <Input placeholder="Enter question text" value={question.text}
+                        onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)} className="flex-1" />
+                      <Button type="button" size="sm" variant="destructive"
+                        onClick={() => removeQuestion(qIndex)}>
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-
-                    <Select
-                      value={question.type}
-                      onValueChange={(value) => updateQuestion(qIndex, 'type', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select question type" />
-                      </SelectTrigger>
+                    <Select value={question.type}
+                      onValueChange={(value) => updateQuestion(qIndex, 'type', value)}>
+                      <SelectTrigger><SelectValue placeholder="Select question type" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="single_choice">Single Choice</SelectItem>
                         <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
@@ -435,37 +312,23 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
                         <SelectItem value="rating">Rating</SelectItem>
                       </SelectContent>
                     </Select>
-
                     {(question.type === 'single_choice' || question.type === 'multiple_choice') && (
                       <div className="ml-4">
                         <div className="flex items-center justify-between mb-2">
                           <Label className="text-sm font-medium">Options</Label>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => addOption(qIndex)}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Add Option
+                          <Button type="button" size="sm" variant="outline"
+                            onClick={() => addOption(qIndex)}>
+                            <Plus className="h-3 w-3 mr-1" />Add Option
                           </Button>
                         </div>
                         <div className="space-y-2">
                           {question.options.map((option, oIndex) => (
                             <div key={oIndex} className="flex items-center gap-2">
-                              <Input
-                                placeholder={`Option ${oIndex + 1}`}
-                                value={option}
-                                onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
-                                className="flex-1"
-                              />
+                              <Input placeholder={`Option ${oIndex + 1}`} value={option}
+                                onChange={(e) => updateOption(qIndex, oIndex, e.target.value)} className="flex-1" />
                               {question.options.length > 1 && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => removeOption(qIndex, oIndex)}
-                                >
+                                <Button type="button" size="sm" variant="outline"
+                                  onClick={() => removeOption(qIndex, oIndex)}>
                                   <X className="h-3 w-3" />
                                 </Button>
                               )}
@@ -478,7 +341,6 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
                 </div>
               ))}
             </div>
-
             {questions.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 <Vote className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -488,15 +350,10 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
             )}
           </div>
         </div>
-
         <DialogFooter>
-          <Button variant="outline" onClick={() => setIsOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreatePoll}
-            disabled={creating || !pollData.title || !pollData.start_time || !pollData.end_time}
-          >
+          <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+          <Button onClick={handleCreatePoll}
+            disabled={creating || !pollData.title || !pollData.start_time || !pollData.end_time}>
             {creating ? 'Creating...' : 'Create Poll'}
           </Button>
         </DialogFooter>
@@ -505,7 +362,7 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
   );
 }
 
-// Poll Response Component (FIXED)
+// --- Poll Widget ---
 function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; currentUser: any; onPollUpdate: () => void }) {
   const [questions, setQuestions] = useState<any[]>([]);
   const [responses, setResponses] = useState<{ [key: string]: string | string[] }>({});
@@ -529,23 +386,18 @@ function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; curren
       const response = await getQuestions(pollId);
       setQuestions(response.data || []);
     } catch (error) {
-      console.error('Error loading poll questions:', error);
       setQuestions([]);
     }
   };
 
   const handleResponseSubmit = async () => {
     if (!activePoll || !currentUser) return;
-
     setSubmitting(true);
     try {
-      // Format responses according to backend structure
       for (const [questionId, response] of Object.entries(responses)) {
         if (!response) continue;
-
         const question = questions.find(q => q.id === questionId);
         if (!question) continue;
-
         const responseData = {
           poll_id: activePoll.id,
           question_id: questionId,
@@ -554,15 +406,12 @@ function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; curren
           response_text: question.question_type === 'text' ? response : undefined,
           response_rating: question.question_type === 'rating' ? parseInt(response as string) : undefined,
         };
-
         await saveResponse(responseData);
       }
-
       setResponses({});
       toast.success('Response submitted successfully!');
       onPollUpdate();
     } catch (error: any) {
-      console.error('Error submitting poll response:', error);
       toast.error(error.response?.data?.message || 'Failed to submit response');
     } finally {
       setSubmitting(false);
@@ -596,20 +445,14 @@ function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; curren
                 <span>Ends: {format(new Date(activePoll.end_time), 'MMM dd, yyyy HH:mm')}</span>
               </div>
             </div>
-
             {questions.length > 0 ? (
               <div className="space-y-4">
                 {questions.map((question, index) => (
                   <div key={question.id || index} className="border rounded-lg p-3">
                     <p className="font-medium mb-3">{question.question_text}</p>
-
                     {question.question_type === 'single_choice' ? (
-                      <RadioGroup
-                        value={responses[question.id] as string || ''}
-                        onValueChange={(value) =>
-                          setResponses(prev => ({ ...prev, [question.id]: value }))
-                        }
-                      >
+                      <RadioGroup value={responses[question.id] as string || ''}
+                        onValueChange={(value) => setResponses(prev => ({ ...prev, [question.id]: value }))}>
                         {question.options?.map((option: any, optIndex: number) => (
                           <div key={optIndex} className="flex items-center space-x-2">
                             <RadioGroupItem value={option.id} id={`${question.id}-${optIndex}`} />
@@ -618,23 +461,14 @@ function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; curren
                         ))}
                       </RadioGroup>
                     ) : question.question_type === 'text' ? (
-                      <Textarea
-                        placeholder="Enter your response..."
-                        value={responses[question.id] as string || ''}
-                        onChange={(e) =>
-                          setResponses(prev => ({ ...prev, [question.id]: e.target.value }))
-                        }
-                      />
+                      <Textarea placeholder="Enter your response..." value={responses[question.id] as string || ''}
+                        onChange={(e) => setResponses(prev => ({ ...prev, [question.id]: e.target.value }))} />
                     ) : question.question_type === 'rating' ? (
                       <div className="flex items-center space-x-2">
                         {[1, 2, 3, 4, 5].map((rating) => (
-                          <Button
-                            key={rating}
-                            type="button"
-                            size="sm"
+                          <Button key={rating} type="button" size="sm"
                             variant={responses[question.id] === rating.toString() ? "default" : "outline"}
-                            onClick={() => setResponses(prev => ({ ...prev, [question.id]: rating.toString() }))}
-                          >
+                            onClick={() => setResponses(prev => ({ ...prev, [question.id]: rating.toString() }))}>
                             {rating}
                           </Button>
                         ))}
@@ -642,12 +476,8 @@ function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; curren
                     ) : null}
                   </div>
                 ))}
-
-                <Button
-                  onClick={handleResponseSubmit}
-                  disabled={submitting || Object.keys(responses).length === 0}
-                  className="w-full"
-                >
+                <Button onClick={handleResponseSubmit}
+                  disabled={submitting || Object.keys(responses).length === 0} className="w-full">
                   {submitting ? 'Submitting...' : 'Submit Response'}
                 </Button>
               </div>
@@ -663,7 +493,6 @@ function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; curren
             <Vote className="h-12 w-12 mx-auto mb-3 opacity-40" />
             <p className="font-medium">No Active Polls</p>
             <p className="text-sm mt-1">Check back later for new polls</p>
-
             {polls.length > 0 && (
               <div className="mt-4">
                 <p className="text-xs opacity-60 mb-2">Recent Polls:</p>
@@ -684,7 +513,7 @@ function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; curren
   );
 }
 
-// Notice Component
+// --- Notice Widget ---
 function NoticeWidget({ notices }: { notices: any[] }) {
   const activeNotices = notices.filter(notice => {
     const now = new Date();
@@ -695,14 +524,10 @@ function NoticeWidget({ notices }: { notices: any[] }) {
 
   const getNoticeIcon = (type: string) => {
     switch (type) {
-      case 'wish':
-        return <MessageSquare className="h-4 w-4 text-purple-500" />;
-      case 'info':
-        return <Bell className="h-4 w-4 text-blue-500" />;
-      case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-orange-500" />;
-      default:
-        return <Bell className="h-4 w-4 opacity-60" />;
+      case 'wish': return <MessageSquare className="h-4 w-4 text-purple-500" />;
+      case 'info': return <Bell className="h-4 w-4 text-blue-500" />;
+      case 'warning': return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+      default: return <Bell className="h-4 w-4 opacity-60" />;
     }
   };
 
@@ -713,9 +538,7 @@ function NoticeWidget({ notices }: { notices: any[] }) {
           <Bell className="h-5 w-5 text-blue-500" />
           Company Notices
           {activeNotices.length > 0 && (
-            <Badge variant="secondary">
-              {activeNotices.length}
-            </Badge>
+            <Badge variant="secondary">{activeNotices.length}</Badge>
           )}
         </CardTitle>
       </CardHeader>
@@ -729,25 +552,17 @@ function NoticeWidget({ notices }: { notices: any[] }) {
                   <div className="flex-1">
                     <h4 className="font-semibold text-sm">{notice.title}</h4>
                     <p className="text-sm opacity-70 mt-1">{notice.message}</p>
-
                     {notice.bg_image_url && (
-                      <div className="mt-3">
-                        <img
-                          src={notice.bg_image_url}
-                          alt={notice.title}
-                          className="w-full h-32 object-cover rounded-lg"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
+                      <div className="mt-3"><img
+                        src={notice.bg_image_url}
+                        alt={notice.title}
+                        className="w-full h-32 object-cover rounded-lg"
+                        onError={e => ((e.target as HTMLImageElement).style.display = 'none')}
+                      /></div>
                     )}
-
                     <div className="flex items-center justify-between mt-3 text-xs opacity-60">
                       <span>Valid until: {format(new Date(notice.end_at), 'MMM dd, yyyy')}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {notice.type}
-                      </Badge>
+                      <Badge variant="outline" className="text-xs">{notice.type}</Badge>
                     </div>
                   </div>
                 </div>
@@ -758,20 +573,6 @@ function NoticeWidget({ notices }: { notices: any[] }) {
               <Bell className="h-12 w-12 mx-auto mb-3 opacity-40" />
               <p className="font-medium">No Active Notices</p>
               <p className="text-sm mt-1">All caught up!</p>
-
-              {notices.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-xs opacity-60 mb-2">Recent Notices:</p>
-                  {notices.slice(0, 2).map((notice) => (
-                    <div key={notice.id} className="text-xs bg-muted p-2 rounded mb-1">
-                      <span className="font-medium">{notice.title}</span>
-                      <span className="opacity-60 ml-2">
-                        (Expired: {format(new Date(notice.end_at), 'MMM dd')})
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -780,70 +581,18 @@ function NoticeWidget({ notices }: { notices: any[] }) {
   );
 }
 
-// Birthday Widget
-function BirthdayWidget({ organizationId }: { organizationId: string }) {
-  const [birthdays, setBirthdays] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadBirthdays();
-  }, [organizationId]);
-
-  const loadBirthdays = async () => {
-    try {
-      setLoading(true);
-      const response = await getEmployeeBirthdays(organizationId);
-      setBirthdays(response.data || []);
-    } catch (error) {
-      console.error('Error loading birthdays:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+// --- Birthday Widget ---
+function BirthdayWidget({ upcomingBirthdays }: { upcomingBirthdays: any[] }) {
   const today = new Date();
-  const todayBirthdays = birthdays.filter(person => {
-    const birthDate = new Date(person.date);
-    return (
-      birthDate.getDate() === today.getDate() &&
-      birthDate.getMonth() === today.getMonth()
-    );
+  const todayBirthdays = upcomingBirthdays.filter(person => {
+    const birthDate = new Date(person.dateOfBirth);
+    return birthDate.getDate() === today.getDate() && birthDate.getMonth() === today.getMonth();
   });
-
-  const upcomingBirthdays = birthdays
-    .filter(person => {
-      const birthDate = new Date(person.date);
-      const thisYear = today.getFullYear();
-      const birthdayThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
-
-      if (birthdayThisYear < today) {
-        birthdayThisYear.setFullYear(thisYear + 1);
-      }
-
-      const daysDiff = Math.ceil((birthdayThisYear.getTime() - today.getTime()) / (1000 * 3600 * 24));
-      return daysDiff > 0 && daysDiff <= 30;
-    })
-    .slice(0, 5);
-
-  if (loading) {
-    return (
-      <WidgetCard>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Cake className="h-5 w-5 text-pink-500" />
-            Birthday Tracker
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-        </CardContent>
-      </WidgetCard>
-    );
-  }
+  const nextBirthdays = upcomingBirthdays.filter(person => {
+    const birthDate = new Date(person.dateOfBirth);
+    const isToday = birthDate.getDate() === today.getDate() && birthDate.getMonth() === today.getMonth();
+    return !isToday;
+  });
 
   return (
     <WidgetCard>
@@ -863,21 +612,20 @@ function BirthdayWidget({ organizationId }: { organizationId: string }) {
           {todayBirthdays.length > 0 && (
             <div>
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                <PartyPopper className="h-4 w-4 text-pink-500" />
-                Today's Birthdays
+                <PartyPopper className="h-4 w-4 text-pink-500" />Today's Birthdays
               </h4>
               <div className="space-y-2">
                 {todayBirthdays.map((person) => (
                   <div key={person.id} className="flex items-center gap-3 p-3 bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800 rounded-lg">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={person.avatar || ''} />
+                      <AvatarImage src={person.photoUrl || ''} />
                       <AvatarFallback className="bg-pink-200 text-pink-800">
-                        {person.name.split(' ').map((n: string) => n[0]).join('')}
+                        {`${person.firstName} ${person.lastName || ''}`.split(' ').map((n: string) => n[0]).join('')}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <div className="font-medium text-sm">{person.name}</div>
-                      <div className="text-xs opacity-70">{person.department}</div>
+                      <div className="font-medium text-sm">{`${person.firstName} ${person.lastName || ''}`.trim()}</div>
+                      <div className="text-xs opacity-70">{person.department?.name || 'Unknown Department'}</div>
                     </div>
                     <Cake className="h-4 w-4 text-pink-500" />
                   </div>
@@ -885,42 +633,36 @@ function BirthdayWidget({ organizationId }: { organizationId: string }) {
               </div>
             </div>
           )}
-
           <div>
             <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
               <Gift className="h-4 w-4 text-blue-500" />
               Upcoming Birthdays
             </h4>
-            {upcomingBirthdays.length > 0 ? (
+            {nextBirthdays.length > 0 ? (
               <div className="space-y-2">
-                {upcomingBirthdays.map((person) => {
-                  const birthDate = new Date(person.date);
-                  const thisYear = new Date().getFullYear();
-                  const birthdayThisYear = new Date(thisYear, birthDate.getMonth(), birthDate.getDate());
-
-                  if (birthdayThisYear < new Date()) {
-                    birthdayThisYear.setFullYear(thisYear + 1);
-                  }
-
-                  return (
-                    <div key={person.id} className="flex items-center gap-3 p-2 border rounded-lg">
-                      <Avatar className="h-7 w-7">
-                        <AvatarImage src={person.avatar || ''} />
-                        <AvatarFallback className="text-xs">
-                          {person.name.split(' ').map((n: string) => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">{person.name}</div>
-                        <div className="text-xs opacity-70">{person.department}</div>
-                      </div>
-                      <div className="text-right text-xs opacity-70">
-                        <div>{format(birthdayThisYear, 'MMM dd')}</div>
-                        <div>{format(birthdayThisYear, 'EEE')}</div>
-                      </div>
+                {nextBirthdays.map((person) => (
+                  <div key={person.id} className="flex items-center gap-3 p-2 border rounded-lg">
+                    <Avatar className="h-7 w-7">
+                      <AvatarImage src={person.photoUrl || ''} />
+                      <AvatarFallback className="text-xs">
+                        {`${person.firstName} ${person.lastName || ''}`.split(' ').map((n: string) => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{`${person.firstName} ${person.lastName || ''}`.trim()}</div>
+                      <div className="text-xs opacity-70">{person.department?.name || 'Unknown Department'}</div>
                     </div>
-                  );
-                })}
+                    <div className="text-right text-xs opacity-70">
+                      <div>{format(new Date(person.dateOfBirth), 'MMM dd')}</div>
+                      <div>{format(new Date(person.dateOfBirth), 'EEE')}</div>
+                      {person.daysUntilBirthday && (
+                        <div className="text-xs text-blue-600 font-medium">
+                          {person.daysUntilBirthday} days
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="text-center opacity-60 py-4">
@@ -935,68 +677,64 @@ function BirthdayWidget({ organizationId }: { organizationId: string }) {
   );
 }
 
-// Main Dashboard Component
+// --- Main Dashboard Component ---
 export default function HRDashboardPage() {
+  // --- States ---
   const { theme } = useTheme();
-
   const [widgets, setWidgets] = useState<Widget[]>(DEFAULT_WIDGETS);
   const [showWidgetSettings, setShowWidgetSettings] = useState(false);
-
-  const [stats, setStats] = useState<any>(null);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<any[]>([]);
   const [anomalies, setAnomalies] = useState<any[]>([]);
-  const [leaveTypes, setLeaveTypes] = useState<any[]>([]);
   const [notices, setNotices] = useState<any[]>([]);
   const [polls, setPolls] = useState<any[]>([]);
-  const [attendanceToday, setAttendanceToday] = useState<any>(null);
   const [dailyStats, setDailyStats] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
   const organizationId = "24facd21-265a-4edd-8fd1-bc69a036f755";
 
   useEffect(() => {
     loadDashboardData();
+    const interval = setInterval(loadDashboardData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
+  // --- Data Loading Function (Optimized) ---
   const loadDashboardData = async () => {
     setLoading(true);
     try {
+      const formattedDate = format(new Date(), "yyyy-MM-dd");
       const results = await Promise.allSettled([
-        getDashboardStats(),
-        getEmployees(organizationId),
-        getDepartments(organizationId),
+        getDashboardSummary(),
         getUserActivities({ limit: 10 }),
         getTodayAnomalies(),
-        getLeaveTypes(organizationId),
         getNotices(),
         getPolls(),
-        getAttendanceByDate({ organizationId, date: format(new Date(), 'yyyy-MM-dd') }),
-        getDailyStats({ organizationId }),
+        api.get("/attendance/daily-stats", {
+          params: {
+            organizationId,
+            date: formattedDate,
+          },
+        }),
         getProfile(),
       ]);
-
       const [
-        statsRes, employeesRes, departmentsRes, activitiesRes,
-        anomaliesRes, leaveTypesRes, noticesRes, pollsRes,
-        attendanceRes, dailyStatsRes, profileRes
+        dashboardRes, activitiesRes, anomaliesRes, noticesRes, pollsRes,
+        dailyStatsRes, profileRes
       ] = results;
-
-      setStats(statsRes.status === 'fulfilled' ? statsRes.value.data : null);
-      setEmployees(employeesRes.status === 'fulfilled' ? employeesRes.value.data || [] : []);
-      setDepartments(departmentsRes.status === 'fulfilled' ? departmentsRes.value.data || [] : []);
+      if (dashboardRes.status === 'fulfilled' && dashboardRes.value.data.success) {
+        setDashboardData(dashboardRes.value.data.data);
+      } else {
+        setDashboardData(null);
+      }
       setActivities(activitiesRes.status === 'fulfilled' ? activitiesRes.value.data?.data || [] : []);
       setAnomalies(anomaliesRes.status === 'fulfilled' ? anomaliesRes.value.data || [] : []);
-      setLeaveTypes(leaveTypesRes.status === 'fulfilled' ? leaveTypesRes.value.data || [] : []);
       setNotices(noticesRes.status === 'fulfilled' ? noticesRes.value.data || [] : []);
       setPolls(pollsRes.status === 'fulfilled' ? pollsRes.value.data || [] : []);
-      setAttendanceToday(attendanceRes.status === 'fulfilled' ? attendanceRes.value.data : null);
       setDailyStats(dailyStatsRes.status === 'fulfilled' ? dailyStatsRes.value.data : null);
       setCurrentUser(profileRes.status === 'fulfilled' ? profileRes.value.data : null);
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      setDashboardData(null);
     } finally {
       setLoading(false);
     }
@@ -1010,56 +748,57 @@ export default function HRDashboardPage() {
     ));
   };
 
-  const isWidgetEnabled = (widgetId: string) => {
-    return widgets.find(w => w.id === widgetId)?.isEnabled || false;
-  };
+  const isWidgetEnabled = (widgetId: string) => widgets.find(w => w.id === widgetId)?.isEnabled || false;
+  const handlePollUpdate = () => { getPolls().then(response => setPolls(response.data || [])); };
+  const stats = dashboardData?.dashboardStats;
+  const employees = dashboardData?.employees || [];
+  const departments = dashboardData?.departments || [];
+  const departmentStats = dashboardData?.departmentStats || [];
+  const upcomingBirthdays = dashboardData?.upcomingBirthdays || [];
 
-  const handlePollUpdate = () => {
-    getPolls().then(response => {
-      setPolls(response.data || []);
-    }).catch(console.error);
-  };
+  // --- Memoized Data ---
+  const departmentData = useMemo(() => {
+    if (Array.isArray(departmentStats) && departmentStats.length > 0) {
+      return departmentStats
+        .filter(dept => dept.activeEmployeeCount > 0)
+        .map(dept => ({
+          name: dept.departmentName,
+          employees: dept.activeEmployeeCount,
+          code: dept.departmentCode,
+        }));
+    }
+    if (Array.isArray(departments) && departments.length > 0) {
+      return departments.map(dept => ({
+        name: dept.name,
+        employees: Array.isArray(employees) ?
+          employees.filter(emp => emp.departmentId === dept.id).length : 0,
+      }));
+    }
+    return [];
+  }, [departmentStats, departments, employees]);
 
-  const departmentData = departments.map(dept => ({
-    name: dept.name,
-    employees: employees.filter(emp => emp.departmentId === dept.id).length,
-  }));
+  const attendanceChartData = useMemo(() => {
+    if (dailyStats) {
+      const presentCount = dailyStats.presentSummary?.total_present || 0;
+      const absentCount = dailyStats.notPresentSummary?.absent || 0;
+      const halfDayCount = 0;
+      return [
+        { name: 'Present', value: presentCount, color: '#10b981' },
+        { name: 'Half Day', value: halfDayCount, color: '#f59e0b' },
+        { name: 'Absent', value: absentCount, color: '#ef4444' },
+      ].filter(item => item.value > 0);
+    }
+    return [];
+  }, [dailyStats]);
 
-  const attendanceBreakdown = stats?.attendanceBreakdown || { present: 0, halfDay: 0, absent: 0 };
-  const attendanceChartData = [
-    { name: 'Present', value: attendanceBreakdown.present, color: '#10b981' },
-    { name: 'Half Day', value: attendanceBreakdown.halfDay, color: '#f59e0b' },
-    { name: 'Absent', value: attendanceBreakdown.absent, color: '#ef4444' },
-  ];
-
-  // const [currentTime, setCurrentTime] = useState(new Date());
-
-  // // useEffect(() => {
-  // //   const timer = setInterval(() => {
-  // //     setCurrentTime(new Date());
-  // //   }, 1000);
-
-  // //   return () => clearInterval(timer);
-  // // }, []);
-
-function LiveClock() {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  
-  const tick = () => {
-    setCurrentTime(new Date());
-    setTimeout(tick, 1000);
-  };
-
-  setTimeout(tick, 1000);
-
-  return (
-    <div className="text-sm font-medium">
-      {format(currentTime, 'MMM dd, yyyy HH:mm:ss')}
-    </div>
-  );
-}
-
-
+  function LiveClock() {
+    const [currentTime, setCurrentTime] = useState(new Date());
+    useEffect(() => {
+      const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+      return () => clearInterval(timer);
+    }, []);
+    return (<div className="text-sm font-medium">{format(currentTime, 'MMM dd, yyyy HH:mm:ss')}</div>);
+  }
 
   if (loading) {
     return (
@@ -1070,20 +809,17 @@ function LiveClock() {
             <Skeleton className="h-5 w-40" />
           </div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <StatCardSkeleton />
           <StatCardSkeleton />
           <StatCardSkeleton />
           <StatCardSkeleton />
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
           <WidgetCardSkeleton height="h-64" />
           <WidgetCardSkeleton height="h-64" />
           <WidgetCardSkeleton height="h-64" />
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           <WidgetCardSkeleton height="h-80" />
           <WidgetCardSkeleton height="h-80" />
@@ -1093,28 +829,20 @@ function LiveClock() {
   }
 
   return (
-    <div className="p-6">
+    <div>
       {/* Dashboard Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-5">
           <h1 className="text-2xl font-bold border-r pr-5">Dashboard</h1>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2">
-              <LiveClock />
-            </div>
-          </div>
+          <div className="flex items-center gap-2"><LiveClock /></div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
+        <Button variant="outline" size="sm"
           onClick={() => setShowWidgetSettings(!showWidgetSettings)}
-          className="flex items-center gap-2"
-        >
+          className="flex items-center gap-2">
           <Settings className="h-4 w-4" />
           Manage Widgets
         </Button>
       </div>
-
       {/* Widget Settings Panel */}
       {showWidgetSettings && (
         <Card className="mb-6 border-2 border-blue-200 dark:border-blue-800">
@@ -1132,8 +860,7 @@ function LiveClock() {
               {widgets.map((widget) => (
                 <div key={widget.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
-                    <Switch
-                      checked={widget.isEnabled}
+                    <Switch checked={widget.isEnabled}
                       onCheckedChange={() => toggleWidget(widget.id)}
                       disabled={!widget.hasAPI && widget.isImportant}
                     />
@@ -1141,70 +868,62 @@ function LiveClock() {
                       <div className="font-medium text-sm">{widget.title}</div>
                       <div className="flex items-center gap-2 mt-1">
                         {widget.hasAPI ? (
-                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                            API Ready
-                          </Badge>
+                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">API Ready</Badge>
                         ) : (
-                          <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                            Coming Soon
-                          </Badge>
+                          <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">Coming Soon</Badge>
                         )}
                         {widget.isImportant && (
-                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            Important
-                          </Badge>
+                          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Important</Badge>
                         )}
                       </div>
                     </div>
                   </div>
                   {widget.isEnabled ? (
                     <Eye className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <EyeOff className="h-4 w-4 opacity-40" />
-                  )}
+                  ) : <EyeOff className="h-4 w-4 opacity-40" />}
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Key Statistics */}
-      {isWidgetEnabled('dashboard-stats') && stats && (
+      {/* Statistics Cards */}
+      {isWidgetEnabled('dashboard-stats') && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <StatCard
             title="Total Employees"
-            value={stats.totalEmployees?.value || 0}
+            value={stats?.totalEmployees?.value || employees.length || 0}
             subtitle="Active workforce"
             icon={Users}
-            trend={stats.totalEmployees?.change}
+            trend={stats?.totalEmployees?.change}
             color="blue"
           />
           <StatCard
             title="Present Today"
-            value={stats.presentToday?.value || 0}
+            value={stats?.presentToday?.value || dailyStats?.presentSummary?.total_present || 0}
             subtitle="Currently in office"
             icon={UserCheck}
-            trend={stats.presentToday?.change}
+            trend={stats?.presentToday?.change || dailyStats?.presentSummary?.total_presentDiff}
             color="green"
           />
           <StatCard
-            title="On Leave"
-            value={stats.onLeaveToday?.value || 0}
-            subtitle="Approved leave today"
+            title="On Leave Today"
+            value={stats?.onLeaveToday?.value || 0}
+            subtitle="Taking leave"
             icon={Calendar}
+            trend={stats?.onLeaveToday?.change}
             color="orange"
           />
           <StatCard
             title="Pending Requests"
-            value={stats.pendingLeaveRequests?.value || 0}
-            subtitle="Awaiting approval"
+            value={stats?.pendingLeaveRequests?.value || 0}
+            subtitle="Leave requests"
             icon={Clock}
-            color="purple"
+            trend={stats?.pendingLeaveRequests?.change}
+            color="red"
           />
         </div>
       )}
-
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
         {isWidgetEnabled('attendance-today') && (
@@ -1216,28 +935,28 @@ function LiveClock() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <RechartsPieChart>
-                  <Pie
-                    data={attendanceChartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={80}
-                    dataKey="value"
-                  >
-                    {attendanceChartData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </RechartsPieChart>
-              </ResponsiveContainer>
+              {attendanceChartData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+                  <PieChart className="h-16 w-16 mb-4 opacity-30" />
+                  <p className="text-sm font-medium">No attendance data</p>
+                  <p className="text-xs opacity-70">Data will appear once employees check in</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <RechartsPieChart>
+                    <Pie data={attendanceChartData} cx="50%" cy="50%"
+                      innerRadius={40} outerRadius={80} dataKey="value">
+                      {attendanceChartData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip /><Legend />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </WidgetCard>
         )}
-
         {isWidgetEnabled('department-breakdown') && (
           <WidgetCard>
             <CardHeader>
@@ -1247,18 +966,25 @@ function LiveClock() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={departmentData}>
-                  <XAxis dataKey="name" fontSize={12} />
-                  <YAxis allowDecimals={false} fontSize={12} />
-                  <Tooltip />
-                  <Bar dataKey="employees" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {departmentData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+                  <BarChart3 className="h-16 w-16 mb-4 opacity-30" />
+                  <p className="text-sm font-medium">No department data</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={departmentData}>
+                    <XAxis dataKey="name" fontSize={12} angle={-45} textAnchor="end" height={60} />
+                    <YAxis allowDecimals={false} fontSize={12} />
+                    <Tooltip formatter={(value, name) => [value, 'Active Employees']}
+                      labelFormatter={(label) => `Department: ${label}`} />
+                    <Bar dataKey="employees" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Active Employees" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </WidgetCard>
         )}
-
         {isWidgetEnabled('user-activities') && (
           <WidgetCard>
             <CardHeader>
@@ -1275,9 +1001,7 @@ function LiveClock() {
                     <div className="flex-1">
                       <div className="text-sm font-medium">{activity.action || 'Activity'}</div>
                       <div className="text-xs opacity-70">{activity.details || 'No details available'}</div>
-                      <div className="text-xs opacity-50">
-                        {activity.timestamp ? format(new Date(activity.timestamp), 'MMM dd, HH:mm') : 'Recently'}
-                      </div>
+                      <div className="text-xs opacity-50">{activity.timestamp ? format(new Date(activity.timestamp), 'MMM dd, HH:mm') : 'Recently'}</div>
                     </div>
                   </div>
                 )) : (
@@ -1288,22 +1012,14 @@ function LiveClock() {
           </WidgetCard>
         )}
       </div>
-
       {/* Polls, Notices, and Birthday Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
         {isWidgetEnabled('active-polls') && (
           <PollWidget polls={polls} currentUser={currentUser} onPollUpdate={handlePollUpdate} />
         )}
-
-        {isWidgetEnabled('company-notices') && (
-          <NoticeWidget notices={notices} />
-        )}
-
-        {isWidgetEnabled('birthday-tracker') && (
-          <BirthdayWidget organizationId={organizationId} />
-        )}
+        {isWidgetEnabled('company-notices') && <NoticeWidget notices={notices} />}
+        {isWidgetEnabled('birthday-tracker') && <BirthdayWidget upcomingBirthdays={upcomingBirthdays} />}
       </div>
-
       {/* Notifications & Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {isWidgetEnabled('attendance-anomalies') && (
@@ -1312,9 +1028,7 @@ function LiveClock() {
               <CardTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
                 Attendance Anomalies
-                {anomalies.length > 0 && (
-                  <Badge variant="destructive" className="ml-2">{anomalies.length}</Badge>
-                )}
+                {anomalies.length > 0 && <Badge variant="destructive" className="ml-2">{anomalies.length}</Badge>}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1324,12 +1038,8 @@ function LiveClock() {
                     <AlertTriangle className="h-4 w-4 text-red-500 mt-1" />
                     <div className="flex-1">
                       <div className="text-sm font-medium">{anomaly.anomalyReason || 'Attendance Anomaly'}</div>
-                      <div className="text-xs opacity-70">
-                        Employee ID: {anomaly.employeeId || 'Unknown'}
-                      </div>
-                      <div className="text-xs opacity-50">
-                        {format(new Date(anomaly.timestamp), 'MMM dd, HH:mm')}
-                      </div>
+                      <div className="text-xs opacity-70">Employee ID: {anomaly.employeeId || 'Unknown'}</div>
+                      <div className="text-xs opacity-50">{format(new Date(anomaly.timestamp), 'MMM dd, HH:mm')}</div>
                     </div>
                   </div>
                 )) : (
@@ -1343,7 +1053,6 @@ function LiveClock() {
           </WidgetCard>
         )}
       </div>
-
       {/* Quick Actions */}
       <WidgetCard className="mb-6">
         <CardHeader>
