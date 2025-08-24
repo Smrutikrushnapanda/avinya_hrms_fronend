@@ -136,6 +136,12 @@ export default function EmployeeTable({
     return statusConfig[status as keyof typeof statusConfig] || statusConfig.active;
   };
 
+  // FIXED: Proper status display function
+  const getStatusText = (status: string) => {
+    if (!status) return "INACTIVE";
+    return status.toUpperCase();
+  };
+
   const handleSelectEmployee = (employeeId: string) => {
     setSelectedEmployees(
       selectedEmployees.includes(employeeId)
@@ -269,16 +275,16 @@ export default function EmployeeTable({
               </motion.div>
             )}
             
-            <Table className="">
+            <Table className="min-w-[1200px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="">
+                  <TableHead className="w-12">
                     <Checkbox
                       checked={selectedEmployees.length === employees.length && employees.length > 0}
                       onCheckedChange={handleSelectAllEmployees}
                     />
                   </TableHead>
-                  <TableHead className="">
+                  <TableHead className="min-w-[280px]">
                     <Button
                       variant="ghost"
                       onClick={() => onSort("firstName")}
@@ -288,20 +294,20 @@ export default function EmployeeTable({
                       <ArrowUpDown className="h-3 w-3" />
                     </Button>
                   </TableHead>
-                  <TableHead className="">
+                  <TableHead className="w-[180px]">
                     <Button
                       variant="ghost"
                       onClick={() => onSort("department")}
                       className="flex items-center space-x-1 p-0 h-auto font-medium"
                     >
                       <span>Department</span>
-                      <ArrowUpDown className="h-3" />
+                      <ArrowUpDown className="h-3 w-3" />
                     </Button>
                   </TableHead>
-                  <TableHead className="">Designation</TableHead>
-                  <TableHead className="">Manager</TableHead>
-                  <TableHead className="">Status</TableHead>
-                  <TableHead className="">
+                  <TableHead className="w-[160px]">Designation</TableHead>
+                  <TableHead className="w-[140px]">Manager</TableHead>
+                  <TableHead className="w-[100px]">Status</TableHead>
+                  <TableHead className="w-[120px]">
                     <Button
                       variant="ghost"
                       onClick={() => onSort("dateOfJoining")}
@@ -311,7 +317,7 @@ export default function EmployeeTable({
                       <ArrowUpDown className="h-3 w-3" />
                     </Button>
                   </TableHead>
-                  <TableHead className="text-center">Actions</TableHead>
+                  <TableHead className="w-[60px] text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -358,7 +364,7 @@ export default function EmployeeTable({
                               onCheckedChange={() => handleSelectEmployee(employee.id)}
                             />
                           </TableCell>
-                          <TableCell className="font-medium">
+                          <TableCell className="font-medium min-w-[280px]">
                             <div className="flex items-center space-x-3">
                               <Avatar className="h-10 w-10 flex-shrink-0">
                                 <AvatarImage
@@ -369,7 +375,7 @@ export default function EmployeeTable({
                                   {`${employee.firstName.charAt(0)}${(employee.lastName || '').charAt(0)}`}
                                 </AvatarFallback>
                               </Avatar>
-                              <div className=" flex-1">
+                              <div className="min-w-0 flex-1">
                                 <div className="font-medium flex items-center space-x-2">
                                   <span className="truncate">{`${employee.firstName} ${employee.lastName || ''}`}</span>
                                   {isNew && <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 flex-shrink-0">New</Badge>}
@@ -381,7 +387,7 @@ export default function EmployeeTable({
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="">
+                          <TableCell className="w-[180px]">
                             <div className="flex items-center space-x-1">
                               <Building className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                               <span className="text-sm truncate">
@@ -389,7 +395,7 @@ export default function EmployeeTable({
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="">
+                          <TableCell className="w-[160px]">
                             <div className="flex items-center space-x-1">
                               <Award className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                               <span className="text-sm truncate">
@@ -397,7 +403,7 @@ export default function EmployeeTable({
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="">
+                          <TableCell className="w-[140px]">
                             {employee.manager ? (
                               <div className="flex items-center space-x-1">
                                 <UserCheck className="h-3 w-3 text-muted-foreground flex-shrink-0" />
@@ -409,17 +415,17 @@ export default function EmployeeTable({
                               <span className="text-sm text-muted-foreground">No manager</span>
                             )}
                           </TableCell>
-                          <TableCell className="">
+                          <TableCell className="w-[100px]">
                             <Badge className={getStatusBadge(employee.status)}>
-                              {employee.status?"ACTIVE":"INACTIVE"}
+                              {getStatusText(employee.status)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="">
+                          <TableCell className="w-[120px]">
                             <div className="text-sm">
                               {safeFormatDate(employee.dateOfJoining)}
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="w-[60px] text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-8 w-8 p-0">

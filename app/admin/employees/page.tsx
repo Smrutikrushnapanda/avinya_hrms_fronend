@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Download, Upload, Settings, Zap, UserCheck, UserX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +22,7 @@ import {
   createUserActivity,
 } from "@/app/api/api";
 import { exportEmployeesToExcel, ExportFields } from "@/utils/exportToExcel";
-import { format } from 'date-fns';
+import { format } from "date-fns";
 import EmployeeStats from "./components/EmployeeStats";
 import EmployeeTable from "./components/EmployeeTable";
 import EmployeeDialogs from "./components/EmployeeDialogs";
@@ -40,17 +41,104 @@ function LiveClock() {
 
   return (
     <div className="text-sm font-medium">
-      {format(currentTime, 'MMM dd, yyyy HH:mm:ss')}
+      {format(currentTime, "MMM dd, yyyy HH:mm:ss")}
     </div>
   );
 }
+
+// Initial Loading Skeleton Component
+const InitialLoadingSkeleton = () => {
+  return (
+    <div className="space-y-6">
+      {/* Header Skeleton */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-5">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-6 w-40" />
+        </div>
+        <div className="flex items-center space-x-3">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-32" />
+        </div>
+      </div>
+
+      {/* Stats Cards Skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div key={index} className="h-32 rounded-lg border bg-card text-card-foreground shadow-sm">
+            <div className="flex flex-row items-center justify-between space-y-0 p-6 pb-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-4 rounded" />
+            </div>
+            <div className="p-6 pt-0">
+              <Skeleton className="h-8 w-16 mb-2" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Table Skeleton */}
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+          
+          {/* Filters Skeleton */}
+          <div className="flex flex-wrap items-center gap-4 mb-6">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+
+          {/* Table Content Skeleton */}
+          <div className="space-y-3">
+            {Array.from({ length: 10 }).map((_, index) => (
+              <div key={index} className="flex items-center space-x-4 p-4 border rounded">
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-8 w-8" />
+              </div>
+            ))}
+          </div>
+
+          {/* Pagination Skeleton */}
+          <div className="flex items-center justify-between mt-6">
+            <Skeleton className="h-4 w-48" />
+            <div className="flex items-center space-x-2">
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-8" />
+              <Skeleton className="h-8 w-16" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function EmployeesPage() {
   // NEW: Single state for all employee management data from API
   const [employeeData, setEmployeeData] = useState<any>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isTableLoading, setIsTableLoading] = useState(false);
-  
+  const [loading, setLoading] = useState(false);
+
   // Filter states (same as before)
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -115,7 +203,7 @@ export default function EmployeesPage() {
   });
 
   // Helper function for API delays
-  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // OPTIMIZED: Single effect to fetch profile
   useEffect(() => {
@@ -132,46 +220,60 @@ export default function EmployeesPage() {
   }, []);
 
   // OPTIMIZED: Fetch function with loading states
-  const fetchEmployeeManagementData = useCallback(async (isFilterChange = false) => {
-    if (!userProfile?.organizationId) return;
+  const fetchEmployeeManagementData = useCallback(
+    async (isFilterChange = false) => {
+      if (!userProfile?.organizationId) return;
 
-    if (isFilterChange) {
-      setIsTableLoading(true);
-    } else {
-      setIsInitialLoading(true);
-    }
-
-    try {
-      const params = {
-        page: currentPage,
-        limit: itemsPerPage,
-        search: searchTerm || undefined,
-        status: statusFilter !== "all" ? statusFilter : undefined,
-        department: departmentFilter !== "all" ? departmentFilter : undefined,
-        designation: designationFilter !== "all" ? designationFilter : undefined,
-        joinDateFilter: joinDateFilter !== "all" ? joinDateFilter : undefined,
-        sortBy,
-        sortOrder,
-      };
-
-      const response = await getEmployeeManagementData(params);
-      
-      if (response.data?.success) {
-        setEmployeeData(response.data.data);
+      if (isFilterChange) {
+        setIsTableLoading(true);
       } else {
-        throw new Error("API returned unsuccessful response");
+        setIsInitialLoading(true);
       }
-    } catch (error: any) {
-      console.error("Failed to fetch employee management data:", error);
-      if (!isFilterChange) {
-        toast.error("Failed to fetch employee data");
+
+      try {
+        const params = {
+          page: currentPage,
+          limit: itemsPerPage,
+          search: searchTerm || undefined,
+          status: statusFilter !== "all" ? statusFilter : undefined,
+          department: departmentFilter !== "all" ? departmentFilter : undefined,
+          designation: designationFilter !== "all" ? designationFilter : undefined,
+          joinDateFilter: joinDateFilter !== "all" ? joinDateFilter : undefined,
+          sortBy,
+          sortOrder,
+        };
+
+        const response = await getEmployeeManagementData(params);
+
+        if (response.data?.success) {
+          setEmployeeData(response.data.data);
+        } else {
+          throw new Error("API returned unsuccessful response");
+        }
+      } catch (error: any) {
+        console.error("Failed to fetch employee management data:", error);
+        if (!isFilterChange) {
+          toast.error("Failed to fetch employee data");
+        }
+        setEmployeeData(null);
+      } finally {
+        setIsInitialLoading(false);
+        setIsTableLoading(false);
       }
-      setEmployeeData(null);
-    } finally {
-      setIsInitialLoading(false);
-      setIsTableLoading(false);
-    }
-  }, [userProfile?.organizationId, currentPage, searchTerm, statusFilter, departmentFilter, designationFilter, joinDateFilter, sortBy, sortOrder, itemsPerPage]);
+    },
+    [
+      userProfile?.organizationId,
+      currentPage,
+      searchTerm,
+      statusFilter,
+      departmentFilter,
+      designationFilter,
+      joinDateFilter,
+      sortBy,
+      sortOrder,
+      itemsPerPage,
+    ]
+  );
 
   // Initial load
   useEffect(() => {
@@ -214,7 +316,7 @@ export default function EmployeesPage() {
           userId: userProfile.userId,
           action,
           details,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       }
     } catch (error) {
@@ -225,7 +327,7 @@ export default function EmployeesPage() {
   // Form validation (same as before)
   const validateForm = (data: EmployeeFormData): boolean => {
     const errors: Record<string, string> = {};
-    const allowedGenders = ['MALE', 'FEMALE', 'OTHER'];
+    const allowedGenders = ["MALE", "FEMALE", "OTHER"];
 
     if (!data.firstName?.trim()) errors.firstName = "First name is required";
     if (!data.lastName?.trim()) errors.lastName = "Last name is required";
@@ -243,18 +345,20 @@ export default function EmployeesPage() {
 
     // Check for duplicate employee code within current data
     const employees = employeeData?.employees || [];
-    const isDuplicate = employees.some((emp: Employee) =>
-      emp.employeeCode.toLowerCase() === data.employeeCode?.toLowerCase() &&
-      emp.id !== selectedEmployee?.id
+    const isDuplicate = employees.some(
+      (emp: Employee) =>
+        emp.employeeCode.toLowerCase() === data.employeeCode?.toLowerCase() &&
+        emp.id !== selectedEmployee?.id
     );
     if (isDuplicate) {
       errors.employeeCode = "Employee code already exists";
     }
 
     // Check for duplicate email within current data
-    const isDuplicateEmail = employees.some((emp: Employee) =>
-      emp.workEmail.toLowerCase() === data.workEmail?.toLowerCase() &&
-      emp.id !== selectedEmployee?.id
+    const isDuplicateEmail = employees.some(
+      (emp: Employee) =>
+        emp.workEmail.toLowerCase() === data.workEmail?.toLowerCase() &&
+        emp.id !== selectedEmployee?.id
     );
     if (isDuplicateEmail) {
       errors.workEmail = "Email already exists";
@@ -288,7 +392,8 @@ export default function EmployeesPage() {
     if (data.status) cleanData.status = data.status;
     if (data.bloodGroup?.trim()) cleanData.bloodGroup = data.bloodGroup.trim();
     if (data.emergencyContactName?.trim()) cleanData.emergencyContactName = data.emergencyContactName.trim();
-    if (data.emergencyContactRelationship?.trim()) cleanData.emergencyContactRelationship = data.emergencyContactRelationship.trim();
+    if (data.emergencyContactRelationship?.trim())
+      cleanData.emergencyContactRelationship = data.emergencyContactRelationship.trim();
     if (data.emergencyContactPhone?.trim()) cleanData.emergencyContactPhone = data.emergencyContactPhone.trim();
 
     return cleanData;
@@ -316,9 +421,12 @@ export default function EmployeesPage() {
     try {
       const cleanData = prepareEmployeeData(formData);
       await createEmployee(cleanData);
-      
-      await logActivity("CREATE_EMPLOYEE", `Created employee: ${cleanData.firstName} ${cleanData.lastName || ''}`);
-      
+
+      await logActivity(
+        "CREATE_EMPLOYEE",
+        `Created employee: ${cleanData.firstName} ${cleanData.lastName || ""}`
+      );
+
       setIsCreateDialogOpen(false);
       setNewEmployee(initialFormData);
       setFormErrors({});
@@ -344,9 +452,12 @@ export default function EmployeesPage() {
     try {
       const cleanData = prepareEmployeeData(formData);
       await updateEmployee(selectedEmployee.id, cleanData);
-      
-      await logActivity("UPDATE_EMPLOYEE", `Updated employee: ${cleanData.firstName} ${cleanData.lastName || ''}`);
-      
+
+      await logActivity(
+        "UPDATE_EMPLOYEE",
+        `Updated employee: ${cleanData.firstName} ${cleanData.lastName || ""}`
+      );
+
       setIsEditDialogOpen(false);
       setSelectedEmployee(null);
       setEditEmployee(initialFormData);
@@ -361,15 +472,15 @@ export default function EmployeesPage() {
   };
 
   const handleDeleteEmployee = async (employee: Employee) => {
-    if (!window.confirm(`Are you sure you want to delete ${employee.firstName} ${employee.lastName || ''}?`)) {
+    if (!window.confirm(`Are you sure you want to delete ${employee.firstName} ${employee.lastName || ""}?`)) {
       return;
     }
 
     try {
       await deleteEmployee(employee.id);
-      
-      await logActivity("DELETE_EMPLOYEE", `Deleted employee: ${employee.firstName} ${employee.lastName || ''}`);
-      
+
+      await logActivity("DELETE_EMPLOYEE", `Deleted employee: ${employee.firstName} ${employee.lastName || ""}`);
+
       await refreshData();
       toast.success("Employee deleted successfully");
     } catch (error: any) {
@@ -387,16 +498,28 @@ export default function EmployeesPage() {
     try {
       const updateData: any = {};
 
-      if (bulkAssignData.departmentId && bulkAssignData.departmentId !== "" && bulkAssignData.departmentId !== "no-change") {
+      if (
+        bulkAssignData.departmentId &&
+        bulkAssignData.departmentId !== "" &&
+        bulkAssignData.departmentId !== "no-change"
+      ) {
         updateData.departmentId = bulkAssignData.departmentId;
       }
-      if (bulkAssignData.designationId && bulkAssignData.designationId !== "" && bulkAssignData.designationId !== "no-change") {
+      if (
+        bulkAssignData.designationId &&
+        bulkAssignData.designationId !== "" &&
+        bulkAssignData.designationId !== "no-change"
+      ) {
         updateData.designationId = bulkAssignData.designationId;
       }
       if (bulkAssignData.managerId && bulkAssignData.managerId !== "" && bulkAssignData.managerId !== "no-change") {
         updateData.reportingTo = bulkAssignData.managerId;
       }
-      if (bulkAssignData.employmentType && bulkAssignData.employmentType !== "" && bulkAssignData.employmentType !== "no-change") {
+      if (
+        bulkAssignData.employmentType &&
+        bulkAssignData.employmentType !== "" &&
+        bulkAssignData.employmentType !== "no-change"
+      ) {
         updateData.employmentType = bulkAssignData.employmentType;
       }
 
@@ -434,7 +557,6 @@ export default function EmployeesPage() {
       setBulkAssignData({ departmentId: "", designationId: "", managerId: "", employmentType: "" });
       setSelectedEmployees([]);
       await refreshData();
-
     } catch (error: any) {
       console.error("Bulk assignment failed:", error);
       toast.error(`Bulk assignment failed: ${error.message || "Unknown error"}`);
@@ -475,7 +597,6 @@ export default function EmployeesPage() {
 
       setSelectedEmployees([]);
       await refreshData();
-
     } catch (error: any) {
       console.error("Status update failed:", error);
       toast.error(`Status update failed: ${error.message || "Unknown error"}`);
@@ -485,10 +606,19 @@ export default function EmployeesPage() {
   const handleIndividualStatusUpdate = async (employee: Employee, newStatus: string) => {
     try {
       await updateEmployee(employee.id, { status: newStatus });
-      
-      await logActivity("STATUS_UPDATE", `${newStatus === 'active' ? 'Activated' : 'Deactivated'} employee: ${employee.firstName} ${employee.lastName || ''}`);
-      
-      toast.success(`Employee ${employee.firstName} ${employee.lastName || ''} ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
+
+      await logActivity(
+        "STATUS_UPDATE",
+        `${newStatus === "active" ? "Activated" : "Deactivated"} employee: ${employee.firstName} ${
+          employee.lastName || ""
+        }`
+      );
+
+      toast.success(
+        `Employee ${employee.firstName} ${employee.lastName || ""} ${
+          newStatus === "active" ? "activated" : "deactivated"
+        }`
+      );
       await refreshData();
     } catch (error: any) {
       console.error("Failed to update employee status:", error);
@@ -517,9 +647,12 @@ export default function EmployeesPage() {
       }
 
       exportEmployeesToExcel(employees, exportFields, exportFormat);
-      
-      logActivity("EXPORT_EMPLOYEES", `Exported ${employees.length} employees in ${exportFormat.toUpperCase()} format`);
-      
+
+      logActivity(
+        "EXPORT_EMPLOYEES",
+        `Exported ${employees.length} employees in ${exportFormat.toUpperCase()} format`
+      );
+
       toast.success(`${exportFormat.toUpperCase()} file exported successfully!`);
       setIsExportDialogOpen(false);
     } catch (error: any) {
@@ -531,8 +664,8 @@ export default function EmployeesPage() {
   const handleViewEmployee = (employee: Employee) => {
     setSelectedEmployee(employee);
     setIsViewDialogOpen(true);
-    
-    logActivity("VIEW_EMPLOYEE", `Viewed employee: ${employee.firstName} ${employee.lastName || ''}`);
+
+    logActivity("VIEW_EMPLOYEE", `Viewed employee: ${employee.firstName} ${employee.lastName || ""}`);
   };
 
   const handleEditEmployee = (employee: Employee) => {
@@ -542,7 +675,7 @@ export default function EmployeesPage() {
       if (!dateStr) return "";
       try {
         const date = new Date(dateStr);
-        return date.toISOString().split('T')[0];
+        return date.toISOString().split("T")[0];
       } catch {
         return "";
       }
@@ -576,10 +709,8 @@ export default function EmployeesPage() {
   };
 
   const handleSelectEmployee = (employeeId: string) => {
-    setSelectedEmployees(prev =>
-      prev.includes(employeeId)
-        ? prev.filter(id => id !== employeeId)
-        : [...prev, employeeId]
+    setSelectedEmployees((prev) =>
+      prev.includes(employeeId) ? prev.filter((id) => id !== employeeId) : [...prev, employeeId]
     );
   };
 
@@ -612,14 +743,7 @@ export default function EmployeesPage() {
   };
 
   if (isInitialLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-          <p className="text-lg font-medium">Loading Employees...</p>
-        </div>
-      </div>
-    );
+    return <InitialLoadingSkeleton />;
   }
 
   return (
@@ -674,7 +798,7 @@ export default function EmployeesPage() {
         </motion.div>
 
         {/* Enhanced Stats Cards */}
-        <EmployeeStats employeeData={employeeData} />
+        <EmployeeStats employeeData={employeeData} loading={loading} />
 
         {/* Enhanced Employee Management Interface */}
         <EmployeeTable
@@ -716,7 +840,6 @@ export default function EmployeesPage() {
           onCreateEmployee={handleCreateEmployee}
           formErrors={formErrors}
           employeeData={employeeData}
-          
           // Edit Dialog
           isEditDialogOpen={isEditDialogOpen}
           setIsEditDialogOpen={setIsEditDialogOpen}
@@ -725,12 +848,10 @@ export default function EmployeesPage() {
           editEmployee={editEmployee}
           setEditEmployee={setEditEmployee}
           onUpdateEmployee={handleUpdateEmployee}
-          
           // View Dialog
           isViewDialogOpen={isViewDialogOpen}
           setIsViewDialogOpen={setIsViewDialogOpen}
           onEditEmployee={handleEditEmployee}
-          
           // Bulk Assign Dialog
           isBulkAssignOpen={isBulkAssignOpen}
           setIsBulkAssignOpen={setIsBulkAssignOpen}
@@ -738,7 +859,6 @@ export default function EmployeesPage() {
           setBulkAssignData={setBulkAssignData}
           selectedEmployees={selectedEmployees}
           onBulkAssign={handleBulkAssign}
-          
           // Export Dialog
           isExportDialogOpen={isExportDialogOpen}
           setIsExportDialogOpen={setIsExportDialogOpen}
@@ -747,7 +867,6 @@ export default function EmployeesPage() {
           exportFields={exportFields}
           setExportFields={setExportFields}
           onExport={handleExport}
-          
           // Common
           initialFormData={initialFormData}
         />
