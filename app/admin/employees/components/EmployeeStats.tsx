@@ -5,12 +5,16 @@ import { Users, UserCheck, Star, Building, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { differenceInDays } from 'date-fns';
 import { Employee } from "./types";
+import { Skeleton } from "@/components/ui/skeleton";
+
 
 interface EmployeeStatsProps {
   employeeData: any;
+  loading?: boolean;
 }
 
-export default function EmployeeStats({ employeeData }: EmployeeStatsProps) {
+
+export default function EmployeeStats({ employeeData, loading }: EmployeeStatsProps) {
   const employees = employeeData?.employees || [];
   const dashboardStats = employeeData?.summary?.dashboardStats || {};
   const pagination = employeeData?.pagination || { total: 0 };
@@ -27,7 +31,31 @@ export default function EmployeeStats({ employeeData }: EmployeeStatsProps) {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1, transition: { duration: 0.3 } },
   };
-
+if (loading) {
+    return (
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4"
+      >
+        {Array.from({ length: 5 }).map((_, index) => (
+          <motion.div key={index} variants={itemVariants}>
+            <Card className="h-32">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-4 rounded" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16 mb-2" />
+                <Skeleton className="h-3 w-24" />
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+    );
+  }
   return (
     <motion.div variants={containerVariants} className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
       {/* Total Employees Card */}
