@@ -36,9 +36,6 @@ const quickActions = [
   { icon: <Clock className="h-4 w-4" />, label: "Attendance", color: "text-orange-600" },
   { icon: <Bell className="h-4 w-4" />, label: "Send Notice", color: "text-purple-600" },
   { icon: <Vote className="h-4 w-4" />, label: "Create Poll", color: "text-pink-600" },
-  { icon: <FileText className="h-4 w-4" />, label: "Reports", color: "text-indigo-600" },
-  { icon: <Users className="h-4 w-4" />, label: "Departments", color: "text-teal-600" },
-  { icon: <Settings className="h-4 w-4" />, label: "Settings", color: "text-gray-600" },
 ];
 
 // Live Clock Component
@@ -182,35 +179,35 @@ export default function HRDashboardPage() {
       </div>
 
       {/* Quick Actions - Sleek Single Line */}
-      <div className="mb-6">
-        <Card className="border-gray-200 dark:border-gray-800">
-          <div className="px-6 flex items-center">
-            {/* Quick Actions Title */}
-            <div className="flex items-center mr-6">
-              <Plus className="h-5 w-5 mr-2 text-blue-600" />
-              <span className="font-semibold text-gray-800 dark:text-gray-200">Quick Actions</span>
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex-1 flex items-center gap-2 overflow-x-auto">
-              {quickActions.map((action, index) => (
-                <Button
-                  key={index}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-2 px-3 h-auto min-w-fit whitespace-nowrap hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors"
-                >
-                  <span className={action.color}>{action.icon}</span>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {action.label}
-                  </span>
-                </Button>
-              ))}
-            </div>
-          </div>
-        </Card>
+      {/* Quick Actions - Responsive and Spread */}
+<div className="mb-6">
+  <Card className="border-gray-200 dark:border-gray-800">
+    <div className="px-6 flex flex-wrap items-center gap-4">
+      {/* Quick Actions Title */}
+      <div className="flex items-center mr-6">
+        <Plus className="h-6 w-5 mr-2 text-blue-600" />
+        <span className="font-semibold text-gray-800 dark:text-gray-200">Quick Actions</span>
       </div>
-        
+      {/* Action Buttons - Responsive */}
+      <div className="flex-1 flex flex-wrap justify-between gap-2 min-w-0">
+        {quickActions.map((action, index) => (
+          <Button
+            key={index}
+            variant="ghost"
+            size="sm"
+            className="flex items-center gap-2 px-3 h-auto min-w-fit whitespace-nowrap rounded-md transition-colors
+              flex-shrink-0"
+          >
+            <span className={action.color}>{action.icon}</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{action.label}</span>
+          </Button>
+        ))}
+      </div>
+    </div>
+  </Card>
+</div>
+
+
       {/* Widget Settings Panel */}
       {showWidgetSettings && (
         <Card className="mb-6 border-2 border-blue-200 dark:border-blue-800">
@@ -255,7 +252,7 @@ export default function HRDashboardPage() {
           </CardContent>
         </Card>
       )}
-      
+
       {/* Statistics Cards */}
       {isWidgetEnabled('dashboard-stats') && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -293,14 +290,14 @@ export default function HRDashboardPage() {
           />
         </div>
       )}
-      
+
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
         {isWidgetEnabled('attendance-today') && <AttendanceChart attendanceChartData={attendanceChartData} />}
         {isWidgetEnabled('department-breakdown') && <DepartmentChart departmentData={departmentData} />}
         {isWidgetEnabled('user-activities') && <UserActivitiesWidget activities={activities} />}
       </div>
-      
+
       {/* Polls, Notices, and Birthday Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
         {isWidgetEnabled('active-polls') && (
@@ -309,7 +306,7 @@ export default function HRDashboardPage() {
         {isWidgetEnabled('company-notices') && <NoticeWidget notices={notices} />}
         {isWidgetEnabled('birthday-tracker') && <BirthdayWidget upcomingBirthdays={upcomingBirthdays} />}
       </div>
-      
+
       {/* Notifications & Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {isWidgetEnabled('attendance-anomalies') && (
@@ -325,7 +322,9 @@ export default function HRDashboardPage() {
               <div className="space-y-3 max-h-48 overflow-y-auto">
                 {anomalies.length > 0 ? anomalies.map((anomaly, index) => (
                   <div key={index} className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-red-500 mt-1" />
+                    <AlertTriangle className="h-4 w-4 text-red-500 mt-1 flex-shrink-0" />
+                    {/* Add photo thumbnail here */}
+                    <img src={anomaly.photoUrl} alt="Anomaly Photo" className="w-16 h-16 rounded-md object-cover" />
                     <div className="flex-1">
                       <div className="text-sm font-medium">{anomaly.anomalyReason || 'Attendance Anomaly'}</div>
                       <div className="text-xs opacity-70">Employee ID: {anomaly.employeeId || 'Unknown'}</div>
@@ -338,6 +337,7 @@ export default function HRDashboardPage() {
                     No anomalies detected today
                   </div>
                 )}
+
               </div>
             </CardContent>
           </WidgetCard>
