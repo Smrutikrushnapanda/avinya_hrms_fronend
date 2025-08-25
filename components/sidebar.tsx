@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getProfile } from "@/app/api/api";
@@ -50,6 +51,7 @@ const menuByRole: Record<string, { name: string; icon: any; href: string }[]> = 
 };
 
 export default function Sidebar() {
+  const pathname = usePathname();
   const [mode, setMode] = useState<SidebarMode>("collapsed");
   const [hovered, setHovered] = useState(false);
   const [menuItems, setMenuItems] = useState<
@@ -89,41 +91,72 @@ export default function Sidebar() {
     <TooltipProvider delayDuration={100}>
       <aside
         className={cn(
-          "h-screen bg-white border-r transition-all duration-200 ease-in-out flex flex-col relative",
+          "h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-200 ease-in-out flex flex-col relative",
           isExpanded ? "w-56" : "w-14"
         )}
         onMouseEnter={() => mode === "hover" && setHovered(true)}
         onMouseLeave={() => mode === "hover" && setHovered(false)}
       >
-        <div className="flex-1 flex flex-col items-start px-2 py-4 gap-2">
-          {menuItems.map((item) => (
-            <Tooltip key={item.name}>
-              <TooltipTrigger asChild>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 w-full p-2 rounded-md text-muted-foreground hover:bg-muted transition-colors",
-                    !isExpanded && "justify-center"
-                  )}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {isExpanded && <span>{item.name}</span>}
-                </Link>
-              </TooltipTrigger>
-              {!isExpanded && (
-                <TooltipContent side="right" sideOffset={8}>
-                  {item.name}
-                </TooltipContent>
-              )}
-            </Tooltip>
-          ))}
+        <div className="flex-1 flex flex-col items-start px-2 py-4 gap-1">
+          {menuItems.map((item) => {
+            const isActive = pathname === item.href;
+            
+            return (
+              <Tooltip key={item.name}>
+                <TooltipTrigger asChild>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 w-full p-3 rounded-lg transition-all duration-200 group relative",
+                      !isExpanded && "justify-center",
+                      // ✅ Active state with near-black colors
+                      isActive
+                        ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+                    )}
+                  >
+                    
+                    {/* Icon with near-black active color */}
+                    <item.icon 
+                      className={cn(
+                        "w-5 h-5 transition-all duration-200",
+                        isActive 
+                          ? "text-gray-900 dark:text-gray-100" // Near-black active color
+                          : "text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
+                      )} 
+                    />
+                    
+                    {/* Text with near-black active color */}
+                    {isExpanded && (
+                      <span className={cn(
+                        "font-medium transition-colors duration-200",
+                        isActive 
+                          ? "text-gray-900 dark:text-gray-100" // Near-black active color
+                          : "text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
+                      )}>
+                        {item.name}
+                      </span>
+                    )}
+                  </Link>
+                </TooltipTrigger>
+                {!isExpanded && (
+                  <TooltipContent side="right" sideOffset={8}>
+                    <div className="flex items-center gap-2">
+                      {isActive && <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full" />}
+                      {item.name}
+                    </div>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            );
+          })}
         </div>
 
         {/* Sidebar Control Dropdown */}
         <div className="absolute bottom-4 left-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="p-2 rounded-md text-muted-foreground hover:bg-accent">
+              <button className="p-2 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors">
                 <PanelRight className="h-4 w-4" />
                 <span className="sr-only">Toggle Sidebar</span>
               </button>

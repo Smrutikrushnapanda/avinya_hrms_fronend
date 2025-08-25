@@ -20,7 +20,6 @@ import {
   Eye, EyeOff, Vote, Plus, FileText, UserPlus
 } from "lucide-react";
 
-// Import components
 import { DEFAULT_WIDGETS, Widget } from "./components/types";
 import { DashboardLoadingSkeleton } from "./components/DashboardSkeleton";
 import { StatCard, WidgetCard } from "./components/StatCard";
@@ -45,7 +44,7 @@ function LiveClock() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  return <div className="text-sm font-medium">{format(currentTime, 'MMM dd, yyyy HH:mm:ss')}</div>;
+  return <div className="text-xs md:text-sm font-medium">{format(currentTime, 'MMM dd, yyyy HH:mm:ss')}</div>;
 }
 
 export default function HRDashboardPage() {
@@ -90,11 +89,8 @@ export default function HRDashboardPage() {
         dashboardRes, activitiesRes, anomaliesRes, noticesRes, pollsRes,
         dailyStatsRes, profileRes
       ] = results;
-      if (dashboardRes.status === 'fulfilled' && dashboardRes.value.data.success) {
-        setDashboardData(dashboardRes.value.data.data);
-      } else {
-        setDashboardData(null);
-      }
+
+      setDashboardData(dashboardRes.status === 'fulfilled' && dashboardRes.value.data.success ? dashboardRes.value.data.data : null);
       setActivities(activitiesRes.status === 'fulfilled' ? activitiesRes.value.data?.data || [] : []);
       setAnomalies(anomaliesRes.status === 'fulfilled' ? anomaliesRes.value.data || [] : []);
       setNotices(noticesRes.status === 'fulfilled' ? noticesRes.value.data || [] : []);
@@ -163,50 +159,46 @@ export default function HRDashboardPage() {
   }
 
   return (
-    <div>
+    <div className="px-2 py-2 md:px-6 md:py-6 max-w-[1700px] mx-auto">
       {/* Dashboard Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-5">
-          <h1 className="text-2xl font-bold border-r pr-5">Dashboard</h1>
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold border-b md:border-b-0 md:border-r md:pr-5 pb-2 md:pb-0">Dashboard</h1>
           <div className="flex items-center gap-2"><LiveClock /></div>
         </div>
         <Button variant="outline" size="sm"
           onClick={() => setShowWidgetSettings(!showWidgetSettings)}
-          className="flex items-center gap-2">
+          className="flex items-center gap-2"
+        >
           <Settings className="h-4 w-4" />
-          Manage Widgets
+          <span className="hidden sm:inline">Manage Widgets</span>
         </Button>
       </div>
 
-      {/* Quick Actions - Sleek Single Line */}
-      {/* Quick Actions - Responsive and Spread */}
-<div className="mb-6">
-  <Card className="border-gray-200 dark:border-gray-800">
-    <div className="px-6 flex flex-wrap items-center gap-4">
-      {/* Quick Actions Title */}
-      <div className="flex items-center mr-6">
-        <Plus className="h-6 w-5 mr-2 text-blue-600" />
-        <span className="font-semibold text-gray-800 dark:text-gray-200">Quick Actions</span>
+      {/* Quick Actions - Responsive Spread */}
+      <div className="mb-6">
+        <Card className="border-gray-200 dark:border-gray-800">
+          <div className="px-2 py-3 md:px-6 md:py-4 flex flex-col md:flex-row md:flex-wrap items-start md:items-center gap-4 w-full">
+            <div className="flex items-center mb-2 md:mb-0">
+              <Plus className="h-6 w-5 mr-2 text-blue-600" />
+              <span className="font-semibold text-gray-800 dark:text-gray-200">Quick Actions</span>
+            </div>
+            <div className="flex flex-wrap flex-1 gap-2 justify-start sm:justify-between w-full">
+              {quickActions.map((action, index) => (
+                <Button
+                  key={index}
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-2 px-3 h-auto rounded-md min-w-fit sm:min-w-[120px] whitespace-normal transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <span className={action.color}>{action.icon}</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-normal">{action.label}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        </Card>
       </div>
-      {/* Action Buttons - Responsive */}
-      <div className="flex-1 flex flex-wrap justify-between gap-2 min-w-0">
-        {quickActions.map((action, index) => (
-          <Button
-            key={index}
-            variant="ghost"
-            size="sm"
-            className="flex items-center gap-2 px-3 h-auto min-w-fit whitespace-nowrap rounded-md transition-colors
-              flex-shrink-0"
-          >
-            <span className={action.color}>{action.icon}</span>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{action.label}</span>
-          </Button>
-        ))}
-      </div>
-    </div>
-  </Card>
-</div>
-
 
       {/* Widget Settings Panel */}
       {showWidgetSettings && (
@@ -221,7 +213,7 @@ export default function HRDashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {widgets.map((widget) => (
                 <div key={widget.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
@@ -231,7 +223,7 @@ export default function HRDashboardPage() {
                     />
                     <div>
                       <div className="font-medium text-sm">{widget.title}</div>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
                         {widget.hasAPI ? (
                           <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">API Ready</Badge>
                         ) : (
@@ -308,41 +300,165 @@ export default function HRDashboardPage() {
       </div>
 
       {/* Notifications & Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {isWidgetEnabled('attendance-anomalies') && (
-          <WidgetCard>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
-                Attendance Anomalies
-                {anomalies.length > 0 && <Badge variant="destructive" className="ml-2">{anomalies.length}</Badge>}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-48 overflow-y-auto">
-                {anomalies.length > 0 ? anomalies.map((anomaly, index) => (
-                  <div key={index} className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-red-500 mt-1 flex-shrink-0" />
-                    {/* Add photo thumbnail here */}
-                    <img src={anomaly.photoUrl} alt="Anomaly Photo" className="w-16 h-16 rounded-md object-cover" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">{anomaly.anomalyReason || 'Attendance Anomaly'}</div>
-                      <div className="text-xs opacity-70">Employee ID: {anomaly.employeeId || 'Unknown'}</div>
-                      <div className="text-xs opacity-50">{format(new Date(anomaly.timestamp), 'MMM dd, HH:mm')}</div>
-                    </div>
+<div className="grid grid-cols-1 gap-6 mb-6">
+  {isWidgetEnabled('attendance-anomalies') && (
+    <WidgetCard>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          Attendance Anomalies
+          {anomalies.length > 0 && <Badge variant="destructive" className="ml-2">{anomalies.length}</Badge>}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          {anomalies.length > 0 ? anomalies.map((anomaly, index) => (
+            <div key={index} className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 hover:shadow-md transition-all duration-200">
+              <div className="flex items-start gap-4">
+                {/* Status Icon */}
+                <div className="flex-shrink-0 mt-1">
+                  <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
                   </div>
-                )) : (
-                  <div className="text-center opacity-60 py-4">
-                    <AlertTriangle className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                    No anomalies detected today
+                </div>
+
+                {/* Employee Photo */}
+                {anomaly.photoUrl && (
+                  <div className="flex-shrink-0">
+                    <img 
+                      src={anomaly.photoUrl} 
+                      alt="Employee Photo"
+                      className="w-16 h-16 rounded-lg object-cover border-2 border-white dark:border-gray-700 shadow-sm" 
+                    />
                   </div>
                 )}
 
+                {/* Main Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+                    <div className="flex-1">
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                        {anomaly.anomalyReason || 'Attendance Anomaly'}
+                      </h4>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <Badge variant="outline" className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200">
+                          {anomaly.type}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs font-medium bg-purple-50 text-purple-700 border-purple-200">
+                          {anomaly.source}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {format(new Date(anomaly.timestamp), 'MMM dd, HH:mm')}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Employee Details Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Employee:</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {anomaly.user ? `${anomaly.user.firstName} ${anomaly.user.lastName}`.trim() : 'Unknown'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Email:</span>
+                        <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                          {anomaly.user?.email || 'Unknown'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {anomaly.locationAddress && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Location:</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                            {anomaly.locationAddress}
+                          </span>
+                        </div>
+                      )}
+                      {anomaly.deviceInfo && (
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Device:</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {anomaly.deviceInfo}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Network Details */}
+                  {(anomaly.wifiSsid || anomaly.wifiBssid) && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-4 h-4 bg-indigo-500 rounded-sm"></div>
+                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Network Information</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {anomaly.wifiSsid && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">SSID:</span>
+                            <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300">
+                              {anomaly.wifiSsid}
+                            </span>
+                          </div>
+                        )}
+                        {anomaly.wifiBssid && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">BSSID:</span>
+                            <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300">
+                              {anomaly.wifiBssid}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Face Verification Info */}
+                  {(anomaly.faceMatchScore !== undefined || anomaly.faceVerified !== undefined) && (
+                    <div className="mt-3 flex items-center gap-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Face Match:</span>
+                        <Badge variant={anomaly.faceVerified ? "default" : "destructive"} className="text-xs">
+                          {anomaly.faceVerified ? "Verified" : "Failed"}
+                        </Badge>
+                      </div>
+                      {anomaly.faceMatchScore !== undefined && (
+                        <div className="text-sm text-amber-600 dark:text-amber-400">
+                          Score: {(anomaly.faceMatchScore * 100).toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </CardContent>
-          </WidgetCard>
-        )}
-      </div>
+            </div>
+          )) : (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Anomalies Detected</h3>
+              <p className="text-gray-500 dark:text-gray-400">All attendance records look good today!</p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </WidgetCard>
+  )}
+</div>
+
     </div>
   );
 }

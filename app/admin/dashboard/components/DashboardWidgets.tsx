@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { format, isAfter, isBefore } from "date-fns";
 import { 
   Vote, MessageSquare, Clock, Bell, AlertTriangle, Cake, Gift, PartyPopper,
-  Users, Activity, PieChart, BarChart3, UserCheck
+  Users, Activity, PieChart, BarChart3, UserCheck, X
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -22,7 +22,215 @@ import {
   PieChart as RechartsPieChart, Pie, Cell
 } from "recharts";
 
-// Poll Widget
+// Enhanced Modal Components with smooth animations and blur background
+function AttendanceDetailsModal({ open, onClose, data }: { open: boolean; onClose: () => void; data: any[] }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setIsVisible(true);
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
+      setTimeout(() => setIsVisible(false), 300);
+    }
+  }, [open]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div 
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ease-out ${
+        isAnimating ? 'backdrop-blur-md bg-white/20 dark:bg-black/20' : 'backdrop-blur-0 bg-transparent'
+      }`}
+      onClick={onClose}
+    >
+      <div 
+        className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden transition-all duration-300 ease-out transform ${
+          isAnimating 
+            ? 'scale-100 opacity-100 translate-y-0' 
+            : 'scale-95 opacity-0 translate-y-4'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+              <UserCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Today&apos;s Attendance Details</h3>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onClose}
+            className="hover:bg-white/50 dark:hover:bg-gray-700 rounded-full p-2"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        
+        <div className="p-6 overflow-y-auto max-h-[60vh]">
+          {data.length === 0 ? (
+            <div className="text-center py-12">
+              <UserCheck className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500 text-lg">No attendance data available.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-gray-200 dark:border-gray-700">
+                    <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">Employee</th>
+                    <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">Status</th>
+                    <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">In Time</th>
+                    <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">Out Time</th>
+                    <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">Working Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((item, idx) => (
+                    <tr key={idx} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                            {(item.name || 'U')[0]}
+                          </div>
+                          <span className="font-medium">{item.name || 'Unknown'}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <Badge 
+                          variant={item.status === 'Present' ? 'default' : item.status === 'Half Day' ? 'secondary' : 'destructive'}
+                          className="font-medium"
+                        >
+                          {item.status || 'Unknown'}
+                        </Badge>
+                      </td>
+                      <td className="py-4 px-4 text-gray-600 dark:text-gray-400">{item.inTime || '-'}</td>
+                      <td className="py-4 px-4 text-gray-600 dark:text-gray-400">{item.outTime || '-'}</td>
+                      <td className="py-4 px-4 text-gray-600 dark:text-gray-400">{item.workingHours || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        
+        <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end">
+          <Button onClick={onClose} className="px-6">Close</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DepartmentDetailsModal({ open, onClose, data }: { open: boolean; onClose: () => void; data: any[] }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setIsVisible(true);
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
+      setTimeout(() => setIsVisible(false), 300);
+    }
+  }, [open]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div 
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ease-out ${
+        isAnimating ? 'backdrop-blur-md bg-white/20 dark:bg-black/20' : 'backdrop-blur-0 bg-transparent'
+      }`}
+      onClick={onClose}
+    >
+      <div 
+        className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[85vh] overflow-hidden transition-all duration-300 ease-out transform ${
+          isAnimating 
+            ? 'scale-100 opacity-100 translate-y-0' 
+            : 'scale-95 opacity-0 translate-y-4'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-gray-800 dark:to-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+              <BarChart3 className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Department Distribution Details</h3>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onClose}
+            className="hover:bg-white/50 dark:hover:bg-gray-700 rounded-full p-2"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        
+        <div className="p-6 overflow-y-auto max-h-[60vh]">
+          {data.length === 0 ? (
+            <div className="text-center py-12">
+              <BarChart3 className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500 text-lg">No department data available.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {data.map((dept, idx) => (
+                <div key={idx} className="group hover:bg-gray-50 dark:hover:bg-gray-700 p-4 rounded-xl transition-all duration-200 border border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-400 to-purple-500 rounded-lg flex items-center justify-center">
+                        <span className="text-white font-bold text-lg">{dept.name[0]}</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-lg text-gray-900 dark:text-white">{dept.name}</div>
+                        {dept.code && <div className="text-sm text-gray-500">Code: {dept.code}</div>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant="secondary" className="text-lg px-3 py-1 font-semibold">
+                        {dept.employees}
+                      </Badge>
+                      <div className="text-xs text-gray-500 mt-1">employees</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-lg font-bold text-gray-900 dark:text-white">
+                      Total: {data.reduce((sum, dept) => sum + dept.employees, 0)} Employees
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Distributed across {data.length} departments
+                    </div>
+                  </div>
+                  <Users className="h-8 w-8 text-blue-500" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-end">
+          <Button onClick={onClose} className="px-6">Close</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Poll Widget (unchanged)
 export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[]; currentUser: any; onPollUpdate: () => void }) {
   const [questions, setQuestions] = useState<any[]>([]);
   const [responses, setResponses] = useState<{ [key: string]: string | string[] }>({});
@@ -173,7 +381,7 @@ export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[];
   );
 }
 
-// Notice Widget
+// Notice Widget (unchanged)
 export function NoticeWidget({ notices }: { notices: any[] }) {
   const activeNotices = notices.filter(notice => {
     const now = new Date();
@@ -241,7 +449,7 @@ export function NoticeWidget({ notices }: { notices: any[] }) {
   );
 }
 
-// Birthday Widget
+// Birthday Widget (unchanged)
 export function BirthdayWidget({ upcomingBirthdays }: { upcomingBirthdays: any[] }) {
   const today = new Date();
   const todayBirthdays = upcomingBirthdays.filter(person => {
@@ -272,7 +480,7 @@ export function BirthdayWidget({ upcomingBirthdays }: { upcomingBirthdays: any[]
           {todayBirthdays.length > 0 && (
             <div>
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                <PartyPopper className="h-4 w-4 text-pink-500" />Today's Birthdays
+                <PartyPopper className="h-4 w-4 text-pink-500" />Today&apos;s Birthdays
               </h4>
               <div className="space-y-2">
                 {todayBirthdays.map((person) => (
@@ -337,69 +545,119 @@ export function BirthdayWidget({ upcomingBirthdays }: { upcomingBirthdays: any[]
   );
 }
 
-// Charts Widget
+// Charts Widget with Enhanced Modal Integration and Animations
 export function AttendanceChart({ attendanceChartData }: { attendanceChartData: any[] }) {
+  const [showModal, setShowModal] = useState(false);
+
+  // Mock detailed attendance data - replace with actual API call
+  const detailedData = [
+    { name: 'John Doe', status: 'Present', inTime: '09:15 AM', outTime: '06:30 PM', workingHours: '8h 45m' },
+    { name: 'Jane Smith', status: 'Present', inTime: '08:45 AM', outTime: '05:45 PM', workingHours: '8h 30m' },
+    { name: 'Mike Johnson', status: 'Half Day', inTime: '09:30 AM', outTime: '01:30 PM', workingHours: '4h 00m' },
+    { name: 'Sarah Wilson', status: 'Absent', inTime: '-', outTime: '-', workingHours: '-' },
+    { name: 'David Brown', status: 'Present', inTime: '09:00 AM', outTime: '06:00 PM', workingHours: '8h 30m' },
+    { name: 'Emily Davis', status: 'Present', inTime: '08:30 AM', outTime: '05:30 PM', workingHours: '8h 45m' },
+  ];
+
   return (
-    <WidgetCard>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <PieChart className="h-5 w-5" />
-          Today's Attendance
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {attendanceChartData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-500">
-            <PieChart className="h-16 w-16 mb-4 opacity-30" />
-            <p className="text-sm font-medium">No attendance data</p>
-            <p className="text-xs opacity-70">Data will appear once employees check in</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <RechartsPieChart>
-              <Pie data={attendanceChartData} cx="50%" cy="50%"
-                innerRadius={40} outerRadius={80} dataKey="value">
-                {attendanceChartData.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip /><Legend />
-            </RechartsPieChart>
-          </ResponsiveContainer>
-        )}
-      </CardContent>
-    </WidgetCard>
+    <>
+      <WidgetCard className="hover:shadow-lg transition-all duration-200">
+        <CardHeader>
+          <CardTitle 
+            className="flex items-center gap-2 cursor-pointer hover:text-blue-600 transition-colors group"
+            onClick={() => setShowModal(true)}
+          >
+            <PieChart className="h-5 w-5 group-hover:scale-110 transition-transform" />
+            Today&apos;s Attendance
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="ml-auto text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 hover:scale-105"
+            >
+              View Details →
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {attendanceChartData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+              <PieChart className="h-16 w-16 mb-4 opacity-30" />
+              <p className="text-sm font-medium">No attendance data</p>
+              <p className="text-xs opacity-70">Data will appear once employees check in</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <RechartsPieChart>
+                <Pie data={attendanceChartData} cx="50%" cy="50%"
+                  innerRadius={40} outerRadius={80} dataKey="value">
+                  {attendanceChartData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip /><Legend />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </WidgetCard>
+      
+      <AttendanceDetailsModal 
+        open={showModal} 
+        onClose={() => setShowModal(false)} 
+        data={detailedData} 
+      />
+    </>
   );
 }
 
 export function DepartmentChart({ departmentData }: { departmentData: any[] }) {
+  const [showModal, setShowModal] = useState(false);
+
   return (
-    <WidgetCard>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5" />
-          Department Distribution
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {departmentData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-500">
-            <BarChart3 className="h-16 w-16 mb-4 opacity-30" />
-            <p className="text-sm font-medium">No department data</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={departmentData}>
-              <XAxis dataKey="name" fontSize={12} angle={-45} textAnchor="end" height={60} />
-              <YAxis allowDecimals={false} fontSize={12} />
-              <Tooltip formatter={(value, name) => [value, 'Active Employees']}
-                labelFormatter={(label) => `Department: ${label}`} />
-              <Bar dataKey="employees" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Active Employees" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </CardContent>
-    </WidgetCard>
+    <>
+      <WidgetCard className="hover:shadow-lg transition-all duration-200">
+        <CardHeader>
+          <CardTitle 
+            className="flex items-center gap-2 cursor-pointer hover:text-blue-600 transition-colors group"
+            onClick={() => setShowModal(true)}
+          >
+            <BarChart3 className="h-5 w-5 group-hover:scale-110 transition-transform" />
+            Department Distribution
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="ml-auto text-xs hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all duration-200 hover:scale-105"
+            >
+              View Details →
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {departmentData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+              <BarChart3 className="h-16 w-16 mb-4 opacity-30" />
+              <p className="text-sm font-medium">No department data</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={departmentData}>
+                <XAxis dataKey="name" fontSize={12} angle={-45} textAnchor="end" height={60} />
+                <YAxis allowDecimals={false} fontSize={12} />
+                <Tooltip formatter={(value, name) => [value, 'Active Employees']}
+                  labelFormatter={(label) => `Department: ${label}`} />
+                <Bar dataKey="employees" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Active Employees" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </WidgetCard>
+      
+      <DepartmentDetailsModal 
+        open={showModal} 
+        onClose={() => setShowModal(false)} 
+        data={departmentData} 
+      />
+    </>
   );
 }
 
