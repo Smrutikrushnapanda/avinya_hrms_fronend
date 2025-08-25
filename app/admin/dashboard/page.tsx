@@ -210,7 +210,7 @@ export default function HRDashboardPage() {
           </div>
         </Card>
       </div>
-      
+        
       {/* Widget Settings Panel */}
       {showWidgetSettings && (
         <Card className="mb-6 border-2 border-blue-200 dark:border-blue-800">
