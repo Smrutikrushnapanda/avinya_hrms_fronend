@@ -237,6 +237,13 @@ export const getEmployeeManagementData = (params?: {
   sortOrder?: string;
 }) => api.get("/dashboard/employees", { params });
 
+export const getAttendanceReport2 = (params: {
+  organizationId: string;
+  year: number;
+  month: number;
+  userIds?: string;
+}) => api.get("/attendance/report", { params });
+
 // Export the axios instance as default and named export
 export { api };
 export default api;
