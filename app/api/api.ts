@@ -5,22 +5,19 @@ const fallbackURL = 'https://hrms-backend-346486007446.asia-south1.run.app';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || fallbackURL,
-  timeout: 15000,
+  timeout: 10000,
   withCredentials: true,
 });
 
-// Request interceptor to add auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.error("Unauthorized - Redirect to login");
     }
-    return config;
-  },
-  (error) => Promise.reject(error)
+    return Promise.reject(error);
+  }
 );
-
 
 // 🏢 Organization APIs
 export const getOrganizations = () => api.get("/organizations");
@@ -51,7 +48,15 @@ export const assignDefaultRole = (data: any) => api.post("/roles/assign-default"
 export const getOrgRoles = (orgId: string) => api.get(`/roles/organization/${orgId}`);
 
 // 👥 Employee Management APIs
-export const getDashboardStats = () => api.get("/employees/dashboard-stats");
+export const getDashboardStats = (organizationId?: string) => {
+  if (organizationId) {
+    return api.get("/employees/dashboard-stats", { 
+      params: { organizationId } 
+    });
+  }
+  return api.get("/employees/dashboard-stats");
+};
+
 export const createEmployee = (data: any) => api.post("/employees", data);
 export const getEmployees = (organizationId: string) => api.get("/employees", { params: { organizationId } });
 export const getEmployee = (id: string) => api.get(`/employees/${id}`);
@@ -59,81 +64,25 @@ export const updateEmployee = (id: string, data: any) => api.put(`/employees/${i
 export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
 export const getEmployeeByUserId = (userId: string) => api.get(`/employees/by-user/${userId}`);
 
-// 🎂 Birthday APIs (New)
-export const getEmployeeBirthdays = async (organizationId: string) => {
-  try {
-    // Try to get real birthday data from employees
-    const response = await api.get("/employees", { params: { organizationId } });
-    const employees = response.data || [];
-    
-    // Extract birthday information from employee data
-    const birthdayData = employees
-      .filter((emp: any) => emp.dateOfBirth)
-      .map((emp: any) => ({
-        id: emp.id,
-        name: `${emp.firstName} ${emp.lastName || ''}`.trim(),
-        department: emp.department?.name || 'Unknown',
-        date: new Date(emp.dateOfBirth),
-        avatar: emp.photoUrl,
-        email: emp.workEmail,
-      }));
-    
-    return { data: birthdayData };
-  } catch (error) {
-    console.error("Failed to fetch employee birthdays:", error);
-    // Fallback to mock data if API fails
-    return {
-      data: [
-        { id: '1', name: 'John Doe', department: 'Engineering', date: new Date(), avatar: null },
-        { id: '2', name: 'Jane Smith', department: 'HR', date: new Date(Date.now() + 86400000), avatar: null },
-        { id: '3', name: 'Mike Johnson', department: 'Sales', date: new Date(Date.now() + 259200000), avatar: null },
-        { id: '4', name: 'Sarah Wilson', department: 'Marketing', date: new Date(Date.now() + 604800000), avatar: null },
-      ]
-    };
-  }
-};
+// 🎂 Birthday APIs (Updated - Real API)
+export const getEmployeeBirthdays = (organizationId: string, days: number = 30) => 
+  api.get("/employees/birthdays/upcoming", { 
+    params: { organizationId, days } 
+  });
 
-// 🏢 Department & Designation APIs (Mock implementation)
-export const getDepartments = async (organizationId: string) => {
-  try {
-    return {
-      data: [
-        { id: "1", name: "Engineering", code: "ENG", organizationId },
-        { id: "2", name: "Human Resources", code: "HR", organizationId },
-        { id: "3", name: "Finance", code: "FIN", organizationId },
-        { id: "4", name: "Marketing", code: "MKT", organizationId },
-        { id: "5", name: "Sales", code: "SALES", organizationId },
-        { id: "6", name: "Operations", code: "OPS", organizationId },
-        { id: "7", name: "IT Support", code: "IT", organizationId },
-      ]
-    };
-  } catch (error) {
-    console.error("Failed to fetch departments:", error);
-    throw error;
-  }
-};
+// 🏢 Department & Designation APIs (Updated - Real APIs)
+export const getDepartments = (organizationId: string) => 
+  api.get("/departments", { params: { organizationId } });
 
-export const getDesignations = async (organizationId: string) => {
-  try {
-    return {
-      data: [
-        { id: "1", name: "Software Engineer", code: "SWE", organizationId },
-        { id: "2", name: "Senior Software Engineer", code: "SSE", organizationId },
-        { id: "3", name: "Team Lead", code: "TL", organizationId },
-        { id: "4", name: "Manager", code: "MGR", organizationId },
-        { id: "5", name: "Senior Manager", code: "SMGR", organizationId },
-        { id: "6", name: "HR Specialist", code: "HRS", organizationId },
-        { id: "7", name: "Accountant", code: "ACC", organizationId },
-        { id: "8", name: "Marketing Executive", code: "MKE", organizationId },
-        { id: "9", name: "Sales Representative", code: "SR", organizationId },
-        { id: "10", name: "Operations Executive", code: "OE", organizationId },
-      ]
-    };
-  } catch (error) {
-    console.error("Failed to fetch designations:", error);
-    throw error;
-  }
-};
+export const getDesignations = (organizationId: string) => 
+  api.get("/designations", { params: { organizationId } });
+
+// 📊 Department Statistics API (New)
+export const getDepartmentStatistics = (organizationId: string) => 
+  api.get("/departments/statistics", { params: { organizationId } });
+
+// 🚀 NEW: Single Dashboard Summary API
+export const getDashboardSummary = () => api.get("/dashboard/summary");
 
 // 🕒 Attendance APIs
 export const createWifiLocation = (data: any) => api.post("/attendance/wifi-locations", data);
@@ -253,30 +202,6 @@ export const getLeaveReport = async (params: {
   return { data: [] };
 };
 
-// 💰 Payroll report (Mock - no API yet)
-export const getPayrollReport = async (params: any) => {
-  console.warn('Payroll report API not implemented, using mock data');
-  return {
-    data: {
-      success: true,
-      data: [],
-      total: 0,
-    }
-  };
-};
-
-// 📈 Performance report (Mock - no API yet)
-export const getPerformanceReport = async (params: any) => {
-  console.warn('Performance report API not implemented, using mock data');
-  return {
-    data: {
-      success: true,
-      data: [],
-      total: 0,
-    }
-  };
-};
-
 // 📝 User Activities APIs
 export const createUserActivity = (data: any) => api.post("/user-activities", data);
 export const getUserActivities = (params?: any) => api.get("/user-activities", { params });
@@ -298,6 +223,19 @@ export const getNotices = () => api.get("/notices");
 // ⚙️ Common APIs
 export const uploadFile = (data: any, params?: any) => api.post("/common/upload", data, { params });
 export const getCurrentTime = () => api.get("/common/time/now");
+
+// 🚀 NEW: Single Employee Management API
+export const getEmployeeManagementData = (params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  department?: string;
+  designation?: string;
+  joinDateFilter?: string;
+  sortBy?: string;
+  sortOrder?: string;
+}) => api.get("/dashboard/employees", { params });
 
 // Export the axios instance as default and named export
 export { api };
