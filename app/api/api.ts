@@ -237,6 +237,43 @@ export const getEmployeeManagementData = (params?: {
   sortOrder?: string;
 }) => api.get("/dashboard/employees", { params });
 
+export const getAttendanceReport2 = (params: {
+  organizationId: string;
+  year: number;
+  month: number;
+  userIds?: string;
+}) => api.get("/attendance/report", { params });
+
+// 🔄 Workflow Management APIs
+export const getWorkflows = () => api.get("/workflows");
+export const getWorkflow = (id: string) => api.get(`/workflows/${id}`);
+export const createWorkflow = (data: any) => api.post("/workflows", data);
+export const updateWorkflow = (id: string, data: any) => api.put(`/workflows/${id}`, data);
+export const deleteWorkflow = (id: string) => api.delete(`/workflows/${id}`);
+
+// Workflow Steps APIs
+export const addWorkflowStep = (workflowId: string, data: any) => api.post(`/workflows/${workflowId}/steps`, data);
+export const updateWorkflowStep = (stepId: string, data: any) => api.put(`/workflows/steps/${stepId}`, data);
+export const deleteWorkflowStep = (stepId: string) => api.delete(`/workflows/steps/${stepId}`);
+
+// Workflow Assignment APIs  
+export const addWorkflowAssignment = (stepId: string, data: any) => api.post(`/workflows/steps/${stepId}/assignments`, data);
+export const updateWorkflowAssignment = (id: string, data: any) => api.put(`/workflows/assignments/${id}`, data);
+export const deleteWorkflowAssignment = (id: string) => api.delete(`/workflows/assignments/${id}`);
+
+// 🕐 Timeslip APIs
+export const createTimeslip = (data: any) => api.post("/timeslips", data);
+export const getTimeslips = () => api.get("/timeslips");
+export const getTimeslipsByEmployee = (employeeId: string, params?: any) => 
+  api.get(`/timeslips/employee/${employeeId}`, { params });
+export const getTimeslip = (id: string) => api.get(`/timeslips/${id}`);
+export const updateTimeslip = (id: string, data: any) => api.patch(`/timeslips/${id}`, data);
+export const deleteTimeslip = (id: string) => api.delete(`/timeslips/${id}`);
+export const approveTimeslip = (id: string, data: any) => api.post(`/timeslips/${id}/approve`, data);
+
+// Employee List API (for HR to select approvers)
+export const getEmployeesList = (organizationId: string) => api.get(`/employees?organizationId=${organizationId}`);
+
 // Export the axios instance as default and named export
 export { api };
 export default api;

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { format, parseISO, isValid } from 'date-fns';
 
+
 export interface ExportFields {
   basic: boolean;
   contact: boolean;
@@ -212,4 +213,200 @@ export const getFilteredCountMessage = (total: number, filtered: number, monthFi
   
   const filterName = getFilterSuffix(monthFilter).replace(/_/g, ' ');
   return `${filtered} of ${total} employees will be exported (${filterName})`;
+};
+
+export const exportAttendanceReport = (data: any[], period: string, exportFormat: string = 'excel') => {
+  if (data.length === 0) throw new Error('No data to export');
+
+  const ws_data = [];
+  
+  // Add header title (August 2025)
+  ws_data.push([period]);
+  ws_data.push([]); // Empty row for spacing
+  
+  // Get date columns from first row (exclude fixed columns)
+  const fixedColumns = ['Employee Code', 'Employee Name', 'Department', 'Designation', 'Reporting To', 'Total Working Days', 'Total LOP', 'Attendance %'];
+  const dateKeys = Object.keys(data[0]).filter(key => !fixedColumns.includes(key));
+  
+  // Format date headers as "01", "02", "03", etc.
+  const formattedDateHeaders = dateKeys.map(dateStr => {
+    try {
+      const date = parseISO(dateStr);
+      return format(date, 'dd'); // This gives "01", "02", etc.
+    } catch (error) {
+      return dateStr;
+    }
+  });
+  
+  // Create headers
+  const headers = [
+    'Employee Code',
+    'Employee Name', 
+    'Department',
+    'Designation',
+    'Reporting To',
+    ...formattedDateHeaders,
+    'Total Working Days',
+    'Total LOP',
+    'Attendance %'
+  ];
+  
+  ws_data.push(headers);
+  
+  // Add data rows
+  data.forEach(row => {
+    const rowData = [
+      row['Employee Code'] || '',
+      row['Employee Name'] || '',
+      row['Department'] || '', // Will be populated from backend
+      row['Designation'] || '', // Will be populated from backend
+      row['Reporting To'] || '', // Will be populated from backend
+      ...dateKeys.map(dateKey => {
+        const value = row[dateKey];
+        // Keep short codes for Excel
+        switch(value) {
+          case 'Present': return 'P';
+          case 'Absent': return 'A';
+          case 'Holiday': 
+          case 'Weekend': return 'H'; // Both Holiday and Weekend show as H
+          case 'Leave': return 'L';
+          case 'Pending': return '-';
+          default: return value; // Keep existing short codes
+        }
+      }),
+      row['Total Working Days'] || 0,
+      row['Total LOP'] || 0,
+      row['Attendance %'] || '0%'
+    ];
+    ws_data.push(rowData);
+  });
+
+  // Create worksheet
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 12 }, // Employee Code
+    { wch: 25 }, // Employee Name
+    { wch: 15 }, // Department
+    { wch: 18 }, // Designation
+    { wch: 20 }, // Reporting To
+    ...dateKeys.map(() => ({ wch: 4 })), // Date columns - narrow for day numbers
+    { wch: 16 }, // Total Working Days
+    { wch: 10 }, // Total LOP
+    { wch: 12 }  // Attendance %
+  ];
+
+  // Apply styling
+  const range = XLSX.utils.decode_range(ws['!ref']!);
+  
+  // Merge title cell across all columns
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }];
+  
+  // Style title row (row 0)
+  const titleCell = ws[XLSX.utils.encode_cell({ r: 0, c: 0 })];
+  if (titleCell) {
+    titleCell.s = {
+      font: { bold: true, sz: 16, color: { rgb: '0070C0' } },
+      alignment: { horizontal: 'center', vertical: 'center' }
+    };
+  }
+  
+  // Style header row (row 2)
+  for (let C = 0; C <= range.e.c; C++) {
+    const headerCell = ws[XLSX.utils.encode_cell({ r: 2, c: C })];
+    if (headerCell) {
+      headerCell.s = {
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '4472C4' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: '000000' } },
+          bottom: { style: 'thin', color: { rgb: '000000' } },
+          left: { style: 'thin', color: { rgb: '000000' } },
+          right: { style: 'thin', color: { rgb: '000000' } }
+        }
+      };
+    }
+  }
+
+  // Style data rows with color coding
+  for (let R = 3; R <= range.e.r; R++) {
+    for (let C = 0; C <= range.e.c; C++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+      const cell = ws[cellAddress];
+      if (!cell) continue;
+
+      // Add borders to all data cells
+      cell.s = {
+        border: {
+          top: { style: 'thin', color: { rgb: 'D0D0D0' } },
+          bottom: { style: 'thin', color: { rgb: 'D0D0D0' } },
+          left: { style: 'thin', color: { rgb: 'D0D0D0' } },
+          right: { style: 'thin', color: { rgb: 'D0D0D0' } }
+        },
+        alignment: { horizontal: 'center', vertical: 'center' }
+      };
+
+      // Color code attendance values
+      const value = cell.v;
+      if (typeof value === 'string') {
+        switch (value) {
+          case 'P': // Present - Green
+            cell.s.font = { color: { rgb: '006100' }, bold: true };
+            cell.s.fill = { fgColor: { rgb: 'C6EFCE' } };
+            break;
+          case 'A': // Absent - Red  
+            cell.s.font = { color: { rgb: '9C0006' }, bold: true };
+            cell.s.fill = { fgColor: { rgb: 'FFC7CE' } };
+            break;
+          case 'H': // Holiday/Weekend - Blue (as requested)
+            cell.s.font = { color: { rgb: '0070C0' }, bold: true };
+            cell.s.fill = { fgColor: { rgb: 'B4C6E7' } };
+            break;
+          case 'L': // Leave - Orange
+            cell.s.font = { color: { rgb: 'C65911' }, bold: true };
+            cell.s.fill = { fgColor: { rgb: 'F8CBAD' } };
+            break;
+          case 'HD': // Half Day - Light Orange
+            cell.s.font = { color: { rgb: 'E26B0A' }, bold: true };
+            cell.s.fill = { fgColor: { rgb: 'FFE699' } };
+            break;
+          case '-': // Pending - Gray
+            cell.s.font = { color: { rgb: '7F7F7F' } };
+            cell.s.fill = { fgColor: { rgb: 'D9D9D9' } };
+            break;
+        }
+      }
+    }
+  }
+
+  // Create workbook
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Attendance Report');
+
+  // Download file
+  const fileName = `Attendance_Report_${period.replace(' ', '_')}_${new Date().toISOString().slice(0, 10)}`;
+  
+  if (exportFormat === 'csv') {
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${fileName}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  } else {
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${fileName}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  }
 };
