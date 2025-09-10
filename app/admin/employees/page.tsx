@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import EmployeeStats from "./components/EmployeeStats";
 import EmployeeTable from "./components/EmployeeTable";
 import EmployeeDialogs from "./components/EmployeeDialogs";
+import EmployeeDetails from "./components/EmployeeDetails";
 import { Employee, EmployeeFormData } from "./components/types";
 
 // LiveClock Component
@@ -133,6 +134,10 @@ const InitialLoadingSkeleton = () => {
 };
 
 export default function EmployeesPage() {
+  // View state for Employee Details
+  const [currentView, setCurrentView] = useState<'directory' | 'details'>('directory');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+
   // NEW: Single state for all employee management data from API
   const [employeeData, setEmployeeData] = useState<any>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -308,6 +313,19 @@ export default function EmployeesPage() {
     }, 300);
     return () => clearTimeout(timeout);
   }, [searchTerm]);
+
+  // Employee Details Navigation Handlers
+  const handleViewEmployeeDetails = (employeeId: string) => {
+    setSelectedEmployeeId(employeeId);
+    setCurrentView('details');
+  };
+
+  const handleBackToDirectory = () => {
+    setCurrentView('directory');
+    setSelectedEmployeeId(null);
+    // Refresh the employee data when returning to directory
+    fetchEmployeeManagementData(true);
+  };
 
   const logActivity = async (action: string, details?: string) => {
     try {
@@ -746,6 +764,17 @@ export default function EmployeesPage() {
     return <InitialLoadingSkeleton />;
   }
 
+  // Render Employee Details page
+  if (currentView === 'details' && selectedEmployeeId) {
+    return (
+      <EmployeeDetails
+        employeeId={selectedEmployeeId}
+        onBack={handleBackToDirectory}
+      />
+    );
+  }
+
+  // Render Directory view (your existing content)
   return (
     <div className="">
       <motion.div initial="hidden" animate="visible" variants={containerVariants} className="space-y-6">
@@ -828,6 +857,7 @@ export default function EmployeesPage() {
           onAssignEmployee={handleAssignEmployee}
           onIndividualStatusUpdate={handleIndividualStatusUpdate}
           onCreateEmployee={() => setIsCreateDialogOpen(true)}
+          onViewEmployeeDetails={handleViewEmployeeDetails}
         />
 
         {/* All Dialogs */}
