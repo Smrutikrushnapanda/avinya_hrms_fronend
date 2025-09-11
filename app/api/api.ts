@@ -270,6 +270,14 @@ export const getTimeslip = (id: string) => api.get(`/timeslips/${id}`);
 export const updateTimeslip = (id: string, data: any) => api.patch(`/timeslips/${id}`, data);
 export const deleteTimeslip = (id: string) => api.delete(`/timeslips/${id}`);
 export const approveTimeslip = (id: string, data: any) => api.post(`/timeslips/${id}/approve`, data);
+export const getTimeslipsByApprover = (approverId: string, params?: { 
+  status?: string; 
+  page?: number; 
+  limit?: number; 
+}) => api.get(`/timeslips/approver/${approverId}`, { params });
+export const updateStepApprover = (stepId: string, approverId: string) =>
+  api.put(`/workflows/steps/${stepId}/approver`, { approverId });
+
 
 // Employee List API (for HR to select approvers)
 export const getEmployeesList = (organizationId: string) => api.get(`/employees?organizationId=${organizationId}`);
