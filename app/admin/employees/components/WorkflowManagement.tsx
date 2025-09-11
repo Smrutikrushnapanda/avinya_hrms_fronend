@@ -28,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -39,12 +38,12 @@ import {
   updateWorkflow,
   deleteWorkflow,
   addWorkflowStep,
-  updateWorkflowStep,
   deleteWorkflowStep,
   addWorkflowAssignment,
   deleteWorkflowAssignment,
-  getEmployees, // Use your existing API
-  getProfile,   // Use your existing API
+  getEmployees,
+  getProfile,
+  updateStepApprover,
 } from "@/app/api/api";
 
 interface Workflow {
@@ -104,7 +103,7 @@ export default function WorkflowManagement() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [employeeLoading, setEmployeeLoading] = useState(false);
-  const [organizationId, setOrganizationId] = useState<string>("");
+  const [organizationId, setOrganizationId] = useState("");
 
   // Dialog states
   const [isWorkflowDialogOpen, setIsWorkflowDialogOpen] = useState(false);
@@ -168,7 +167,6 @@ export default function WorkflowManagement() {
     try {
       setEmployeeLoading(true);
       if (organizationId) {
-        // Use your existing getEmployees API
         const response = await getEmployees(organizationId);
         setEmployees(response.data || []);
       }
@@ -298,57 +296,58 @@ export default function WorkflowManagement() {
     }
   };
 
-  // Approver Management
   const handleManageApprovers = (step: WorkflowStep) => {
     setSelectedStep(step);
-    // Set currently assigned approvers
-    setSelectedApprovers(step.assignments.map(a => a.approverId || a.employeeId).filter(Boolean));
+    // Set currently assigned approver (single selection)
+    const currentApprover = step.assignments.length > 0
+      ? [step.assignments[0].approverId || step.assignments[0].employeeId].filter(Boolean)
+      : [];
+    setSelectedApprovers(currentApprover);
     setIsApproverDialogOpen(true);
   };
 
-  const handleApproverToggle = (employeeId: string) => {
-    setSelectedApprovers(prev => 
-      prev.includes(employeeId) 
-        ? prev.filter(id => id !== employeeId)
-        : [...prev, employeeId]
-    );
-  };
 
-  const handleSelectAllApprovers = () => {
-    if (selectedApprovers.length === employees.length) {
-      setSelectedApprovers([]);
-    } else {
-      setSelectedApprovers(employees.map(emp => emp.id));
+  // Replace your existing handleSaveApprovers function with this:
+const handleSaveApprovers = async () => {
+  if (!selectedStep) return;
+
+  try {
+    const newApproverId = selectedApprovers[0];
+    
+    if (!newApproverId) {
+      toast.error("Please select an approver");
+      return;
     }
-  };
 
-  const handleSaveApprovers = async () => {
-    if (!selectedStep) return;
+    // Check if same approver is already assigned
+    const currentApprover = selectedStep.assignments.length > 0 
+      ? selectedStep.assignments[0].approverId || selectedStep.assignments[0].employeeId 
+      : null;
 
-    try {
-      // Remove existing assignments using your existing API
-      for (const assignment of selectedStep.assignments) {
-        await deleteWorkflowAssignment(assignment.id);
-      }
-
-      // Add new assignments using your existing API
-      for (const employeeId of selectedApprovers) {
-        await addWorkflowAssignment(selectedStep.id, {
-          employeeId: employeeId,
-          approverId: employeeId,
-        });
-      }
-
-      toast.success("Approvers saved successfully");
+    if (currentApprover === newApproverId) {
+      toast.info("This approver is already assigned to this step");
       setIsApproverDialogOpen(false);
       setSelectedStep(null);
       setSelectedApprovers([]);
-      fetchWorkflows();
-    } catch (error: any) {
-      console.error("Error saving approvers:", error);
-      toast.error(error.response?.data?.message || "Failed to save approvers");
+      return;
     }
-  };
+
+    // Use the API to update approver
+    await updateStepApprover(selectedStep.id, newApproverId);
+
+    toast.success("Approver updated successfully");
+    setIsApproverDialogOpen(false);
+    setSelectedStep(null);
+    setSelectedApprovers([]);
+    fetchWorkflows();
+  } catch (error: any) {
+    console.error("Error updating approver:", error);
+    toast.error(error.response?.data?.message || "Failed to update approver");
+  }
+};
+
+
+
 
   const toggleWorkflowExpansion = (workflowId: string) => {
     setExpandedWorkflows(prev => {
@@ -364,10 +363,17 @@ export default function WorkflowManagement() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="space-y-4">
+      <div className="container mx-auto py-8">
+        <div className="space-y-6">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-32 bg-gray-200 rounded-lg animate-pulse" />
+            <Card key={i} className="animate-pulse">
+              <CardHeader>
+                <div className="h-4 bg-gray-300 rounded w-1/4"></div>
+              </CardHeader>
+              <CardContent>
+                <div className="h-20 bg-gray-200 rounded"></div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
@@ -375,151 +381,155 @@ export default function WorkflowManagement() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="container mx-auto py-8">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold">Workflow Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Workflow Management</h1>
           <p className="text-gray-600">Manage approval workflows and assign approvers</p>
         </div>
         <Button onClick={() => setIsWorkflowDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="h-4 w-4 mr-2" />
           New Workflow
         </Button>
       </div>
 
       {/* Workflows List */}
-      <div className="space-y-4">
+      <div className="space-y-6">
         {workflows.length === 0 ? (
           <Card>
-            <CardContent className="flex items-center justify-center h-32">
-              <div className="text-center">
-                <Settings className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <p className="text-gray-500">No workflows found</p>
-                <p className="text-sm text-gray-400">Create your first workflow to get started</p>
-              </div>
+            <CardContent className="text-center py-12">
+              <Settings className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No workflows found</h3>
+              <p className="text-gray-600">Create your first workflow to get started</p>
             </CardContent>
           </Card>
         ) : (
           workflows.map((workflow) => (
-            <Card key={workflow.id}>
+            <Card key={workflow.id} className="overflow-hidden">
               <Collapsible>
-                <CardHeader className="cursor-pointer" onClick={() => toggleWorkflowExpansion(workflow.id)}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <CollapsibleTrigger>
+                <CollapsibleTrigger
+                  className="w-full"
+                  onClick={() => toggleWorkflowExpansion(workflow.id)}
+                >
+                  <CardHeader className="hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
                         {expandedWorkflows.has(workflow.id) ? (
-                          <ChevronDown className="h-4 w-4" />
+                          <ChevronDown className="h-5 w-5 text-gray-400" />
                         ) : (
-                          <ChevronRight className="h-4 w-4" />
+                          <ChevronRight className="h-5 w-5 text-gray-400" />
                         )}
-                      </CollapsibleTrigger>
-                      <div>
-                        <CardTitle className="text-lg">{workflow.name}</CardTitle>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Badge variant="outline">{workflow.type}</Badge>
-                          <Badge variant={workflow.isActive ? "default" : "secondary"}>
-                            {workflow.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                          <span className="text-sm text-gray-500">
-                            {workflow.steps.length} step{workflow.steps.length !== 1 ? 's' : ''}
-                          </span>
+                        <div className="text-left">
+                          <CardTitle className="text-lg">{workflow.name}</CardTitle>
+                          <div className="flex items-center space-x-4 mt-1">
+                            <Badge variant="outline">{workflow.type}</Badge>
+                            <Badge variant={workflow.isActive ? "default" : "secondary"}>
+                              {workflow.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                            <span className="text-sm text-gray-600">
+                              {workflow.steps.length} step{workflow.steps.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddStep(workflow.id);
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Step
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditWorkflow(workflow);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteWorkflow(workflow);
+                          }}
+                          className="text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddStep(workflow.id);
-                        }}
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Step
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditWorkflow(workflow);
-                        }}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteWorkflow(workflow);
-                        }}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
+                  </CardHeader>
+                </CollapsibleTrigger>
+
                 <CollapsibleContent>
-                  <CardContent className="pt-0">
-                    <div className="space-y-3">
-                      {workflow.steps.length === 0 ? (
-                        <p className="text-gray-500 text-center py-4">
-                          No steps configured. Add a step to get started.
-                        </p>
-                      ) : (
-                        workflow.steps
+                  <CardContent>
+                    {workflow.steps.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <Settings className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                        <p>No steps configured. Add a step to get started.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {workflow.steps
                           .sort((a, b) => a.stepOrder - b.stepOrder)
                           .map((step, index) => (
-                            <div key={step.id} className="flex items-center justify-between p-3 border rounded-lg">
-                              <div className="flex items-center space-x-3">
-                                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium text-blue-800">
+                            <div key={step.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                              <div className="flex items-center space-x-4">
+                                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
                                   {step.stepOrder}
                                 </div>
                                 <div>
-                                  <h4 className="font-medium">{step.name}</h4>
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <span className="text-sm text-gray-500">
-                                      {step.assignments.length} approver{step.assignments.length !== 1 ? 's' : ''}
-                                    </span>
-                                    {step.assignments.slice(0, 3).map((assignment) => (
-                                      <Badge key={assignment.id} variant="outline" className="text-xs">
-                                        {assignment.approver?.firstName} {assignment.approver?.lastName}
-                                      </Badge>
-                                    ))}
-                                    {step.assignments.length > 3 && (
-                                      <Badge variant="outline" className="text-xs">
-                                        +{step.assignments.length - 3} more
-                                      </Badge>
-                                    )}
+                                  <h4 className="font-medium text-gray-900">{step.name}</h4>
+                                  <div className="flex items-center space-x-4 mt-1">
+                                    <span className="text-sm text-gray-600">
+                                      {step.assignments.length > 0 ? "1 approver" : "No approver assigned"}                                    </span>
+                                    <div className="flex items-center space-x-2">
+                                      {step.assignments.length > 0 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          {step.assignments[0].approver?.firstName} {step.assignments[0].approver?.lastName}
+                                        </Badge>
+                                      )}
+                                      {step.assignments.length > 3 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          +{step.assignments.length - 3} more
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Button
-                                  variant="ghost"
                                   size="sm"
+                                  variant="outline"
                                   onClick={() => handleManageApprovers(step)}
                                 >
-                                  <Users className="w-4 h-4 mr-1" />
+                                  <Users className="h-4 w-4 mr-1" />
                                   Manage Approvers
                                 </Button>
                                 <Button
-                                  variant="ghost"
                                   size="sm"
+                                  variant="ghost"
                                   onClick={() => handleDeleteStep(step.id)}
                                   className="text-red-600 hover:text-red-800"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </div>
-                          ))
-                      )}
-                    </div>
+                          ))}
+                      </div>
+                    )}
                   </CardContent>
                 </CollapsibleContent>
               </Collapsible>
@@ -532,31 +542,31 @@ export default function WorkflowManagement() {
       <Dialog open={isWorkflowDialogOpen} onOpenChange={setIsWorkflowDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {selectedWorkflow ? "Edit Workflow" : "Create New Workflow"}
-            </DialogTitle>
+            <DialogTitle>{selectedWorkflow ? "Edit Workflow" : "Create New Workflow"}</DialogTitle>
             <DialogDescription>
               {selectedWorkflow ? "Update workflow details" : "Create a new approval workflow"}
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4">
             <div>
-              <Label htmlFor="workflowName">Name *</Label>
+              <Label htmlFor="name">Name *</Label>
               <Input
-                id="workflowName"
+                id="name"
                 value={workflowForm.name}
-                onChange={(e) => setWorkflowForm({...workflowForm, name: e.target.value})}
+                onChange={(e) => setWorkflowForm({ ...workflowForm, name: e.target.value })}
                 placeholder="Enter workflow name"
               />
             </div>
+
             <div>
-              <Label htmlFor="workflowType">Type *</Label>
+              <Label htmlFor="type">Type *</Label>
               <Select
                 value={workflowForm.type}
-                onValueChange={(value) => setWorkflowForm({...workflowForm, type: value})}
+                onValueChange={(value) => setWorkflowForm({ ...workflowForm, type: value })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select workflow type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="TIMESLIP">Timeslip</SelectItem>
@@ -566,15 +576,18 @@ export default function WorkflowManagement() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="flex items-center space-x-2">
-              <Checkbox
+              <input
+                type="checkbox"
                 id="isActive"
                 checked={workflowForm.isActive}
-                onCheckedChange={(checked) => setWorkflowForm({...workflowForm, isActive: !!checked})}
+                onChange={(e) => setWorkflowForm({ ...workflowForm, isActive: e.target.checked })}
               />
               <Label htmlFor="isActive">Active</Label>
             </div>
           </div>
+
           <DialogFooter>
             <Button
               variant="outline"
@@ -602,36 +615,39 @@ export default function WorkflowManagement() {
               Add a new approval step to "{selectedWorkflow?.name}"
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4">
             <div>
               <Label htmlFor="stepName">Step Name *</Label>
               <Input
                 id="stepName"
                 value={stepForm.name}
-                onChange={(e) => setStepForm({...stepForm, name: e.target.value})}
+                onChange={(e) => setStepForm({ ...stepForm, name: e.target.value })}
                 placeholder="e.g., Manager Approval, HR Review"
               />
             </div>
+
             <div>
               <Label htmlFor="stepOrder">Step Order</Label>
               <Input
                 id="stepOrder"
                 type="number"
-                min="1"
                 value={stepForm.stepOrder}
-                onChange={(e) => setStepForm({...stepForm, stepOrder: parseInt(e.target.value) || 1})}
+                onChange={(e) => setStepForm({ ...stepForm, stepOrder: parseInt(e.target.value) || 1 })}
               />
             </div>
+
             <div>
               <Label htmlFor="condition">Condition (Optional)</Label>
               <Input
                 id="condition"
                 value={stepForm.condition}
-                onChange={(e) => setStepForm({...stepForm, condition: e.target.value})}
+                onChange={(e) => setStepForm({ ...stepForm, condition: e.target.value })}
                 placeholder="e.g., amount > 1000"
               />
             </div>
           </div>
+
           <DialogFooter>
             <Button
               variant="outline"
@@ -642,108 +658,104 @@ export default function WorkflowManagement() {
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateStep}>
-              Add Step
-            </Button>
+            <Button onClick={handleCreateStep}>Add Step</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Manage Approvers Dialog - Fixed with single selection */}
-<Dialog open={isApproverDialogOpen} onOpenChange={setIsApproverDialogOpen}>
-  <DialogContent className="max-w-lg">
-    <DialogHeader>
-      <DialogTitle>Manage Approver</DialogTitle>
-      <DialogDescription>
-        Select one employee to approve "{selectedStep?.name}" step
-      </DialogDescription>
-    </DialogHeader>
+      {/* Fixed Manage Approvers Dialog - Single Selection */}
+      <Dialog open={isApproverDialogOpen} onOpenChange={setIsApproverDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Manage Approver</DialogTitle>
+            <DialogDescription>
+              Select one employee to approve "{selectedStep?.name}" step
+            </DialogDescription>
+          </DialogHeader>
 
-    {employeeLoading ? (
-      <div className="flex items-center justify-center py-8">
-        <div className="text-center">
-          <div className="h-8 w-8 mx-auto mb-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          <p>Loading employees...</p>
-        </div>
-      </div>
-    ) : (
-      <div className="space-y-3">
-        {/* Employee selection area with proper scrolling */}
-        <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2 bg-gray-50">
-          {employees.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-              <p>No employees found</p>
+          {employeeLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="h-8 w-8 mx-auto mb-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                <p>Loading employees...</p>
+              </div>
             </div>
           ) : (
-            employees.map((employee) => (
-              <label 
-                key={employee.id} 
-                className={`flex items-center space-x-3 p-3 bg-white rounded-lg border cursor-pointer hover:bg-blue-50 transition-colors ${
-                  selectedApprovers.includes(employee.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="approver"
-                  value={employee.id}
-                  checked={selectedApprovers.includes(employee.id)}
-                  onChange={() => {
-                    // Single selection - clear previous and set new
-                    setSelectedApprovers([employee.id]);
-                  }}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-gray-900 truncate">
-                    {employee.firstName} {employee.lastName}
+            <div className="space-y-3">
+              {/* Employee selection area with proper scrolling */}
+              <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2 bg-gray-50">
+                {employees.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                    <p>No employees found</p>
                   </div>
-                  <div className="text-sm text-gray-500 truncate">
-                    {employee.employeeCode}
-                    {employee.designation?.name && ` • ${employee.designation.name}`}
-                    {employee.department?.name && ` • ${employee.department.name}`}
+                ) : (
+                  employees.map((employee) => (
+                    <label
+                      key={employee.id}
+                      className={`flex items-center space-x-3 p-3 bg-white rounded-lg border cursor-pointer hover:bg-blue-50 transition-colors ${selectedApprovers.includes(employee.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="approver"
+                        value={employee.id}
+                        checked={selectedApprovers.includes(employee.id)}
+                        onChange={() => {
+                          // Single selection - replace previous selection
+                          setSelectedApprovers([employee.id]);
+                        }}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 truncate">
+                          {employee.firstName} {employee.lastName}
+                        </div>
+                        <div className="text-sm text-gray-500 truncate">
+                          {employee.employeeCode}
+                          {employee.designation?.name && ` • ${employee.designation.name}`}
+                          {employee.department?.name && ` • ${employee.department.name}`}
+                        </div>
+                      </div>
+                    </label>
+                  ))
+                )}
+              </div>
+
+              {/* Selected approver display */}
+              {selectedApprovers.length > 0 && (
+                <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                  <div className="text-sm font-medium text-blue-800">
+                    Selected Approver:
+                  </div>
+                  <div className="text-sm text-blue-700">
+                    {employees.find(emp => emp.id === selectedApprovers[0])?.firstName} {employees.find(emp => emp.id === selectedApprovers[0])?.lastName}
                   </div>
                 </div>
-              </label>
-            ))
+              )}
+            </div>
           )}
-        </div>
 
-        {/* Selected approver display */}
-        {selectedApprovers.length > 0 && (
-          <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
-            <div className="text-sm font-medium text-blue-800">
-              Selected Approver:
-            </div>
-            <div className="text-sm text-blue-700">
-              {employees.find(emp => emp.id === selectedApprovers[0])?.firstName} {employees.find(emp => emp.id === selectedApprovers[0])?.lastName}
-            </div>
-          </div>
-        )}
-      </div>
-    )}
-
-    <DialogFooter>
-      <Button
-        variant="outline"
-        onClick={() => {
-          setIsApproverDialogOpen(false);
-          setSelectedStep(null);
-          setSelectedApprovers([]);
-        }}
-      >
-        Cancel
-      </Button>
-      <Button 
-        onClick={handleSaveApprovers}
-        disabled={selectedApprovers.length === 0}
-      >
-        Save Approver
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
-
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsApproverDialogOpen(false);
+                setSelectedStep(null);
+                setSelectedApprovers([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveApprovers}
+              disabled={selectedApprovers.length === 0}
+            >
+              Save Approver
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
