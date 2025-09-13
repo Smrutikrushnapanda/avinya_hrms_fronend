@@ -214,6 +214,11 @@ export const getActivePoll = (userId?: string) => api.get("/polls/active", { par
 export const getPoll = (id: string) => api.get(`/polls/${id}`);
 export const addQuestion = (id: string, data: any) => api.post(`/polls/${id}/questions`, data);
 export const getQuestions = (id: string) => api.get(`/polls/${id}/questions`);
+export const getPollAnalytics = (pollId: string) => api.get(`/polls/${pollId}/analytics`);
+export const getPollsSummary = () => api.get("/polls/summary");
+export const getActivePollsWithAnalytics = () => api.get("/polls/active-with-analytics");
+
+
 
 // 📢 Notice APIs
 export const getActiveNotices = () => api.get("/notices/active");
