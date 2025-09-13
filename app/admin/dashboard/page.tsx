@@ -200,6 +200,8 @@ export default function HRDashboardPage() {
   }, [departmentStats, departments, employees]);
 
   const attendanceChartData = useMemo(() => {
+    console.log('Daily Stats:', dailyStats);
+    console.log("user: ",getProfile());
     if (dailyStats) {
       const presentCount = dailyStats.presentSummary?.total_present || 0;
       const absentCount = dailyStats.notPresentSummary?.absent || 0;

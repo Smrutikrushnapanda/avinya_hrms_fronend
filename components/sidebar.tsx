@@ -99,46 +99,44 @@ export default function Sidebar() {
       >
         <div className="flex-1 flex flex-col items-start px-2 py-4 gap-1">
           {menuItems.map((item) => {
-            const isActive = pathname === item.href;
+    const isActive = pathname === item.href;
+    
+    return (
+      <Tooltip key={item.name}>
+        <TooltipTrigger asChild>
+          <Link
+            href={item.href}
+            className={cn(
+              "flex items-center gap-4 w-full p-2 rounded-lg transition-all duration-200 group relative", // Reduced padding from p-3 to p-2
+              !isExpanded && "justify-center",
+              isActive
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
+            )}
+          >
+            {/* Icon with bigger size */}
+            <item.icon 
+              className={cn(
+                "w-5 h-5 transition-all duration-200", // Changed from w-6 h-6 to w-7 h-7
+                isActive 
+                  ? "text-gray-900 dark:text-gray-100"
+                  : "text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
+              )} 
+            />
             
-            return (
-              <Tooltip key={item.name}>
-                <TooltipTrigger asChild>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 w-full p-3 rounded-lg transition-all duration-200 group relative",
-                      !isExpanded && "justify-center",
-                      // ✅ Active state with near-black colors
-                      isActive
-                        ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
-                    )}
-                  >
-                    
-                    {/* Icon with near-black active color */}
-                    <item.icon 
-                      className={cn(
-                        "w-5 h-5 transition-all duration-200",
-                        isActive 
-                          ? "text-gray-900 dark:text-gray-100" // Near-black active color
-                          : "text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
-                      )} 
-                    />
-                    
-                    {/* Text with near-black active color */}
-                    {isExpanded && (
-                      <span className={cn(
-                        "font-medium transition-colors duration-200",
-                        isActive 
-                          ? "text-gray-900 dark:text-gray-100" // Near-black active color
-                          : "text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
-                      )}>
-                        {item.name}
-                      </span>
-                    )}
-                  </Link>
-                </TooltipTrigger>
+            {/* Text remains same */}
+            {isExpanded && (
+              <span className={cn(
+                "font-medium transition-colors duration-200",
+                isActive 
+                  ? "text-gray-900 dark:text-gray-100"
+                  : "text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
+              )}>
+                {item.name}
+              </span>
+            )}
+          </Link>
+        </TooltipTrigger>
                 {!isExpanded && (
                   <TooltipContent side="right" sideOffset={8}>
                     <div className="flex items-center gap-2">

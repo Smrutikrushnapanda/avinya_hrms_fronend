@@ -6,10 +6,11 @@ import { columns } from "./components/columns";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ClipboardList } from "lucide-react";
-import api from "../../api/api"; // Fixed import
+import { ChevronLeft, ChevronRight, ClipboardList, FileText } from "lucide-react";
+import api from "../../api/api";
 import { SortingState } from "@tanstack/react-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import AttendanceReportModal from "./components/AttendanceReportModal";
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date());
@@ -17,6 +18,7 @@ export default function AttendancePage() {
   const [stats, setStats] = useState<any>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [state, setState] = useState<{
     page: number;
     pageSize: number;
@@ -29,6 +31,8 @@ export default function AttendancePage() {
     sorting: [],
   });
 
+  const organizationId = "24facd21-265a-4edd-8fd1-bc69a036f755"; // You might want to get this from context or props
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -38,7 +42,7 @@ export default function AttendancePage() {
         // Fetch table data
         const res = await api.get("/attendance/by-date", {
           params: {
-            organizationId: "24facd21-265a-4edd-8fd1-bc69a036f755",
+            organizationId,
             date: formattedDate,
             page: state.page + 1,
             limit: state.pageSize,
@@ -55,7 +59,7 @@ export default function AttendancePage() {
         // Fetch daily stats
         const statsRes = await api.get("/attendance/daily-stats", {
           params: {
-            organizationId: "24facd21-265a-4edd-8fd1-bc69a036f755",
+            organizationId,
             date: formattedDate,
           },
         });
@@ -69,7 +73,7 @@ export default function AttendancePage() {
     };
 
     fetchData();
-  }, [date, state]);
+  }, [date, state, organizationId]);
 
   const handlePrevDate = () => {
     setDate((prev) => {
@@ -108,7 +112,13 @@ export default function AttendancePage() {
             </Button>
           </div>
         </div>
-        <Button>Attendance Report</Button>
+        <Button 
+          onClick={() => setShowReportModal(true)}
+          className="flex items-center gap-2"
+        >
+          <FileText className="h-4 w-4" />
+          Attendance Report
+        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -283,6 +293,13 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Attendance Report Modal */}
+      <AttendanceReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        organizationId={organizationId}
+      />
     </div>
   );
 }

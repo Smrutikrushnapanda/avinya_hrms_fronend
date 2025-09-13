@@ -80,6 +80,7 @@ interface EmployeeTableProps {
   onAssignEmployee: (employee: Employee) => void;
   onIndividualStatusUpdate: (employee: Employee, status: string) => void;
   onCreateEmployee: () => void;
+  onViewEmployeeDetails: (employeeId: string) => void; // Add this line
 }
 
 export default function EmployeeTable({
@@ -109,10 +110,11 @@ export default function EmployeeTable({
   onAssignEmployee,
   onIndividualStatusUpdate,
   onCreateEmployee,
+  onViewEmployeeDetails,
 }: EmployeeTableProps) {
   const employees = employeeData?.employees || [];
   const pagination = employeeData?.pagination || { page: 1, total: 0, totalPages: 1, hasNext: false, hasPrev: false };
-  
+
   // Safe array operations for unique values
   const uniqueDepartments = [...new Set(employees.map((e: Employee) => e.department?.name).filter(Boolean))];
   const uniqueDesignations = [...new Set(employees.map((e: Employee) => e.designation?.name).filter(Boolean))];
@@ -171,7 +173,7 @@ export default function EmployeeTable({
             <div>
               <CardTitle>Employee Directory</CardTitle>
             </div>
-            
+
             <Button className="bg-blue-600 hover:bg-blue-700" onClick={onCreateEmployee}>
               <UserPlus className="w-4 h-4 mr-2" />
               Add Employee
@@ -262,7 +264,7 @@ export default function EmployeeTable({
         <CardContent>
           <div className="rounded-md border overflow-x-auto relative">
             {loading && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -274,7 +276,7 @@ export default function EmployeeTable({
                 </div>
               </motion.div>
             )}
-            
+
             <Table className="min-w-[1200px]">
               <TableHeader>
                 <TableRow>
@@ -351,8 +353,8 @@ export default function EmployeeTable({
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -20 }}
-                          transition={{ 
-                            duration: 0.3, 
+                          transition={{
+                            duration: 0.3,
                             delay: index * 0.05,
                             ease: "easeOut"
                           }}
@@ -434,8 +436,8 @@ export default function EmployeeTable({
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => onViewEmployee(employee)}>
-                                  <Eye className="mr-2 h-4 w-4" />
+                                <DropdownMenuItem onClick={() => onViewEmployeeDetails(employee.id)}>
+                                  <Eye className="h-4 w-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onEditEmployee(employee)}>
