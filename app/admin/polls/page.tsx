@@ -491,8 +491,8 @@ export default function PollsPage() {
                       outerRadius={120}
                       fill="#8884d8"
                       dataKey="value"
-                      label={({ name, percent }: { name: string; percent?: number }) => 
-                        `${name}: ${percent ? (percent * 100).toFixed(0) : 0}%`
+                      label={({ name, percent }: { name?: string; percent?: number }) => 
+                        `${name || 'Unknown'}: ${percent ? (percent * 100).toFixed(0) : 0}%`
                       }
                       labelLine={false}
                       fontSize={13}
