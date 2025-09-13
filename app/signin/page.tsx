@@ -43,9 +43,7 @@ export default function LoginPage() {
         router.push("/admin/dashboard");
       } else if (roleNames.includes("EMPLOYEE")) {
         toast.success("Login successful! 🎉");
-        router.push(`/user/dashboard/${responseUser.id}`);
-      } else {
-        toast.error("You are not assigned with any role!");
+        router.push("/user/dashboard");
       }
     } catch (error: any) {
       setError(error.response?.data?.message || error.message || "Login failed");
