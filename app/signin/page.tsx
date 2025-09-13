@@ -9,18 +9,20 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { login } from "../api/api";
+import { Eye, EyeOff } from "lucide-react"; // 👁️ Eye icons
 
 export default function LoginPage() {
   const router = useRouter();
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(""); // ✅ Error message state
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // 🔁 Password visibility toggle
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(""); // clear old error
+    setError("");
 
     try {
       const response = await login({
@@ -28,18 +30,14 @@ export default function LoginPage() {
         userName: userId,
       });
 
-      // ✅ Extract user + token properly
       const { user: responseUser, access_token } = response.data;
 
-      // ✅ Store token & user in localStorage
       localStorage.setItem("access_token", access_token);
       localStorage.setItem("user", JSON.stringify(responseUser));
 
-      // ✅ Extract roles
       const roles: { roleName: string }[] = responseUser.roles || [];
       const roleNames = roles.map((r) => r.roleName);
 
-      // ✅ Redirect based on role
       if (roleNames.includes("ADMIN")) {
         toast.success("Login successful! 🎉");
         router.push("/admin/dashboard");
@@ -48,7 +46,6 @@ export default function LoginPage() {
         router.push("/user/dashboard");
       }
     } catch (error: any) {
-      // show backend error if available
       setError(error.response?.data?.message || error.message || "Login failed");
     } finally {
       setLoading(false);
@@ -91,6 +88,7 @@ export default function LoginPage() {
                 Sign in to your account
               </h2>
               <form className="space-y-4" onSubmit={handleLogin}>
+                {/* User ID Field */}
                 <div>
                   <label
                     className="block text-sm font-medium mb-1"
@@ -106,6 +104,8 @@ export default function LoginPage() {
                     onChange={(e) => setUserId(e.target.value)}
                   />
                 </div>
+
+                {/* Password Field with Eye Toggle */}
                 <div>
                   <label
                     className="block text-sm font-medium mb-1"
@@ -113,20 +113,30 @@ export default function LoginPage() {
                   >
                     Password
                   </label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground focus:outline-none"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
-                {/* ✅ Error Message */}
-                {error && (
-                  <p className="text-red-500 text-sm mt-2">{error}</p>
-                )}
+                {/* Error Message */}
+                {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
 
+                {/* Submit Button */}
                 <Button
                   type="submit"
                   className="w-full text-base mt-2"
@@ -136,6 +146,7 @@ export default function LoginPage() {
                 </Button>
               </form>
 
+              {/* Register Link */}
               <div className="text-center mt-4 text-sm text-muted-foreground">
                 Don’t have an account?{" "}
                 <Link
