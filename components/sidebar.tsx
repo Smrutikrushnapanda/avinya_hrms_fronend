@@ -16,6 +16,7 @@ import {
   Settings,
   PanelRight,
   Calendar,
+  Vote,
 } from "lucide-react";
 
 import {
@@ -42,13 +43,16 @@ const menuByRole: Record<string, { name: string; icon: any; href: string }[]> = 
     { name: "Attendance", icon: Calendar, href: "/admin/attendance" },
     { name: "Payroll", icon: BadgeDollarSign, href: "/admin/payroll" },
     { name: "Reports", icon: BookMarked, href: "/admin/reports" },
+    { name: "Polls", icon: Vote, href: "/admin/polls" }, 
   ],
   EMPLOYEE: [
     { name: "Dashboard", icon: LayoutDashboard, href: "/user/dashboard" },
     { name: "My Reports", icon: BookMarked, href: "/user/reports" },
     { name: "My Payroll", icon: BadgeDollarSign, href: "/user/payroll" },
+    { name: "Polls", icon: Vote, href: "/user/polls" }, 
   ],
 };
+
 
 export default function Sidebar() {
   const pathname = usePathname();
