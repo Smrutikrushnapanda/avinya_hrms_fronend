@@ -239,7 +239,7 @@ export default function HRDashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="mb-6">
+      {/* <div className="mb-6">
         <Card className="border-gray-200 dark:border-gray-800">
           <div className="px-2 py-3 md:px-6 md:py-4 flex flex-col md:flex-row md:flex-wrap items-start md:items-center gap-4 w-full">
             <div className="flex items-center mb-2 md:mb-0">
@@ -256,7 +256,7 @@ export default function HRDashboardPage() {
             </div>
           </div>
         </Card>
-      </div>
+      </div> */}
 
       {/* Widget Settings */}
       {showWidgetSettings && (

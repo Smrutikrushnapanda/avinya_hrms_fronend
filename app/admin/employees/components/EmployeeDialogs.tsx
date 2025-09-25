@@ -174,7 +174,7 @@ export default function EmployeeDialogs({
     <>
       {/* Create New Employee Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[1200px] max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Employee</DialogTitle>
             <DialogDescription>
