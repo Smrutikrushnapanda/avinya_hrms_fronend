@@ -1,19 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Vote, Users, Clock, ChevronRight, Calendar, User, MessageCircle, BarChart3, Eye, X } from "lucide-react";
+import { Vote, Users, Clock, ChevronRight, Calendar, User, MessageCircle, BarChart3, Eye, X, Plus } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, isBefore, formatDistanceToNow } from "date-fns";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip } from "recharts";
-import { getPollsSummary, getPollAnalytics, getEmployeeByUserId } from "@/app/api/api";
+import { getPollsSummary, getPollAnalytics, getEmployeeByUserId, createPoll } from "@/app/api/api";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -231,7 +236,221 @@ function QuestionCardSkeleton() {
   );
 }
 
-export default function PollsPage() {
+function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => void; currentUser: any }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [pollData, setPollData] = useState({
+    title: '',
+    description: '',
+    start_time: '',
+    end_time: '',
+    is_anonymous: false,
+  });
+  const [questions, setQuestions] = useState<Array<{ text: string; type: string; options: string[] }>>([]);
+  const [creating, setCreating] = useState(false);
+
+  const addNewQuestion = () => {
+    setQuestions([...questions, { text: '', type: 'single_choice', options: [''] }]);
+  };
+
+  const updateQuestion = (index: number, field: string, value: any) => {
+    const updated = [...questions];
+    updated[index] = { ...updated[index], [field]: value };
+    setQuestions(updated);
+  };
+
+  const addOption = (questionIndex: number) => {
+    const updated = [...questions];
+    updated[questionIndex].options.push('');
+    setQuestions(updated);
+  };
+
+  const updateOption = (questionIndex: number, optionIndex: number, value: string) => {
+    const updated = [...questions];
+    updated[questionIndex].options[optionIndex] = value;
+    setQuestions(updated);
+  };
+
+  const removeQuestion = (index: number) => {
+    setQuestions(questions.filter((_, i) => i !== index));
+  };
+
+  const removeOption = (questionIndex: number, optionIndex: number) => {
+    const updated = [...questions];
+    updated[questionIndex].options = updated[questionIndex].options.filter((_, i) => i !== optionIndex);
+    setQuestions(updated);
+  };
+
+  const handleCreatePoll = async () => {
+    if (!pollData.title || !pollData.start_time || !pollData.end_time) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!currentUser?.userId) {
+      toast.error('User not found. Please login again.');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const formattedQuestions = questions
+        .filter(q => q.text.trim())
+        .map(question => ({
+          text: question.text.trim(),
+          questionType: question.type,
+          options: question.type === 'single_choice' || question.type === 'multiple_choice'
+            ? question.options.filter(opt => opt.trim())
+            : []
+        }));
+
+      const formattedPollData = {
+        title: pollData.title.trim(),
+        description: pollData.description.trim() || undefined,
+        startTime: new Date(pollData.start_time).toISOString(),
+        endTime: new Date(pollData.end_time).toISOString(),
+        isAnonymous: pollData.is_anonymous,
+        createdBy: currentUser.userId,
+        questions: formattedQuestions,
+      };
+
+      await createPoll(formattedPollData);
+      toast.success('Poll created successfully!');
+      onPollCreated();
+      setIsOpen(false);
+      setPollData({ title: '', description: '', start_time: '', end_time: '', is_anonymous: false });
+      setQuestions([]);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to create poll');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
+          Create Poll
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create New Poll</DialogTitle>
+          <DialogDescription>Create a poll for employees to participate in</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <Label htmlFor="title">Poll Title *</Label>
+              <Input id="title" value={pollData.title}
+                onChange={(e) => setPollData({ ...pollData, title: e.target.value })}
+                placeholder="Enter poll title" />
+            </div>
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea id="description" value={pollData.description}
+                onChange={(e) => setPollData({ ...pollData, description: e.target.value })}
+                placeholder="Enter poll description" rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="start_time">Start Time *</Label>
+                <Input id="start_time" type="datetime-local" value={pollData.start_time}
+                  onChange={(e) => setPollData({ ...pollData, start_time: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="end_time">End Time *</Label>
+                <Input id="end_time" type="datetime-local" value={pollData.end_time}
+                  onChange={(e) => setPollData({ ...pollData, end_time: e.target.value })} />
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch id="anonymous" checked={pollData.is_anonymous}
+                onCheckedChange={(checked) => setPollData({ ...pollData, is_anonymous: checked })} />
+              <Label htmlFor="anonymous">Anonymous Poll</Label>
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <Label className="text-base font-semibold">Questions</Label>
+              <Button type="button" size="sm" onClick={addNewQuestion}>
+                <Plus className="h-4 w-4 mr-2" />Add Question
+              </Button>
+            </div>
+            <div className="space-y-4">
+              {questions.map((question, qIndex) => (
+                <div key={qIndex} className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2">
+                      <Input placeholder="Enter question text" value={question.text}
+                        onChange={(e) => updateQuestion(qIndex, 'text', e.target.value)} className="flex-1" />
+                      <Button type="button" size="sm" variant="destructive"
+                        onClick={() => removeQuestion(qIndex)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Select value={question.type}
+                      onValueChange={(value) => updateQuestion(qIndex, 'type', value)}>
+                      <SelectTrigger><SelectValue placeholder="Select question type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single_choice">Single Choice</SelectItem>
+                        <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
+                        <SelectItem value="text">Text Response</SelectItem>
+                        <SelectItem value="rating">Rating</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(question.type === 'single_choice' || question.type === 'multiple_choice') && (
+                      <div className="ml-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <Label className="text-sm font-medium">Options</Label>
+                          <Button type="button" size="sm" variant="outline"
+                            onClick={() => addOption(qIndex)}>
+                            <Plus className="h-3 w-3 mr-1" />Add Option
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          {question.options.map((option, oIndex) => (
+                            <div key={oIndex} className="flex items-center gap-2">
+                              <Input placeholder={`Option ${oIndex + 1}`} value={option}
+                                onChange={(e) => updateOption(qIndex, oIndex, e.target.value)} className="flex-1" />
+                              {question.options.length > 1 && (
+                                <Button type="button" size="sm" variant="outline"
+                                  onClick={() => removeOption(qIndex, oIndex)}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {questions.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                <Vote className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No questions added yet</p>
+                <p className="text-sm">Click "Add Question" to get started</p>
+              </div>
+            )}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+          <Button onClick={handleCreatePoll}
+            disabled={creating || !pollData.title || !pollData.start_time || !pollData.end_time}>
+            {creating ? 'Creating...' : 'Create Poll'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function PollsPage({ currentUser }: { currentUser: any }) {
   const [allPolls, setAllPolls] = useState<Poll[]>([]);
   const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
   const [pollAnalytics, setPollAnalytics] = useState<any>(null);
@@ -330,7 +549,7 @@ export default function PollsPage() {
             {poll.questions || 0} questions
           </span>
 
-          {/* Created By - Now using created_by_name from backend */}
+          {/* Created By */}
           <span className="flex items-center" title="Created by">
             <User className="h-4 w-4 mr-1" />
             Created by {poll.created_by_name || 'Unknown'}
@@ -423,7 +642,6 @@ export default function PollsPage() {
                 
                 <div className="divide-y divide-gray-100">
                   {question.options_breakdown?.map((option: OptionBreakdown, index: number) => {
-                    // Get employee names for this option from user_responses with proper typing
                     const respondentData: { user_id: string; employee_name: string }[] = question.user_responses
                       ?.filter((response: UserResponse) => response.selected_options?.includes(option.option_id))
                       ?.map((response: UserResponse) => ({
@@ -553,9 +771,12 @@ export default function PollsPage() {
       `}</style>
       
       <div className="h-screen flex flex-col p-6">
-        <div className="flex items-center gap-3 mb-6 flex-shrink-0">
-          <Vote className="h-7 w-7 text-blue-600" />
-          <h1 className="text-3xl font-bold text-gray-900">All Polls</h1>
+        <div className="flex items-center justify-between mb-6 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <Vote className="h-7 w-7 text-blue-600" />
+            <h1 className="text-3xl font-bold text-gray-900">All Polls</h1>
+          </div>
+          <PollManagement onPollCreated={fetchPolls} currentUser={currentUser} />
         </div>
 
         {/* Single merged section */}
