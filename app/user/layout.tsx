@@ -2,7 +2,6 @@
 import { ReactNode } from "react";
 import Sidebar from "@/components/sidebar";
 import Topbar from "@/components/topbar";
-import { Toaster } from "sonner";
 import "../globals.css";
 import { usePathname } from "next/navigation";
 
@@ -28,7 +27,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             }`}
         >
           {children}
-          <Toaster position="top-right" richColors /> {/* ✅ Toast container */}
         </main>
 
       </div>

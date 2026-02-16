@@ -35,14 +35,17 @@ export default function LoginPage() {
       localStorage.setItem("access_token", access_token);
       localStorage.setItem("user", JSON.stringify(responseUser));
 
+      toast.success("Login successful! 🎉");
+
       const roles: { roleName: string }[] = responseUser.roles || [];
       const roleNames = roles.map((r) => r.roleName);
 
       if (roleNames.includes("ADMIN")) {
-        toast.success("Login successful! 🎉");
         router.push("/admin/dashboard");
       } else if (roleNames.includes("EMPLOYEE")) {
-        toast.success("Login successful! 🎉");
+        router.push("/user/dashboard");
+      } else {
+        // Fallback: redirect to user dashboard if no recognized role
         router.push("/user/dashboard");
       }
     } catch (error: any) {

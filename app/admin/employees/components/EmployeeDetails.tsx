@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, parseISO } from "date-fns";
@@ -30,9 +31,11 @@ import {
   getAttendanceReport2,
   getProfile,
   getMonthlyAttendance,
+  updateEmployee,
 } from "@/app/api/api";
 import TimeslipTab from "./TimeslipTab";
 import WorkflowManagement from "./WorkflowManagement"; // Add this import
+import { toast } from "sonner";
 
 interface EmployeeDetailsProps {
   employeeId: string;
@@ -60,6 +63,11 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
   });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("timeslip");
+  const [credentialsForm, setCredentialsForm] = useState({
+    userName: "",
+    password: "",
+  });
+  const [isUpdatingCredentials, setIsUpdatingCredentials] = useState(false);
 
   useEffect(() => {
     fetchEmployeeDetails();
@@ -70,6 +78,10 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
     try {
       const response = await getEmployee(employeeId);
       setEmployee(response.data);
+      setCredentialsForm({
+        userName: response.data?.userName || "",
+        password: "",
+      });
     } catch (error) {
       console.error("Error fetching employee details:", error);
     }
@@ -156,6 +168,36 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
       return isValid(date) ? format(date, 'MMM dd, yyyy') : fallback;
     } catch {
       return fallback;
+    }
+  };
+
+  const handleUpdateCredentials = async () => {
+    if (!employee) return;
+    if (!credentialsForm.userName.trim()) {
+      toast.error("Username is required");
+      return;
+    }
+
+    try {
+      setIsUpdatingCredentials(true);
+      const payload: any = {
+        loginUserName: credentialsForm.userName.trim(),
+      };
+      if (credentialsForm.password.trim()) {
+        payload.loginPassword = credentialsForm.password;
+      }
+
+      await updateEmployee(employee.id, payload);
+      toast.success("Login credentials updated");
+
+      // Refresh employee to get latest username
+      await fetchEmployeeDetails();
+      setCredentialsForm((prev) => ({ ...prev, password: "" }));
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || "Failed to update credentials";
+      toast.error(msg);
+    } finally {
+      setIsUpdatingCredentials(false);
     }
   };
 
@@ -302,7 +344,7 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
         <Card>
           <CardContent className="p-6">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="timeslip" className="flex items-center space-x-2">
                   <Clock className="h-4 w-4" />
                   <span>Time Slip</span>
@@ -326,6 +368,10 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
                 <TabsTrigger value="workflows" className="flex items-center space-x-2">
                   <Settings className="h-4 w-4" />
                   <span>Workflows</span>
+                </TabsTrigger>
+                <TabsTrigger value="credentials" className="flex items-center space-x-2">
+                  <User className="h-4 w-4" />
+                  <span>Credentials</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -351,6 +397,56 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
 
               <TabsContent value="workflows" className="mt-6">
                 <WorkflowManagement />
+              </TabsContent>
+
+              <TabsContent value="credentials" className="mt-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <User className="h-5 w-5" />
+                      Login Credentials
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Username</label>
+                        <Input
+                          value={credentialsForm.userName}
+                          onChange={(e) =>
+                            setCredentialsForm((prev) => ({
+                              ...prev,
+                              userName: e.target.value,
+                            }))
+                          }
+                          placeholder="username"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">New Password</label>
+                        <Input
+                          type="password"
+                          value={credentialsForm.password}
+                          onChange={(e) =>
+                            setCredentialsForm((prev) => ({
+                              ...prev,
+                              password: e.target.value,
+                            }))
+                          }
+                          placeholder="Leave blank to keep current password"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleUpdateCredentials}
+                        disabled={isUpdatingCredentials}
+                      >
+                        {isUpdatingCredentials ? "Updating..." : "Update Credentials"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
             </Tabs>
           </CardContent>

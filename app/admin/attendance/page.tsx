@@ -6,11 +6,12 @@ import { columns } from "./components/columns";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ClipboardList, FileText } from "lucide-react";
-import api from "../../api/api";
+import { ChevronLeft, ChevronRight, ClipboardList, FileText, Settings } from "lucide-react";
+import api, { getProfile } from "../../api/api";
 import { SortingState } from "@tanstack/react-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AttendanceReportModal from "./components/AttendanceReportModal";
+import Link from "next/link";
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date());
@@ -19,6 +20,7 @@ export default function AttendancePage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [organizationId, setOrganizationId] = useState<string>("");
   const [state, setState] = useState<{
     page: number;
     pageSize: number;
@@ -31,9 +33,18 @@ export default function AttendancePage() {
     sorting: [],
   });
 
-  const organizationId = "24facd21-265a-4edd-8fd1-bc69a036f755"; // You might want to get this from context or props
+  useEffect(() => {
+    getProfile()
+      .then((res) => {
+        const orgId = res.data?.organizationId;
+        if (orgId) setOrganizationId(orgId);
+      })
+      .catch((err) => console.error("Failed to fetch profile:", err));
+  }, []);
 
   useEffect(() => {
+    if (!organizationId) return;
+
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -112,13 +123,21 @@ export default function AttendancePage() {
             </Button>
           </div>
         </div>
-        <Button 
-          onClick={() => setShowReportModal(true)}
-          className="flex items-center gap-2"
-        >
-          <FileText className="h-4 w-4" />
-          Attendance Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href="/admin/attendance/settings">
+            <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Settings
+            </Button>
+          </Link>
+          <Button 
+            onClick={() => setShowReportModal(true)}
+            className="flex items-center gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Attendance Report
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}

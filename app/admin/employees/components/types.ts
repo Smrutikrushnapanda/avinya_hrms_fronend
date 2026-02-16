@@ -2,6 +2,7 @@ export interface Employee {
   id: string;
   organizationId: string;
   userId: string;
+  userName?: string;
   departmentId?: string;
   designationId?: string;
   reportingTo?: string;
@@ -16,6 +17,9 @@ export interface Employee {
   personalEmail?: string;
   workEmail: string;
   photoUrl?: string;
+  aadharPhotoUrl?: string;
+  passportPhotoUrl?: string;
+  panCardPhotoUrl?: string;
   employmentType?: string;
   status: string;
   bloodGroup?: string;
@@ -35,6 +39,8 @@ export interface EmployeeFormData {
   designationId?: string;
   reportingTo?: string;
   employeeCode: string;
+  loginUserName: string;
+  loginPassword: string;
   firstName: string;
   middleName?: string;
   lastName?: string;
@@ -46,6 +52,9 @@ export interface EmployeeFormData {
   personalEmail?: string;
   contactNumber?: string;
   photoUrl?: string;
+  aadharPhotoUrl?: string;
+  passportPhotoUrl?: string;
+  panCardPhotoUrl?: string;
   employmentType?: string;
   status?: string;
   bloodGroup?: string;

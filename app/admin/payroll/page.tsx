@@ -1,546 +1,642 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import {
-  BadgeDollarSign,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Users,
-  Calendar,
-  Download,
-  Upload,
-  Search,
-  Filter,
-  MoreHorizontal,
-  Eye,
-  Edit,
-  Send,
-} from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format } from 'date-fns';
-import { getEmployees, getProfile } from "@/app/api/api";
+import { Textarea } from "@/components/ui/textarea";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Download, Plus, Pencil, Send, Mail, Smartphone, ChevronDown } from "lucide-react";
+import { toast } from "sonner";
+import {
+  getProfile,
+  getEmployees,
+  getPayrollRecords,
+  createPayrollRecord,
+  updatePayrollRecord,
+  downloadPayrollSlip,
+  getPayrollSettings,
+  updatePayrollSettings,
+  sendPayslip,
+} from "@/app/api/api";
+
+type PayrollStatus = "draft" | "processed" | "paid";
 
 interface PayrollRecord {
   id: string;
   employeeId: string;
-  employeeName: string;
-  employeeCode: string;
-  basicSalary: number;
-  allowances: number;
-  deductions: number;
-  netSalary: number;
   payPeriod: string;
-  status: 'draft' | 'processed' | 'paid';
-  processedDate?: string;
+  periodStart: string;
+  periodEnd: string;
+  basic: number;
+  hra: number;
+  conveyance: number;
+  otherAllowances: number;
+  pf: number;
+  tds: number;
+  totalEarnings: number;
+  totalDeductions: number;
+  netPay: number;
+  status: PayrollStatus;
+  employee?: {
+    firstName: string;
+    lastName?: string;
+    employeeCode?: string;
+    workEmail?: string;
+  };
 }
 
-// Mock payroll data - in real app, this would come from API
-const mockPayrollData: PayrollRecord[] = [
-  {
-    id: '1',
-    employeeId: 'emp001',
-    employeeName: 'John Doe',
-    employeeCode: 'EMP001',
-    basicSalary: 50000,
-    allowances: 5000,
-    deductions: 2000,
-    netSalary: 53000,
-    payPeriod: '2025-08',
-    status: 'paid',
-    processedDate: '2025-08-15',
-  },
-  {
-    id: '2',
-    employeeId: 'emp002',
-    employeeName: 'Jane Smith',
-    employeeCode: 'EMP002',
-    basicSalary: 55000,
-    allowances: 6000,
-    deductions: 2500,
-    netSalary: 58500,
-    payPeriod: '2025-08',
-    status: 'processed',
-  },
-  // Add more mock data as needed
-];
+interface PayrollSettings {
+  companyName?: string;
+  address?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  footerNote?: string;
+}
 
-export default function PayrollPage() {
-  const [payrollData, setPayrollData] = useState<PayrollRecord[]>(mockPayrollData);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [periodFilter, setPeriodFilter] = useState("2025-08");
-  const [userProfile, setUserProfile] = useState<any>(null);
-
-  useEffect(() => {
-    fetchProfile();
-    fetchEmployees();
-  }, []);
-
-  const fetchProfile = async () => {
-    try {
-      const response = await getProfile();
-      setUserProfile(response.data);
-    } catch (error) {
-      console.error("Failed to fetch profile:", error);
-    }
-  };
-  // 💰 Payroll report (Mock - no API yet)
-const getPayrollReport = async (params: any) => {
-  console.warn('Payroll report API not implemented, using mock data');
-  return {
-    data: {
-      success: true,
-      data: [],
-      total: 0,
-    }
-  };
+const emptyForm = {
+  employeeId: "",
+  periodStart: "",
+  periodEnd: "",
+  status: "draft" as PayrollStatus,
+  basic: 0,
+  hra: 0,
+  conveyance: 0,
+  otherAllowances: 0,
+  pf: 0,
+  tds: 0,
 };
 
-  const fetchEmployees = async () => {
+export default function PayrollPage() {
+  const [organizationId, setOrganizationId] = useState<string>("");
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [records, setRecords] = useState<PayrollRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"all" | "monthly" | "range">("all");
+  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
+  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [from, setFrom] = useState<string>("");
+  const [to, setTo] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [search, setSearch] = useState<string>("");
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<PayrollRecord | null>(null);
+  const [form, setForm] = useState({ ...emptyForm });
+
+  const [settings, setSettings] = useState<PayrollSettings>({});
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const profile = await getProfile();
+        const orgId = profile.data?.organizationId;
+        if (!orgId) return;
+        setOrganizationId(orgId);
+
+        const empRes = await getEmployees(orgId);
+        setEmployees(empRes.data?.data || empRes.data || []);
+
+        const settingsRes = await getPayrollSettings(orgId);
+        setSettings(settingsRes.data || {});
+      } catch (error) {
+        toast.error("Failed to load payroll data");
+      }
+    };
+    init();
+  }, []);
+
+  const fetchRecords = async () => {
+    if (!organizationId) return;
+    setLoading(true);
     try {
-      setLoading(true);
-      const organizationId = userProfile?.organizationId || "24facd21-265a-4edd-8fd1-bc69a036f755";
-      const response = await getEmployees(organizationId);
-      setEmployees(response.data || []);
+      const params: any = {
+        organizationId,
+        status: statusFilter,
+        search: search.trim(),
+        page: 1,
+        limit: 200,
+      };
+      if (mode === "monthly") {
+        params.month = month;
+        params.year = year;
+      } else if (mode === "range") {
+        if (from) params.from = from;
+        if (to) params.to = to;
+      }
+      const res = await getPayrollRecords(params);
+      setRecords(res.data?.data || []);
     } catch (error) {
-      console.error("Failed to fetch employees:", error);
+      toast.error("Failed to load payroll records");
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      draft: { variant: "secondary" as const, className: "bg-gray-100 text-gray-800" },
-      processed: { variant: "default" as const, className: "bg-blue-100 text-blue-800" },
-      paid: { variant: "default" as const, className: "bg-green-100 text-green-800" },
+  useEffect(() => {
+    if (organizationId) fetchRecords();
+  }, [organizationId]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ ...emptyForm });
+    setIsDialogOpen(true);
+  };
+
+  const openEdit = (record: PayrollRecord) => {
+    setEditing(record);
+    setForm({
+      employeeId: record.employeeId,
+      periodStart: record.periodStart?.slice(0, 10),
+      periodEnd: record.periodEnd?.slice(0, 10),
+      status: record.status,
+      basic: Number(record.basic),
+      hra: Number(record.hra),
+      conveyance: Number(record.conveyance),
+      otherAllowances: Number(record.otherAllowances),
+      pf: Number(record.pf),
+      tds: Number(record.tds),
+    });
+    setIsDialogOpen(true);
+  };
+
+  const calcTotals = () => {
+    const totalEarnings = Number(form.basic) + Number(form.hra) + Number(form.conveyance) + Number(form.otherAllowances);
+    const totalDeductions = Number(form.pf) + Number(form.tds);
+    const netPay = totalEarnings - totalDeductions;
+    return { totalEarnings, totalDeductions, netPay };
+  };
+
+  const normalizeNumberInput = (value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    const parts = cleaned.split(".");
+    if (parts.length <= 1) return cleaned;
+    return `${parts[0]}.${parts.slice(1).join("")}`;
+  };
+
+  const handleSave = async () => {
+    if (!organizationId) return;
+    if (!form.employeeId || !form.periodStart || !form.periodEnd) {
+      toast.error("Employee and period are required");
+      return;
+    }
+    const payPeriod = form.periodStart.slice(0, 7);
+    const payload: any = {
+      organizationId,
+      employeeId: form.employeeId,
+      payPeriod,
+      periodStart: new Date(form.periodStart).toISOString(),
+      periodEnd: new Date(form.periodEnd).toISOString(),
+      basic: Number(form.basic),
+      hra: Number(form.hra),
+      conveyance: Number(form.conveyance),
+      otherAllowances: Number(form.otherAllowances),
+      pf: Number(form.pf),
+      tds: Number(form.tds),
+      status: form.status,
     };
-    
-    return statusConfig[status as keyof typeof statusConfig] || statusConfig.draft;
+
+    try {
+      if (editing) {
+        await updatePayrollRecord(editing.id, payload);
+        toast.success("Payroll updated");
+      } else {
+        await createPayrollRecord(payload);
+        toast.success("Payroll created");
+      }
+      setIsDialogOpen(false);
+      // Align filters to the created/updated period so the record appears
+      const periodDate = new Date(form.periodStart);
+      setMode("monthly");
+      setMonth(periodDate.getMonth() + 1);
+      setYear(periodDate.getFullYear());
+      setFrom("");
+      setTo("");
+      fetchRecords();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to save payroll");
+    }
   };
 
-  const filteredPayrollData = payrollData.filter((record) => {
-    const matchesSearch = record.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.employeeCode.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || record.status === statusFilter;
-    const matchesPeriod = record.payPeriod === periodFilter;
-    return matchesSearch && matchesStatus && matchesPeriod;
-  });
-
-  const totalSalaryPaid = payrollData
-    .filter(record => record.status === 'paid' && record.payPeriod === periodFilter)
-    .reduce((sum, record) => sum + record.netSalary, 0);
-
-  const totalEmployeesPaid = payrollData
-    .filter(record => record.status === 'paid' && record.payPeriod === periodFilter)
-    .length;
-
-  const averageSalary = totalEmployeesPaid > 0 ? totalSalaryPaid / totalEmployeesPaid : 0;
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.05 } },
+  const handleDownload = async (id: string) => {
+    try {
+      const res = await downloadPayrollSlip(id);
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `salary-slip-${id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error("Failed to download slip");
+    }
   };
 
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { duration: 0.3 } },
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const handleSend = async (record: PayrollRecord, method: 'email' | 'in_app' | 'both') => {
+    try {
+      setSendingId(record.id);
+      const res = await sendPayslip(record.id, method);
+      const msg = res.data?.message || "Payslip sent to employee";
+      toast.success(msg);
+      fetchRecords();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to send payslip");
+    } finally {
+      setSendingId(null);
+    }
   };
+
+  const handleSaveSettings = async () => {
+    if (!organizationId) return;
+    try {
+      setSavingSettings(true);
+      await updatePayrollSettings(organizationId, settings);
+      toast.success("Payroll configuration updated");
+    } catch (error) {
+      toast.error("Failed to update configuration");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const totals = useMemo(calcTotals, [form]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        <motion.div initial="hidden" animate="visible" variants={containerVariants} className="space-y-6">
-          
-          {/* Header */}
-          <motion.div variants={itemVariants} className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                Payroll Management
-              </h1>
-              <p className="text-muted-foreground mt-1">
-                Manage employee salaries, allowances, and payroll processing
-              </p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm">
-                <Upload className="w-4 h-4 mr-2" />
-                Import
+    <div className="p-6 space-y-6">
+      <Tabs defaultValue="payroll" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="payroll">Payroll</TabsTrigger>
+          <TabsTrigger value="settings">Configuration</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="payroll" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Payroll Management</CardTitle>
+                <CardDescription>Generate payroll and download salary slips</CardDescription>
+              </div>
+              <Button onClick={openCreate}>
+                <Plus className="w-4 h-4 mr-2" /> Add Payroll
               </Button>
-              <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button className="bg-green-600 hover:bg-green-700">
-                <Send className="w-4 h-4 mr-2" />
-                Process Payroll
-              </Button>
-            </div>
-          </motion.div>
-
-          {/* Stats Cards */}
-          <motion.div variants={containerVariants} className="grid gap-6 md:grid-cols-4">
-            <motion.div variants={itemVariants}>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Salary Paid</CardTitle>
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">₹{totalSalaryPaid.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="text-green-600">+5.2%</span> from last month
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
-            <motion.div variants={itemVariants}>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Employees Paid</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{totalEmployeesPaid}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Out of {employees.length} total employees
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
-            <motion.div variants={itemVariants}>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Average Salary</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">₹{Math.round(averageSalary).toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="text-green-600">+2.1%</span> vs last month
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
-            <motion.div variants={itemVariants}>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pending Processing</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {payrollData.filter(r => r.status !== 'paid' && r.payPeriod === periodFilter).length}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Requires attention
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </motion.div>
-
-          {/* Main Content */}
-          <motion.div variants={itemVariants}>
-            <Tabs defaultValue="payroll" className="space-y-6">
-              <TabsList className="grid w-full lg:w-auto grid-cols-3">
-                <TabsTrigger value="payroll" className="flex items-center space-x-2">
-                  <BadgeDollarSign className="w-4 h-4" />
-                  <span>Payroll Records</span>
-                </TabsTrigger>
-                <TabsTrigger value="analytics" className="flex items-center space-x-2">
-                  <TrendingUp className="w-4 h-4" />
-                  <span>Analytics</span>
-                </TabsTrigger>
-                <TabsTrigger value="reports" className="flex items-center space-x-2">
-                  <Download className="w-4 h-4" />
-                  <span>Reports</span>
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="payroll" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Payroll Records</CardTitle>
-                        <CardDescription>
-                          Manage employee salary records and payroll processing
-                        </CardDescription>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="2025-08">Aug 2025</SelectItem>
-                            <SelectItem value="2025-07">Jul 2025</SelectItem>
-                            <SelectItem value="2025-06">Jun 2025</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="relative">
-                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search employees..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-8 w-64"
-                          />
-                        </div>
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="draft">Draft</SelectItem>
-                            <SelectItem value="processed">Processed</SelectItem>
-                            <SelectItem value="paid">Paid</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Basic Salary</TableHead>
-                          <TableHead>Allowances</TableHead>
-                          <TableHead>Deductions</TableHead>
-                          <TableHead>Net Salary</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Processed Date</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredPayrollData.map((record) => (
-                          <TableRow key={record.id}>
-                            <TableCell>
-                              <div className="flex items-center space-x-3">
-                                <Avatar className="h-8 w-8">
-                                  <AvatarFallback>
-                                    {record.employeeName.split(' ').map(n => n[0]).join('')}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <div className="font-medium">{record.employeeName}</div>
-                                  <div className="text-sm text-muted-foreground">{record.employeeCode}</div>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>₹{record.basicSalary.toLocaleString()}</TableCell>
-                            <TableCell className="text-green-600">+₹{record.allowances.toLocaleString()}</TableCell>
-                            <TableCell className="text-red-600">-₹{record.deductions.toLocaleString()}</TableCell>
-                            <TableCell className="font-semibold">₹{record.netSalary.toLocaleString()}</TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={getStatusBadge(record.status).variant}
-                                className={getStatusBadge(record.status).className}
-                              >
-                                {record.status.toUpperCase()}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {record.processedDate ? format(new Date(record.processedDate), 'MMM dd, yyyy') : '-'}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                  <DropdownMenuItem>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    View Details
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem>
-                                    <Edit className="mr-2 h-4 w-4" />
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem>
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Download Slip
-                                  </DropdownMenuItem>
-                                  {record.status === 'processed' && (
-                                    <DropdownMenuItem>
-                                      <Send className="mr-2 h-4 w-4" />
-                                      Mark as Paid
-                                    </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="analytics" className="space-y-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Salary Distribution</CardTitle>
-                      <CardDescription>Overview of salary ranges across the organization</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">₹30,000 - ₹50,000</span>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-24 h-2 bg-gray-200 rounded-full">
-                              <div className="w-3/4 h-2 bg-blue-500 rounded-full"></div>
-                            </div>
-                            <span className="text-sm font-medium">75%</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">₹50,000 - ₹70,000</span>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-24 h-2 bg-gray-200 rounded-full">
-                              <div className="w-1/2 h-2 bg-green-500 rounded-full"></div>
-                            </div>
-                            <span className="text-sm font-medium">50%</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">₹70,000+</span>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-24 h-2 bg-gray-200 rounded-full">
-                              <div className="w-1/4 h-2 bg-purple-500 rounded-full"></div>
-                            </div>
-                            <span className="text-sm font-medium">25%</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Monthly Trends</CardTitle>
-                      <CardDescription>Payroll costs over the last 6 months</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {['Aug 2025', 'Jul 2025', 'Jun 2025', 'May 2025', 'Apr 2025', 'Mar 2025'].map((month, index) => (
-                          <div key={month} className="flex items-center justify-between">
-                            <span className="text-sm">{month}</span>
-                            <div className="flex items-center space-x-2">
-                              <div className="w-32 h-2 bg-gray-200 rounded-full">
-                                <div 
-                                  className="h-2 bg-blue-500 rounded-full" 
-                                  style={{ width: `${100 - index * 5}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-sm font-medium">
-                                ₹{(500000 - index * 25000).toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <div className="md:col-span-2">
+                  <Label>Search</Label>
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or code" />
                 </div>
-              </TabsContent>
-
-              <TabsContent value="reports" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Payroll Reports</CardTitle>
-                    <CardDescription>Generate and download various payroll reports</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                        <CardContent className="p-6 text-center">
-                          <Download className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-                          <h3 className="font-semibold mb-1">Monthly Payroll Summary</h3>
-                          <p className="text-sm text-muted-foreground mb-3">
-                            Complete payroll breakdown for the month
-                          </p>
-                          <Button size="sm" variant="outline">Download</Button>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                        <CardContent className="p-6 text-center">
-                          <Download className="w-8 h-8 mx-auto mb-2 text-green-600" />
-                          <h3 className="font-semibold mb-1">Tax Deduction Report</h3>
-                          <p className="text-sm text-muted-foreground mb-3">
-                            TDS and other tax deductions summary
-                          </p>
-                          <Button size="sm" variant="outline">Download</Button>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="cursor-pointer hover:shadow-md transition-shadow">
-                        <CardContent className="p-6 text-center">
-                          <Download className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-                          <h3 className="font-semibold mb-1">Employee Wise Report</h3>
-                          <p className="text-sm text-muted-foreground mb-3">
-                            Individual employee salary details
-                          </p>
-                          <Button size="sm" variant="outline">Download</Button>
-                        </CardContent>
-                      </Card>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="processed">Processed</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Mode</Label>
+                <Select value={mode} onValueChange={(v: any) => setMode(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Monthly" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="range">Date Range</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {mode === "monthly" ? (
+                <>
+                    <div>
+                      <Label>Month</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={String(month ?? 0)}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                          const next = digitsOnly === "" ? 0 : Number(digitsOnly);
+                          setMonth(next);
+                        }}
+                      />
                     </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </motion.div>
-        </motion.div>
-      </div>
+                    <div>
+                      <Label>Year</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={String(year ?? 0)}
+                        onChange={(e) => {
+                          const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                          const next = digitsOnly === "" ? 0 : Number(digitsOnly);
+                          setYear(next);
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label>From</Label>
+                      <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>To</Label>
+                      <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+                    </div>
+                  </>
+                )}
+              </div>
+              <Button onClick={fetchRecords} disabled={loading}>
+                {loading ? "Loading..." : "Apply Filters"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Payroll Records</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Net Pay</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {records.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell>{r.employee?.firstName} {r.employee?.lastName || ""}</TableCell>
+                      <TableCell>{r.employee?.employeeCode || "-"}</TableCell>
+                      <TableCell>{r.payPeriod}</TableCell>
+                      <TableCell>{r.netPay}</TableCell>
+                      <TableCell>{r.status}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDownload(r.id)}>
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={sendingId === r.id}
+                            >
+                              {sendingId === r.id ? (
+                                <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full inline-block" />
+                              ) : (
+                                <Send className="w-4 h-4" />
+                              )}
+                              <ChevronDown className="w-3 h-3 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleSend(r, 'both')}>
+                              <Send className="w-4 h-4 mr-2" /> Send Both (Email + App)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleSend(r, 'email')}>
+                              <Mail className="w-4 h-4 mr-2" /> Send via Email
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleSend(r, 'in_app')}>
+                              <Smartphone className="w-4 h-4 mr-2" /> Send to App Only
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {records.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-2 py-6">
+                          <div>No payroll records found for the selected filters.</div>
+                          <Button variant="outline" onClick={openCreate}>
+                            <Plus className="w-4 h-4 mr-2" /> Add Payroll
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="settings">
+          <Card>
+            <CardHeader>
+              <CardTitle>Payroll Slip Configuration</CardTitle>
+              <CardDescription>Design fields for PDF salary slips</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Company Name</Label>
+                  <Input value={settings.companyName || ""} onChange={(e) => setSettings({ ...settings, companyName: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Logo URL</Label>
+                  <Input value={settings.logoUrl || ""} onChange={(e) => setSettings({ ...settings, logoUrl: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Primary Color</Label>
+                  <Input value={settings.primaryColor || ""} onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })} placeholder="#1f2937" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Address</Label>
+                <Textarea value={settings.address || ""} onChange={(e) => setSettings({ ...settings, address: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Footer Note</Label>
+                <Textarea value={settings.footerNote || ""} onChange={(e) => setSettings({ ...settings, footerNote: e.target.value })} />
+              </div>
+              <Button onClick={handleSaveSettings} disabled={savingSettings}>
+                {savingSettings ? "Saving..." : "Save Configuration"}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[900px]">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit Payroll" : "Add Payroll"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Employee</Label>
+                <Select value={form.employeeId} onValueChange={(v) => setForm({ ...form, employeeId: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((e: any) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.firstName} {e.lastName || ""} ({e.employeeCode})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Period Start</Label>
+                <Input type="date" value={form.periodStart} onChange={(e) => setForm({ ...form, periodStart: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Period End</Label>
+                <Input type="date" value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label>Basic</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.basic}
+                  onChange={(e) => {
+                    const v = normalizeNumberInput(e.target.value);
+                    setForm({ ...form, basic: v === "" ? 0 : Number(v) });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>HRA</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.hra}
+                  onChange={(e) => {
+                    const v = normalizeNumberInput(e.target.value);
+                    setForm({ ...form, hra: v === "" ? 0 : Number(v) });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Conveyance</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.conveyance}
+                  onChange={(e) => {
+                    const v = normalizeNumberInput(e.target.value);
+                    setForm({ ...form, conveyance: v === "" ? 0 : Number(v) });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Other Allowances</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.otherAllowances}
+                  onChange={(e) => {
+                    const v = normalizeNumberInput(e.target.value);
+                    setForm({ ...form, otherAllowances: v === "" ? 0 : Number(v) });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>PF</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.pf}
+                  onChange={(e) => {
+                    const v = normalizeNumberInput(e.target.value);
+                    setForm({ ...form, pf: v === "" ? 0 : Number(v) });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>TDS</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={form.tds}
+                  onChange={(e) => {
+                    const v = normalizeNumberInput(e.target.value);
+                    setForm({ ...form, tds: v === "" ? 0 : Number(v) });
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={form.status} onValueChange={(v: any) => setForm({ ...form, status: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Draft" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="processed">Processed</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Total Earnings</div>
+                  <div className="text-2xl font-semibold">{totals.totalEarnings}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Total Deductions</div>
+                  <div className="text-2xl font-semibold">{totals.totalDeductions}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="text-sm text-muted-foreground">Net Pay</div>
+                  <div className="text-2xl font-semibold">{totals.netPay}</div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave}>{editing ? "Update" : "Create"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -81,6 +82,7 @@ interface EmployeeTableProps {
   onIndividualStatusUpdate: (employee: Employee, status: string) => void;
   onCreateEmployee: () => void;
   onViewEmployeeDetails: (employeeId: string) => void; // Add this line
+  onSendMessage: (employee: Employee) => void;
 }
 
 export default function EmployeeTable({
@@ -111,6 +113,7 @@ export default function EmployeeTable({
   onIndividualStatusUpdate,
   onCreateEmployee,
   onViewEmployeeDetails,
+  onSendMessage,
 }: EmployeeTableProps) {
   const employees = employeeData?.employees || [];
   const pagination = employeeData?.pagination || { page: 1, total: 0, totalPages: 1, hasNext: false, hasPrev: false };
@@ -447,6 +450,10 @@ export default function EmployeeTable({
                                 <DropdownMenuItem onClick={() => onAssignEmployee(employee)}>
                                   <Settings className="mr-2 h-4 w-4" />
                                   Assign Roles
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onSendMessage(employee)}>
+                                  <MessageSquare className="mr-2 h-4 w-4" />
+                                  Send Message
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

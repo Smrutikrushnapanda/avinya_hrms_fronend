@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcherUser } from "./theme-switcher-user";
-import { getProfile } from "@/app/api/api";
+import { getProfile, getOrganization } from "@/app/api/api";
 
 export default function Topbar() {
   const router = useRouter();
@@ -23,6 +23,30 @@ export default function Topbar() {
     role: "",
     avatar: "",
   });
+  const [organizationName, setOrganizationName] = useState<string>("");
+
+  const [currentDateTime, setCurrentDateTime] = useState<string>("");
+
+  useEffect(() => {
+    const updateDateTime = () => {
+      const now = new Date();
+      const options: Intl.DateTimeFormatOptions = {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      };
+      setCurrentDateTime(now.toLocaleDateString('en-US', options));
+    };
+
+    updateDateTime();
+    const interval = setInterval(updateDateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -39,6 +63,11 @@ export default function Topbar() {
           role: data?.roles[0].roleName || "Role",
           avatar: data?.avatar || "/avatar.jpg",
         });
+
+        if (data?.organizationId) {
+          const orgRes = await getOrganization(data.organizationId);
+          setOrganizationName(orgRes.data?.name || "Company Name");
+        }
       } catch (error) {
         console.error("Error fetching user profile:", error);
       }
@@ -54,11 +83,18 @@ export default function Topbar() {
   };
 
   return (
-    <header className="w-full h-14 bg-background-top border-b px-4 flex items-center justify-between text-muted-foreground">
-      {/* Left: Logo or mobile menu */}
-      <div className="flex items-center gap-2">
+    <header className="w-full h-14 bg-background-top border-b px-4 flex items-center text-muted-foreground">
+      {/* Left: Org name + mobile menu */}
+      <div className="flex items-center gap-2 min-w-0">
         <Menu className="w-5 h-5 md:hidden" />
-        <span className="font-semibold text-foreground">Panchsoft Technologies Pvt. Ltd.</span>
+        <span className="font-semibold text-foreground text-sm md:text-base truncate">
+          {organizationName || "Organization"}
+        </span>
+      </div>
+
+      {/* Center: Date/Time */}
+      <div className="flex-1 text-center text-xs text-muted-foreground">
+        {currentDateTime || "Loading..."}
       </div>
 
       {/* Right: Notification + Avatar */}

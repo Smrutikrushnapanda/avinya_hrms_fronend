@@ -20,6 +20,7 @@ import {
   deleteEmployee,
   getProfile,
   createUserActivity,
+  createMessage,
 } from "@/app/api/api";
 import { exportEmployeesToExcel, ExportFields } from "@/utils/exportToExcel";
 import { format } from "date-fns";
@@ -158,6 +159,7 @@ export default function EmployeesPage() {
 
   // Dialog states (same as before)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -177,9 +179,16 @@ export default function EmployeesPage() {
     emergency: false,
   });
 
+  // Message state
+  const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
+  const [messageForm, setMessageForm] = useState({ title: "", body: "" });
+  const [messageRecipientIds, setMessageRecipientIds] = useState<string[]>([]);
+
   const initialFormData: EmployeeFormData = {
     organizationId: "",
     employeeCode: "",
+    loginUserName: "",
+    loginPassword: "",
     firstName: "",
     middleName: "",
     lastName: "",
@@ -190,6 +199,9 @@ export default function EmployeesPage() {
     personalEmail: "",
     contactNumber: "",
     photoUrl: "",
+    aadharPhotoUrl: "",
+    passportPhotoUrl: "",
+    panCardPhotoUrl: "",
     employmentType: "",
     status: "active",
     bloodGroup: "",
@@ -343,10 +355,14 @@ export default function EmployeesPage() {
   };
 
   // Form validation (same as before)
-  const validateForm = (data: EmployeeFormData): boolean => {
+  const validateForm = (data: EmployeeFormData, isUpdate: boolean = false): boolean => {
     const errors: Record<string, string> = {};
     const allowedGenders = ["MALE", "FEMALE", "OTHER"];
 
+    if (!isUpdate) {
+      if (!data.loginUserName?.trim()) errors.loginUserName = "Login username is required";
+      if (!data.loginPassword?.trim()) errors.loginPassword = "Login password is required";
+    }
     if (!data.firstName?.trim()) errors.firstName = "First name is required";
     if (!data.lastName?.trim()) errors.lastName = "Last name is required";
     if (!data.workEmail?.trim()) {
@@ -386,7 +402,7 @@ export default function EmployeesPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const prepareEmployeeData = (data: EmployeeFormData) => {
+  const prepareEmployeeData = (data: EmployeeFormData, includeCredentials: boolean = false) => {
     const cleanData: any = {
       organizationId: data.organizationId,
       employeeCode: data.employeeCode?.trim(),
@@ -414,6 +430,14 @@ export default function EmployeesPage() {
       cleanData.emergencyContactRelationship = data.emergencyContactRelationship.trim();
     if (data.emergencyContactPhone?.trim()) cleanData.emergencyContactPhone = data.emergencyContactPhone.trim();
 
+    if (includeCredentials) {
+      cleanData.loginUserName = data.loginUserName?.trim();
+      cleanData.loginPassword = data.loginPassword;
+    } else {
+      if (data.loginUserName?.trim()) cleanData.loginUserName = data.loginUserName.trim();
+      if (data.loginPassword?.trim()) cleanData.loginPassword = data.loginPassword;
+    }
+
     return cleanData;
   };
 
@@ -437,7 +461,8 @@ export default function EmployeesPage() {
     }
 
     try {
-      const cleanData = prepareEmployeeData(formData);
+      setIsCreatingEmployee(true);
+      const cleanData = prepareEmployeeData(formData, true);
       await createEmployee(cleanData);
 
       await logActivity(
@@ -454,6 +479,8 @@ export default function EmployeesPage() {
       console.error("Failed to create employee:", error);
       const errorMessage = error.response?.data?.message || error.message || "Failed to create employee";
       toast.error(errorMessage);
+    } finally {
+      setIsCreatingEmployee(false);
     }
   };
 
@@ -462,13 +489,13 @@ export default function EmployeesPage() {
 
     const formData = { ...editEmployee, organizationId: editEmployee.organizationId };
 
-    if (!validateForm(formData)) {
+    if (!validateForm(formData, true)) {
       toast.error("Please fix the form errors");
       return;
     }
 
     try {
-      const cleanData = prepareEmployeeData(formData);
+      const cleanData = prepareEmployeeData(formData, false);
       await updateEmployee(selectedEmployee.id, cleanData);
 
       await logActivity(
@@ -656,6 +683,55 @@ export default function EmployeesPage() {
     setIsBulkAssignOpen(true);
   };
 
+  const openMessageDialog = (employeeIds: string[]) => {
+    setMessageRecipientIds(employeeIds);
+    setMessageForm({ title: "", body: "" });
+    setIsMessageDialogOpen(true);
+  };
+
+  const handleSendMessage = async () => {
+    if (!userProfile?.organizationId) {
+      toast.error("Organization not found");
+      return;
+    }
+    if (!messageForm.title || !messageForm.body) {
+      toast.error("Title and message are required");
+      return;
+    }
+    if (messageRecipientIds.length === 0) {
+      toast.error("Select at least one employee");
+      return;
+    }
+
+    const employees = employeeData?.employees || [];
+    const recipientUserIds = employees
+      .filter((emp: Employee) => messageRecipientIds.includes(emp.id))
+      .map((emp: Employee) => emp.userId)
+      .filter(Boolean);
+
+    if (recipientUserIds.length === 0) {
+      toast.error("No valid recipients found");
+      return;
+    }
+
+    try {
+      await createMessage({
+        organizationId: userProfile.organizationId,
+        recipientUserIds,
+        title: messageForm.title.trim(),
+        body: messageForm.body.trim(),
+        type: "admin",
+      });
+      toast.success("Message sent");
+      setIsMessageDialogOpen(false);
+      setMessageForm({ title: "", body: "" });
+      setMessageRecipientIds([]);
+    } catch (error: any) {
+      console.error("Failed to send message:", error);
+      toast.error(error.response?.data?.message || "Failed to send message");
+    }
+  };
+
   const handleExport = (monthFilter?: string) => {
     try {
       const employees = employeeData?.employees || [];
@@ -705,6 +781,8 @@ export default function EmployeesPage() {
       designationId: employee.designationId || "",
       reportingTo: employee.reportingTo || "",
       employeeCode: employee.employeeCode,
+      loginUserName: employee.userName || "",
+      loginPassword: "",
       firstName: employee.firstName,
       middleName: employee.middleName || "",
       lastName: employee.lastName || "",
@@ -715,6 +793,9 @@ export default function EmployeesPage() {
       personalEmail: employee.personalEmail || "",
       contactNumber: employee.contactNumber || "",
       photoUrl: employee.photoUrl || "",
+      aadharPhotoUrl: employee.aadharPhotoUrl || "",
+      passportPhotoUrl: employee.passportPhotoUrl || "",
+      panCardPhotoUrl: employee.panCardPhotoUrl || "",
       employmentType: employee.employmentType || "",
       status: employee.status || "active",
       bloodGroup: employee.bloodGroup || "",
@@ -798,6 +879,14 @@ export default function EmployeesPage() {
                   <Settings className="w-4 h-4 mr-2" />
                   Bulk Assign ({selectedEmployees.length})
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openMessageDialog(selectedEmployees)}
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Send Message
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm">
@@ -858,6 +947,7 @@ export default function EmployeesPage() {
           onIndividualStatusUpdate={handleIndividualStatusUpdate}
           onCreateEmployee={() => setIsCreateDialogOpen(true)}
           onViewEmployeeDetails={handleViewEmployeeDetails}
+          onSendMessage={(employee) => openMessageDialog([employee.id])}
         />
 
         {/* All Dialogs */}
@@ -868,6 +958,7 @@ export default function EmployeesPage() {
           newEmployee={newEmployee}
           setNewEmployee={setNewEmployee}
           onCreateEmployee={handleCreateEmployee}
+          isCreatingEmployee={isCreatingEmployee}
           formErrors={formErrors}
           employeeData={employeeData}
           // Edit Dialog
@@ -897,6 +988,13 @@ export default function EmployeesPage() {
           exportFields={exportFields}
           setExportFields={setExportFields}
           onExport={handleExport}
+          // Message Dialog
+          isMessageDialogOpen={isMessageDialogOpen}
+          setIsMessageDialogOpen={setIsMessageDialogOpen}
+          messageForm={messageForm}
+          setMessageForm={setMessageForm}
+          messageRecipientIds={messageRecipientIds}
+          onSendMessage={handleSendMessage}
           // Common
           initialFormData={initialFormData}
         />

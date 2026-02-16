@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, isBefore, formatDistanceToNow } from "date-fns";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip } from "recharts";
-import { getPollsSummary, getPollAnalytics, getEmployeeByUserId, createPoll } from "@/app/api/api";
+import { getPollsSummary, getPollAnalytics, getEmployeeByUserId, createPoll, getProfile } from "@/app/api/api";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -450,7 +450,7 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
   );
 }
 
-export default function PollsPage({ currentUser }: { currentUser: any }) {
+export default function PollsPage() {
   const [allPolls, setAllPolls] = useState<Poll[]>([]);
   const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
   const [pollAnalytics, setPollAnalytics] = useState<any>(null);
@@ -460,9 +460,13 @@ export default function PollsPage({ currentUser }: { currentUser: any }) {
   const [selectedRespondents, setSelectedRespondents] = useState<{ user_id: string; employee_name: string }[]>([]);
   const [selectedOptionText, setSelectedOptionText] = useState("");
   const [respondentsModalOpen, setRespondentsModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     fetchPolls();
+    getProfile()
+      .then((res) => setCurrentUser(res.data))
+      .catch((err) => console.error("Failed to fetch profile:", err));
   }, []);
 
   const fetchPolls = async () => {

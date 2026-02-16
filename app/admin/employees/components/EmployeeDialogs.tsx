@@ -9,6 +9,9 @@ import {
   Edit,
   Download,
   Calendar,
+  Eye,
+  EyeOff,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +47,7 @@ interface EmployeeDialogsProps {
   newEmployee: EmployeeFormData;
   setNewEmployee: (value: EmployeeFormData) => void;
   onCreateEmployee: () => void;
+  isCreatingEmployee: boolean;
   formErrors: Record<string, string>;
   employeeData: any;
   
@@ -77,6 +81,14 @@ interface EmployeeDialogsProps {
   exportFields: ExportFields;
   setExportFields: (value: ExportFields) => void;
   onExport: (monthFilter?: string) => void;
+
+  // Message Dialog
+  isMessageDialogOpen: boolean;
+  setIsMessageDialogOpen: (value: boolean) => void;
+  messageForm: { title: string; body: string };
+  setMessageForm: (value: { title: string; body: string }) => void;
+  messageRecipientIds: string[];
+  onSendMessage: () => void;
   
   // Common
   initialFormData: EmployeeFormData;
@@ -89,6 +101,7 @@ export default function EmployeeDialogs({
   newEmployee,
   setNewEmployee,
   onCreateEmployee,
+  isCreatingEmployee,
   formErrors,
   employeeData,
   
@@ -122,6 +135,14 @@ export default function EmployeeDialogs({
   exportFields,
   setExportFields,
   onExport,
+
+  // Message Dialog props
+  isMessageDialogOpen,
+  setIsMessageDialogOpen,
+  messageForm,
+  setMessageForm,
+  messageRecipientIds,
+  onSendMessage,
   
   // Common props
   initialFormData,
@@ -133,6 +154,10 @@ export default function EmployeeDialogs({
   const designations = employeeData?.filters?.designations || [];
   const managers = employeeData?.filters?.managers || [];
   const employees = employeeData?.employees || [];
+
+  const messageRecipients = employees.filter((emp: Employee) =>
+    messageRecipientIds.includes(emp.id)
+  );
 
   const safeFormatDate = (dateString: string | null | undefined, fallback: string = "Not set") => {
     if (!dateString) return fallback;
@@ -153,6 +178,39 @@ export default function EmployeeDialogs({
     return statusConfig[status as keyof typeof statusConfig] || statusConfig.active;
   };
 
+  const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+
+  const handleDocUpload = async (
+    file: File | null,
+    field: "aadharPhotoUrl" | "passportPhotoUrl" | "panCardPhotoUrl",
+    mode: "new" | "edit"
+  ) => {
+    if (!file) return;
+    const dataUrl = await readFileAsDataUrl(file);
+    if (mode === "new") {
+      setNewEmployee({ ...newEmployee, [field]: dataUrl });
+    } else {
+      setEditEmployee({ ...editEmployee, [field]: dataUrl });
+    }
+  };
+
+  const clearDoc = (
+    field: "aadharPhotoUrl" | "passportPhotoUrl" | "panCardPhotoUrl",
+    mode: "new" | "edit"
+  ) => {
+    if (mode === "new") {
+      setNewEmployee({ ...newEmployee, [field]: "" });
+    } else {
+      setEditEmployee({ ...editEmployee, [field]: "" });
+    }
+  };
+
   // Generate month options for the last 2 years
   const generateMonthOptions = () => {
     const months = [];
@@ -169,6 +227,8 @@ export default function EmployeeDialogs({
   };
 
   const monthOptions = generateMonthOptions();
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   return (
     <>
@@ -446,18 +506,22 @@ export default function EmployeeDialogs({
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="reportingTo">Reporting Manager</Label>
+                    <Label htmlFor="reportingTo">Reporting Manager (Optional)</Label>
                     <Select
                       value={newEmployee.reportingTo}
                       onValueChange={(value) => setNewEmployee({ ...newEmployee, reportingTo: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select manager" />
+                        <SelectValue placeholder={managers.length === 0 ? "No managers available" : "Select manager"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {managers.map((mgr: any) => (
-                          <SelectItem key={mgr.id} value={mgr.id}>{`${mgr.firstName} ${mgr.lastName || ''}`}</SelectItem>
-                        ))}
+                        {managers.length === 0 ? (
+                          <SelectItem value="none" disabled>No managers available yet</SelectItem>
+                        ) : (
+                          managers.map((mgr: any) => (
+                            <SelectItem key={mgr.id} value={mgr.id}>{`${mgr.firstName} ${mgr.lastName || ''}`}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -499,6 +563,72 @@ export default function EmployeeDialogs({
                 </div>
               </div>
             </div>
+
+            <Separator />
+
+            {/* Documents */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center">
+                <Briefcase className="w-5 h-5 mr-2" />
+                Documents
+              </h3>
+              <div className="grid gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="aadharPhoto">Aadhar Photo</Label>
+                    <Input
+                      id="aadharPhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "aadharPhotoUrl", "new")}
+                    />
+                    {newEmployee.aadharPhotoUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("aadharPhotoUrl", "new")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="passportPhoto">Passport Photo</Label>
+                    <Input
+                      id="passportPhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "passportPhotoUrl", "new")}
+                    />
+                    {newEmployee.passportPhotoUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("passportPhotoUrl", "new")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="panCardPhoto">PAN Card Photocopy</Label>
+                    <Input
+                      id="panCardPhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "panCardPhotoUrl", "new")}
+                    />
+                    {newEmployee.panCardPhotoUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("panCardPhotoUrl", "new")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
           <DialogFooter>
             <Button
@@ -510,7 +640,16 @@ export default function EmployeeDialogs({
             >
               Cancel
             </Button>
-            <Button onClick={onCreateEmployee}>Create Employee</Button>
+            <Button onClick={onCreateEmployee} disabled={isCreatingEmployee}>
+              {isCreatingEmployee ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Employee"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -782,20 +921,24 @@ export default function EmployeeDialogs({
                     </Select>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="editReportingTo">Reporting Manager</Label>
+                    <Label htmlFor="editReportingTo">Reporting Manager (Optional)</Label>
                     <Select
                       value={editEmployee.reportingTo}
                       onValueChange={(value) => setEditEmployee({ ...editEmployee, reportingTo: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select manager" />
+                        <SelectValue placeholder={managers.length === 0 ? "No managers available" : "Select manager"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {managers.map((mgr: any) => (
-                          <SelectItem key={mgr.id} value={mgr.id}>
-                            {`${mgr.firstName} ${mgr.lastName || ''}`}
-                          </SelectItem>
-                        ))}
+                        {managers.length === 0 ? (
+                          <SelectItem value="none" disabled>No managers available yet</SelectItem>
+                        ) : (
+                          managers.map((mgr: any) => (
+                            <SelectItem key={mgr.id} value={mgr.id}>
+                              {`${mgr.firstName} ${mgr.lastName || ''}`}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -834,6 +977,57 @@ export default function EmployeeDialogs({
                         <SelectItem value="terminated">Terminated</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Login Credentials (Optional) */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center">
+                <Briefcase className="w-5 h-5 mr-2" />
+                Login Credentials (Optional)
+              </h3>
+              <div className="grid gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="loginUserName">Username *</Label>
+                    <Input
+                      id="loginUserName"
+                      value={editEmployee.loginUserName}
+                      onChange={(e) => setEditEmployee({ ...editEmployee, loginUserName: e.target.value })}
+                      placeholder="Leave blank to keep current"
+                      className={formErrors.loginUserName ? "border-red-500" : ""}
+                    />
+                    {formErrors.loginUserName && (
+                      <p className="text-sm text-red-500">{formErrors.loginUserName}</p>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="loginPassword">Password *</Label>
+                    <div className="relative">
+                      <Input
+                        id="loginPassword"
+                        type={showEditPassword ? "text" : "password"}
+                        value={editEmployee.loginPassword}
+                        onChange={(e) => setEditEmployee({ ...editEmployee, loginPassword: e.target.value })}
+                        placeholder="Leave blank to keep current"
+                        className={formErrors.loginPassword ? "border-red-500 pr-10" : "pr-10"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEditPassword((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={showEditPassword ? "Hide password" : "Show password"}
+                      >
+                        {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {formErrors.loginPassword && (
+                      <p className="text-sm text-red-500">{formErrors.loginPassword}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -893,11 +1087,12 @@ export default function EmployeeDialogs({
 
               {/* Detailed information tabs */}
               <Tabs defaultValue="personal" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="personal">Personal</TabsTrigger>
                   <TabsTrigger value="employment">Employment</TabsTrigger>
                   <TabsTrigger value="contact">Contact</TabsTrigger>
                   <TabsTrigger value="emergency">Emergency</TabsTrigger>
+                  <TabsTrigger value="documents">Documents</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="personal" className="space-y-4">
@@ -1009,6 +1204,55 @@ export default function EmployeeDialogs({
                       <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-600 dark:text-gray-400">No emergency contact information</p>
                       <p className="text-sm text-muted-foreground">Add emergency contact details for safety</p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="documents" className="space-y-4">
+                  {(selectedEmployee.aadharPhotoUrl || selectedEmployee.passportPhotoUrl || selectedEmployee.panCardPhotoUrl) ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Aadhar</Label>
+                        {selectedEmployee.aadharPhotoUrl ? (
+                          <img
+                            src={selectedEmployee.aadharPhotoUrl}
+                            alt="Aadhar"
+                            className="h-28 w-full rounded-md object-cover border"
+                          />
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Not provided</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Passport</Label>
+                        {selectedEmployee.passportPhotoUrl ? (
+                          <img
+                            src={selectedEmployee.passportPhotoUrl}
+                            alt="Passport"
+                            className="h-28 w-full rounded-md object-cover border"
+                          />
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Not provided</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">PAN Card</Label>
+                        {selectedEmployee.panCardPhotoUrl ? (
+                          <img
+                            src={selectedEmployee.panCardPhotoUrl}
+                            alt="PAN Card"
+                            className="h-28 w-full rounded-md object-cover border"
+                          />
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Not provided</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600 dark:text-gray-400">No documents uploaded</p>
+                      <p className="text-sm text-muted-foreground">Upload documents from the edit screen</p>
                     </div>
                   )}
                 </TabsContent>
@@ -1256,6 +1500,61 @@ export default function EmployeeDialogs({
             <Button onClick={() => onExport(exportMonthFilter)}>
               <Download className="w-4 h-4 mr-2" />
               Export {exportFormat.toUpperCase()}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Message Dialog */}
+      <Dialog open={isMessageDialogOpen} onOpenChange={setIsMessageDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Send Message</DialogTitle>
+            <DialogDescription>
+              Send a message to selected employee{messageRecipientIds.length > 1 ? "s" : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label>Recipients</Label>
+              {messageRecipients.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No recipients selected.</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {messageRecipients.map((emp) => (
+                    <Badge key={emp.id} variant="secondary">
+                      {`${emp.firstName} ${emp.lastName || ""}`.trim() || emp.workEmail}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="messageTitle">Title *</Label>
+              <Input
+                id="messageTitle"
+                value={messageForm.title}
+                onChange={(e) => setMessageForm({ ...messageForm, title: e.target.value })}
+                placeholder="Enter message title"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="messageBody">Message *</Label>
+              <textarea
+                id="messageBody"
+                value={messageForm.body}
+                onChange={(e) => setMessageForm({ ...messageForm, body: e.target.value })}
+                placeholder="Write your message..."
+                className="min-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsMessageDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={onSendMessage} disabled={!messageForm.title || !messageForm.body || messageRecipientIds.length === 0}>
+              Send Message
             </Button>
           </DialogFooter>
         </DialogContent>

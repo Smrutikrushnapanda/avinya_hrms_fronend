@@ -631,9 +631,15 @@ const handleSaveApprovers = async () => {
               <Label htmlFor="stepOrder">Step Order</Label>
               <Input
                 id="stepOrder"
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={stepForm.stepOrder}
-                onChange={(e) => setStepForm({ ...stepForm, stepOrder: parseInt(e.target.value) || 1 })}
+                onChange={(e) => {
+                  const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                  const next = digitsOnly === "" ? 1 : parseInt(digitsOnly, 10);
+                  setStepForm({ ...stepForm, stepOrder: next });
+                }}
               />
             </div>
 
