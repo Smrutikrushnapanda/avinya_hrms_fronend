@@ -10,7 +10,6 @@ const apiBaseURL = envOverrideURL || cloudFallbackURL;
 const api = axios.create({
   baseURL: apiBaseURL,
   timeout: 30000,
-  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
@@ -29,7 +28,10 @@ let isRedirectingToLogin = false;
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && typeof window !== "undefined") {
+    const requestUrl = error.config?.url || "";
+    const isAuthRoute = requestUrl.includes("/auth/login");
+
+    if (error.response?.status === 401 && typeof window !== "undefined" && !isAuthRoute) {
       if (!isRedirectingToLogin) {
         isRedirectingToLogin = true;
         localStorage.removeItem("access_token");
@@ -134,6 +136,10 @@ export const getDepartmentStatistics = (organizationId: string) =>
 export const getDashboardSummary = () => api.get("/dashboard/summary");
 
 // 🕒 Attendance APIs
+export const getAttendanceSettings = (organizationId: string) =>
+  api.get("/attendance/settings", { params: { organizationId } });
+export const updateAttendanceSettings = (organizationId: string, data: any) =>
+  api.put("/attendance/settings", data, { params: { organizationId } });
 export const createWifiLocation = (data: any) => api.post("/attendance/wifi-locations", data);
 export const getWifiLocations = (organizationId: string) => api.get("/attendance/wifi-locations", { params: { organizationId } });
 export const updateWifiLocation = (id: string, data: any) => api.put(`/attendance/wifi-locations/${id}`, data);

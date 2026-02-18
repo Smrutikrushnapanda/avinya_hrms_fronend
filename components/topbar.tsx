@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Menu } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -11,9 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 import { ThemeSwitcherUser } from "./theme-switcher-user";
 import { getProfile, getOrganization } from "@/app/api/api";
+import { Bell, Search, X } from "lucide-react";
 
 export default function Topbar() {
   const router = useRouter();
@@ -24,7 +23,7 @@ export default function Topbar() {
     avatar: "",
   });
   const [organizationName, setOrganizationName] = useState<string>("");
-
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentDateTime, setCurrentDateTime] = useState<string>("");
 
   useEffect(() => {
@@ -55,10 +54,9 @@ export default function Topbar() {
         const data = response.data;
         console.log(data);
         
-        // Defensive check for properties
         setUser({
           name: [data?.firstName, data?.middleName, data?.lastName]
-  .filter(Boolean) // removes undefined, null, empty strings
+  .filter(Boolean)
   .join(" ") || "User",
           role: data?.roles[0].roleName || "Role",
           avatar: data?.avatar || "/avatar.jpg",
@@ -82,11 +80,22 @@ export default function Topbar() {
     }
   };
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      // Implement search functionality here
+      console.log("Searching for:", searchQuery);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+  };
+
   return (
     <header className="w-full h-14 bg-background-top border-b px-4 flex items-center text-muted-foreground">
-      {/* Left: Org name + mobile menu */}
+      {/* Left: Org name */}
       <div className="flex items-center gap-2 min-w-0">
-        <Menu className="w-5 h-5 md:hidden" />
         <span className="font-semibold text-foreground text-sm md:text-base truncate">
           {organizationName || "Organization"}
         </span>
@@ -97,12 +106,63 @@ export default function Topbar() {
         {currentDateTime || "Loading..."}
       </div>
 
-      {/* Right: Notification + Avatar */}
+      {/* Right: Search Bar + Theme Switcher + Notification Bell + Avatar */}
       <div className="flex items-center gap-4">
+        {/* Search Bar */}
+        <form onSubmit={handleSearch} className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm w-56">
+          <Search className="w-4 h-4 text-muted-foreground" />
+          <input
+            className="bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground w-full"
+            placeholder="Search anything..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button type="button" onClick={clearSearch} className="text-muted-foreground hover:text-foreground">
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </form>
+
         <ThemeSwitcherUser />
-        <Button variant="outline" size="icon" aria-label="Notifications">
-          <Bell className="w-5 h-5" />
-        </Button>
+
+        {/* Notification Bell with Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="relative w-10 h-10 bg-card border border-border rounded-xl flex items-center justify-center shadow-sm hover:border-primary/40 transition-colors">
+              <Bell className="w-4 h-4 text-muted-foreground" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-card" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80">
+            <div className="flex items-center justify-between p-3 border-b">
+              <p className="font-semibold text-sm">Notifications</p>
+              <button className="text-xs text-primary hover:underline">Mark all as read</button>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              <DropdownMenuItem className="flex flex-col items-start p-3 cursor-pointer">
+                <p className="text-sm font-medium">New leave request</p>
+                <p className="text-xs text-muted-foreground">John Doe requested leave for tomorrow</p>
+                <span className="text-[10px] text-muted-foreground mt-1">2 minutes ago</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="flex flex-col items-start p-3 cursor-pointer">
+                <p className="text-sm font-medium">Attendance marked</p>
+                <p className="text-xs text-muted-foreground">Your attendance has been recorded</p>
+                <span className="text-[10px] text-muted-foreground mt-1">1 hour ago</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="flex flex-col items-start p-3 cursor-pointer">
+                <p className="text-sm font-medium">Payroll processed</p>
+                <p className="text-xs text-muted-foreground">Your salary slip is now available</p>
+                <span className="text-[10px] text-muted-foreground mt-1">Yesterday</span>
+              </DropdownMenuItem>
+            </div>
+            <div className="p-2 border-t">
+              <button className="w-full text-center text-xs text-primary hover:underline p-2">
+                View all notifications
+              </button>
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

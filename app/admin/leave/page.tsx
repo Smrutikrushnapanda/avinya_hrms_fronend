@@ -78,7 +78,7 @@ interface LeaveRequest {
   totalDays?: number;
   duration?: number;
   reason?: string;
-  leaveType?: string;
+  leaveType?: string | { name?: string };
   status?: string;
   remarks?: string;
   createdAt?: string;

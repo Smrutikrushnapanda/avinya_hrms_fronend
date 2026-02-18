@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
-import axios from "axios";// adjust path if needed
+import axios from "axios";
 import { startOfMonth } from "date-fns";
+import { getProfile, getHolidays } from "@/app/api/api";
 
 interface AttendanceRecord {
   date: string;
@@ -17,6 +18,14 @@ interface AttendanceRecord {
   isOptional?: boolean;
 }
 
+interface Holiday {
+  id?: number;
+  date?: string;
+  name?: string;
+  holidayType?: string;
+  isOptional?: boolean;
+}
+
 const DashboardCalendarSection = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
@@ -25,6 +34,7 @@ const DashboardCalendarSection = () => {
     startOfMonth(new Date())
   );
   const [loading, setLoading] = useState(true);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
 
   const userId = "08936291-d8f4-4429-ac51-2879ea34df43";
   const organizationId = "24facd21-265a-4edd-8fd1-bc69a036f755";
@@ -32,9 +42,10 @@ const DashboardCalendarSection = () => {
   const year = currentMonth.getFullYear();
 
   useEffect(() => {
-    const fetchAttendance = async () => {
+    const fetchData = async () => {
       try {
-         const res = await axios.get("/attendance/monthly", {
+        // Fetch attendance data
+        const res = await axios.get("/attendance/monthly", {
           params: {
             userId,
             organizationId,
@@ -50,8 +61,31 @@ const DashboardCalendarSection = () => {
       }
     };
 
-    fetchAttendance();
+    fetchData();
   }, [userId, organizationId, month, year]);
+
+  // Fetch holidays from API
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const profileRes = await getProfile();
+        const orgId = profileRes.data?.organizationId || organizationId;
+        
+        const holidaysRes = await getHolidays({ organizationId: orgId });
+        let holidaysData = holidaysRes.data;
+        
+        if (holidaysData?.holidays) {
+          setHolidays(holidaysData.holidays);
+        } else if (Array.isArray(holidaysData)) {
+          setHolidays(holidaysData);
+        }
+      } catch (error) {
+        console.error("Failed to fetch holidays:", error);
+      }
+    };
+
+    fetchHolidays();
+  }, [organizationId]);
 
   // ✅ Transform to match AttendanceCalendar's props
   const statusByDate = useMemo(() => {
@@ -101,17 +135,28 @@ const DashboardCalendarSection = () => {
           <CardTitle>🎉 Upcoming Holidays</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2 text-sm">
-            <li className="border p-2 rounded bg-blue-50">
-              Aug 15 – Independence Day
-            </li>
-            <li className="border p-2 rounded bg-blue-50">
-              Aug 19 – Raksha Bandhan
-            </li>
-            <li className="border p-2 rounded bg-blue-50">
-              Oct 2 – Gandhi Jayanti
-            </li>
-          </ul>
+          {holidays.length > 0 ? (
+            <ul className="space-y-2 text-sm">
+              {holidays.slice(0, 5).map((holiday, index) => (
+                <li 
+                  key={holiday.id || index} 
+                  className={`border p-2 rounded ${holiday.isOptional ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}
+                >
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">
+                      {holiday.date ? new Date(holiday.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'TBD'}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${holiday.isOptional ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {holiday.isOptional ? 'RH' : 'H'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">{holiday.name}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No upcoming holidays</p>
+          )}
         </CardContent>
       </Card>
     </div>

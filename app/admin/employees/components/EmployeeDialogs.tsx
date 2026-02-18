@@ -153,7 +153,7 @@ export default function EmployeeDialogs({
   const departments = employeeData?.filters?.departments || [];
   const designations = employeeData?.filters?.designations || [];
   const managers = employeeData?.filters?.managers || [];
-  const employees = employeeData?.employees || [];
+  const employees: Employee[] = employeeData?.employees || [];
 
   const messageRecipients = employees.filter((emp: Employee) =>
     messageRecipientIds.includes(emp.id)

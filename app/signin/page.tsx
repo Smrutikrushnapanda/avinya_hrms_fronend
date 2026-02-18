@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { login } from "../api/api";
-import { Eye, EyeOff } from "lucide-react"; // 👁️ Eye icons
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // 🔁 Password visibility toggle
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,25 +32,80 @@ export default function LoginPage() {
 
       const { user: responseUser, access_token } = response.data;
 
+      console.log("Full response:", JSON.stringify(response.data, null, 2));
+
+      let roleNames: string[] = [];
+      
+      if (Array.isArray(responseUser.roles)) {
+        roleNames = responseUser.roles.map((r: any) => {
+          if (typeof r === 'string') return r;
+          if (r.roleName) return r.roleName;
+          if (r.name) return r.name;
+          if (r.role) return r.role;
+          return '';
+        }).filter(Boolean);
+      }
+      
+      if (responseUser.role) {
+        if (typeof responseUser.role === 'string') {
+          roleNames.push(responseUser.role);
+        } else if (responseUser.role.roleName) {
+          roleNames.push(responseUser.role.roleName);
+        }
+      }
+      
+      if (responseUser.roleName) {
+        roleNames.push(responseUser.roleName);
+      }
+
+      if (responseUser.userType) {
+        roleNames.push(responseUser.userType.toUpperCase());
+      }
+      if (responseUser.type) {
+        roleNames.push(responseUser.type.toUpperCase());
+      }
+
+      console.log("Extracted roles:", roleNames);
+
+      const hasAdminRole = roleNames.includes("ADMIN");
+      const hasEmployeeRole = roleNames.includes("EMPLOYEE");
+      
+      let redirectToAdmin = false;
+      
+      if (hasAdminRole && !hasEmployeeRole) {
+        redirectToAdmin = true;
+      } else if (hasEmployeeRole && !hasAdminRole) {
+        redirectToAdmin = false;
+      } else if (hasAdminRole && hasEmployeeRole) {
+        redirectToAdmin = false;
+      } else {
+        setError("Access denied. Only admin and employee users can log in here.");
+        setLoading(false);
+        return;
+      }
+
+      console.log("Redirect to admin:", redirectToAdmin);
+
       localStorage.setItem("access_token", access_token);
       localStorage.setItem("user", JSON.stringify(responseUser));
+      localStorage.setItem("user_role", redirectToAdmin ? "ADMIN" : "EMPLOYEE");
+
+      // Set cookies for middleware authentication
+      document.cookie = `user=${encodeURIComponent(JSON.stringify(responseUser))}; path=/; max-age=86400`;
+      document.cookie = `user_role=${redirectToAdmin ? "ADMIN" : "EMPLOYEE"}; path=/; max-age=86400`;
 
       toast.success("Login successful! 🎉");
-
-      const roles: { roleName: string }[] = responseUser.roles || [];
-      const roleNames = roles.map((r) => r.roleName);
-
-      if (roleNames.includes("ADMIN")) {
-        router.push("/admin/dashboard");
-      } else if (roleNames.includes("EMPLOYEE")) {
-        router.push("/user/dashboard");
-      } else {
-        // Fallback: redirect to user dashboard if no recognized role
-        router.push("/user/dashboard");
-      }
+      
+      // Small delay to ensure cookies are set before redirect
+      setTimeout(() => {
+        if (redirectToAdmin) {
+          router.push("/admin/dashboard");
+        } else {
+          router.push("/user/dashboard");
+        }
+      }, 100);
     } catch (error: any) {
       setError(error.response?.data?.message || error.message || "Login failed");
-    } finally {
       setLoading(false);
     }
   };
@@ -151,7 +206,7 @@ export default function LoginPage() {
 
               {/* Register Link */}
               <div className="text-center mt-4 text-sm text-muted-foreground">
-                Don’t have an account?{" "}
+                Don't have an account?{" "}
                 <Link
                   href="/register"
                   className="underline underline-offset-4 hover:text-primary"

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { format, isAfter, isBefore } from "date-fns";
 import { 
   Vote, MessageSquare, Clock, Bell, AlertTriangle, Cake, Gift, PartyPopper,
-  Users, Activity, PieChart, BarChart3, UserCheck, X
+  Users, Activity, PieChart, BarChart3, UserCheck, X, CalendarDays
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { WidgetCard } from "./StatCard";
 import { PollManagement } from "./PollManagement";
-import { getQuestions, saveResponse } from "@/app/api/api";
+import { getQuestions, saveResponse, getHolidays } from "@/app/api/api";
 import { toast } from "sonner";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
@@ -683,6 +683,79 @@ export function UserActivitiesWidget({ activities }: { activities: any[] }) {
             </div>
           )) : (
             <div className="text-center opacity-60 py-4">No recent activities</div>
+          )}
+        </div>
+      </CardContent>
+    </WidgetCard>
+  );
+}
+
+// Holiday Widget
+export function HolidayWidget({ holidays }: { holidays: any[] }) {
+  const today = new Date();
+  
+  // Sort holidays by date and filter upcoming ones
+  const sortedHolidays = [...holidays]
+    .filter(h => h.date && new Date(h.date) >= today)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 6);
+
+  return (
+    <WidgetCard>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CalendarDays className="h-5 w-5 text-rose-500" />
+          Upcoming Holidays
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3 max-h-80 overflow-y-auto">
+          {sortedHolidays.length > 0 ? (
+            sortedHolidays.map((holiday, index) => (
+              <div 
+                key={holiday.id || index} 
+                className={`p-3 rounded-lg border ${
+                  holiday.isOptional 
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' 
+                    : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      holiday.isOptional 
+                        ? 'bg-amber-100 dark:bg-amber-800' 
+                        : 'bg-blue-100 dark:bg-blue-800'
+                    }`}>
+                      <CalendarDays className={`w-4 h-4 ${
+                        holiday.isOptional 
+                          ? 'text-amber-600 dark:text-amber-400' 
+                          : 'text-blue-600 dark:text-blue-400'
+                      }`} />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">{holiday.name}</div>
+                      <div className="text-xs opacity-70">
+                        {holiday.date ? format(new Date(holiday.date), 'MMM dd, yyyy') : 'Date TBD'}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className={
+                    holiday.isOptional 
+                      ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-800 dark:text-amber-300' 
+                      : 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-800 dark:text-blue-300'
+                  }>
+                    {holiday.isOptional ? 'RH' : 'H'}
+                  </Badge>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center opacity-60 py-8">
+              <CalendarDays className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No Upcoming Holidays</p>
+              <p className="text-sm mt-1">All caught up!</p>
+            </div>
           )}
         </div>
       </CardContent>

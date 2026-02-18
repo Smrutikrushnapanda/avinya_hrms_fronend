@@ -30,6 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import AnimatedIcon from "@/components/animated-icon";
 
 type SidebarMode = "expanded" | "collapsed";
@@ -49,6 +50,10 @@ interface Role {
 
 interface Profile {
   roles: Role[];
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  avatar?: string;
 }
 
 interface MenuItemChild {
@@ -89,8 +94,12 @@ const menuByRole: Record<string, MenuItem[]> = {
   ],
   EMPLOYEE: [
     { name: "Dashboard", icon: LayoutDashboard, href: "/user/dashboard", animation: "pulse" },
-    { name: "My Reports", icon: BookMarked, href: "/user/reports", animation: "swing" },
-    { name: "My Payroll", icon: BadgeDollarSign, href: "/user/payroll", animation: "bounce" },
+    { name: "Attendance", icon: Calendar, href: "/user/attendance", animation: "flip" },
+    { name: "Leave", icon: CalendarDays, href: "/user/leave", animation: "float" },
+    { name: "Time Slips", icon: Clock, href: "/user/timeslips", animation: "float" },
+    { name: "Timesheet", icon: BookMarked, href: "/user/timesheet", animation: "swing" },
+    { name: "Salary Slips", icon: BadgeDollarSign, href: "/user/payroll", animation: "bounce" },
+    { name: "Messages", icon: Users, href: "/user/messages", animation: "wiggle" },
     { name: "Polls", icon: Vote, href: "/user/polls", animation: "rubberBand" },
   ],
 };
@@ -101,6 +110,11 @@ export default function Sidebar() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [dashboardHref, setDashboardHref] = useState<string>("/");
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [user, setUser] = useState({
+    name: "",
+    role: "",
+    avatar: "",
+  });
 
   const isExpanded = mode === "expanded";
 
@@ -110,24 +124,45 @@ export default function Sidebar() {
         const res = await getProfile();
         const user: Profile = res.data;
 
-        const roles: string[] = user.roles?.map((r: Role) => r.roleName) || [];
-        let items: MenuItem[] = [];
-
-        roles.forEach((role) => {
-          if (menuByRole[role]) {
-            items = [...items, ...menuByRole[role]];
-          }
+        setUser({
+          name: [user?.firstName, user?.middleName, user?.lastName]
+            .filter(Boolean)
+            .join(" ") || "User",
+          role: user?.roles?.[0]?.roleName || "Role",
+          avatar: user?.avatar || "/avatar.jpg",
         });
 
-        const unique = Array.from(
-          new Map(items.map((i) => [i.name, i])).values()
-        );
-        setMenuItems(unique);
+        const roles: string[] = user.roles?.map((r: Role) => r.roleName) || [];
+        
+        // Determine which dashboard we're on
+        const pathname = window.location.pathname;
+        const isAdminRoute = pathname.startsWith('/admin');
+        
+        // Check stored role preference or determine from current route
+        const storedRole = localStorage.getItem("user_role");
+        
+        let primaryRole = "";
+        
+        if (isAdminRoute) {
+          // If on admin route, show admin menu
+          primaryRole = "ADMIN";
+        } else {
+          // If on user route, show employee menu
+          primaryRole = "EMPLOYEE";
+        }
+        
+        // Get menu items based on primary role
+        let items: MenuItem[] = [];
+        if (menuByRole[primaryRole]) {
+          items = [...menuByRole[primaryRole]];
+        }
+        
+        setMenuItems(items);
 
         // Set dashboard href based on role
-        if (roles.includes("ADMIN")) {
+        if (primaryRole === "ADMIN") {
           setDashboardHref("/admin/dashboard");
-        } else if (roles.includes("EMPLOYEE")) {
+        } else {
           setDashboardHref("/user/dashboard");
         }
       } catch (err: unknown) {
@@ -179,6 +214,7 @@ export default function Sidebar() {
             <span className="sr-only">Toggle Sidebar</span>
           </button>
         </div>
+
         <div className="flex-1 flex flex-col items-start px-2 py-4 gap-1">
           {menuItems.map((item) => {
             const isGroup = Boolean(item.children?.length);

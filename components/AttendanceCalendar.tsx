@@ -14,7 +14,6 @@ import {
   addMonths,
 } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Dialog,
@@ -37,7 +36,7 @@ interface AttendanceStatus {
   holidayName?: string;
   inTime?: string;
   outTime?: string;
-  isOptional?: boolean; // ✅ NEW field
+  isOptional?: boolean;
 }
 
 interface AttendanceCalendarProps {
@@ -46,32 +45,26 @@ interface AttendanceCalendarProps {
   statusByDate: Record<string, AttendanceStatus>;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  present: "bg-green-500",
-  absent: "bg-red-500",
-  pending: "bg-gray-400",
-  leave: "bg-yellow-500",
-};
-
-const HALF_STATUS_BACKGROUND: Record<AttendanceStatus["status"], string> = {
-  "half-day": "bg-red-200 border-red-500",
-  "half-leave": "bg-yellow-200 border-yellow-500",
-  present: "",
-  absent: "",
-  leave: "",
-  pending: "",
-  holiday: "",
-};
-
-const HALF_STATUS_FOREGROUND: Record<AttendanceStatus["status"], string> = {
-  "half-day": "bg-red-500",
-  "half-leave": "bg-yellow-500",
-  present: "",
-  absent: "",
-  leave: "",
-  pending: "",
-  holiday: "",
-};
+function getDayCircleClass(
+  status: AttendanceStatus["status"] | undefined,
+  isCurrentDay: boolean
+): string {
+  const base =
+    "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold mx-auto relative transition-colors";
+  if (status === "present")
+    return cn(base, "bg-green-100 border-2 border-green-500 text-green-800");
+  if (status === "absent")
+    return cn(base, "bg-red-100 border-2 border-red-500 text-red-800");
+  if (status === "leave")
+    return cn(base, "bg-yellow-100 border-2 border-yellow-500 text-yellow-800");
+  if (status === "holiday")
+    return cn(base, "bg-blue-100 border-2 border-blue-400 text-blue-800");
+  if (status === "pending")
+    return cn(base, "bg-gray-100 border border-gray-300 text-gray-500");
+  if (isCurrentDay)
+    return cn(base, "border-2 border-blue-500 text-blue-700 bg-blue-50");
+  return cn(base, "text-gray-700");
+}
 
 export default function AttendanceCalendar({
   currentMonth,
@@ -84,7 +77,7 @@ export default function AttendanceCalendar({
   const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 0 });
 
   const calendarDays = useMemo(() => {
-    const days = [];
+    const days: Date[] = [];
     let day = start;
     while (day <= end) {
       days.push(day);
@@ -93,217 +86,187 @@ export default function AttendanceCalendar({
     return days;
   }, [start, end]);
 
-  const renderCells = () =>
-    calendarDays.map((day, index) => {
-      const dateKey = format(day, "yyyy-MM-dd");
-      const dayData = statusByDate[dateKey];
-      const status = dayData?.status;
-      const holidayName = dayData?.holidayName;
-      const inTime = dayData?.inTime;
-      const outTime = dayData?.outTime;
-      const isOptional = dayData?.isOptional;
-
-      const isCurrentMonth = isSameMonth(day, currentMonth);
-      const isCurrentDay = isToday(day);
-      const isHalfStatus = status === "half-day" || status === "half-leave";
-
-      const tooltip = holidayName
-        ? holidayName
-        : inTime && outTime
-        ? `In: ${inTime}, Out: ${outTime}`
-        : status;
-
-      return (
-        <Dialog key={index}>
-          <DialogTrigger asChild>
-            <div
-              className={cn(
-                "aspect-square p-1 border rounded-lg relative text-xs flex flex-col justify-between cursor-pointer",
-                !isCurrentMonth && "text-gray-400",
-                isCurrentDay && "border-2 border-blue-500"
-              )}
-              title={tooltip}
-              onClick={() => setSelectedDate(dateKey)}
-            >
-              {/* Date */}
-              <div className="absolute top-1 left-1 font-semibold text-[14px]">
-                {format(day, "d")}
-              </div>
-
-              {/* Status Indicator */}
-              {status === "holiday" ? (
-                <span className="absolute top-1 right-1 text-blue-600 text-sm font-bold">
-                  {isOptional ? "RH" : "H"}
-                </span>
-              ) : isHalfStatus ? (
-                <div
-                  className={cn(
-                    "absolute top-1 right-1 w-4 h-4 rounded-full border overflow-hidden",
-                    HALF_STATUS_BACKGROUND[status]
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "absolute top-0 left-0 w-1/2 h-full",
-                      HALF_STATUS_FOREGROUND[status]
-                    )}
-                  />
-                </div>
-              ) : status && STATUS_COLORS[status] ? (
-                <div
-                  className={cn(
-                    "absolute top-1 right-1 w-4 h-4 rounded-full",
-                    STATUS_COLORS[status]
-                  )}
-                />
-              ) : null}
-
-              {/* In/Out Times */}
-              <div className="mt-auto font-semibold text-[10px] text-muted-foreground leading-tight">
-                {inTime && <div>In: {inTime}</div>}
-                {outTime && <div>Out: {outTime}</div>}
-              </div>
-            </div>
-          </DialogTrigger>
-
-          {/* Modal Dialog Content */}
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{format(day, "PPP")}</DialogTitle>
-              <DialogDescription>
-                {status ? (
-                  <div className="text-sm mt-2 space-y-1">
-                    <p>
-                      <strong>Status:</strong> {status}
-                    </p>
-                    {inTime && (
-                      <p>
-                        <strong>In Time:</strong> {inTime}
-                      </p>
-                    )}
-                    {outTime && (
-                      <p>
-                        <strong>Out Time:</strong> {outTime}
-                      </p>
-                    )}
-                    {status === "holiday" && (
-                      <p>
-                        <strong>Holiday Type:</strong>{" "}
-                        {isOptional
-                          ? "Restricted Holiday (RH)"
-                          : "General Holiday (H)"}
-                      </p>
-                    )}
-                    {holidayName && (
-                      <p>
-                        <strong>Holiday Name:</strong> {holidayName}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm mt-2 text-muted-foreground">
-                    No data available.
-                  </p>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-          </DialogContent>
-        </Dialog>
-      );
-    });
-
   return (
-    <div>
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between mb-4">
-        <Button
-          variant="ghost"
-          size="icon"
+    <div className="select-none">
+      {/* Month Navigation */}
+      <div className="flex items-center justify-between mb-3">
+        <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+          className="p-1.5 rounded-full hover:bg-gray-100 transition-colors active:scale-95"
         >
-          <ChevronLeft />
-        </Button>
-        <h2 className="text-lg font-semibold">
+          <ChevronLeft className="w-4 h-4 text-gray-600" />
+        </button>
+        <h2 className="text-sm font-semibold text-gray-800">
           {format(currentMonth, "MMMM yyyy")}
         </h2>
-        <Button
-          variant="ghost"
-          size="icon"
+        <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+          className="p-1.5 rounded-full hover:bg-gray-100 transition-colors active:scale-95"
         >
-          <ChevronRight />
-        </Button>
+          <ChevronRight className="w-4 h-4 text-gray-600" />
+        </button>
       </div>
 
-      {/* Weekday Labels */}
-      <div className="grid grid-cols-7 gap-2 mb-2 text-center text-sm font-medium text-muted-foreground">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-          <div key={day}>{day}</div>
+      {/* Weekday Headers */}
+      <div className="grid grid-cols-7 mb-1">
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <div
+            key={i}
+            className="text-center text-xs font-semibold text-gray-400 py-1"
+          >
+            {d}
+          </div>
         ))}
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-2">{renderCells()}</div>
+      <div className="grid grid-cols-7 gap-y-1.5">
+        {calendarDays.map((day, index) => {
+          const dateKey = format(day, "yyyy-MM-dd");
+          const dayData = statusByDate[dateKey];
+          const status = dayData?.status;
+          const isCurrentMonth = isSameMonth(day, currentMonth);
+          const isCurrentDay = isToday(day);
+          const isHalf = status === "half-day" || status === "half-leave";
+
+          const tooltip = dayData?.holidayName
+            ? dayData.holidayName
+            : dayData?.inTime && dayData?.outTime
+            ? `In: ${dayData.inTime}, Out: ${dayData.outTime}`
+            : status;
+
+          return (
+            <Dialog key={index}>
+              <DialogTrigger asChild>
+                <div
+                  className={cn(
+                    "flex flex-col items-center cursor-pointer py-0.5",
+                    !isCurrentMonth && "opacity-30"
+                  )}
+                  title={tooltip}
+                  onClick={() => setSelectedDate(dateKey)}
+                >
+                  {isHalf ? (
+                    // Split circle for half-day / half-leave
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-full mx-auto relative overflow-hidden border-2 flex items-center justify-center",
+                        status === "half-day"
+                          ? "border-orange-400"
+                          : "border-yellow-400",
+                        isCurrentDay && "ring-2 ring-blue-500 ring-offset-1"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "absolute left-0 top-0 w-1/2 h-full",
+                          status === "half-day"
+                            ? "bg-orange-200"
+                            : "bg-yellow-200"
+                        )}
+                      />
+                      <span className="relative z-10 text-xs font-semibold text-gray-700">
+                        {format(day, "d")}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className={getDayCircleClass(status, isCurrentDay)}>
+                      {format(day, "d")}
+                      {status === "holiday" && (
+                        <span className="absolute -top-1.5 -right-1 text-[8px] font-bold text-blue-600 bg-white border border-blue-200 rounded px-0.5 leading-none">
+                          {dayData?.isOptional ? "RH" : "H"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </DialogTrigger>
+
+              {/* Day detail dialog */}
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{format(day, "PPP")}</DialogTitle>
+                  <DialogDescription asChild>
+                    <div className="text-sm mt-2 space-y-1">
+                      {status ? (
+                        <>
+                          <p>
+                            <strong>Status:</strong> {status}
+                          </p>
+                          {dayData?.inTime && (
+                            <p>
+                              <strong>In Time:</strong> {dayData.inTime}
+                            </p>
+                          )}
+                          {dayData?.outTime && (
+                            <p>
+                              <strong>Out Time:</strong> {dayData.outTime}
+                            </p>
+                          )}
+                          {status === "holiday" && (
+                            <p>
+                              <strong>Holiday Type:</strong>{" "}
+                              {dayData?.isOptional
+                                ? "Restricted Holiday (RH)"
+                                : "General Holiday (H)"}
+                            </p>
+                          )}
+                          {dayData?.holidayName && (
+                            <p>
+                              <strong>Holiday Name:</strong>{" "}
+                              {dayData.holidayName}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No data available.
+                        </p>
+                      )}
+                    </div>
+                  </DialogDescription>
+                </DialogHeader>
+              </DialogContent>
+            </Dialog>
+          );
+        })}
+      </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-6 text-sm text-muted-foreground mt-4">
-        <LegendDot className="bg-green-500" label="Present" />
-        <LegendDot className="bg-red-500" label="Absent" />
-        <LegendHalfDot
-          bg="bg-red-200 border-red-500"
-          fg="bg-red-500"
-          label="Half-Day"
-        />
-        <LegendDot className="bg-yellow-500" label="Leave" />
-        <LegendHalfDot
-          bg="bg-yellow-200 border-yellow-500"
-          fg="bg-yellow-500"
-          label="Half-Leave"
-        />
-        <LegendDot className="bg-gray-400" label="Pending" />
-        <div className="flex items-center gap-2 text-blue-600">
-          <span className="font-bold text-sm">H</span>
+      <div className="grid grid-cols-3 gap-x-2 gap-y-2 mt-4 pt-3 border-t border-gray-100 text-xs text-gray-500">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
+          <span>Present</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-red-500 shrink-0" />
+          <span>Absent</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full border-2 border-orange-400 overflow-hidden shrink-0">
+            <div className="w-1/2 h-full bg-orange-200" />
+          </div>
+          <span>Half-Day</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-yellow-500 shrink-0" />
+          <span>Leave</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full border-2 border-yellow-400 overflow-hidden shrink-0">
+            <div className="w-1/2 h-full bg-yellow-200" />
+          </div>
+          <span>Half-Leave</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-gray-300 shrink-0" />
+          <span>Pending</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-blue-400 shrink-0" />
           <span>Holiday</span>
         </div>
-        <div className="flex items-center gap-2 text-blue-600">
-          <span className="font-bold text-sm">RH</span>
-          <span>Restricted Holiday</span>
-        </div>
       </div>
-    </div>
-  );
-}
-
-// Legend Components
-function LegendDot({ className, label }: { className: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className={cn("w-4 h-4 rounded-full", className)} />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function LegendHalfDot({
-  bg,
-  fg,
-  label,
-}: {
-  bg: string;
-  fg: string;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        className={cn(
-          "relative w-4 h-4 rounded-full overflow-hidden border",
-          bg
-        )}
-      >
-        <div className={cn("absolute top-0 left-0 w-1/2 h-full", fg)} />
-      </div>
-      <span>{label}</span>
     </div>
   );
 }

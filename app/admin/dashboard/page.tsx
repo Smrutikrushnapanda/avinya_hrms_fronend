@@ -9,6 +9,7 @@ import api, {
   getPolls,
   getNotices,
   getProfile,
+  getHolidays,
 } from "@/app/api/api";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,7 @@ import { DEFAULT_WIDGETS, Widget } from "./components/types";
 import { DashboardLoadingSkeleton } from "./components/DashboardSkeleton";
 import { StatCard, WidgetCard } from "./components/StatCard";
 import {
-  PollWidget, NoticeWidget, BirthdayWidget, UserActivitiesWidget
+  PollWidget, NoticeWidget, BirthdayWidget, UserActivitiesWidget, HolidayWidget
 } from "./components/DashboardWidgets";
 
 // AttendanceChart Component
@@ -133,6 +134,7 @@ export default function HRDashboardPage() {
   const [polls, setPolls] = useState<any[]>([]);
   const [dailyStats, setDailyStats] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [holidays, setHolidays] = useState<any[]>([]);
   const organizationId = "24facd21-265a-4edd-8fd1-bc69a036f755";
 
   useEffect(() => {
@@ -153,8 +155,9 @@ export default function HRDashboardPage() {
         getPolls(),
         api.get("/attendance/daily-stats", { params: { organizationId, date: formattedDate } }),
         getProfile(),
+        getHolidays({ organizationId }),
       ]);
-      const [dashboardRes, activitiesRes, anomaliesRes, noticesRes, pollsRes, dailyStatsRes, profileRes] = results;
+      const [dashboardRes, activitiesRes, anomaliesRes, noticesRes, pollsRes, dailyStatsRes, profileRes, holidaysRes] = results;
 
       setDashboardData(dashboardRes.status === 'fulfilled' && dashboardRes.value.data.success ? dashboardRes.value.data.data : null);
       setActivities(activitiesRes.status === 'fulfilled' ? activitiesRes.value.data?.data || [] : []);
@@ -163,6 +166,15 @@ export default function HRDashboardPage() {
       setPolls(pollsRes.status === 'fulfilled' ? pollsRes.value.data || [] : []);
       setDailyStats(dailyStatsRes.status === 'fulfilled' ? dailyStatsRes.value.data : null);
       setCurrentUser(profileRes.status === 'fulfilled' ? profileRes.value.data : null);
+      // Handle holidays data
+      if (holidaysRes.status === 'fulfilled') {
+        const holidaysData = holidaysRes.value.data;
+        if (holidaysData?.holidays) {
+          setHolidays(holidaysData.holidays);
+        } else if (Array.isArray(holidaysData)) {
+          setHolidays(holidaysData);
+        }
+      }
     } catch (error) {
       setDashboardData(null);
     } finally {
@@ -318,6 +330,7 @@ export default function HRDashboardPage() {
         {isWidgetEnabled('active-polls') && <PollWidget polls={polls} currentUser={currentUser} onPollUpdate={handlePollUpdate} />}
         {isWidgetEnabled('company-notices') && <NoticeWidget notices={notices} />}
         {isWidgetEnabled('birthday-tracker') && <BirthdayWidget upcomingBirthdays={upcomingBirthdays} />}
+        {isWidgetEnabled('holiday-tracker') && <HolidayWidget holidays={holidays} />}
       </div>
 
       {/* Anomalies */}
