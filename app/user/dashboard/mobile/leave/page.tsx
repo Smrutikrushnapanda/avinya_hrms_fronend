@@ -352,7 +352,7 @@ export default function MobileLeavePage() {
                         {formatDate(leave.createdAt)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {leave.leaveType?.name || leave.leaveType || "Leave"}
+                        {leave.leaveType?.name || (typeof leave.leaveType === "string" ? leave.leaveType : null) || "Leave"}
                       </p>
                     </div>
                   </div>
