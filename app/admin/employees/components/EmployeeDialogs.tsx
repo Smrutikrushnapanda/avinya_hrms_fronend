@@ -59,6 +59,7 @@ interface EmployeeDialogsProps {
   editEmployee: EmployeeFormData;
   setEditEmployee: (value: EmployeeFormData) => void;
   onUpdateEmployee: () => void;
+  isUpdatingEmployee: boolean;
   
   // View Dialog
   isViewDialogOpen: boolean;
@@ -113,6 +114,7 @@ export default function EmployeeDialogs({
   editEmployee,
   setEditEmployee,
   onUpdateEmployee,
+  isUpdatingEmployee,
   
   // View Dialog props
   isViewDialogOpen,
@@ -1032,6 +1034,87 @@ export default function EmployeeDialogs({
                 </div>
               </div>
             </div>
+
+            <Separator />
+
+            {/* Documents */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center">
+                <Briefcase className="w-5 h-5 mr-2" />
+                Documents
+              </h3>
+              <div className="grid gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="editAadharPhoto">Aadhar Photo</Label>
+                    {editEmployee.aadharPhotoUrl && (
+                      <div className="mb-1">
+                        <img src={editEmployee.aadharPhotoUrl} alt="Aadhar" className="h-16 w-auto rounded border object-cover" />
+                      </div>
+                    )}
+                    <Input
+                      id="editAadharPhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "aadharPhotoUrl", "edit")}
+                    />
+                    {editEmployee.aadharPhotoUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("aadharPhotoUrl", "edit")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editPassportPhoto">Passport Photo</Label>
+                    {editEmployee.passportPhotoUrl && (
+                      <div className="mb-1">
+                        <img src={editEmployee.passportPhotoUrl} alt="Passport" className="h-16 w-auto rounded border object-cover" />
+                      </div>
+                    )}
+                    <Input
+                      id="editPassportPhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "passportPhotoUrl", "edit")}
+                    />
+                    {editEmployee.passportPhotoUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("passportPhotoUrl", "edit")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editPanCardPhoto">PAN Card Photocopy</Label>
+                    {editEmployee.panCardPhotoUrl && (
+                      <div className="mb-1">
+                        <img src={editEmployee.panCardPhotoUrl} alt="PAN Card" className="h-16 w-auto rounded border object-cover" />
+                      </div>
+                    )}
+                    <Input
+                      id="editPanCardPhoto"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "panCardPhotoUrl", "edit")}
+                    />
+                    {editEmployee.panCardPhotoUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("panCardPhotoUrl", "edit")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
@@ -1041,8 +1124,15 @@ export default function EmployeeDialogs({
             }}>
               Cancel
             </Button>
-            <Button onClick={onUpdateEmployee}>
-              Update Employee
+            <Button onClick={onUpdateEmployee} disabled={isUpdatingEmployee}>
+              {isUpdatingEmployee ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Employee"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

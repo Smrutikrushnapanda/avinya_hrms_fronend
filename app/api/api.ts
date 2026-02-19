@@ -32,14 +32,17 @@ api.interceptors.response.use(
     const isAuthRoute = requestUrl.includes("/auth/login");
 
     if (error.response?.status === 401 && typeof window !== "undefined" && !isAuthRoute) {
-      if (!isRedirectingToLogin) {
-        isRedirectingToLogin = true;
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("user");
-        toast.error("Session expired. Please sign in again.");
-        window.location.href = "/signin";
+      const isAdminRoute = window.location.pathname.startsWith("/admin");
+      if (isAdminRoute) {
+        if (!isRedirectingToLogin) {
+          isRedirectingToLogin = true;
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("user");
+          toast.error("Session expired. Please sign in again.");
+          window.location.href = "/signin";
+        }
+        return new Promise(() => {});
       }
-      return new Promise(() => {});
     }
     return Promise.reject(error);
   }

@@ -160,6 +160,7 @@ export default function EmployeesPage() {
   // Dialog states (same as before)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
+  const [isUpdatingEmployee, setIsUpdatingEmployee] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -422,6 +423,9 @@ export default function EmployeesPage() {
     if (data.personalEmail?.trim()) cleanData.personalEmail = data.personalEmail.trim().toLowerCase();
     if (data.contactNumber?.trim()) cleanData.contactNumber = data.contactNumber.trim();
     if (data.photoUrl?.trim()) cleanData.photoUrl = data.photoUrl.trim();
+    if (data.aadharPhotoUrl?.trim()) cleanData.aadharPhotoUrl = data.aadharPhotoUrl.trim();
+    if (data.panCardPhotoUrl?.trim()) cleanData.panCardPhotoUrl = data.panCardPhotoUrl.trim();
+    if (data.passportPhotoUrl?.trim()) cleanData.passportPhotoUrl = data.passportPhotoUrl.trim();
     if (data.employmentType?.trim()) cleanData.employmentType = data.employmentType.trim();
     if (data.status) cleanData.status = data.status;
     if (data.bloodGroup?.trim()) cleanData.bloodGroup = data.bloodGroup.trim();
@@ -495,6 +499,7 @@ export default function EmployeesPage() {
     }
 
     try {
+      setIsUpdatingEmployee(true);
       const cleanData = prepareEmployeeData(formData, false);
       await updateEmployee(selectedEmployee.id, cleanData);
 
@@ -513,6 +518,8 @@ export default function EmployeesPage() {
       console.error("Failed to update employee:", error);
       const errorMessage = error.response?.data?.message || error.message || "Failed to update employee";
       toast.error(errorMessage);
+    } finally {
+      setIsUpdatingEmployee(false);
     }
   };
 
@@ -969,6 +976,7 @@ export default function EmployeesPage() {
           editEmployee={editEmployee}
           setEditEmployee={setEditEmployee}
           onUpdateEmployee={handleUpdateEmployee}
+          isUpdatingEmployee={isUpdatingEmployee}
           // View Dialog
           isViewDialogOpen={isViewDialogOpen}
           setIsViewDialogOpen={setIsViewDialogOpen}

@@ -521,7 +521,7 @@ export default function MobileDashboardPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* ── Header ── */}
-      <div className="bg-[#0077b6] text-white px-4 pt-5 pb-15 flex items-center justify-between">
+      <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center justify-between">
         <div
           className="flex items-center space-x-2 cursor-pointer"
           onClick={() => setIsSidebarOpen(true)}

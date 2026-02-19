@@ -37,15 +37,11 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Dashboard view preference logic
+  // Dashboard view preference logic — always use UA for mobile detection
   const ua = req.headers.get("user-agent") || "";
-  const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(ua);
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile|WPDesktop|Mobile/i.test(ua);
   const isOnMobile = pathname.startsWith("/user/dashboard/mobile");
   const isOnDesktop = pathname === "/user/dashboard";
-  const viewPref = req.cookies.get("dashboard-view")?.value;
-
-  if (viewPref === "mobile" && isOnMobile) return NextResponse.next();
-  if (viewPref === "desktop" && isOnDesktop) return NextResponse.next();
 
   if (isOnMobile) {
     const response = NextResponse.next();
@@ -54,7 +50,7 @@ export function middleware(req: NextRequest) {
   }
 
   if (isOnDesktop) {
-    if (!viewPref && isMobile) {
+    if (isMobile) {
       const url = req.nextUrl.clone();
       url.pathname = "/user/dashboard/mobile";
       const response = NextResponse.redirect(url);

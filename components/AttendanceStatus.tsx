@@ -44,34 +44,38 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
           organizationId: orgId,
         });
 
-        const logs = response.data?.data || response.data?.results || response.data || [];
-        
-        if (logs && logs.length > 0) {
+        // API returns { logs: [...], punchInTime: Date|null, lastPunch: Date|null }
+        const punchInTime: string | null = response.data?.punchInTime ?? null;
+        const logs: any[] = response.data?.logs || response.data?.data || response.data?.results || [];
+
+        // Prefer punchInTime (may be timeslip-corrected); fall back to first check-in log
+        let firstCheckIn: Date | null = null;
+        if (punchInTime) {
+          firstCheckIn = new Date(punchInTime);
+        } else if (logs.length > 0) {
           const checkInLog = logs.find((log: any) => log.type === "check-in");
-          
-          if (checkInLog) {
-            const timestamp = new Date(checkInLog.timestamp);
-            const timeStr = timestamp.toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            });
-            
-            const [hours, minutes] = timestamp.toTimeString().split(":").slice(0, 2);
-            const [workHours, workMins] = WORK_START_TIME.split(":");
-            const loginMins = parseInt(hours) * 60 + parseInt(minutes);
-            const workMinsNum = parseInt(workHours) * 60 + parseInt(workMins);
-            
-            setLoginTime(timeStr);
-            
-            if (loginMins > workMinsNum) {
-              setAttendanceState("late");
-            } else {
-              setAttendanceState("on-time");
-              setTimeout(() => setShowBlast(true), 500);
-            }
+          if (checkInLog) firstCheckIn = new Date(checkInLog.timestamp);
+        }
+
+        if (firstCheckIn && !isNaN(firstCheckIn.getTime())) {
+          const timeStr = firstCheckIn.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+
+          const [hours, minutes] = firstCheckIn.toTimeString().split(":").slice(0, 2);
+          const [workHours, workMins] = WORK_START_TIME.split(":");
+          const loginMins = parseInt(hours) * 60 + parseInt(minutes);
+          const workMinsNum = parseInt(workHours) * 60 + parseInt(workMins);
+
+          setLoginTime(timeStr);
+
+          if (loginMins > workMinsNum) {
+            setAttendanceState("late");
           } else {
-            setAttendanceState("no-record");
+            setAttendanceState("on-time");
+            setTimeout(() => setShowBlast(true), 500);
           }
         } else {
           setAttendanceState("no-record");

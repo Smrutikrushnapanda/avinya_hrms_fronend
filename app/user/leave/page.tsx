@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   CalendarDays,
   Plus,
-  Loader2,
   ClipboardList,
   Filter,
   RefreshCw,
+  FileText,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
@@ -22,14 +24,6 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -45,12 +39,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import {
   getProfile,
   getLeaveBalance,
-  getLeaveTypes,
   getLeaveRequests,
+  getLeaveTypes,
   applyLeave,
 } from "@/app/api/api";
 import { format } from "date-fns";
@@ -74,12 +70,21 @@ interface LeaveBalance {
   consumed?: number;
 }
 
-interface LeaveType {
-  id: string;
-  name: string;
+interface TableState {
+  page: number;
+  pageSize: number;
+  search: string;
+  sorting: any[];
 }
 
-const BALANCE_COLORS = ["#7c6cff", "#e87e8e", "#5cc8a8", "#e8b86c", "#6cb8e8", "#c87cff"];
+const BALANCE_COLORS = [
+  "#7c6cff",
+  "#e87e8e",
+  "#5cc8a8",
+  "#e8b86c",
+  "#6cb8e8",
+  "#c87cff",
+];
 
 // ------- Status Badge -------
 function StatusBadge({ status }: { status?: string }) {
@@ -150,6 +155,7 @@ function PageSkeleton() {
 export default function UserLeavePage() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const userId = profile?.userId ?? profile?.id ?? profile?.employee?.userId;
 
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
   const [balancesLoading, setBalancesLoading] = useState(false);
@@ -157,24 +163,134 @@ export default function UserLeavePage() {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
-
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
-
-  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
-  const [applying, setApplying] = useState(false);
-  const [form, setForm] = useState({
-    leaveTypeId: "",
-    startDate: "",
-    endDate: "",
-    reason: "",
+  const [tableState, setTableState] = useState<TableState>({
+    page: 0,
+    pageSize: 10,
+    search: "",
+    sorting: [],
   });
 
-  // Fetch profile
+  // Apply leave modal state
+  const today = format(new Date(), "yyyy-MM-dd");
+  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
+  const [leaveTypes, setLeaveTypes] = useState<{ id: string; name: string }[]>(
+    []
+  );
+  const [applyForm, setApplyForm] = useState({
+    leaveTypeId: "",
+    startDate: today,
+    endDate: today,
+    reason: "",
+  });
+  const [applySubmitting, setApplySubmitting] = useState(false);
+
+  // Column definitions
+  const columns = useMemo<ColumnDef<LeaveRequest>[]>(
+    () => [
+      {
+        id: "Leave Type",
+        accessorKey: "leaveType",
+        header: "Leave Type",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const lt = row.original.leaveType;
+          const name =
+            typeof lt === "string" ? lt : lt?.name || "Leave";
+          return <span className="font-medium">{name}</span>;
+        },
+      },
+      {
+        id: "Start Date",
+        accessorKey: "startDate",
+        header: "Start Date",
+        enableSorting: false,
+        cell: ({ row }) => {
+          try {
+            return row.original.startDate
+              ? format(new Date(row.original.startDate), "dd MMM yyyy")
+              : "-";
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "End Date",
+        accessorKey: "endDate",
+        header: "End Date",
+        enableSorting: false,
+        cell: ({ row }) => {
+          try {
+            return row.original.endDate
+              ? format(new Date(row.original.endDate), "dd MMM yyyy")
+              : "-";
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "Days",
+        accessorKey: "numberOfDays",
+        header: "Days",
+        enableSorting: false,
+        cell: ({ row }) => row.original.numberOfDays ?? "-",
+      },
+      {
+        id: "Reason",
+        accessorKey: "reason",
+        header: "Reason",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span
+            className="max-w-[200px] truncate block"
+            title={row.original.reason}
+          >
+            {row.original.reason || "-"}
+          </span>
+        ),
+      },
+      {
+        id: "Applied On",
+        accessorKey: "createdAt",
+        header: "Applied On",
+        enableSorting: false,
+        cell: ({ row }) => {
+          try {
+            return row.original.createdAt
+              ? format(new Date(row.original.createdAt), "dd MMM yyyy")
+              : "-";
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "Status",
+        accessorKey: "status",
+        header: "Status",
+        enableSorting: false,
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+    ],
+    []
+  );
+
+// Fetch profile
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const res = await getProfile();
-        setProfile(res.data);
+        const profileData = res.data;
+        
+        // Check if employee profile exists
+        if (!profileData?.employee?.id) {
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+        
+        setProfile(profileData);
       } catch {
         toast.error("Failed to fetch profile");
       } finally {
@@ -186,18 +302,25 @@ export default function UserLeavePage() {
 
   // Fetch leave balances
   const fetchBalances = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!userId) return;
     setBalancesLoading(true);
     try {
-      const res = await getLeaveBalance(profile.id);
+      const res = await getLeaveBalance(userId);
       const data = res.data;
       let parsed: LeaveBalance[] = [];
       if (Array.isArray(data)) {
         parsed = data.map((b: any) => ({
-          leaveType: { name: b.leaveType?.name || b.leaveTypeName || "Leave", id: b.leaveType?.id },
+          leaveType: {
+            name: b.leaveType?.name || b.leaveTypeName || "Leave",
+            id: b.leaveType?.id,
+          },
           openingBalance: b.allocated ?? b.openingBalance ?? 0,
           consumed: b.used ?? b.consumed ?? 0,
-          closingBalance: b.remaining ?? b.closingBalance ?? ((b.allocated ?? b.openingBalance ?? 0) - (b.used ?? b.consumed ?? 0)),
+          closingBalance:
+            b.remaining ??
+            b.closingBalance ??
+            (b.allocated ?? b.openingBalance ?? 0) -
+              (b.used ?? b.consumed ?? 0),
         }));
       } else if (data?.balances) {
         parsed = data.balances;
@@ -208,14 +331,14 @@ export default function UserLeavePage() {
     } finally {
       setBalancesLoading(false);
     }
-  }, [profile?.id]);
+  }, [userId]);
 
   // Fetch leave requests
   const fetchLeaveRequests = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!userId) return;
     setRequestsLoading(true);
     try {
-      const res = await getLeaveRequests(profile.id);
+      const res = await getLeaveRequests(userId);
       const data = res.data?.data || res.data || [];
       setLeaveRequests(Array.isArray(data) ? data : []);
     } catch {
@@ -223,55 +346,75 @@ export default function UserLeavePage() {
     } finally {
       setRequestsLoading(false);
     }
-  }, [profile?.id]);
-
-  // Fetch leave types for apply form
-  const fetchLeaveTypes = useCallback(async () => {
-    if (!profile?.organizationId) return;
-    try {
-      const res = await getLeaveTypes(profile.organizationId);
-      const data = res.data || [];
-      setLeaveTypes(Array.isArray(data) ? data : []);
-    } catch {
-      toast.error("Failed to load leave types");
-    }
-  }, [profile?.organizationId]);
+  }, [userId]);
 
   useEffect(() => {
     if (!profile) return;
     fetchBalances();
     fetchLeaveRequests();
-    fetchLeaveTypes();
-  }, [profile, fetchBalances, fetchLeaveRequests, fetchLeaveTypes]);
+  }, [profile, fetchBalances, fetchLeaveRequests]);
 
-  // Handle submit
-  const handleApplyLeave = async () => {
-    if (!form.leaveTypeId) { toast.error("Please select a leave type"); return; }
-    if (!form.startDate) { toast.error("Please select a start date"); return; }
-    if (!form.endDate) { toast.error("Please select an end date"); return; }
-    if (new Date(form.endDate) < new Date(form.startDate)) {
-      toast.error("End date cannot be before start date");
+  // Fetch leave types for apply modal
+  useEffect(() => {
+    if (!profile?.organizationId) return;
+    const fetchLeaveTypes = async () => {
+      try {
+        const res = await getLeaveTypes(profile.organizationId);
+        const data = res.data || [];
+        setLeaveTypes(Array.isArray(data) ? data : []);
+      } catch {
+        // non-critical
+      }
+    };
+    fetchLeaveTypes();
+  }, [profile?.organizationId]);
+
+  // Reset to page 0 when status filter changes
+  useEffect(() => {
+    setTableState((prev) => ({ ...prev, page: 0 }));
+  }, [statusFilter]);
+
+  const handleApplySubmit = async () => {
+    if (!userId) {
+      toast.error("User not found. Please log in again.");
       return;
     }
-    if (!form.reason.trim()) { toast.error("Please provide a reason"); return; }
-
-    setApplying(true);
+    if (!applyForm.leaveTypeId) {
+      toast.error("Please select a leave type.");
+      return;
+    }
+    if (!applyForm.startDate || !applyForm.endDate) {
+      toast.error("Please select start and end dates.");
+      return;
+    }
+    if (new Date(applyForm.endDate) < new Date(applyForm.startDate)) {
+      toast.error("End date must be on or after the start date.");
+      return;
+    }
+    setApplySubmitting(true);
     try {
-      await applyLeave(profile.id, {
-        leaveTypeId: form.leaveTypeId,
-        startDate: form.startDate,
-        endDate: form.endDate,
-        reason: form.reason.trim(),
+      await applyLeave(userId, {
+        leaveTypeId: applyForm.leaveTypeId,
+        startDate: applyForm.startDate,
+        endDate: applyForm.endDate,
+        reason: applyForm.reason.trim(),
       });
-      toast.success("Leave application submitted successfully");
+      toast.success("Leave request submitted successfully.");
       setApplyDialogOpen(false);
-      setForm({ leaveTypeId: "", startDate: "", endDate: "", reason: "" });
+      setApplyForm({
+        leaveTypeId: "",
+        startDate: today,
+        endDate: today,
+        reason: "",
+      });
       fetchLeaveRequests();
       fetchBalances();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to submit leave application");
+      toast.error(
+        error?.response?.data?.message || "Failed to submit leave request."
+      );
     } finally {
-      setApplying(false);
+      setApplySubmitting(false);
     }
   };
 
@@ -280,14 +423,105 @@ export default function UserLeavePage() {
     fetchBalances();
   };
 
-  const filteredRequests =
-    statusFilter === "all"
-      ? leaveRequests
-      : leaveRequests.filter((r) => r.status?.toLowerCase() === statusFilter.toLowerCase());
+  // Status filter
+  const filtered = useMemo(
+    () =>
+      statusFilter === "all"
+        ? leaveRequests
+        : leaveRequests.filter(
+            (r) => r.status?.toLowerCase() === statusFilter.toLowerCase()
+          ),
+    [leaveRequests, statusFilter]
+  );
+
+  // Client-side search
+  const searched = useMemo(() => {
+    const q = tableState.search.toLowerCase().trim();
+    if (!q) return filtered;
+    return filtered.filter((row) => {
+      const typeName =
+        typeof row.leaveType === "string"
+          ? row.leaveType
+          : row.leaveType?.name || "";
+      try {
+        return (
+          typeName.toLowerCase().includes(q) ||
+          (row.reason || "").toLowerCase().includes(q) ||
+          (row.status || "").toLowerCase().includes(q) ||
+          (row.startDate
+            ? format(new Date(row.startDate), "dd MMM yyyy")
+                .toLowerCase()
+                .includes(q)
+            : false) ||
+          (row.endDate
+            ? format(new Date(row.endDate), "dd MMM yyyy")
+                .toLowerCase()
+                .includes(q)
+            : false) ||
+          (row.createdAt
+            ? format(new Date(row.createdAt), "dd MMM yyyy")
+                .toLowerCase()
+                .includes(q)
+            : false)
+        );
+      } catch {
+        return false;
+      }
+    });
+  }, [filtered, tableState.search]);
+
+  const pageCount = Math.max(
+    1,
+    Math.ceil(searched.length / tableState.pageSize)
+  );
+  const pageData = searched.slice(
+    tableState.page * tableState.pageSize,
+    (tableState.page + 1) * tableState.pageSize
+  );
 
   if (loading) return <PageSkeleton />;
 
-  const today = format(new Date(), "yyyy-MM-dd");
+  // Show message when employee profile is not found
+  if (!profile) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CalendarDays className="h-7 w-7 text-primary" />
+            <div>
+              <h1 className="text-2xl font-semibold">My Leave</h1>
+              <p className="text-xs text-muted-foreground">
+                Track and manage your leave requests
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Card className="p-8">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div className="h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+              <CalendarDays className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">
+                Employee Profile Not Found
+              </h2>
+              <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                You don&apos;t have an employee profile linked to your account. 
+                Please contact your HR administrator to create your employee profile 
+                so you can apply for leaves.
+              </p>
+            </div>
+            <div className="pt-2">
+              <p className="text-xs text-muted-foreground">
+                If you believe this is an error, please contact support.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -320,8 +554,11 @@ export default function UserLeavePage() {
           {balances.map((bal, index) => {
             const allocated = bal.openingBalance ?? 0;
             const used = bal.consumed ?? 0;
-            const remaining = bal.closingBalance ?? (allocated - used);
-            const pct = allocated > 0 ? Math.min(Math.round((used / allocated) * 100), 100) : 0;
+            const remaining = bal.closingBalance ?? allocated - used;
+            const pct =
+              allocated > 0
+                ? Math.min(Math.round((used / allocated) * 100), 100)
+                : 0;
             const color = BALANCE_COLORS[index % BALANCE_COLORS.length];
             const name = bal.leaveType?.name || `Leave ${index + 1}`;
             return (
@@ -336,11 +573,16 @@ export default function UserLeavePage() {
                   >
                     <CalendarDays className="w-5 h-5" style={{ color }} />
                   </div>
-                  <span className="text-2xl font-extrabold" style={{ color }}>
+                  <span
+                    className="text-2xl font-extrabold"
+                    style={{ color }}
+                  >
                     {remaining}
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {name}
+                </p>
                 <p className="text-xs text-muted-foreground mb-2">
                   Used {used} / {allocated}
                 </p>
@@ -357,12 +599,13 @@ export default function UserLeavePage() {
       ) : (
         <Card className="p-5">
           <p className="text-sm text-muted-foreground text-center py-4">
-            No leave balance data available. Contact HR to initialize your leave balance.
+            No leave balance data available. Contact HR to initialize your leave
+            balance.
           </p>
         </Card>
       )}
 
-      {/* Leave History Table */}
+      {/* Leave History DataTable */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
@@ -370,7 +613,9 @@ export default function UserLeavePage() {
               <ClipboardList className="h-5 w-5" />
               Leave History
             </CardTitle>
-            <CardDescription>All your leave applications and their status</CardDescription>
+            <CardDescription>
+              All your leave applications and their status
+            </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
@@ -386,7 +631,12 @@ export default function UserLeavePage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={handleRefresh} title="Refresh">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              title="Refresh"
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
@@ -399,91 +649,52 @@ export default function UserLeavePage() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Leave Type</TableHead>
-                  <TableHead>Start Date</TableHead>
-                  <TableHead>End Date</TableHead>
-                  <TableHead>Days</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Applied On</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRequests.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={7}
-                      className="text-center text-muted-foreground py-10"
-                    >
-                      No leave requests found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredRequests.map((req) => {
-                    const typeName =
-                      typeof req.leaveType === "string"
-                        ? req.leaveType
-                        : req.leaveType?.name || "Leave";
-                    return (
-                      <TableRow key={req.id}>
-                        <TableCell className="font-medium">{typeName}</TableCell>
-                        <TableCell>
-                          {req.startDate
-                            ? format(new Date(req.startDate), "dd MMM yyyy")
-                            : "-"}
-                        </TableCell>
-                        <TableCell>
-                          {req.endDate
-                            ? format(new Date(req.endDate), "dd MMM yyyy")
-                            : "-"}
-                        </TableCell>
-                        <TableCell>{req.numberOfDays ?? "-"}</TableCell>
-                        <TableCell
-                          className="max-w-[200px] truncate"
-                          title={req.reason}
-                        >
-                          {req.reason || "-"}
-                        </TableCell>
-                        <TableCell>
-                          {req.createdAt
-                            ? format(new Date(req.createdAt), "dd MMM yyyy")
-                            : "-"}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={req.status} />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={columns}
+              data={pageData}
+              pageCount={pageCount}
+              state={tableState}
+              setState={setTableState}
+            />
           )}
         </CardContent>
       </Card>
 
-      {/* Apply for Leave Dialog */}
-      <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
+      {/* Apply Leave Modal */}
+      <Dialog
+        open={applyDialogOpen}
+        onOpenChange={(open) => {
+          setApplyDialogOpen(open);
+          if (!open)
+            setApplyForm({
+              leaveTypeId: "",
+              startDate: today,
+              endDate: today,
+              reason: "",
+            });
+        }}
+      >
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>Apply for Leave</DialogTitle>
-            <DialogDescription>
-              Fill in the details below to submit your leave request.
-            </DialogDescription>
+            <div className="flex flex-col items-center text-center gap-2 pb-2">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-primary" />
+              </div>
+              <DialogTitle>Apply for Leave</DialogTitle>
+              <DialogDescription>Submit a new leave request</DialogDescription>
+            </div>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="leaveType">Leave Type</Label>
+              <Label>Leave Type</Label>
               <Select
-                value={form.leaveTypeId}
-                onValueChange={(value) =>
-                  setForm((prev) => ({ ...prev, leaveTypeId: value }))
+                value={applyForm.leaveTypeId}
+                onValueChange={(v) =>
+                  setApplyForm((prev) => ({ ...prev, leaveTypeId: v }))
                 }
               >
-                <SelectTrigger id="leaveType">
+                <SelectTrigger>
                   <SelectValue placeholder="Select leave type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -492,72 +703,95 @@ export default function UserLeavePage() {
                       No leave types available
                     </SelectItem>
                   ) : (
-                    leaveTypes.map((lt) => (
-                      <SelectItem key={lt.id} value={lt.id}>
-                        {lt.name}
+                    leaveTypes.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
                       </SelectItem>
                     ))
                   )}
                 </SelectContent>
               </Select>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date</Label>
+                <Label>Start Date</Label>
                 <Input
-                  id="startDate"
                   type="date"
-                  value={form.startDate}
+                  value={applyForm.startDate}
                   min={today}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, startDate: e.target.value }))
+                    setApplyForm((prev) => ({
+                      ...prev,
+                      startDate: e.target.value,
+                    }))
                   }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="endDate">End Date</Label>
+                <Label>End Date</Label>
                 <Input
-                  id="endDate"
                   type="date"
-                  value={form.endDate}
-                  min={form.startDate || today}
+                  value={applyForm.endDate}
+                  min={applyForm.startDate || today}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, endDate: e.target.value }))
+                    setApplyForm((prev) => ({
+                      ...prev,
+                      endDate: e.target.value,
+                    }))
                   }
                 />
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="reason">Reason</Label>
+              <Label>
+                Reason{" "}
+                <span className="text-muted-foreground text-xs">
+                  (optional)
+                </span>
+              </Label>
               <Textarea
-                id="reason"
-                placeholder="Briefly describe the reason for your leave..."
-                value={form.reason}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, reason: e.target.value }))
-                }
                 rows={3}
+                placeholder="Enter reason for leave..."
+                value={applyForm.reason}
+                onChange={(e) =>
+                  setApplyForm((prev) => ({ ...prev, reason: e.target.value }))
+                }
               />
             </div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="gap-2 pt-2">
             <Button
               variant="outline"
               onClick={() => {
                 setApplyDialogOpen(false);
-                setForm({ leaveTypeId: "", startDate: "", endDate: "", reason: "" });
+                setApplyForm({
+                  leaveTypeId: "",
+                  startDate: today,
+                  endDate: today,
+                  reason: "",
+                });
               }}
             >
               Cancel
             </Button>
-            <Button onClick={handleApplyLeave} disabled={applying}>
-              {applying ? (
+            <Button
+              onClick={handleApplySubmit}
+              disabled={applySubmitting}
+              className="gap-2"
+            >
+              {applySubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Submitting...
                 </>
               ) : (
-                "Submit Request"
+                <>
+                  <Send className="h-4 w-4" />
+                  Submit Application
+                </>
               )}
             </Button>
           </DialogFooter>

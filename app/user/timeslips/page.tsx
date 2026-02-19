@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Clock,
   Plus,
@@ -27,14 +27,6 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -49,6 +41,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 import {
   getProfile,
@@ -63,12 +57,12 @@ import { format } from "date-fns";
 interface TimeslipRow {
   id: string;
   date: string;
-  missing_type: "IN" | "OUT" | "BOTH";
-  corrected_in: string | null;
-  corrected_out: string | null;
+  missingType: "IN" | "OUT" | "BOTH";
+  correctedIn: string | null;
+  correctedOut: string | null;
   reason: string | null;
   status: "PENDING" | "APPROVED" | "REJECTED";
-  created_at: string;
+  createdAt: string;
 }
 
 interface FormState {
@@ -77,6 +71,13 @@ interface FormState {
   corrected_in_time: string;
   corrected_out_time: string;
   reason: string;
+}
+
+interface TableState {
+  page: number;
+  pageSize: number;
+  search: string;
+  sorting: any[];
 }
 
 // ------- Status Badge -------
@@ -105,16 +106,16 @@ function StatusBadge({ status }: { status: TimeslipRow["status"] }) {
   }
 }
 
-// ------- Missing Type Label -------
-function MissingTypeBadge({ type }: { type: TimeslipRow["missing_type"] }) {
-  const labels: Record<TimeslipRow["missing_type"], string> = {
+// ------- Missing Type Badge -------
+function MissingTypeBadge({ type }: { type: TimeslipRow["missingType"] }) {
+  const labels: Record<TimeslipRow["missingType"], string> = {
     IN: "Check-In",
     OUT: "Check-Out",
     BOTH: "Both",
   };
   return (
     <Badge variant="outline" className="font-normal">
-      {labels[type]}
+      {labels[type] ?? type}
     </Badge>
   );
 }
@@ -154,11 +155,18 @@ function PageSkeleton() {
 // ------- Main Component -------
 export default function UserTimeslipsPage() {
   const [employeeId, setEmployeeId] = useState<string>("");
+  const [organizationId, setOrganizationId] = useState<string>("");
   const [profileLoading, setProfileLoading] = useState(true);
 
   const [timeslips, setTimeslips] = useState<TimeslipRow[]>([]);
   const [timeslipsLoading, setTimeslipsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [tableState, setTableState] = useState<TableState>({
+    page: 0,
+    pageSize: 10,
+    search: "",
+    sorting: [],
+  });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -174,6 +182,119 @@ export default function UserTimeslipsPage() {
   const [deleteTarget, setDeleteTarget] = useState<TimeslipRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Column definitions (useMemo so state setters stay stable)
+  const columns = useMemo<ColumnDef<TimeslipRow>[]>(
+    () => [
+      {
+        id: "Date",
+        accessorKey: "date",
+        header: "Date",
+        enableSorting: false,
+        cell: ({ row }) => {
+          try {
+            return format(new Date(row.original.date), "dd MMM yyyy");
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "Missing",
+        accessorKey: "missingType",
+        header: "Missing",
+        enableSorting: false,
+        cell: ({ row }) => <MissingTypeBadge type={row.original.missingType} />,
+      },
+      {
+        id: "Corrected In",
+        accessorKey: "correctedIn",
+        header: "Corrected In",
+        enableSorting: false,
+        cell: ({ row }) => {
+          try {
+            return row.original.correctedIn
+              ? format(new Date(row.original.correctedIn), "hh:mm a")
+              : "-";
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "Corrected Out",
+        accessorKey: "correctedOut",
+        header: "Corrected Out",
+        enableSorting: false,
+        cell: ({ row }) => {
+          try {
+            return row.original.correctedOut
+              ? format(new Date(row.original.correctedOut), "hh:mm a")
+              : "-";
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "Reason",
+        accessorKey: "reason",
+        header: "Reason",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span
+            className="max-w-[200px] truncate block"
+            title={row.original.reason ?? undefined}
+          >
+            {row.original.reason || "-"}
+          </span>
+        ),
+      },
+      {
+        id: "Submitted On",
+        accessorKey: "createdAt",
+        header: "Submitted On",
+        enableSorting: false,
+        cell: ({ row }) => {
+          try {
+            return row.original.createdAt
+              ? format(new Date(row.original.createdAt), "dd MMM yyyy")
+              : "-";
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "Status",
+        accessorKey: "status",
+        header: "Status",
+        enableSorting: false,
+        cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+      {
+        id: "Action",
+        header: "Action",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.status === "PENDING" ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-red-600"
+              title="Withdraw request"
+              onClick={() => {
+                setDeleteTarget(row.original);
+                setDeleteDialogOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          ) : null,
+      },
+    ],
+    []
+  );
+
   // Fetch profile → employee ID
   useEffect(() => {
     const init = async () => {
@@ -181,6 +302,7 @@ export default function UserTimeslipsPage() {
         const profileRes = await getProfile();
         const userId = profileRes.data?.id || profileRes.data?.userId;
         if (!userId) throw new Error("No user ID");
+        setOrganizationId(profileRes.data?.organizationId ?? "");
         const empRes = await getEmployeeByUserId(userId);
         const empId = empRes.data?.id || empRes.data?.data?.id;
         if (!empId) throw new Error("No employee record found");
@@ -194,14 +316,26 @@ export default function UserTimeslipsPage() {
     init();
   }, []);
 
-  // Fetch timeslips
+  // Fetch timeslips with snake_case → camelCase normalization
   const fetchTimeslips = useCallback(async () => {
     if (!employeeId) return;
     setTimeslipsLoading(true);
     try {
       const res = await getTimeslipsByEmployee(employeeId, { page: 1, limit: 100 });
-      const data: TimeslipRow[] = res.data?.data || res.data || [];
-      setTimeslips(Array.isArray(data) ? data : []);
+      const raw: any[] = res.data?.data || res.data || [];
+      const normalized: TimeslipRow[] = Array.isArray(raw)
+        ? raw.map((item: any) => ({
+            id: item.id,
+            date: item.date,
+            missingType: item.missingType || item.missing_type,
+            correctedIn: item.correctedIn ?? item.corrected_in ?? null,
+            correctedOut: item.correctedOut ?? item.corrected_out ?? null,
+            reason: item.reason ?? null,
+            status: item.status,
+            createdAt: item.createdAt || item.created_at || "",
+          }))
+        : [];
+      setTimeslips(normalized);
     } catch {
       toast.error("Failed to load time slips");
     } finally {
@@ -213,6 +347,11 @@ export default function UserTimeslipsPage() {
     if (employeeId) fetchTimeslips();
   }, [employeeId, fetchTimeslips]);
 
+  // Reset to page 0 when status filter changes
+  useEffect(() => {
+    setTableState((prev) => ({ ...prev, page: 0 }));
+  }, [statusFilter]);
+
   // Stats
   const stats = {
     total: timeslips.length,
@@ -221,23 +360,72 @@ export default function UserTimeslipsPage() {
     rejected: timeslips.filter((t) => t.status === "REJECTED").length,
   };
 
-  // Filter
-  const filtered =
-    statusFilter === "all"
-      ? timeslips
-      : timeslips.filter((t) => t.status === statusFilter.toUpperCase());
+  // Status filter
+  const filtered = useMemo(
+    () =>
+      statusFilter === "all"
+        ? timeslips
+        : timeslips.filter((t) => t.status === statusFilter.toUpperCase()),
+    [timeslips, statusFilter]
+  );
+
+  // Client-side search
+  const searched = useMemo(() => {
+    const q = tableState.search.toLowerCase().trim();
+    if (!q) return filtered;
+    return filtered.filter((row) => {
+      try {
+        return (
+          format(new Date(row.date), "dd MMM yyyy").toLowerCase().includes(q) ||
+          row.missingType.toLowerCase().includes(q) ||
+          (row.reason || "").toLowerCase().includes(q) ||
+          row.status.toLowerCase().includes(q) ||
+          (row.createdAt
+            ? format(new Date(row.createdAt), "dd MMM yyyy")
+                .toLowerCase()
+                .includes(q)
+            : false)
+        );
+      } catch {
+        return false;
+      }
+    });
+  }, [filtered, tableState.search]);
+
+  const pageCount = Math.max(1, Math.ceil(searched.length / tableState.pageSize));
+  const pageData = searched.slice(
+    tableState.page * tableState.pageSize,
+    (tableState.page + 1) * tableState.pageSize
+  );
 
   // Submit new timeslip
   const handleSubmit = async () => {
-    if (!form.date) { toast.error("Please select the date for the correction"); return; }
-    if (!form.missing_type) { toast.error("Please select what is missing"); return; }
-    if ((form.missing_type === "IN" || form.missing_type === "BOTH") && !form.corrected_in_time) {
-      toast.error("Please enter the corrected check-in time"); return;
+    if (!form.date) {
+      toast.error("Please select the date for the correction");
+      return;
     }
-    if ((form.missing_type === "OUT" || form.missing_type === "BOTH") && !form.corrected_out_time) {
-      toast.error("Please enter the corrected check-out time"); return;
+    if (!form.missing_type) {
+      toast.error("Please select what is missing");
+      return;
     }
-    if (!form.reason.trim()) { toast.error("Please provide a reason for the correction"); return; }
+    if (
+      (form.missing_type === "IN" || form.missing_type === "BOTH") &&
+      !form.corrected_in_time
+    ) {
+      toast.error("Please enter the corrected check-in time");
+      return;
+    }
+    if (
+      (form.missing_type === "OUT" || form.missing_type === "BOTH") &&
+      !form.corrected_out_time
+    ) {
+      toast.error("Please enter the corrected check-out time");
+      return;
+    }
+    if (!form.reason.trim()) {
+      toast.error("Please provide a reason for the correction");
+      return;
+    }
 
     const toISO = (date: string, time: string) =>
       new Date(`${date}T${time}:00`).toISOString();
@@ -246,24 +434,33 @@ export default function UserTimeslipsPage() {
     try {
       await createTimeslip({
         employeeId,
+        organizationId,
         date: new Date(form.date).toISOString(),
-        missing_type: form.missing_type,
-        corrected_in:
+        missingType: form.missing_type,
+        correctedIn:
           form.missing_type === "IN" || form.missing_type === "BOTH"
             ? toISO(form.date, form.corrected_in_time)
-            : null,
-        corrected_out:
+            : undefined,
+        correctedOut:
           form.missing_type === "OUT" || form.missing_type === "BOTH"
             ? toISO(form.date, form.corrected_out_time)
-            : null,
+            : undefined,
         reason: form.reason.trim(),
       });
       toast.success("Correction request submitted successfully");
       setDialogOpen(false);
-      setForm({ date: "", missing_type: "", corrected_in_time: "", corrected_out_time: "", reason: "" });
+      setForm({
+        date: "",
+        missing_type: "",
+        corrected_in_time: "",
+        corrected_out_time: "",
+        reason: "",
+      });
       fetchTimeslips();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to submit correction request");
+      toast.error(
+        error?.response?.data?.message || "Failed to submit correction request"
+      );
     } finally {
       setSubmitting(false);
     }
@@ -299,7 +496,8 @@ export default function UserTimeslipsPage() {
           <div>
             <h1 className="text-2xl font-semibold">My Time Slips</h1>
             <p className="text-xs text-muted-foreground">
-              Submit attendance correction requests for missing check-ins or check-outs
+              Submit attendance correction requests for missing check-ins or
+              check-outs
             </p>
           </div>
         </div>
@@ -316,7 +514,9 @@ export default function UserTimeslipsPage() {
             <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10">
               <ClipboardList className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-2xl font-extrabold text-primary">{stats.total}</span>
+            <span className="text-2xl font-extrabold text-primary">
+              {stats.total}
+            </span>
           </div>
           <p className="text-sm font-semibold">Total Requests</p>
           <p className="text-xs text-muted-foreground">All submissions</p>
@@ -327,7 +527,9 @@ export default function UserTimeslipsPage() {
             <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-100">
               <AlertCircle className="w-5 h-5 text-amber-600" />
             </div>
-            <span className="text-2xl font-extrabold text-amber-600">{stats.pending}</span>
+            <span className="text-2xl font-extrabold text-amber-600">
+              {stats.pending}
+            </span>
           </div>
           <p className="text-sm font-semibold">Pending</p>
           <p className="text-xs text-muted-foreground">Awaiting approval</p>
@@ -338,7 +540,9 @@ export default function UserTimeslipsPage() {
             <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-green-100">
               <CheckCircle2 className="w-5 h-5 text-green-600" />
             </div>
-            <span className="text-2xl font-extrabold text-green-600">{stats.approved}</span>
+            <span className="text-2xl font-extrabold text-green-600">
+              {stats.approved}
+            </span>
           </div>
           <p className="text-sm font-semibold">Approved</p>
           <p className="text-xs text-muted-foreground">Corrections applied</p>
@@ -349,14 +553,16 @@ export default function UserTimeslipsPage() {
             <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-100">
               <XCircle className="w-5 h-5 text-red-600" />
             </div>
-            <span className="text-2xl font-extrabold text-red-600">{stats.rejected}</span>
+            <span className="text-2xl font-extrabold text-red-600">
+              {stats.rejected}
+            </span>
           </div>
           <p className="text-sm font-semibold">Rejected</p>
           <p className="text-xs text-muted-foreground">Not approved</p>
         </Card>
       </div>
 
-      {/* History Table */}
+      {/* Correction Requests DataTable */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
@@ -399,83 +605,13 @@ export default function UserTimeslipsPage() {
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Missing</TableHead>
-                  <TableHead>Corrected In</TableHead>
-                  <TableHead>Corrected Out</TableHead>
-                  <TableHead>Reason</TableHead>
-                  <TableHead>Submitted On</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="text-center text-muted-foreground py-10"
-                    >
-                      No correction requests found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filtered.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium">
-                        {format(new Date(row.date), "dd MMM yyyy")}
-                      </TableCell>
-                      <TableCell>
-                        <MissingTypeBadge type={row.missing_type} />
-                      </TableCell>
-                      <TableCell>
-                        {row.corrected_in
-                          ? format(new Date(row.corrected_in), "hh:mm a")
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {row.corrected_out
-                          ? format(new Date(row.corrected_out), "hh:mm a")
-                          : "-"}
-                      </TableCell>
-                      <TableCell
-                        className="max-w-[200px] truncate"
-                        title={row.reason ?? undefined}
-                      >
-                        {row.reason || "-"}
-                      </TableCell>
-                      <TableCell>
-                        {row.created_at
-                          ? format(new Date(row.created_at), "dd MMM yyyy")
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={row.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {row.status === "PENDING" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground hover:text-red-600"
-                            title="Withdraw request"
-                            onClick={() => {
-                              setDeleteTarget(row);
-                              setDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={columns}
+              data={pageData}
+              pageCount={pageCount}
+              state={tableState}
+              setState={setTableState}
+            />
           )}
         </CardContent>
       </Card>
@@ -490,7 +626,6 @@ export default function UserTimeslipsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {/* Date */}
             <div className="space-y-2">
               <Label htmlFor="ts-date">Attendance Date</Label>
               <Input
@@ -504,7 +639,6 @@ export default function UserTimeslipsPage() {
               />
             </div>
 
-            {/* Missing Type */}
             <div className="space-y-2">
               <Label htmlFor="ts-type">What is Missing?</Label>
               <Select
@@ -523,13 +657,16 @@ export default function UserTimeslipsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="IN">Check-In (missing punch-in)</SelectItem>
-                  <SelectItem value="OUT">Check-Out (missing punch-out)</SelectItem>
-                  <SelectItem value="BOTH">Both (missing both punches)</SelectItem>
+                  <SelectItem value="OUT">
+                    Check-Out (missing punch-out)
+                  </SelectItem>
+                  <SelectItem value="BOTH">
+                    Both (missing both punches)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Corrected Times */}
             {(form.missing_type === "IN" || form.missing_type === "BOTH") && (
               <div className="space-y-2">
                 <Label htmlFor="ts-in-time">Corrected Check-In Time</Label>
@@ -538,7 +675,10 @@ export default function UserTimeslipsPage() {
                   type="time"
                   value={form.corrected_in_time}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, corrected_in_time: e.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      corrected_in_time: e.target.value,
+                    }))
                   }
                 />
               </div>
@@ -551,13 +691,15 @@ export default function UserTimeslipsPage() {
                   type="time"
                   value={form.corrected_out_time}
                   onChange={(e) =>
-                    setForm((prev) => ({ ...prev, corrected_out_time: e.target.value }))
+                    setForm((prev) => ({
+                      ...prev,
+                      corrected_out_time: e.target.value,
+                    }))
                   }
                 />
               </div>
             )}
 
-            {/* Reason */}
             <div className="space-y-2">
               <Label htmlFor="ts-reason">Reason</Label>
               <Textarea
@@ -607,7 +749,8 @@ export default function UserTimeslipsPage() {
           <DialogHeader>
             <DialogTitle>Withdraw Request</DialogTitle>
             <DialogDescription>
-              Are you sure you want to withdraw this correction request? This action cannot be undone.
+              Are you sure you want to withdraw this correction request? This
+              action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -620,7 +763,11 @@ export default function UserTimeslipsPage() {
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
               {deleting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />

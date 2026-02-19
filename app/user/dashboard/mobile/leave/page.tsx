@@ -5,7 +5,6 @@ import { Bell, Plus, CheckCircle, Clock, XCircle, Calendar, Menu } from "lucide-
 import { useRouter } from "next/navigation";
 import { getProfile, getLeaveBalance, getLeaveRequests, getPendingLeaves } from "@/app/api/api";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 
 interface LeaveBalance {
   id?: string;
@@ -97,8 +96,9 @@ export default function MobileLeavePage() {
     const fetchData = async () => {
       try {
         const profileRes = await getProfile();
-        const userId = profileRes.data.id;
-        setUserId(userId);
+        const profile = profileRes.data || {};
+        const resolvedUserId = profile.userId ?? profile.id ?? "";
+        setUserId(resolvedUserId);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -193,17 +193,17 @@ export default function MobileLeavePage() {
     if (isApprover) {
       setFabOpen(!fabOpen);
     } else {
-      router.push("/user/leave");
+      router.push("/user/dashboard/mobile/leave/apply");
     }
   };
 
   const handleAddLeave = () => {
-    router.push("/user/leave");
+    router.push("/user/dashboard/mobile/leave/apply");
     setFabOpen(false);
   };
 
   const handleApprove = () => {
-    router.push("/user/leave");
+    router.push("/user/dashboard/mobile/leave");
     setFabOpen(false);
   };
 
@@ -282,7 +282,7 @@ export default function MobileLeavePage() {
           <div className="absolute bottom-0 right-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-180" />
           <div className="absolute bottom-0 left-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-270" />
           <div className="absolute top-0 right-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-90" />
-          
+
           {leaveBalances.length === 0 ? (
             <div className="py-4 text-center">
               <p className="text-sm text-gray-500">No leave balances available</p>

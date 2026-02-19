@@ -174,8 +174,8 @@ export default function WebAttendancePage() {
           return {
             date: dateStr ? formatDisplayDate(dateStr) : "--",
             status,
-            inTime: record.inTime ? formatTime12h(record.inTime) : "--",
-            outTime: record.outTime ? formatTime12h(record.outTime) : "--",
+            inTime: record.inTime ?? "--",
+            outTime: record.outTime ?? "--",
             isSunday: isWeekend,
             isHoliday,
             holidayName: record.holidayName,
