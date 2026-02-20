@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Bell, Plus, CheckCircle, Clock, XCircle, Calendar, Menu } from "lucide-react";
+import { Plus, CheckCircle, Clock, XCircle, Calendar, Menu } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getProfile, getLeaveBalance, getLeaveRequests, getPendingLeaves } from "@/app/api/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import MobileTabHeader from "../components/MobileTabHeader";
 
 interface LeaveBalance {
   id?: string;
@@ -80,10 +81,8 @@ export default function MobileLeavePage() {
       const pendingData = pendingRes?.data;
       if (Array.isArray(pendingData)) {
         setPendingCount(pendingData.length);
-        setIsApprover(pendingData.length > 0);
       } else {
         setPendingCount(0);
-        setIsApprover(false);
       }
     } catch (error) {
       console.error("Error fetching leave data:", error);
@@ -99,9 +98,11 @@ export default function MobileLeavePage() {
         const profile = profileRes.data || {};
         const resolvedUserId = profile.userId ?? profile.id ?? "";
         setUserId(resolvedUserId);
+        setIsApprover(Boolean(profile.isApprover));
         setLoading(false);
       } catch (error) {
         console.error("Error fetching profile:", error);
+        setIsApprover(false);
         setLoading(false);
       }
     };
@@ -189,8 +190,10 @@ export default function MobileLeavePage() {
 
   const tabs = ["All", "Pending", "Approved", "Rejected"];
 
+  const canApprove = isApprover;
+
   const toggleFab = () => {
-    if (isApprover) {
+    if (canApprove) {
       setFabOpen(!fabOpen);
     } else {
       router.push("/user/dashboard/mobile/leave/apply");
@@ -203,7 +206,7 @@ export default function MobileLeavePage() {
   };
 
   const handleApprove = () => {
-    router.push("/user/dashboard/mobile/leave");
+    router.push("/user/dashboard/mobile/leave/approve");
     setFabOpen(false);
   };
 
@@ -211,14 +214,7 @@ export default function MobileLeavePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Header */}
-        <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="bg-white/20 rounded-full px-4 py-2">
-              <h2 className="text-xl font-bold">Leave</h2>
-            </div>
-          </div>
-          <Bell className="w-5 h-5" />
-        </div>
+        <MobileTabHeader title="Leave" />
 
         {/* Loading Skeleton */}
         <div className="px-5 -mt-12 z-10">
@@ -264,17 +260,28 @@ export default function MobileLeavePage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="bg-white/20 rounded-full px-4 py-2">
-            <h2 className="text-xl font-bold">Leave</h2>
-          </div>
-        </div>
-        <Bell className="w-5 h-5" />
-      </div>
+      <MobileTabHeader title="Leave" />
 
       {/* Content */}
       <div className="px-5 -mt-12 z-10 pb-24">
+        {/* My Leave / Approve Switch - only shown for approvers */}
+        {canApprove && (
+          <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
+            <button
+              onClick={() => router.push("/user/dashboard/mobile/leave")}
+              className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors bg-[#005F90] text-white"
+            >
+              My Leave
+            </button>
+            <button
+              onClick={() => router.push("/user/dashboard/mobile/leave/approve")}
+              className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors text-gray-600"
+            >
+              Approve
+            </button>
+          </div>
+        )}
+
         {/* Summary Card - Matching RN */}
         <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 mb-4 relative overflow-hidden">
           {/* Triangle Decorations */}
@@ -457,7 +464,7 @@ export default function MobileLeavePage() {
       </div>
 
       {/* Overlay for FAB */}
-      {isApprover && fabOpen && (
+      {canApprove && fabOpen && (
         <div
           className="fixed inset-0 bg-black/30 z-40"
           onClick={() => setFabOpen(false)}
@@ -465,7 +472,7 @@ export default function MobileLeavePage() {
       )}
 
       {/* FAB Actions */}
-      {isApprover && fabOpen && (
+      {canApprove && fabOpen && (
         <div className="fixed bottom-32 right-5 flex gap-3 z-50">
           <button
             onClick={handleApprove}
@@ -497,12 +504,12 @@ export default function MobileLeavePage() {
           onClick={toggleFab}
           className="w-14 h-14 rounded-full bg-[#005F90] flex items-center justify-center shadow-lg"
         >
-          {isApprover ? (
+          {canApprove ? (
             <Menu className="w-6 h-6 text-white" />
           ) : (
             <Plus className="w-6 h-6 text-white" />
           )}
-          {hasPendingRequests && isApprover && !fabOpen && (
+          {hasPendingRequests && canApprove && !fabOpen && (
             <div className="absolute -top-3 -right-1 w-3 h-3 rounded-full bg-red-500 border-2 border-white" />
           )}
         </button>

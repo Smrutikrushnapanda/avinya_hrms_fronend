@@ -1,8 +1,9 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { Bell, BadgeDollarSign, MessageSquare, Vote, FileText } from "lucide-react";
+import { BadgeDollarSign, MessageSquare, Vote, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
+import MobileTabHeader from "../components/MobileTabHeader";
 
 interface ServiceItem {
   name: string;
@@ -24,14 +25,7 @@ export default function MobileServicesPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="bg-white/20 rounded-full px-4 py-2">
-            <h2 className="text-xl font-bold">Services</h2>
-          </div>
-        </div>
-        <Bell className="w-5 h-5" />
-      </div>
+      <MobileTabHeader title="Services" />
 
       {/* Content */}
       <div className="px-5 -mt-12 z-10 pb-24">

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { getProfile } from "@/app/api/api";
+import { getProfile, getChatConversations } from "@/app/api/api";
 import { toast } from "sonner";
 import {
   Boxes,
@@ -76,7 +76,9 @@ const menuByRole: Record<string, MenuItem[]> = {
     { name: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", animation: "pulse" },
     { name: "Employees", icon: Users, href: "/admin/employees", animation: "wiggle" },
     { name: "Attendance", icon: Calendar, href: "/admin/attendance", animation: "flip" },
+    { name: "Timesheet", icon: BookMarked, href: "/admin/timesheets", animation: "swing" },
     { name: "Time Slips", icon: Clock, href: "/admin/timeslips", animation: "float" },
+    { name: "Clients & Projects", icon: ListMinus, href: "/admin/clients-projects", animation: "float" },
     {
       name: "Leave & WFH",
       icon: CalendarDays,
@@ -95,9 +97,9 @@ const menuByRole: Record<string, MenuItem[]> = {
   EMPLOYEE: [
     { name: "Dashboard", icon: LayoutDashboard, href: "/user/dashboard", animation: "pulse" },
     { name: "Attendance", icon: Calendar, href: "/user/attendance", animation: "flip" },
+    { name: "Timesheet", icon: BookMarked, href: "/user/timesheet", animation: "swing" },
     { name: "Leave", icon: CalendarDays, href: "/user/leave", animation: "float" },
     { name: "Time Slips", icon: Clock, href: "/user/timeslips", animation: "float" },
-    { name: "Timesheet", icon: BookMarked, href: "/user/timesheet", animation: "swing" },
     { name: "Salary Slips", icon: BadgeDollarSign, href: "/user/payroll", animation: "bounce" },
     { name: "Messages", icon: Users, href: "/user/messages", animation: "wiggle" },
     { name: "Polls", icon: Vote, href: "/user/polls", animation: "rubberBand" },
@@ -110,6 +112,7 @@ export default function Sidebar() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [dashboardHref, setDashboardHref] = useState<string>("/");
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [user, setUser] = useState({
     name: "",
     role: "",
@@ -185,11 +188,35 @@ export default function Sidebar() {
     }
   }, [menuItems, pathname]);
 
+  // Fetch initial chat unread count and listen for real-time updates
+  useEffect(() => {
+    const isEmployeeRoute = window.location.pathname.startsWith("/user");
+    if (!isEmployeeRoute) return;
+
+    getChatConversations()
+      .then((res) => {
+        const convs = Array.isArray(res.data) ? res.data : [];
+        const total = convs.reduce(
+          (sum: number, c: { unreadCount?: number }) => sum + (c.unreadCount || 0),
+          0
+        );
+        setChatUnreadCount(total);
+      })
+      .catch(() => {/* silent */});
+
+    const handler = (e: Event) => {
+      const count = (e as CustomEvent<{ count: number }>).detail?.count ?? 0;
+      setChatUnreadCount(count);
+    };
+    window.addEventListener("chatUnreadUpdate", handler);
+    return () => window.removeEventListener("chatUnreadUpdate", handler);
+  }, []);
+
   return (
     <TooltipProvider delayDuration={100}>
       <aside
         className={cn(
-          "h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-200 ease-in-out flex flex-col relative"
+          "h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-200 ease-in-out flex flex-col relative"
         )}
         style={{ width: isExpanded ? "224px" : "56px" }}
       >
@@ -287,27 +314,45 @@ export default function Sidebar() {
                             : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
                         )}
                       >
-                        <AnimatedIcon
-                          icon={item.icon}
-                          animation={item.animation}
-                          isActive={isActive}
-                          className={cn(
-                            isActive
-                              ? "text-gray-900 dark:text-gray-100"
-                              : "text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
-                          )}
-                        />
-                        {isExpanded && (
-                          <span
+                        {/* Icon — with red dot badge in collapsed mode */}
+                        <div className="relative flex-shrink-0">
+                          <AnimatedIcon
+                            icon={item.icon}
+                            animation={item.animation}
+                            isActive={isActive}
                             className={cn(
-                              "font-medium transition-colors duration-200",
                               isActive
                                 ? "text-gray-900 dark:text-gray-100"
-                                : "text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
+                                : "text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
                             )}
-                          >
-                            {item.name}
-                          </span>
+                          />
+                          {!isExpanded &&
+                            item.href === "/user/messages" &&
+                            chatUnreadCount > 0 && (
+                              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
+                                {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                              </span>
+                            )}
+                        </div>
+                        {isExpanded && (
+                          <>
+                            <span
+                              className={cn(
+                                "font-medium transition-colors duration-200",
+                                isActive
+                                  ? "text-gray-900 dark:text-gray-100"
+                                  : "text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
+                              )}
+                            >
+                              {item.name}
+                            </span>
+                            {item.href === "/user/messages" &&
+                              chatUnreadCount > 0 && (
+                                <span className="ml-auto min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                                  {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                                </span>
+                              )}
+                          </>
                         )}
                       </Link>
                     )}
@@ -319,6 +364,11 @@ export default function Sidebar() {
                           <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full" />
                         )}
                         {item.name}
+                        {item.href === "/user/messages" && chatUnreadCount > 0 && (
+                          <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                            {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                          </span>
+                        )}
                       </div>
                     </TooltipContent>
                   )}

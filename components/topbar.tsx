@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -11,8 +11,20 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ThemeSwitcherUser } from "./theme-switcher-user";
-import { getProfile, getOrganization } from "@/app/api/api";
+import { getInboxMessages, getOrganization, getProfile, markMessageRead } from "@/app/api/api";
 import { Bell, Search, X } from "lucide-react";
+import { createMessageSocket } from "@/lib/socket";
+
+type InboxMessage = {
+  id: string;
+  title: string;
+  body: string;
+  type?: string;
+  sentAt?: string;
+  status?: "UNREAD" | "READ";
+  readAt?: string | null;
+  senderUserId?: string;
+};
 
 export default function Topbar() {
   const router = useRouter();
@@ -25,6 +37,8 @@ export default function Topbar() {
   const [organizationName, setOrganizationName] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentDateTime, setCurrentDateTime] = useState<string>("");
+  const [messages, setMessages] = useState<InboxMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState<boolean>(true);
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -92,6 +106,115 @@ export default function Topbar() {
     setSearchQuery("");
   };
 
+  const normalizeMessage = (msg: any): InboxMessage => ({
+    id: msg?.id,
+    title: msg?.title || "Message",
+    body: msg?.body || "",
+    type: msg?.type,
+    sentAt: msg?.sentAt || msg?.createdAt,
+    status: msg?.status || "UNREAD",
+    readAt: msg?.readAt || null,
+    senderUserId: msg?.senderUserId,
+  });
+
+  const formatMessageTime = (value?: string) => {
+    if (!value) return "";
+    const date = new Date(value);
+    const now = new Date();
+    const isToday =
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday =
+      date.getFullYear() === yesterday.getFullYear() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getDate() === yesterday.getDate();
+
+    if (isToday) {
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    if (isYesterday) return "Yesterday";
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  };
+
+  const fetchMessages = async () => {
+    try {
+      setLoadingMessages(true);
+      const res = await getInboxMessages();
+      const list = Array.isArray(res.data) ? res.data : [];
+      setMessages(list.map(normalizeMessage));
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMessages();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const token = localStorage.getItem("access_token");
+    if (!token) return;
+    const socket = createMessageSocket(token);
+    socket.on("message:new", (payload: any) => {
+      const incoming = payload?.message;
+      if (!incoming?.id) return;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === incoming.id)) return prev;
+        return [{ ...normalizeMessage(incoming), status: "UNREAD" }, ...prev];
+      });
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  const unreadCount = useMemo(
+    () => messages.filter((m) => m.status === "UNREAD").length,
+    [messages]
+  );
+
+  const recentMessages = useMemo(() => messages.slice(0, 5), [messages]);
+
+  const handleMarkRead = async (messageId: string) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, status: "READ", readAt: new Date().toISOString() } : m
+      )
+    );
+    try {
+      await markMessageRead(messageId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    const unread = messages.filter((m) => m.status === "UNREAD");
+    if (unread.length === 0) return;
+    setMessages((prev) =>
+      prev.map((m) => (m.status === "UNREAD" ? { ...m, status: "READ" } : m))
+    );
+    try {
+      await Promise.all(unread.map((m) => markMessageRead(m.id)));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleViewNotification = (messageId?: string) => {
+    if (messageId) {
+      router.push(`/user/notifications?messageId=${messageId}`);
+    } else {
+      router.push("/user/notifications");
+    }
+  };
+
   return (
     <header className="w-full h-14 bg-background-top border-b px-4 flex items-center text-muted-foreground">
       {/* Left: Org name */}
@@ -131,33 +254,60 @@ export default function Topbar() {
           <DropdownMenuTrigger asChild>
             <button className="relative w-10 h-10 bg-card border border-border rounded-xl flex items-center justify-center shadow-sm hover:border-primary/40 transition-colors">
               <Bell className="w-4 h-4 text-muted-foreground" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-card" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center border-2 border-card">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
             <div className="flex items-center justify-between p-3 border-b">
               <p className="font-semibold text-sm">Notifications</p>
-              <button className="text-xs text-primary hover:underline">Mark all as read</button>
+              <button
+                className="text-xs text-primary hover:underline disabled:text-muted-foreground"
+                onClick={handleMarkAllRead}
+                disabled={unreadCount === 0}
+              >
+                Mark all as read
+              </button>
             </div>
             <div className="max-h-80 overflow-y-auto">
-              <DropdownMenuItem className="flex flex-col items-start p-3 cursor-pointer">
-                <p className="text-sm font-medium">New leave request</p>
-                <p className="text-xs text-muted-foreground">John Doe requested leave for tomorrow</p>
-                <span className="text-[10px] text-muted-foreground mt-1">2 minutes ago</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col items-start p-3 cursor-pointer">
-                <p className="text-sm font-medium">Attendance marked</p>
-                <p className="text-xs text-muted-foreground">Your attendance has been recorded</p>
-                <span className="text-[10px] text-muted-foreground mt-1">1 hour ago</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col items-start p-3 cursor-pointer">
-                <p className="text-sm font-medium">Payroll processed</p>
-                <p className="text-xs text-muted-foreground">Your salary slip is now available</p>
-                <span className="text-[10px] text-muted-foreground mt-1">Yesterday</span>
-              </DropdownMenuItem>
+              {loadingMessages ? (
+                <div className="p-3 text-xs text-muted-foreground">Loading notifications...</div>
+              ) : recentMessages.length === 0 ? (
+                <div className="p-3 text-xs text-muted-foreground">No notifications yet.</div>
+              ) : (
+                recentMessages.map((message) => (
+                  <DropdownMenuItem
+                    key={message.id}
+                    className="flex flex-col items-start p-3 cursor-pointer"
+                    onClick={() => {
+                      handleMarkRead(message.id);
+                      handleViewNotification(message.id);
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{message.title}</p>
+                      {message.status === "UNREAD" && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                          New
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{message.body}</p>
+                    <span className="text-[10px] text-muted-foreground mt-1">
+                      {formatMessageTime(message.sentAt)}
+                    </span>
+                  </DropdownMenuItem>
+                ))
+              )}
             </div>
             <div className="p-2 border-t">
-              <button className="w-full text-center text-xs text-primary hover:underline p-2">
+              <button
+                className="w-full text-center text-xs text-primary hover:underline p-2"
+                onClick={() => handleViewNotification()}
+              >
                 View all notifications
               </button>
             </div>

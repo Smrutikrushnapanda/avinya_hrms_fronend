@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Clock,
   Plus,
@@ -154,8 +155,10 @@ function PageSkeleton() {
 
 // ------- Main Component -------
 export default function UserTimeslipsPage() {
+  const router = useRouter();
   const [employeeId, setEmployeeId] = useState<string>("");
   const [organizationId, setOrganizationId] = useState<string>("");
+  const [isApprover, setIsApprover] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
 
   const [timeslips, setTimeslips] = useState<TimeslipRow[]>([]);
@@ -303,6 +306,7 @@ export default function UserTimeslipsPage() {
         const userId = profileRes.data?.id || profileRes.data?.userId;
         if (!userId) throw new Error("No user ID");
         setOrganizationId(profileRes.data?.organizationId ?? "");
+        setIsApprover(Boolean(profileRes.data?.isApprover));
         const empRes = await getEmployeeByUserId(userId);
         const empId = empRes.data?.id || empRes.data?.data?.id;
         if (!empId) throw new Error("No employee record found");
@@ -501,10 +505,22 @@ export default function UserTimeslipsPage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          New Correction Request
-        </Button>
+        <div className="flex items-center gap-2">
+          {isApprover && (
+            <Button
+              variant="outline"
+              onClick={() => router.push("/user/timeslips/approve")}
+              className="gap-2"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Approve Requests
+            </Button>
+          )}
+          <Button onClick={() => setDialogOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Correction Request
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

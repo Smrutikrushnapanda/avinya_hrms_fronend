@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Download, Upload, Settings, Zap, UserCheck, UserX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   updateEmployee,
   deleteEmployee,
   getProfile,
+  getOrganization,
   createUserActivity,
   createMessage,
 } from "@/app/api/api";
@@ -134,6 +135,64 @@ const InitialLoadingSkeleton = () => {
   );
 };
 
+const buildOrgPrefix = (orgName: string) => {
+  const cleaned = orgName.replace(/[^a-zA-Z0-9\s]/g, " ").trim();
+  if (!cleaned) return "EMP";
+
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  let prefix = words.map((w) => w[0]).join("").slice(0, 4);
+
+  if (prefix.length < 2) {
+    prefix = cleaned.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4);
+  }
+
+  prefix = prefix.toUpperCase() || "EMP";
+  return prefix.length > 6 ? prefix.slice(0, 6) : prefix;
+};
+
+const generateEmployeeCode = (
+  orgName: string,
+  employees: Employee[],
+  fallbackPrefix: string = "EMP"
+) => {
+  const prefix = orgName ? buildOrgPrefix(orgName) : fallbackPrefix;
+  const existingCodes = employees
+    .map((e) => e.employeeCode?.toUpperCase())
+    .filter(Boolean) as string[];
+
+  let maxNumeric = 0;
+  let numericWidth = 3;
+
+  existingCodes.forEach((code) => {
+    if (!code.startsWith(prefix)) return;
+    const suffix = code.slice(prefix.length);
+    const match = suffix.match(/(\d+)$/);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      if (!Number.isNaN(value)) {
+        maxNumeric = Math.max(maxNumeric, value);
+        numericWidth = Math.max(numericWidth, match[1].length);
+      }
+    }
+  });
+
+  let next = maxNumeric > 0 ? maxNumeric + 1 : Math.max(1, employees.length + 1);
+  let candidate = `${prefix}${String(next).padStart(numericWidth, "0")}`;
+
+  const existingSet = new Set(existingCodes);
+  while (existingSet.has(candidate)) {
+    next += 1;
+    candidate = `${prefix}${String(next).padStart(numericWidth, "0")}`;
+  }
+
+  if (candidate.length > 20) {
+    const trimmedPrefix = prefix.slice(0, Math.max(1, 20 - numericWidth));
+    candidate = `${trimmedPrefix}${String(next).padStart(numericWidth, "0")}`;
+  }
+
+  return candidate;
+};
+
 export default function EmployeesPage() {
   // View state for Employee Details
   const [currentView, setCurrentView] = useState<'directory' | 'details'>('directory');
@@ -167,6 +226,8 @@ export default function EmployeesPage() {
   const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [organizationName, setOrganizationName] = useState("");
+  const [isEmployeeCodeTouched, setIsEmployeeCodeTouched] = useState(false);
 
   // Form validation state (same as before)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -205,6 +266,7 @@ export default function EmployeesPage() {
     panCardPhotoUrl: "",
     employmentType: "",
     status: "active",
+    branchId: "",
     bloodGroup: "",
     emergencyContactName: "",
     emergencyContactRelationship: "",
@@ -236,6 +298,20 @@ export default function EmployeesPage() {
     };
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    const fetchOrganizationName = async () => {
+      if (!userProfile?.organizationId) return;
+      try {
+        const response = await getOrganization(userProfile.organizationId);
+        const orgName = response.data?.organizationName || response.data?.organization?.organizationName;
+        setOrganizationName(orgName || "");
+      } catch (error: any) {
+        console.error("Failed to fetch organization:", error);
+      }
+    };
+    fetchOrganizationName();
+  }, [userProfile?.organizationId]);
 
   // OPTIMIZED: Fetch function with loading states
   const fetchEmployeeManagementData = useCallback(
@@ -327,6 +403,27 @@ export default function EmployeesPage() {
     return () => clearTimeout(timeout);
   }, [searchTerm]);
 
+  useEffect(() => {
+    if (isCreateDialogOpen) {
+      setIsEmployeeCodeTouched(false);
+    }
+  }, [isCreateDialogOpen]);
+
+  const autoEmployeeCode = useMemo(() => {
+    const employees = employeeData?.employees || [];
+    if (!organizationName) return "";
+    return generateEmployeeCode(organizationName, employees);
+  }, [organizationName, employeeData?.employees]);
+
+  useEffect(() => {
+    if (!isCreateDialogOpen || isEmployeeCodeTouched) return;
+    if (!autoEmployeeCode) return;
+    setNewEmployee((prev) => {
+      if (prev.employeeCode === autoEmployeeCode) return prev;
+      return { ...prev, employeeCode: autoEmployeeCode };
+    });
+  }, [autoEmployeeCode, isCreateDialogOpen, isEmployeeCodeTouched, setNewEmployee]);
+
   // Employee Details Navigation Handlers
   const handleViewEmployeeDetails = (employeeId: string) => {
     setSelectedEmployeeId(employeeId);
@@ -359,10 +456,34 @@ export default function EmployeesPage() {
   const validateForm = (data: EmployeeFormData, isUpdate: boolean = false): boolean => {
     const errors: Record<string, string> = {};
     const allowedGenders = ["MALE", "FEMALE", "OTHER"];
+    const digitsOnly = (value: string) => value.replace(/\D/g, "");
+    const isValidContactNumber = (value: string) => {
+      const digits = digitsOnly(value);
+      return digits.length >= 5 && digits.length <= 20;
+    };
+    const isValidEmergencyPhone = (value: string) => {
+      const cleaned = value.replace(/\s|-/g, "");
+      return /^(?:\+?91)?[6-9]\d{9}$/.test(cleaned);
+    };
 
     if (!isUpdate) {
-      if (!data.loginUserName?.trim()) errors.loginUserName = "Login username is required";
-      if (!data.loginPassword?.trim()) errors.loginPassword = "Login password is required";
+      if (!data.loginUserName?.trim()) {
+        errors.loginUserName = "Login username is required";
+      } else if (data.loginUserName.trim().length < 3) {
+        errors.loginUserName = "Login username must be at least 3 characters";
+      }
+      if (!data.loginPassword?.trim()) {
+        errors.loginPassword = "Login password is required";
+      } else if (data.loginPassword.trim().length < 6) {
+        errors.loginPassword = "Login password must be at least 6 characters";
+      }
+    } else {
+      if (data.loginUserName?.trim() && data.loginUserName.trim().length < 3) {
+        errors.loginUserName = "Login username must be at least 3 characters";
+      }
+      if (data.loginPassword?.trim() && data.loginPassword.trim().length < 6) {
+        errors.loginPassword = "Login password must be at least 6 characters";
+      }
     }
     if (!data.firstName?.trim()) errors.firstName = "First name is required";
     if (!data.lastName?.trim()) errors.lastName = "Last name is required";
@@ -371,11 +492,23 @@ export default function EmployeesPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.workEmail)) {
       errors.workEmail = "Invalid email format";
     }
-    if (!data.employeeCode?.trim()) errors.employeeCode = "Employee code is required";
+    if (!data.employeeCode?.trim()) {
+      errors.employeeCode = "Employee code is required";
+    } else if (data.employeeCode.trim().length > 20) {
+      errors.employeeCode = "Employee code must be 20 characters or less";
+    }
     if (!data.dateOfJoining) errors.dateOfJoining = "Joining date is required";
 
     if (data.gender && !allowedGenders.includes(data.gender.toUpperCase())) {
       errors.gender = "Gender must be MALE, FEMALE, or OTHER";
+    }
+
+    if (data.contactNumber?.trim() && !isValidContactNumber(data.contactNumber)) {
+      errors.contactNumber = "Contact number must be 5-20 digits";
+    }
+
+    if (data.emergencyContactPhone?.trim() && !isValidEmergencyPhone(data.emergencyContactPhone)) {
+      errors.emergencyContactPhone = "Emergency phone must be a valid Indian number";
     }
 
     // Check for duplicate employee code within current data
@@ -433,6 +566,7 @@ export default function EmployeesPage() {
     if (data.emergencyContactRelationship?.trim())
       cleanData.emergencyContactRelationship = data.emergencyContactRelationship.trim();
     if (data.emergencyContactPhone?.trim()) cleanData.emergencyContactPhone = data.emergencyContactPhone.trim();
+    if (data.branchId) cleanData.branchId = data.branchId;
 
     if (includeCredentials) {
       cleanData.loginUserName = data.loginUserName?.trim();
@@ -968,6 +1102,7 @@ export default function EmployeesPage() {
           isCreatingEmployee={isCreatingEmployee}
           formErrors={formErrors}
           employeeData={employeeData}
+          onEmployeeCodeChange={() => setIsEmployeeCodeTouched(true)}
           // Edit Dialog
           isEditDialogOpen={isEditDialogOpen}
           setIsEditDialogOpen={setIsEditDialogOpen}

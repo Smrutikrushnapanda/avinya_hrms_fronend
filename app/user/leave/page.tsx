@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   Plus,
@@ -153,8 +154,10 @@ function PageSkeleton() {
 
 // ------- Main Component -------
 export default function UserLeavePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isApprover, setIsApprover] = useState(false);
   const userId = profile?.userId ?? profile?.id ?? profile?.employee?.userId;
 
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
@@ -291,6 +294,7 @@ export default function UserLeavePage() {
         }
         
         setProfile(profileData);
+        setIsApprover(Boolean(profileData.isApprover));
       } catch {
         toast.error("Failed to fetch profile");
       } finally {
@@ -536,10 +540,22 @@ export default function UserLeavePage() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setApplyDialogOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Apply for Leave
-        </Button>
+        <div className="flex items-center gap-2">
+          {isApprover && (
+            <Button
+              variant="outline"
+              onClick={() => router.push("/user/leave/approve")}
+              className="gap-2"
+            >
+              <ClipboardList className="h-4 w-4" />
+              Approve Leaves
+            </Button>
+          )}
+          <Button onClick={() => setApplyDialogOpen(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Apply for Leave
+          </Button>
+        </div>
       </div>
 
       {/* Leave Balance Cards */}

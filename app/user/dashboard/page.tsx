@@ -20,7 +20,14 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import AttendanceDonutChart from "@/components/charts/AttendanceDonutChart";
 import AttendanceStatus from "@/components/AttendanceStatus";
-import { getProfile, getDashboardStats, getLeaveBalance, getEmployeeByUserId, getAttendanceByDate, getHolidays } from "@/app/api/api";
+import {
+  getProfile,
+  getDashboardStats,
+  getLeaveBalance,
+  getEmployeeByUserId,
+  getTodayLogs,
+  getHolidays,
+} from "@/app/api/api";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -184,6 +191,9 @@ interface LeaveBalanceData {
   closingBalance?: number;
   consumed?: number;
   accrued?: number;
+  remaining?: number;
+  used?: number;
+  leaveTypeName?: string;
 }
 
 interface Meeting {
@@ -221,6 +231,23 @@ export default function UserDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [employeeId, setEmployeeId] = useState<string>("");
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [hasPunchedInToday, setHasPunchedInToday] = useState(false);
+
+  const normalizeLeaveBalance = (balance: LeaveBalanceData): LeaveBalanceData => {
+    const openingBalance = Number(balance.openingBalance ?? 0);
+    const consumed = Number(balance.consumed ?? balance.used ?? 0);
+    const closingBalance = Number(
+      balance.closingBalance ?? balance.remaining ?? openingBalance - consumed
+    );
+
+    return {
+      ...balance,
+      openingBalance,
+      consumed,
+      closingBalance,
+      leaveType: balance.leaveType ?? { name: balance.leaveTypeName || "Leave" },
+    };
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -229,9 +256,11 @@ export default function UserDashboardPage() {
         const profileRes = await getProfile();
         const profile = profileRes.data;
         
+        const resolvedUserId = profile.userId ?? profile.id;
+
         // Set user data from profile
         setUserData({
-          id: profile.id,
+          id: resolvedUserId,
           firstName: profile.firstName,
           lastName: profile.lastName,
           userName: profile.userName,
@@ -240,30 +269,23 @@ export default function UserDashboardPage() {
         });
 
         // Get employee by user ID
-        if (profile.id) {
+        if (resolvedUserId) {
           try {
-            const empResponse = await getEmployeeByUserId(profile.id);
+            const empResponse = await getEmployeeByUserId(resolvedUserId);
             if (empResponse.data) {
               setEmployeeId(empResponse.data.id);
               
               // Fetch leave balance using user ID from profile
-              const leaveResponse = await getLeaveBalance(profile.id);
+              const leaveResponse = await getLeaveBalance(resolvedUserId);
               if (leaveResponse.data) {
-                let balances = leaveResponse.data;
+                const balances = leaveResponse.data;
                 // Handle different response formats
                 if (Array.isArray(balances)) {
-                  // Transform the API response to expected format
-                  const transformed = balances.map((b: any) => ({
-                    leaveType: {
-                      name: b.leaveType?.name || b.leaveTypeName || 'Leave'
-                    },
-                    openingBalance: b.allocated || b.openingBalance || 0,
-                    consumed: b.used || b.consumed || 0,
-                    closingBalance: b.remaining || b.closingBalance || 0
-                  }));
-                  setLeaveBalances(transformed);
+                  setLeaveBalances(balances.map((b: LeaveBalanceData) => normalizeLeaveBalance(b)));
                 } else if (balances.balances) {
-                  setLeaveBalances(balances.balances);
+                  setLeaveBalances(
+                    balances.balances.map((b: LeaveBalanceData) => normalizeLeaveBalance(b))
+                  );
                 }
               }
             }
@@ -274,6 +296,22 @@ export default function UserDashboardPage() {
 
         // Fetch dashboard stats using organization ID
         if (profile.organizationId) {
+          // Fetch today's attendance logs to determine punch-in status
+          try {
+            const todayLogsRes = await getTodayLogs({
+              organizationId: profile.organizationId,
+              userId: profile.id,
+            });
+            const punchInTime =
+              todayLogsRes.data?.punchInTime ?? todayLogsRes.data?.data?.punchInTime;
+            const hasLogs =
+              (todayLogsRes.data?.logs?.length ?? todayLogsRes.data?.data?.logs?.length ?? 0) > 0;
+            setHasPunchedInToday(Boolean(punchInTime || hasLogs));
+          } catch (todayLogError) {
+            console.log("Today's attendance logs not available:", todayLogError);
+            setHasPunchedInToday(false);
+          }
+
           try {
             const statsResponse = await getDashboardStats(profile.organizationId);
             if (statsResponse.data) {
@@ -358,7 +396,19 @@ export default function UserDashboardPage() {
   ];
 
   // Attendance breakdown from stats
-  const attendanceBreakdown = stats?.attendanceBreakdown || { present: 98, absent: 14, halfDay: 9, leave: 5, holiday: 0 };
+  const attendanceBreakdownBase = stats?.attendanceBreakdown || {
+    present: 0,
+    absent: 0,
+    halfDay: 0,
+    leave: 0,
+    holiday: 0,
+  };
+  const attendanceBreakdown = hasPunchedInToday
+    ? {
+        ...attendanceBreakdownBase,
+        present: Math.max(1, attendanceBreakdownBase.present || 0),
+      }
+    : attendanceBreakdownBase;
 
   // Sample meetings
   const meetings: Meeting[] = [
@@ -620,19 +670,21 @@ export default function UserDashboardPage() {
           <div className="mb-4">
             <h2 className="text-sm font-bold text-foreground">Leave Balance</h2>
             <p className="text-xs text-muted-foreground">
-              Your annual allocations
+              Remaining leave by type
             </p>
           </div>
           <div className="space-y-5">
             {leaveBalances.length > 0 ? (
               leaveBalances.map((leave, index) => {
-                const allocated = leave.openingBalance || 0;
-                const used = leave.consumed || 0;
-                const pct = allocated > 0 ? Math.round((used / allocated) * 100) : 0;
-                const remaining = leave.closingBalance ?? (allocated - used);
+                const allocated = Number(leave.openingBalance ?? 0);
+                const used = Number(leave.consumed ?? leave.used ?? 0);
+                const remaining = Number(
+                  leave.closingBalance ?? leave.remaining ?? Math.max(allocated - used, 0)
+                );
+                const pct = allocated > 0 ? Math.round((remaining / allocated) * 100) : 0;
                 const colors = ["#7c6cff", "#e87e8e", "#5cc8a8", "#e8b86c"];
                 const color = colors[index % colors.length];
-                const leaveTypeName = leave.leaveType?.name || `Leave Type ${index + 1}`;
+                const leaveTypeName = leave.leaveType?.name || leave.leaveTypeName || `Leave Type ${index + 1}`;
                 return (
                   <div key={leaveTypeName}>
                     <div className="flex items-center justify-between mb-1.5">
@@ -648,12 +700,15 @@ export default function UserDashboardPage() {
                             {leaveTypeName}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
-                            Used {used} / {allocated}
+                            {allocated} total • {used} used
                           </p>
                         </div>
                       </div>
                       <span className="text-lg font-extrabold" style={{ color }}>
                         {remaining}
+                        <span className="text-[10px] font-semibold ml-1 text-muted-foreground">
+                          left
+                        </span>
                       </span>
                     </div>
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -746,4 +801,3 @@ export default function UserDashboardPage() {
     </div>
   );
 }
-

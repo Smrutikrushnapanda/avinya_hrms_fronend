@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Bell, Plus, Menu, LogIn, LogOut, Eye, Clock, ChevronRight } from "lucide-react";
+import { Plus, Menu, LogIn, LogOut, Eye, Clock, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getProfile, getTimeslips } from "@/app/api/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import MobileTabHeader from "../components/MobileTabHeader";
 
 interface Timeslip {
   id: string | number;
@@ -37,22 +38,11 @@ export default function MobileTimeslipPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [timeslips, setTimeslips] = useState<TimestampEntry[]>([]);
   const [selectedTab, setSelectedTab] = useState<Tab>("All");
-  const [userId, setUserId] = useState("");
   const [isApprover, setIsApprover] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
 
   const fetchTimeslips = useCallback(async () => {
     try {
-      // Get profile to get user ID
-      const profileRes = await getProfile();
-      const userIdFromProfile = profileRes.data.id;
-      setUserId(userIdFromProfile);
-
-      // Check if user is an approver
-      if (profileRes.data.isApprover) {
-        setIsApprover(profileRes.data.isApprover);
-      }
-
       // Fetch timeslips
       const timeslipsRes = await getTimeslips();
       const data = timeslipsRes.data;
@@ -117,9 +107,21 @@ export default function MobileTimeslipPage() {
     }
   }, []);
 
+  const fetchProfileAndApprover = useCallback(async () => {
+    try {
+      const profileRes = await getProfile();
+      const profile = profileRes.data || {};
+      setIsApprover(Boolean(profile.isApprover));
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      setIsApprover(false);
+    }
+  }, []);
+
   useEffect(() => {
+    fetchProfileAndApprover();
     fetchTimeslips();
-  }, [fetchTimeslips]);
+  }, [fetchProfileAndApprover, fetchTimeslips]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -175,21 +177,23 @@ export default function MobileTimeslipPage() {
     }
   };
 
+  const canApprove = isApprover;
+
   const toggleFab = () => {
-    if (isApprover) {
+    if (canApprove) {
       setFabOpen(!fabOpen);
     } else {
-      router.push("/user/timeslips");
+      router.push("/user/dashboard/mobile/timeslip/add");
     }
   };
 
   const handleAddTimeslip = () => {
-    router.push("/user/timeslips");
+    router.push("/user/dashboard/mobile/timeslip/add");
     setFabOpen(false);
   };
 
   const handleApprove = () => {
-    router.push("/user/timeslips");
+    router.push("/user/dashboard/mobile/timeslip/approve");
     setFabOpen(false);
   };
 
@@ -201,14 +205,7 @@ export default function MobileTimeslipPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* Header */}
-        <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="bg-white/20 rounded-full px-4 py-2">
-            <h2 className="text-xl font-bold">Time Slips</h2>
-          </div>
-        </div>
-        <Bell className="w-5 h-5" />
-      </div>
+        <MobileTabHeader title="Time Slips" />
 
         {/* Loading Skeleton */}
         <div className="px-5 -mt-12 z-10">
@@ -263,17 +260,28 @@ export default function MobileTimeslipPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center justify-between">
-        <div className="flex items-center">
-          <div className="bg-white/20 rounded-full px-4 py-2">
-            <h2 className="text-xl font-bold">Time Slips</h2>
-          </div>
-        </div>
-        <Bell className="w-5 h-5" />
-      </div>
+      <MobileTabHeader title="Time Slips" />
 
       {/* Content */}
       <div className="px-5 -mt-12 z-10 pb-24">
+        {/* My Time Slips / Approve Switch - only shown for approvers */}
+        {canApprove && (
+          <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
+            <button
+              onClick={() => router.push("/user/dashboard/mobile/timeslip")}
+              className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors bg-[#005F90] text-white"
+            >
+              My Time Slips
+            </button>
+            <button
+              onClick={() => router.push("/user/dashboard/mobile/timeslip/approve")}
+              className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors text-gray-600"
+            >
+              Approve
+            </button>
+          </div>
+        )}
+
         {/* Summary Card - Matching RN */}
         <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 mb-4 relative overflow-hidden">
           {/* Triangle Decorations */}
@@ -460,7 +468,7 @@ export default function MobileTimeslipPage() {
       </div>
 
       {/* Overlay for FAB */}
-      {isApprover && fabOpen && (
+      {canApprove && fabOpen && (
         <div
           className="fixed inset-0 bg-black/30 z-40"
           onClick={() => setFabOpen(false)}
@@ -468,7 +476,7 @@ export default function MobileTimeslipPage() {
       )}
 
       {/* FAB Actions */}
-      {isApprover && fabOpen && (
+      {canApprove && fabOpen && (
         <div className="fixed bottom-32 right-5 flex gap-3 z-50">
           <button
             onClick={handleApprove}
@@ -500,12 +508,12 @@ export default function MobileTimeslipPage() {
           onClick={toggleFab}
           className="w-14 h-14 rounded-full bg-[#005F90] flex items-center justify-center shadow-lg"
         >
-          {isApprover ? (
+          {canApprove ? (
             <Menu className="w-6 h-6 text-white" />
           ) : (
             <Plus className="w-6 h-6 text-white" />
           )}
-          {hasPendingRequests && isApprover && !fabOpen && (
+          {hasPendingRequests && canApprove && !fabOpen && (
             <div className="absolute -top-3 -right-1 w-3 h-3 rounded-full bg-red-500 border-2 border-white" />
           )}
         </button>

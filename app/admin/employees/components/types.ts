@@ -5,6 +5,8 @@ export interface Employee {
   userName?: string;
   departmentId?: string;
   designationId?: string;
+  branchId?: string;
+  branchId?: string;
   reportingTo?: string;
   employeeCode: string;
   firstName: string;
@@ -28,6 +30,7 @@ export interface Employee {
   emergencyContactPhone?: string;
   department?: { id: string; name: string };
   designation?: { id: string; name: string };
+  branch?: { id: string; name: string };
   manager?: { id: string; firstName: string; lastName: string };
   user?: { id: string; lastLogin?: string; isActive: boolean };
   createdAt: string;

@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Bell,
   Camera,
   LogIn,
   LogOut,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import MobileHomeHeader from "./components/MobileHomeHeader";
 import {
   getProfile,
   getHolidays,
@@ -521,22 +521,10 @@ export default function MobileDashboardPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* ── Header ── */}
-      <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center justify-between">
-        <div
-          className="flex items-center space-x-2 cursor-pointer"
-          onClick={() => setIsSidebarOpen(true)}
-        >
-          <Avatar className="w-12 h-12 border-2 border-white transition-transform active:scale-95">
-            <AvatarImage src={user.avatar} alt={user.name} />
-            <AvatarFallback>{user.name?.[0] || "U"}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-l font-semibold">{user.name}</h2>
-            <p className="text-sm opacity-90">{user.role}</p>
-          </div>
-        </div>
-        <Bell className="w-6 h-6" />
-      </div>
+      <MobileHomeHeader
+        user={user}
+        onOpenSidebar={() => setIsSidebarOpen(true)}
+      />
 
       {/* ── Date + Time + Punch Card ── */}
       <Card className="mx-4 -mt-10 h-38 shadow-lg">

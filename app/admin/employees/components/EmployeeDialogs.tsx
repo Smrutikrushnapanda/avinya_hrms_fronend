@@ -50,6 +50,8 @@ interface EmployeeDialogsProps {
   isCreatingEmployee: boolean;
   formErrors: Record<string, string>;
   employeeData: any;
+  onEmployeeCodeChange?: (value: string) => void;
+  branches?: any[];
   
   // Edit Dialog
   isEditDialogOpen: boolean;
@@ -105,6 +107,7 @@ export default function EmployeeDialogs({
   isCreatingEmployee,
   formErrors,
   employeeData,
+  onEmployeeCodeChange,
   
   // Edit Dialog props
   isEditDialogOpen,
@@ -155,6 +158,7 @@ export default function EmployeeDialogs({
   const departments = employeeData?.filters?.departments || [];
   const designations = employeeData?.filters?.designations || [];
   const managers = employeeData?.filters?.managers || [];
+  const branches = employeeData?.filters?.branches || [];
   const employees: Employee[] = employeeData?.employees || [];
 
   const messageRecipients = employees.filter((emp: Employee) =>
@@ -381,6 +385,9 @@ export default function EmployeeDialogs({
                     onChange={(e) => setNewEmployee({ ...newEmployee, contactNumber: e.target.value })}
                     placeholder="+91 9876543210"
                   />
+                  {formErrors.contactNumber && (
+                    <p className="text-sm text-red-500">{formErrors.contactNumber}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -432,6 +439,9 @@ export default function EmployeeDialogs({
                     onChange={(e) => setNewEmployee({ ...newEmployee, emergencyContactPhone: e.target.value })}
                     placeholder="+91 9876543210"
                   />
+                  {formErrors.emergencyContactPhone && (
+                    <p className="text-sm text-red-500">{formErrors.emergencyContactPhone}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -451,10 +461,17 @@ export default function EmployeeDialogs({
                     <Input
                       id="employeeCode"
                       value={newEmployee.employeeCode}
-                      onChange={(e) => setNewEmployee({ ...newEmployee, employeeCode: e.target.value })}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewEmployee({ ...newEmployee, employeeCode: value });
+                        onEmployeeCodeChange?.(value);
+                      }}
                       placeholder="EMP001"
                       className={formErrors.employeeCode ? "border-red-500" : ""}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Auto-generated from organization name. You can edit it.
+                    </p>
                     {formErrors.employeeCode && (
                       <p className="text-sm text-red-500">{formErrors.employeeCode}</p>
                     )}
@@ -474,7 +491,7 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="departmentId">Department</Label>
                     <Select
@@ -503,6 +520,22 @@ export default function EmployeeDialogs({
                       <SelectContent>
                         {designations.map((desig: any) => (
                           <SelectItem key={desig.id} value={desig.id}>{desig.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="branchId">Branch</Label>
+                    <Select
+                      value={newEmployee.branchId}
+                      onValueChange={(value) => setNewEmployee({ ...newEmployee, branchId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.map((b: any) => (
+                          <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -561,6 +594,57 @@ export default function EmployeeDialogs({
                         <SelectItem value="inactive">Inactive</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Login Credentials */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 flex items-center">
+                <Briefcase className="w-5 h-5 mr-2" />
+                Login Credentials
+              </h3>
+              <div className="grid gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="createLoginUserName">Username *</Label>
+                    <Input
+                      id="createLoginUserName"
+                      value={newEmployee.loginUserName}
+                      onChange={(e) => setNewEmployee({ ...newEmployee, loginUserName: e.target.value })}
+                      placeholder="employee.username"
+                      className={formErrors.loginUserName ? "border-red-500" : ""}
+                    />
+                    {formErrors.loginUserName && (
+                      <p className="text-sm text-red-500">{formErrors.loginUserName}</p>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="createLoginPassword">Password *</Label>
+                    <div className="relative">
+                      <Input
+                        id="createLoginPassword"
+                        type={showCreatePassword ? "text" : "password"}
+                        value={newEmployee.loginPassword}
+                        onChange={(e) => setNewEmployee({ ...newEmployee, loginPassword: e.target.value })}
+                        placeholder="Minimum 6 characters"
+                        className={formErrors.loginPassword ? "border-red-500 pr-10" : "pr-10"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCreatePassword((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        aria-label={showCreatePassword ? "Hide password" : "Show password"}
+                      >
+                        {showCreatePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {formErrors.loginPassword && (
+                      <p className="text-sm text-red-500">{formErrors.loginPassword}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -796,6 +880,9 @@ export default function EmployeeDialogs({
                     value={editEmployee.contactNumber}
                     onChange={(e) => setEditEmployee({ ...editEmployee, contactNumber: e.target.value })}
                   />
+                  {formErrors.contactNumber && (
+                    <p className="text-sm text-red-500">{formErrors.contactNumber}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -845,6 +932,9 @@ export default function EmployeeDialogs({
                     value={editEmployee.emergencyContactPhone}
                     onChange={(e) => setEditEmployee({ ...editEmployee, emergencyContactPhone: e.target.value })}
                   />
+                  {formErrors.emergencyContactPhone && (
+                    <p className="text-sm text-red-500">{formErrors.emergencyContactPhone}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -885,7 +975,7 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="editDepartmentId">Department</Label>
                     <Select
@@ -917,6 +1007,24 @@ export default function EmployeeDialogs({
                         {designations.map((desig: any) => (
                           <SelectItem key={desig.id} value={desig.id}>
                             {desig.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editBranchId">Branch</Label>
+                    <Select
+                      value={editEmployee.branchId}
+                      onValueChange={(value) => setEditEmployee({ ...editEmployee, branchId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.map((b: any) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

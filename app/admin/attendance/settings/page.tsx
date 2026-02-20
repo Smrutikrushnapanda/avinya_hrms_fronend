@@ -10,6 +10,10 @@ import api, {
   deleteWifiLocation,
   getOrganization,
   updateOrganization,
+  getBranches,
+  createBranch,
+  updateBranch,
+  deleteBranch,
 } from "@/app/api/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Save, Loader2, MapPin, Clock, Shield, AlertCircle, Wifi, Plus, Pencil, Trash2 } from "lucide-react";
+import { Save, Loader2, MapPin, Clock, Shield, AlertCircle, Wifi, Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface AttendanceSettings {
@@ -57,6 +61,18 @@ interface WifiNetwork {
   createdAt: string;
 }
 
+interface Branch {
+  id: string;
+  name: string;
+  workStartTime: string;
+  workEndTime: string;
+  graceMinutes: number;
+  lateThresholdMinutes: number;
+  isActive: boolean;
+  organizationId: string;
+  createdAt: string;
+}
+
 const defaultSettings: AttendanceSettings = {
   workStartTime: "09:00:00",
   workEndTime: "18:00:00",
@@ -87,8 +103,83 @@ const defaultWifiForm = {
   allowedRadiusMeters: "50",
 };
 
+const defaultBranchForm = {
+  name: "",
+  workStartTime: "09:00",
+  workEndTime: "18:00",
+  graceMinutes: "15",
+  lateThresholdMinutes: "30",
+  isActive: true,
+};
+
 const sanitizeIntInput = (value: string) => value.replace(/[^0-9]/g, "");
-const sanitizeFloatInput = (value: string) => value.replace(/[^0-9.-]/g, "");
+  const sanitizeFloatInput = (value: string) => value.replace(/[^0-9.-]/g, "");
+
+  const handleBranchSave = async () => {
+    if (!organizationId) {
+      toast.error("Organization not found. Please login again.");
+      return;
+    }
+    if (!branchForm.name.trim()) {
+      toast.error("Branch name is required");
+      return;
+    }
+    setBranchSaving(true);
+    try {
+      const payload = {
+        organizationId,
+        name: branchForm.name.trim(),
+        workStartTime: branchForm.workStartTime + ":00",
+        workEndTime: branchForm.workEndTime + ":00",
+        graceMinutes: Number(branchForm.graceMinutes || 0),
+        lateThresholdMinutes: Number(branchForm.lateThresholdMinutes || 0),
+        isActive: branchForm.isActive,
+      };
+      if (editingBranch) {
+        await updateBranch(editingBranch.id, payload);
+        toast.success("Branch updated");
+      } else {
+        await createBranch(payload);
+        toast.success("Branch created");
+      }
+      setBranchDialogOpen(false);
+      setEditingBranch(null);
+      setBranchForm(defaultBranchForm);
+      fetchBranches(organizationId);
+    } catch (error) {
+      console.error("Error saving branch:", error);
+      toast.error("Failed to save branch");
+    } finally {
+      setBranchSaving(false);
+    }
+  };
+
+  const handleBranchEdit = (branch: Branch) => {
+    setEditingBranch(branch);
+    setBranchForm({
+      name: branch.name,
+      workStartTime: branch.workStartTime.slice(0, 5),
+      workEndTime: branch.workEndTime.slice(0, 5),
+      graceMinutes: String(branch.graceMinutes ?? 0),
+      lateThresholdMinutes: String(branch.lateThresholdMinutes ?? 0),
+      isActive: branch.isActive,
+    });
+    setBranchDialogOpen(true);
+  };
+
+  const handleBranchDelete = async () => {
+    if (!branchDeleteId) return;
+    try {
+      await deleteBranch(branchDeleteId);
+      toast.success("Branch deleted");
+      fetchBranches(organizationId);
+    } catch (error) {
+      console.error("Error deleting branch:", error);
+      toast.error("Failed to delete branch");
+    } finally {
+      setBranchDeleteId(null);
+    }
+  };
 
 export default function AttendanceSettingsPage() {
   const router = useRouter();
@@ -106,6 +197,15 @@ export default function AttendanceSettingsPage() {
   const [wifiForm, setWifiForm] = useState(defaultWifiForm);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Branch state
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchLoading, setBranchLoading] = useState(false);
+  const [branchDialogOpen, setBranchDialogOpen] = useState(false);
+  const [branchSaving, setBranchSaving] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [branchForm, setBranchForm] = useState(defaultBranchForm);
+  const [branchDeleteId, setBranchDeleteId] = useState<string | null>(null);
+
   useEffect(() => {
     getProfile()
       .then((res) => {
@@ -114,6 +214,7 @@ export default function AttendanceSettingsPage() {
           setOrganizationId(orgId);
           fetchSettings(orgId).then(() => fetchOrgValidationSettings(orgId));
           fetchWifiNetworks(orgId);
+          fetchBranches(orgId);
         } else {
           setLoading(false);
           toast.error("Organization not found. Please login again.");
@@ -170,6 +271,18 @@ export default function AttendanceSettingsPage() {
       console.error("Error fetching WiFi networks:", error);
     } finally {
       setWifiLoading(false);
+    }
+  };
+
+  const fetchBranches = async (orgId: string) => {
+    setBranchLoading(true);
+    try {
+      const response = await getBranches(orgId);
+      setBranches(response.data || []);
+    } catch (error) {
+      console.error("Error fetching branches:", error);
+    } finally {
+      setBranchLoading(false);
     }
   };
 
@@ -392,6 +505,10 @@ export default function AttendanceSettingsPage() {
           <TabsTrigger value="wifi" className="flex items-center gap-2">
             <Wifi className="h-4 w-4" />
             WiFi Networks
+          </TabsTrigger>
+          <TabsTrigger value="branches" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            Branches
           </TabsTrigger>
         </TabsList>
 
@@ -789,6 +906,72 @@ export default function AttendanceSettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Branches Tab */}
+        <TabsContent value="branches">
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Branches & Timings
+                </CardTitle>
+                <CardDescription>Set per-branch working hours. Employees inherit their branch timing.</CardDescription>
+              </div>
+              <Button
+                onClick={() => {
+                  setEditingBranch(null);
+                  setBranchForm(defaultBranchForm);
+                  setBranchDialogOpen(true);
+                }}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Branch
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {branchLoading ? (
+                <div className="flex items-center justify-center py-10 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Loading branches...
+                </div>
+              ) : branches.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <Building2 className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                  <p className="font-medium">No branches yet</p>
+                  <p className="text-sm">Create a branch to set specific timings.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {branches.map((branch) => (
+                    <div key={branch.id} className="flex items-center justify-between border rounded-lg p-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{branch.name}</span>
+                          <Badge variant={branch.isActive ? "default" : "secondary"}>
+                            {branch.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {branch.workStartTime.slice(0, 5)} - {branch.workEndTime.slice(0, 5)} | Grace {branch.graceMinutes}m | Late {branch.lateThresholdMinutes}m
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" onClick={() => handleBranchEdit(branch)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setBranchDeleteId(branch.id)}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Add/Edit WiFi Dialog */}
@@ -916,6 +1099,102 @@ export default function AttendanceSettingsPage() {
             <Button variant="destructive" onClick={() => deleteConfirmId && handleDeleteWifi(deleteConfirmId)}>
               Delete
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Branch Dialog */}
+      <Dialog open={branchDialogOpen} onOpenChange={setBranchDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingBranch ? "Edit Branch" : "Add Branch"}</DialogTitle>
+            <DialogDescription>Set branch name and working hours.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="branch-name">Branch Name *</Label>
+              <Input
+                id="branch-name"
+                value={branchForm.name}
+                onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                placeholder="e.g., Branch A"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="branch-start">Work Start *</Label>
+                <Input
+                  id="branch-start"
+                  type="time"
+                  value={branchForm.workStartTime}
+                  onChange={(e) => setBranchForm({ ...branchForm, workStartTime: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="branch-end">Work End *</Label>
+                <Input
+                  id="branch-end"
+                  type="time"
+                  value={branchForm.workEndTime}
+                  onChange={(e) => setBranchForm({ ...branchForm, workEndTime: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="branch-grace">Grace Minutes</Label>
+                <Input
+                  id="branch-grace"
+                  type="number"
+                  min={0}
+                  value={branchForm.graceMinutes}
+                  onChange={(e) => setBranchForm({ ...branchForm, graceMinutes: sanitizeIntInput(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="branch-late">Late Threshold (minutes)</Label>
+                <Input
+                  id="branch-late"
+                  type="number"
+                  min={0}
+                  value={branchForm.lateThresholdMinutes}
+                  onChange={(e) => setBranchForm({ ...branchForm, lateThresholdMinutes: sanitizeIntInput(e.target.value) })}
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div>
+                <p className="font-medium">Active</p>
+                <p className="text-sm text-muted-foreground">Inactive branches will be ignored for timing rules.</p>
+              </div>
+              <Switch
+                checked={branchForm.isActive}
+                onCheckedChange={(checked) => setBranchForm({ ...branchForm, isActive: checked })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBranchDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleBranchSave} disabled={branchSaving}>
+              {branchSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {editingBranch ? "Update" : "Add Branch"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Branch Delete Confirmation */}
+      <Dialog open={!!branchDeleteId} onOpenChange={() => setBranchDeleteId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Branch</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this branch? Employees assigned to it will fall back to default timing.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBranchDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleBranchDelete}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

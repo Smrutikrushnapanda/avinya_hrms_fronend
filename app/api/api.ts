@@ -109,6 +109,8 @@ export const getEmployee = (id: string) => api.get(`/employees/${id}`);
 export const updateEmployee = (id: string, data: any) => api.put(`/employees/${id}`, data);
 export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
 export const getEmployeeByUserId = (userId: string) => api.get(`/employees/by-user/${userId}`);
+export const getEmployeeHierarchy = (organizationId: string, employeeId?: string) =>
+  api.get("/employees/hierarchy", { params: { organizationId, employeeId } });
 
 // 🎂 Birthday APIs (Updated - Real API)
 export const getEmployeeBirthdays = (organizationId: string, days: number = 30) => 
@@ -147,6 +149,10 @@ export const createWifiLocation = (data: any) => api.post("/attendance/wifi-loca
 export const getWifiLocations = (organizationId: string) => api.get("/attendance/wifi-locations", { params: { organizationId } });
 export const updateWifiLocation = (id: string, data: any) => api.put(`/attendance/wifi-locations/${id}`, data);
 export const deleteWifiLocation = (id: string) => api.delete(`/attendance/wifi-locations/${id}`);
+export const getBranches = (organizationId: string) => api.get("/attendance/branches", { params: { organizationId } });
+export const createBranch = (data: any) => api.post("/attendance/branches", data);
+export const updateBranch = (id: string, data: any) => api.put(`/attendance/branches/${id}`, data);
+export const deleteBranch = (id: string) => api.delete(`/attendance/branches/${id}`);
 export const registerDevice = (data: any) => api.post("/attendance/devices", data);
 export const logAttendance = (data: any) => api.post("/attendance/log", data);
 export const getTodayLogs = (params: any) => api.get("/attendance/today-logs", { params });
@@ -156,6 +162,22 @@ export const getDailyStats = (params: any) => api.get("/attendance/daily-stats",
 export const getAttendanceByDate = (params: any) => api.get("/attendance/by-date", { params });
 export const processDailySummary = (params?: any) => api.post("/attendance/process-daily-summary", {}, { params });
 export const getTodayAnomalies = () => api.get("/attendance/anomalies/today");
+
+// 📝 Timesheet APIs
+export const createTimesheet = (data: any) => api.post("/timesheets", data);
+export const getTimesheets = (params: any) => api.get("/timesheets", { params });
+export const addTimesheetRemark = (id: string, data: any) => api.patch(`/timesheets/${id}/remark`, data);
+
+// 🧑‍💼 Client & Project APIs
+export const getClients = (params: any) => api.get("/clients", { params });
+export const createClient = (data: any) => api.post("/clients", data);
+export const updateClient = (id: string, data: any) => api.put(`/clients/${id}`, data);
+export const deleteClient = (id: string) => api.delete(`/clients/${id}`);
+
+export const getProjects = (params: any) => api.get("/projects", { params });
+export const createProject = (data: any) => api.post("/projects", data);
+export const updateProject = (id: string, data: any) => api.put(`/projects/${id}`, data);
+export const deleteProject = (id: string) => api.delete(`/projects/${id}`);
 
 // 🕒 Enhanced attendance report fetcher
 export const getAttendanceReport = async (params: {
@@ -413,6 +435,21 @@ export const downloadPayrollSlip = (id: string) =>
 export const sendPayslip = (id: string, method: 'email' | 'in_app' | 'both' = 'both') =>
   api.post(`/payroll/${id}/send`, { method });
 
+// 💬 Chat APIs
+export const getChatConversations = () => api.get('/chat/conversations');
+export const createDirectChat = (userId: string) =>
+  api.post('/chat/conversations/direct', { userId });
+export const createGroupChat = (data: { title: string; userIds: string[] }) =>
+  api.post('/chat/conversations/group', data);
+export const getChatMessages = (
+  conversationId: string,
+  params?: { limit?: number; before?: string },
+) => api.get(`/chat/conversations/${conversationId}/messages`, { params });
+export const sendChatMessage = (conversationId: string, data: FormData) =>
+  api.post(`/chat/conversations/${conversationId}/messages`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
 // Export the axios instance as default and named export
-export { api };
+export { api, apiBaseURL };
 export default api;

@@ -37,6 +37,18 @@ export const adminNavigation: NavItem[] = [
     description: "Track attendance records",
   },
   {
+    name: "Timesheets",
+    icon: BookMarked,
+    href: "/admin/timesheets",
+    description: "Review employee timesheets",
+  },
+  {
+    name: "Clients & Projects",
+    icon: BookMarked,
+    href: "/admin/clients-projects",
+    description: "Manage clients and projects",
+  },
+  {
     name: "Payroll",
     icon: BadgeDollarSign,
     href: "/admin/payroll",

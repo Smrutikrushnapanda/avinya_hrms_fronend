@@ -2,15 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Bell, ArrowLeft, BookMarked } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { getProfile, getAttendanceSummary } from "@/app/api/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import MobileTabHeader from "../components/MobileTabHeader";
 
 export default function MobileTimesheetPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState("");
   const [timesheetData, setTimesheetData] = useState<any[]>([]);
@@ -47,17 +44,7 @@ export default function MobileTimesheetPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
-      <div className="bg-[#0077b6] text-white px-4 pt-5 pb-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/user/dashboard/mobile")}>
-            <ArrowLeft className="w-5 h-5 text-white" />
-          </Button>
-          <div>
-            <h2 className="text-lg font-semibold">Timesheet</h2>
-          </div>
-        </div>
-        <Bell className="w-5 h-5" />
-      </div>
+      <MobileTabHeader title="Timesheet" backHref="/user/dashboard/mobile" className="bg-[#0077b6]" />
 
       {/* Content */}
       <div className="p-4 pb-20">
@@ -99,4 +86,3 @@ export default function MobileTimesheetPage() {
     </div>
   );
 }
-
