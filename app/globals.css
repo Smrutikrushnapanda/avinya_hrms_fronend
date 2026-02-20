@@ -46,6 +46,7 @@
 
 :root {
   --radius: 0.625rem;
+  font-family: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   /* Professional Light Mode - Clean Slate & Blue */
   --background: oklch(0.985 0.002 264.531);
   --background-top: oklch(0.98 0.003 264.531);

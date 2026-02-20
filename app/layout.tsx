@@ -2,6 +2,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import LayoutWrapper from "@/components/layout-wrapper";
 import { Toaster } from "@/components/ui/sonner";
+import "@fontsource-variable/inter";
 
 
 export const metadata = {
@@ -18,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="font-sans" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className="bg-background text-foreground">
         <ThemeProvider
           attribute="class"
