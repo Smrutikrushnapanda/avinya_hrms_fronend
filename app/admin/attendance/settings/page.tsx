@@ -113,7 +113,32 @@ const defaultBranchForm = {
 };
 
 const sanitizeIntInput = (value: string) => value.replace(/[^0-9]/g, "");
-  const sanitizeFloatInput = (value: string) => value.replace(/[^0-9.-]/g, "");
+const sanitizeFloatInput = (value: string) => value.replace(/[^0-9.-]/g, "");
+
+export default function AttendanceSettingsPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState<AttendanceSettings>(defaultSettings);
+  const [organizationId, setOrganizationId] = useState<string>("");
+
+  // WiFi state
+  const [wifiNetworks, setWifiNetworks] = useState<WifiNetwork[]>([]);
+  const [wifiLoading, setWifiLoading] = useState(false);
+  const [wifiDialogOpen, setWifiDialogOpen] = useState(false);
+  const [wifiSaving, setWifiSaving] = useState(false);
+  const [editingWifi, setEditingWifi] = useState<WifiNetwork | null>(null);
+  const [wifiForm, setWifiForm] = useState(defaultWifiForm);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Branch state
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchLoading, setBranchLoading] = useState(false);
+  const [branchDialogOpen, setBranchDialogOpen] = useState(false);
+  const [branchSaving, setBranchSaving] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [branchForm, setBranchForm] = useState(defaultBranchForm);
+  const [branchDeleteId, setBranchDeleteId] = useState<string | null>(null);
 
   const handleBranchSave = async () => {
     if (!organizationId) {
@@ -129,8 +154,8 @@ const sanitizeIntInput = (value: string) => value.replace(/[^0-9]/g, "");
       const payload = {
         organizationId,
         name: branchForm.name.trim(),
-        workStartTime: branchForm.workStartTime + ":00",
-        workEndTime: branchForm.workEndTime + ":00",
+        workStartTime: `${branchForm.workStartTime}:00`,
+        workEndTime: `${branchForm.workEndTime}:00`,
         graceMinutes: Number(branchForm.graceMinutes || 0),
         lateThresholdMinutes: Number(branchForm.lateThresholdMinutes || 0),
         isActive: branchForm.isActive,
@@ -180,31 +205,6 @@ const sanitizeIntInput = (value: string) => value.replace(/[^0-9]/g, "");
       setBranchDeleteId(null);
     }
   };
-
-export default function AttendanceSettingsPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [settings, setSettings] = useState<AttendanceSettings>(defaultSettings);
-  const [organizationId, setOrganizationId] = useState<string>("");
-
-  // WiFi state
-  const [wifiNetworks, setWifiNetworks] = useState<WifiNetwork[]>([]);
-  const [wifiLoading, setWifiLoading] = useState(false);
-  const [wifiDialogOpen, setWifiDialogOpen] = useState(false);
-  const [wifiSaving, setWifiSaving] = useState(false);
-  const [editingWifi, setEditingWifi] = useState<WifiNetwork | null>(null);
-  const [wifiForm, setWifiForm] = useState(defaultWifiForm);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  // Branch state
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [branchLoading, setBranchLoading] = useState(false);
-  const [branchDialogOpen, setBranchDialogOpen] = useState(false);
-  const [branchSaving, setBranchSaving] = useState(false);
-  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
-  const [branchForm, setBranchForm] = useState(defaultBranchForm);
-  const [branchDeleteId, setBranchDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     getProfile()

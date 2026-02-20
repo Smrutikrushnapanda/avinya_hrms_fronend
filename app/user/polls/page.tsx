@@ -143,8 +143,8 @@ export default function PollsPage() {
 
           const latestSubmittedAt = userResponses
             .map((entry) => entry.submitted_at)
-            .filter(Boolean)
-            .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())[0];
+            .filter((value): value is string => Boolean(value))
+            .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
 
           return {
             pollId: poll.id,

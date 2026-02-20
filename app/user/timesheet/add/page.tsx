@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarCheck } from "lucide-react";
 
@@ -12,6 +12,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
 export default function AddTimesheetPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
+      <AddTimesheetContent />
+    </Suspense>
+  );
+}
+
+function AddTimesheetContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const today = useMemo(() => new Date(), []);

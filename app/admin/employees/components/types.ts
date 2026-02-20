@@ -6,7 +6,6 @@ export interface Employee {
   departmentId?: string;
   designationId?: string;
   branchId?: string;
-  branchId?: string;
   reportingTo?: string;
   employeeCode: string;
   firstName: string;
@@ -40,6 +39,7 @@ export interface EmployeeFormData {
   organizationId: string;
   departmentId?: string;
   designationId?: string;
+  branchId?: string;
   reportingTo?: string;
   employeeCode: string;
   loginUserName: string;

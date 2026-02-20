@@ -1,14 +1,8 @@
-import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import LayoutWrapper from "@/components/layout-wrapper";
 import { Toaster } from "@/components/ui/sonner";
 
-
-const geistSans = Geist({
-  display: "swap",
-  subsets: ["latin"],
-});
 
 export const metadata = {
   title: "Avinya HRMS – Reinventing the Way You Work",
@@ -24,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={geistSans.className} suppressHydrationWarning>
+    <html lang="en" className="font-sans" suppressHydrationWarning>
       <body className="bg-background text-foreground">
         <ThemeProvider
           attribute="class"

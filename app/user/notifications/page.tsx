@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,14 @@ const formatDateTime = (value?: string) => {
 };
 
 export default function NotificationsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading notifications...</div>}>
+      <NotificationsContent />
+    </Suspense>
+  );
+}
+
+function NotificationsContent() {
   const searchParams = useSearchParams();
   const initialMessageId = searchParams.get("messageId");
 
@@ -161,11 +169,11 @@ export default function NotificationsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-6 h-6" />
-          <div>
-            <h1 className="text-2xl font-bold">Notifications</h1>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare className="w-6 h-6" />
+            <div>
+              <h1 className="text-2xl font-bold">Notifications</h1>
             <p className="text-sm text-muted-foreground">
               {unreadCount} unread of {messages.length}
             </p>

@@ -142,10 +142,6 @@ export default function MobileChatPage() {
   const jitsiPrefix =
     process.env.NEXT_PUBLIC_JITSI_ROOM_PREFIX || "vpaas-magic-cookie-13baaedb78ca4524a95bc3d4f7748bf4";
   const jitsiJwt = process.env.NEXT_PUBLIC_JITSI_JWT;
-  const meetingUrl = useMemo(
-    () => `https://${jitsiDomain}/${jitsiPrefix}/${roomName || "hrms-meet"}`,
-    [jitsiDomain, jitsiPrefix, roomName],
-  );
 
   const meetingStoreKey = "active_meetings";
   const getMeetingState = useCallback(
@@ -224,11 +220,6 @@ export default function MobileChatPage() {
       /* ignore */
     }
   };
-
-  const meetingUrl = useMemo(
-    () => `https://${jitsiDomain}/${jitsiPrefix}/${roomName || "hrms-meet"}`,
-    [jitsiDomain, jitsiPrefix, roomName],
-  );
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
@@ -365,6 +356,11 @@ export default function MobileChatPage() {
   const roomName = useMemo(
     () => (conversationId ? `hrms-chat-${conversationId}` : "hrms-chat"),
     [conversationId],
+  );
+
+  const meetingUrl = useMemo(
+    () => `https://${jitsiDomain}/${jitsiPrefix}/${roomName || "hrms-meet"}`,
+    [jitsiDomain, jitsiPrefix, roomName],
   );
 
   const loadJitsiScript = () =>

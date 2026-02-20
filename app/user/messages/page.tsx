@@ -92,7 +92,7 @@ type PresencePayload = {
 
 type ChatSocketPayload = {
   conversationId?: string;
-  message?: unknown;
+  message?: Partial<ChatMessage>;
 };
 
 type ApiErrorLike = {
@@ -852,7 +852,9 @@ export default function MessagesPage() {
         formData.append("text", `Join meeting: ${meetingRoomUrl}`);
         try {
           await sendChatMessage(selectedConversationId, formData);
-          await sendChatMessage(selectedConversationId, new FormData().append("text", `Meeting started`));
+          const started = new FormData();
+          started.append("text", "Meeting started");
+          await sendChatMessage(selectedConversationId, started);
         } catch {
           // non-blocking; ignore send errors
         }
