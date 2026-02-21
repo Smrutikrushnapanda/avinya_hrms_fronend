@@ -14,6 +14,8 @@ import { ThemeSwitcherUser } from "./theme-switcher-user";
 import { getInboxMessages, getOrganization, getProfile, markMessageRead } from "@/app/api/api";
 import { Bell, Search, X } from "lucide-react";
 import { createMessageSocket } from "@/lib/socket";
+import { toast } from "sonner";
+import axios from "axios";
 
 type InboxMessage = {
   id: string;
@@ -26,6 +28,14 @@ type InboxMessage = {
   senderUserId?: string;
 };
 
+type UserRole = "ADMIN" | "EMPLOYEE";
+
+type SearchTarget = {
+  label: string;
+  href: string;
+  keywords?: string[];
+};
+
 export default function Topbar() {
   const router = useRouter();
 
@@ -34,11 +44,15 @@ export default function Topbar() {
     role: "",
     avatar: "",
   });
+  const [primaryRole, setPrimaryRole] = useState<UserRole | null>(null);
   const [organizationName, setOrganizationName] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchFocused, setSearchFocused] = useState<boolean>(false);
   const [currentDateTime, setCurrentDateTime] = useState<string>("");
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState<boolean>(true);
+  const [searchResults, setSearchResults] = useState<SearchTarget[]>([]);
+  const [searchLoading, setSearchLoading] = useState<boolean>(false);
 
   useEffect(() => {
     const updateDateTime = () => {
@@ -80,6 +94,14 @@ export default function Topbar() {
           const orgRes = await getOrganization(data.organizationId);
           setOrganizationName(orgRes.data?.name || "Company Name");
         }
+
+        const roles: string[] = data?.roles?.map((r: { roleName: string }) => r.roleName) || [];
+        const pathRole: UserRole = window.location.pathname.startsWith("/admin") ? "ADMIN" : "EMPLOYEE";
+        const resolvedRole: UserRole =
+          (roles.includes("ADMIN") && pathRole === "ADMIN") ? "ADMIN" :
+          (roles.includes("EMPLOYEE") && pathRole === "EMPLOYEE") ? "EMPLOYEE" :
+          (roles.includes("ADMIN") ? "ADMIN" : "EMPLOYEE");
+        setPrimaryRole(resolvedRole);
       } catch (error) {
         console.error("Error fetching user profile:", error);
       }
@@ -94,17 +116,64 @@ export default function Topbar() {
     }
   };
 
+  const handleSelect = (href: string) => {
+    router.push(href);
+    setSearchQuery("");
+    setSearchFocused(false);
+  };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      // Implement search functionality here
-      console.log("Searching for:", searchQuery);
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      toast.info("Type something to search");
+      return;
     }
+
+    if (!primaryRole) {
+      toast.error("We couldn't detect your role to search pages.");
+      return;
+    }
+
+    const match = searchResults[0];
+    if (match) handleSelect(match.href);
+    else toast.error("No matching page found");
   };
 
   const clearSearch = () => {
     setSearchQuery("");
   };
+
+  useEffect(() => {
+    if (!primaryRole) return;
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    setSearchLoading(true);
+
+    const timeout = setTimeout(() => {
+      axios
+        .get("/api/search", {
+          params: { q: query, role: primaryRole },
+          signal: controller.signal,
+        })
+        .then((res) => setSearchResults(res.data?.results || []))
+        .catch((err) => {
+          if (axios.isCancel(err)) return;
+          console.error("Search failed", err);
+        })
+        .finally(() => setSearchLoading(false));
+    }, 180); // debounce
+
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [primaryRole, searchQuery]);
 
   const normalizeMessage = (msg: any): InboxMessage => ({
     id: msg?.id,
@@ -232,20 +301,51 @@ export default function Topbar() {
       {/* Right: Search Bar + Theme Switcher + Notification Bell + Avatar */}
       <div className="flex items-center gap-4">
         {/* Search Bar */}
-        <form onSubmit={handleSearch} className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm w-56">
-          <Search className="w-4 h-4 text-muted-foreground" />
-          <input
-            className="bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground w-full"
-            placeholder="Search anything..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button type="button" onClick={clearSearch} className="text-muted-foreground hover:text-foreground">
-              <X className="w-3 h-3" />
-            </button>
+        <div className="relative">
+          <form
+            onSubmit={handleSearch}
+            className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 py-2 shadow-sm w-56"
+          >
+            <Search className="w-4 h-4 text-muted-foreground" />
+            <input
+              className="bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground w-full"
+              placeholder="Search anything..."
+              value={searchQuery}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 120)}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button type="button" onClick={clearSearch} className="text-muted-foreground hover:text-foreground">
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </form>
+
+          {searchFocused && searchQuery.trim() && (
+            <div className="absolute z-50 mt-1 w-64 sm:w-72 bg-card border border-border rounded-xl shadow-lg overflow-hidden">
+              {searchLoading ? (
+                <div className="px-3 py-2 text-xs text-muted-foreground">Searching...</div>
+              ) : searchResults.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-muted-foreground">No matching pages</div>
+              ) : (
+                searchResults.map((item) => (
+                  <button
+                    key={item.href}
+                    className="w-full px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground transition-colors flex flex-col"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(item.href);
+                    }}
+                  >
+                    <span className="text-sm font-medium text-foreground">{item.label}</span>
+                    <span className="text-xs text-muted-foreground truncate">{item.href}</span>
+                  </button>
+                ))
+              )}
+            </div>
           )}
-        </form>
+        </div>
 
         <ThemeSwitcherUser />
 

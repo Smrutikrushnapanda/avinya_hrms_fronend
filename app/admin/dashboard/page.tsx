@@ -135,7 +135,7 @@ export default function HRDashboardPage() {
   const [dailyStats, setDailyStats] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [holidays, setHolidays] = useState<any[]>([]);
-  const organizationId = "24facd21-265a-4edd-8fd1-bc69a036f755";
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -146,6 +146,10 @@ export default function HRDashboardPage() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
+      const profileRes = await getProfile();
+      const orgId = profileRes?.data?.organizationId || "24facd21-265a-4edd-8fd1-bc69a036f755";
+      setOrganizationId(orgId);
+
       const formattedDate = format(new Date(), "yyyy-MM-dd");
       const results = await Promise.allSettled([
         getDashboardSummary(),
@@ -153,11 +157,10 @@ export default function HRDashboardPage() {
         getTodayAnomalies(),
         getNotices(),
         getPolls(),
-        api.get("/attendance/daily-stats", { params: { organizationId, date: formattedDate } }),
-        getProfile(),
-        getHolidays({ organizationId }),
+        api.get("/attendance/daily-stats", { params: { organizationId: orgId, date: formattedDate } }),
+        getHolidays({ organizationId: orgId }),
       ]);
-      const [dashboardRes, activitiesRes, anomaliesRes, noticesRes, pollsRes, dailyStatsRes, profileRes, holidaysRes] = results;
+      const [dashboardRes, activitiesRes, anomaliesRes, noticesRes, pollsRes, dailyStatsRes, holidaysRes] = results;
 
       setDashboardData(dashboardRes.status === 'fulfilled' && dashboardRes.value.data.success ? dashboardRes.value.data.data : null);
       setActivities(activitiesRes.status === 'fulfilled' ? activitiesRes.value.data?.data || [] : []);
@@ -165,7 +168,7 @@ export default function HRDashboardPage() {
       setNotices(noticesRes.status === 'fulfilled' ? noticesRes.value.data || [] : []);
       setPolls(pollsRes.status === 'fulfilled' ? pollsRes.value.data || [] : []);
       setDailyStats(dailyStatsRes.status === 'fulfilled' ? dailyStatsRes.value.data : null);
-      setCurrentUser(profileRes.status === 'fulfilled' ? profileRes.value.data : null);
+      setCurrentUser(profileRes?.data || null);
       // Handle holidays data
       if (holidaysRes.status === 'fulfilled') {
         const holidaysData = holidaysRes.value.data;
@@ -212,8 +215,6 @@ export default function HRDashboardPage() {
   }, [departmentStats, departments, employees]);
 
   const attendanceChartData = useMemo(() => {
-    console.log('Daily Stats:', dailyStats);
-    console.log("user: ",getProfile());
     if (dailyStats) {
       const presentCount = dailyStats.presentSummary?.total_present || 0;
       const absentCount = dailyStats.notPresentSummary?.absent || 0;
