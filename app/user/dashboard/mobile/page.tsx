@@ -31,7 +31,7 @@ import {
 } from "@/app/api/api";
 import { useRouter } from "next/navigation";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
-import { startOfMonth } from "date-fns";
+import { startOfMonth, endOfMonth, addDays } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,6 +41,7 @@ interface AttendanceStatus {
     | "absent"
     | "half-day"
     | "holiday"
+    | "weekend"
     | "pending"
     | "leave"
     | "half-leave";
@@ -62,6 +63,8 @@ interface OrgSettings {
   enableWifiValidation: boolean;
   enableGpsValidation: boolean;
   enableFaceValidation: boolean;
+  workingDays?: number[]; // 0=Sun ... 6=Sat
+  weekdayOffRules?: Record<string, number[]>; // key=weekday (0-6), value=array of week numbers (1-5) that are off
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -122,6 +125,7 @@ export default function MobileDashboardPage() {
   const [open, setOpen] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -311,7 +315,11 @@ export default function MobileDashboardPage() {
 
         if (orgId) {
           // Fetch admin attendance settings
-          let fetchedSettings: OrgSettings = { enableWifiValidation: false, enableGpsValidation: true, enableFaceValidation: true };
+          let fetchedSettings: OrgSettings = {
+            enableWifiValidation: false,
+            enableGpsValidation: true,
+            enableFaceValidation: true,
+          };
           try {
             const sRes = await getAttendanceSettings(orgId);
             const s = sRes.data;
@@ -319,6 +327,8 @@ export default function MobileDashboardPage() {
               enableWifiValidation: s?.enableWifiValidation ?? false,
               enableGpsValidation: s?.enableGpsValidation ?? true,
               enableFaceValidation: s?.enableFaceValidation ?? true,
+              workingDays: s?.workingDays ?? undefined,
+              weekdayOffRules: s?.weekdayOffRules ?? undefined,
             };
             setSettings(fetchedSettings);
           } catch {
@@ -351,6 +361,8 @@ export default function MobileDashboardPage() {
         }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -390,10 +402,64 @@ export default function MobileDashboardPage() {
     return map;
   }, [holidays]);
 
-  const mergedStatusByDate = useMemo(
-    () => ({ ...holidayStatusByDate, ...statusByDate }),
-    [holidayStatusByDate, statusByDate]
+  const isOrgOffDay = useCallback(
+    (date: Date) => {
+      const dow = date.getDay(); // 0=Sun
+      const weekNum = Math.ceil(date.getDate() / 7); // 1-5
+      const working = settings.workingDays;
+      const offRules = settings.weekdayOffRules;
+
+      // If workingDays provided and does NOT include this weekday, it is off
+      if (Array.isArray(working) && !working.includes(dow)) return true;
+
+      // If off rules provided, and this week number is listed for the weekday, it's off
+      if (offRules && Array.isArray(offRules[dow])) {
+        if (offRules[dow].includes(weekNum)) return true;
+      }
+
+      // Default: Sundays are off
+      return dow === 0;
+    },
+    [settings]
   );
+
+  const mergedStatusByDate = useMemo(() => {
+    const merged = { ...holidayStatusByDate, ...statusByDate };
+
+    const startMonth = startOfMonth(currentMonth);
+    const endMonth = endOfMonth(currentMonth);
+    for (let d = startMonth; d <= endMonth; d = addDays(d, 1)) {
+      const key = d.toISOString().split("T")[0];
+      const dow = d.getDay();
+      const weekNum = Math.ceil(d.getDate() / 7);
+
+      const existing = merged[key];
+      const keepStatuses = ["present", "half-day", "leave", "half-leave"];
+
+      // Decide if this day is an org off-day
+      const off = isOrgOffDay(d);
+
+      // Special: 2nd/4th Saturday default when no settings provided
+      const isSaturday = dow === 6;
+      const defaultSatOff =
+        !settings.workingDays && !settings.weekdayOffRules
+          ? (weekNum === 2 || weekNum === 4) && isSaturday
+          : false;
+
+      const shouldMarkOff = off || defaultSatOff;
+
+      if (!shouldMarkOff) continue;
+
+      if (existing) {
+        if (existing.status === "holiday") continue; // holiday wins
+        if (keepStatuses.includes(existing.status)) continue; // keep worked days
+      }
+
+      merged[key] = { status: "weekend" };
+    }
+
+    return merged;
+  }, [holidayStatusByDate, statusByDate, currentMonth, isOrgOffDay, settings]);
 
   // ── Camera: start stream; cleanup stops it when dialog closes or photo is captured
   useEffect(() => {
@@ -574,14 +640,26 @@ export default function MobileDashboardPage() {
           {/* Punch button */}
           <Button
             onClick={() => setOpen(true)}
+            disabled={isLoading}
             className={`w-full mt-4 ${
-              hasPunchedInToday
+              isLoading
+                ? "bg-gray-400 cursor-not-allowed"
+                : hasPunchedInToday
                 ? "bg-red-500 hover:bg-red-600"
                 : "bg-green-500 hover:bg-green-600"
             } text-white flex items-center justify-center gap-2`}
           >
-            <Camera className="w-4 h-4" />
-            {hasPunchedInToday ? "Last Punch" : "Punch In"}
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <Camera className="w-4 h-4" />
+                {hasPunchedInToday ? "Last Punch" : "Punch In"}
+              </>
+            )}
           </Button>
         </CardContent>
       </Card>

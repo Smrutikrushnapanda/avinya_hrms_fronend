@@ -64,7 +64,48 @@ export default function AttendancePage() {
           },
         });
 
-        setData(res.data.results || []);
+        const rows = res.data.results || [];
+
+        // Hydrate signed URLs for private Supabase keys
+        const hydrated = await Promise.all(
+          rows.map(async (row: any) => {
+            const profileSigned =
+              row.profileImage && !row.profileImage.startsWith("http")
+                ? await api
+                    .get("/attendance/photo-url", { params: { key: row.profileImage } })
+                    .then((r) => r.data.signedUrl)
+                    .catch(() => null)
+                : row.profileImage;
+
+            const [inSigned, outSigned] = await Promise.all([
+              row.inPhotoUrl
+                ? api
+                    .get("/attendance/photo-url", {
+                      params: { key: row.inPhotoUrl },
+                    })
+                    .then((r) => r.data.signedUrl)
+                    .catch(() => null)
+                : null,
+              row.outPhotoUrl
+                ? api
+                    .get("/attendance/photo-url", {
+                      params: { key: row.outPhotoUrl },
+                    })
+                    .then((r) => r.data.signedUrl)
+                    .catch(() => null)
+                : null,
+            ]);
+
+            return {
+              ...row,
+              profileImageSigned: profileSigned,
+              inPhotoUrlSigned: inSigned,
+              outPhotoUrlSigned: outSigned,
+            };
+          }),
+        );
+
+        setData(hydrated);
         setTotalPages(res.data.pagination?.totalPages || 1);
 
         // Fetch daily stats

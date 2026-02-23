@@ -30,6 +30,7 @@ interface AttendanceStatus {
     | "absent"
     | "half-day"
     | "holiday"
+    | "weekend"
     | "pending"
     | "leave"
     | "half-leave";
@@ -55,6 +56,8 @@ function getDayCircleClass(
     return cn(base, "bg-green-100 border-2 border-green-500 text-green-800");
   if (status === "absent")
     return cn(base, "bg-red-100 border-2 border-red-500 text-red-800");
+  if (status === "weekend")
+    return cn(base, "bg-blue-100 border-2 border-blue-500 text-blue-800");
   if (status === "leave")
     return cn(base, "bg-yellow-100 border-2 border-yellow-500 text-yellow-800");
   if (status === "holiday")
@@ -265,6 +268,10 @@ export default function AttendanceCalendar({
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-blue-400 shrink-0" />
           <span>Holiday</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-blue-500 shrink-0" />
+          <span>Weekend</span>
         </div>
       </div>
     </div>

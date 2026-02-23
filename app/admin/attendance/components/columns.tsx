@@ -54,11 +54,14 @@ export const columns: ColumnDef<Attendance>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      const { userName, employeeCode, profileImage } = row.original;
+      const { userName, employeeCode, profileImage, profileImageSigned } =
+        row.original as any;
+      const avatarSrc =
+        profileImageSigned || profileImage || "/default-avatar.png";
       return (
         <div className="flex items-center gap-3 w-[200px]">
           <img
-            src={profileImage || "/default-avatar.png"}
+            src={avatarSrc}
             alt={userName}
             className="w-10 h-10 rounded-full object-cover ring-1 ring-muted-foreground/20"
           />
@@ -145,7 +148,7 @@ export const columns: ColumnDef<Attendance>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      const imageUrl = row.original.inPhotoUrl;
+      const imageUrl = row.original.inPhotoUrlSigned || row.original.inPhotoUrl;
   
       if (!imageUrl) return "-";
   
@@ -184,7 +187,7 @@ export const columns: ColumnDef<Attendance>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      const url = row.original.outPhotoUrl;
+      const url = row.original.outPhotoUrlSigned || row.original.outPhotoUrl;
   
       if (!url) return "-";
   

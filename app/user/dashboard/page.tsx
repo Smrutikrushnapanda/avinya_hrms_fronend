@@ -27,6 +27,7 @@ import {
   getEmployeeByUserId,
   getTodayLogs,
   getHolidays,
+  getAttendanceSettings,
 } from "@/app/api/api";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -64,7 +65,15 @@ function StatusPill({ status }: { status: string }) {
 
 // ─── HOLIDAY CALENDAR WIDGET ──────────────────────────────────────────────────
 
-function HolidayCalendarWidget({ holidays }: { holidays: Holiday[] }) {
+function HolidayCalendarWidget({
+  holidays,
+  workingDays,
+  weekdayOffRules,
+}: {
+  holidays: Holiday[];
+  workingDays?: number[];
+  weekdayOffRules?: Record<string, number[]>;
+}) {
   const [month, setMonth] = useState(new Date());
   const [selectedHoliday, setSelectedHoliday] = useState<Holiday | null>(null);
 
@@ -92,16 +101,45 @@ function HolidayCalendarWidget({ holidays }: { holidays: Holiday[] }) {
     setSelectedHoliday(holiday && holiday.id !== selectedHoliday?.id ? holiday : null);
   };
 
+  const isOrgOffDay = (day: Date) => {
+    const dow = day.getDay(); // 0=Sun
+    const weekNum = Math.ceil(day.getDate() / 7);
+
+    if (Array.isArray(workingDays) && !workingDays.includes(dow)) return true;
+    if (weekdayOffRules && Array.isArray(weekdayOffRules[dow])) {
+      if (weekdayOffRules[dow].includes(weekNum)) return true;
+    }
+    // Default: Sundays + 2nd/4th Saturdays if no settings provided
+    if (!workingDays && !weekdayOffRules) {
+      if (dow === 0) return true;
+      if (dow === 6 && (weekNum === 2 || weekNum === 4)) return true;
+    }
+    return false;
+  };
+
+  // Build weekend/off-day modifiers for the visible month
+  const weekendDates = (() => {
+    const start = new Date(month.getFullYear(), month.getMonth(), 1);
+    const end = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+    const days: Date[] = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      if (isOrgOffDay(d)) days.push(new Date(d));
+    }
+    return days;
+  })();
+
   return (
     <div className="flex flex-col">
       <Calendar
         mode="single"
         month={month}
         onMonthChange={setMonth}
-        modifiers={{ holiday: holidayDates }}
+        modifiers={{ holiday: holidayDates, weekend: weekendDates }}
         modifiersClassNames={{
           holiday:
             "!bg-rose-100 !text-rose-600 dark:!bg-rose-900/40 dark:!text-rose-400 font-bold rounded-full ring-2 ring-rose-300 dark:ring-rose-700",
+          weekend:
+            "!bg-blue-100 !text-blue-700 dark:!bg-blue-900/30 dark:!text-blue-300 font-bold rounded-full ring-2 ring-blue-200 dark:ring-blue-700",
         }}
         onDayClick={handleDayClick}
         classNames={{
@@ -117,6 +155,10 @@ function HolidayCalendarWidget({ holidays }: { holidays: Holiday[] }) {
         <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
           Holiday
+        </span>
+        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
+          Weekend / Off
         </span>
         <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: "#00BBA7" }} />
@@ -232,6 +274,8 @@ export default function UserDashboardPage() {
   const [employeeId, setEmployeeId] = useState<string>("");
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [hasPunchedInToday, setHasPunchedInToday] = useState(false);
+  const [workingDays, setWorkingDays] = useState<number[] | undefined>(undefined);
+  const [weekdayOffRules, setWeekdayOffRules] = useState<Record<string, number[]> | undefined>(undefined);
 
   const normalizeLeaveBalance = (balance: LeaveBalanceData): LeaveBalanceData => {
     const openingBalance = Number(balance.openingBalance ?? 0);
@@ -335,6 +379,16 @@ export default function UserDashboardPage() {
             }
           } catch (holidayError) {
             console.log("Holidays not available:", holidayError);
+          }
+
+          // Fetch attendance settings for weekend/off-day rules
+          try {
+            const settingsRes = await getAttendanceSettings(profile.organizationId);
+            const s = settingsRes.data;
+            setWorkingDays(s?.workingDays);
+            setWeekdayOffRules(s?.weekdayOffRules);
+          } catch (settingsError) {
+            console.log("Attendance settings not available:", settingsError);
           }
         }
       } catch (error) {
@@ -582,7 +636,11 @@ export default function UserDashboardPage() {
               <CalendarDays className="w-4 h-4 text-rose-500" />
             </div>
           </div>
-          <HolidayCalendarWidget holidays={holidays} />
+          <HolidayCalendarWidget
+            holidays={holidays}
+            workingDays={workingDays}
+            weekdayOffRules={weekdayOffRules}
+          />
         </Card>
 
         {/* UPCOMING MEETINGS */}

@@ -373,7 +373,11 @@ export default function EmployeeTable({
                             <div className="flex items-center space-x-3">
                               <Avatar className="h-10 w-10 flex-shrink-0">
                                 <AvatarImage
-                                  src={employee.photoUrl}
+                                  src={
+                                    employee.passportPhotoUrl ||
+                                    employee.photoUrl ||
+                                    "/avatar.jpg"
+                                  }
                                   alt={`${employee.firstName} ${employee.lastName}`}
                                 />
                                 <AvatarFallback>
