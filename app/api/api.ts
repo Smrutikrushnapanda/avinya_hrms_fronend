@@ -1,7 +1,7 @@
 import axios from "axios";
 import { toast } from "sonner";
 
-const cloudFallbackURL = "https://avinya-hrms-backend.onrender.com";
+const cloudFallbackURL = "https://avinya-hrms-backend-y6f5.onrender.com";
 const envOverrideURL =
   process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_LOCAL_API_BASE_URL;
 

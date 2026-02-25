@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_FALLBACK_URL = "https://avinya-hrms-backend.onrender.com";
+const SOCKET_FALLBACK_URL = "https://avinya-hrms-backend-y6f5.onrender.com";
 
 export const getSocketUrl = () =>
   process.env.NEXT_PUBLIC_SOCKET_URL ||

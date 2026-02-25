@@ -20,13 +20,16 @@ export type Attendance = {
   userName: string;
   email?: string;
   profileImage: string;
+  profileImageSigned?: string;
   employeeCode: string;
   status: string;
   workingMinutes?: number;
   inTime?: string;
   inPhotoUrl?: string;
+  inPhotoUrlSigned?: string;
   outTime?: string;
   outPhotoUrl?: string;
+  outPhotoUrlSigned?: string;
   inLocationAddress?: string;
   outLocationAddress?: string;
   inDeviceInfo?: string;

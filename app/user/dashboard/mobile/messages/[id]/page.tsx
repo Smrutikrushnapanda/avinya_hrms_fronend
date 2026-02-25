@@ -104,7 +104,7 @@ const resolveAttachmentUrl = (url?: string) => {
   const base =
     process.env.NEXT_PUBLIC_API_BASE_URL ||
     process.env.NEXT_PUBLIC_LOCAL_API_BASE_URL ||
-    "https://avinya-hrms-backend.onrender.com";
+    "https://avinya-hrms-backend-y6f5.onrender.com";
   return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
 };
 
