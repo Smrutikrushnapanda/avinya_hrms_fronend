@@ -151,10 +151,13 @@ export const columns: ColumnDef<Attendance>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      const imageUrl = row.original.inPhotoUrlSigned || row.original.inPhotoUrl;
-  
+      // Prefer signed URL when available (private storage); fall back to raw path
+      const { inPhotoUrlSigned, inPhotoUrl } =
+        row.original as Attendance & { inPhotoUrlSigned?: string };
+      const imageUrl = inPhotoUrlSigned || inPhotoUrl;
+
       if (!imageUrl) return "-";
-  
+
       return (
         <Dialog>
           <DialogTrigger asChild>
@@ -190,10 +193,13 @@ export const columns: ColumnDef<Attendance>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      const url = row.original.outPhotoUrlSigned || row.original.outPhotoUrl;
-  
+      // Prefer signed URL when available (private storage); fall back to raw path
+      const { outPhotoUrlSigned, outPhotoUrl } =
+        row.original as Attendance & { outPhotoUrlSigned?: string };
+      const url = outPhotoUrlSigned || outPhotoUrl;
+
       if (!url) return "-";
-  
+
       return (
         <Dialog>
           <DialogTrigger asChild>

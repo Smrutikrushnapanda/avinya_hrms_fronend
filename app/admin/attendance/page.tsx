@@ -15,7 +15,7 @@ import Link from "next/link";
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date());
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
