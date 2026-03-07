@@ -159,6 +159,7 @@ export default function EmployeeDialogs({
   const designations = employeeData?.filters?.designations || [];
   const managers = employeeData?.filters?.managers || [];
   const branches = employeeData?.filters?.branches || [];
+  const roles = employeeData?.filters?.roles || [];
   const employees: Employee[] = employeeData?.employees || [];
 
   const messageRecipients = employees.filter((emp: Employee) =>
@@ -561,7 +562,7 @@ export default function EmployeeDialogs({
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="employmentType">Employment Type</Label>
                     <Select
@@ -577,6 +578,28 @@ export default function EmployeeDialogs({
                         <SelectItem value="CONTRACT">Contract</SelectItem>
                         <SelectItem value="INTERN">Intern</SelectItem>
                         <SelectItem value="CONSULTANT">Consultant</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="roleId">Role</Label>
+                    <Select
+                      value={newEmployee.roleId || ""}
+                      onValueChange={(value) => setNewEmployee({ ...newEmployee, roleId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roles.length === 0 ? (
+                          <SelectItem value="no-roles" disabled>No roles available</SelectItem>
+                        ) : (
+                          roles.map((role: any) => (
+                            <SelectItem key={role.id} value={role.id}>
+                              {role.roleName}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1053,7 +1076,7 @@ export default function EmployeeDialogs({
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="editEmploymentType">Employment Type</Label>
                     <Select
@@ -1069,6 +1092,28 @@ export default function EmployeeDialogs({
                         <SelectItem value="CONTRACT">Contract</SelectItem>
                         <SelectItem value="INTERN">Intern</SelectItem>
                         <SelectItem value="CONSULTANT">Consultant</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editRoleId">Role</Label>
+                    <Select
+                      value={editEmployee.roleId || ""}
+                      onValueChange={(value) => setEditEmployee({ ...editEmployee, roleId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roles.length === 0 ? (
+                          <SelectItem value="no-roles" disabled>No roles available</SelectItem>
+                        ) : (
+                          roles.map((role: any) => (
+                            <SelectItem key={role.id} value={role.id}>
+                              {role.roleName}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

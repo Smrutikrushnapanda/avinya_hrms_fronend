@@ -75,11 +75,6 @@ const searchCatalog: Record<UserRole, SearchTarget[]> = {
       keywords: ["timeslip", "manual slip", "correction", "retro"],
     },
     {
-      label: "Clients & Projects",
-      href: "/admin/clients-projects",
-      keywords: ["clients", "projects", "engagements", "accounts"],
-    },
-    {
       label: "Leave",
       href: "/admin/leave",
       keywords: ["vacation", "holiday", "leave balance", "approve leave", "requests"],
@@ -193,6 +188,11 @@ const searchCatalog: Record<UserRole, SearchTarget[]> = {
       keywords: ["vacation", "holiday", "leave balance", "apply leave", "request"],
     },
     {
+      label: "WFH",
+      href: "/user/wfh",
+      keywords: ["work from home", "remote", "wfh", "apply wfh", "wfh balance"],
+    },
+    {
       label: "Time Slips",
       href: "/user/timeslips",
       keywords: ["timeslip", "manual slip", "correction", "retro"],
@@ -216,6 +216,11 @@ const searchCatalog: Record<UserRole, SearchTarget[]> = {
       label: "Notifications",
       href: "/user/notifications",
       keywords: ["alerts", "bell", "reminders"],
+    },
+    {
+      label: "My Profile",
+      href: "/user/profile",
+      keywords: ["profile", "my account", "employee details", "personal info"],
     },
   ],
 };

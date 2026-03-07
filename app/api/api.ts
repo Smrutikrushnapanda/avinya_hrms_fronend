@@ -53,6 +53,9 @@ export const getOrganizations = () => api.get("/organizations");
 export const createOrganization = (data: any) => api.post("/organizations", data);
 export const updateOrganization = (id: string, data: any) => api.put(`/organizations/${id}`, data);
 export const getOrganization = (id: string) => api.get(`/organizations/${id}`);
+export const deleteOrganization = (id: string) => api.delete(`/organizations/${id}`);
+export const changeOrgAdminCredentials = (id: string, data: { newUserName?: string; newPassword?: string }) =>
+  api.put(`/organizations/${id}/credentials`, data);
 
 // 📅 Holiday APIs
 export const getHolidays = (params: { organizationId: string; fromYear?: number }) => {
@@ -174,10 +177,46 @@ export const createClient = (data: any) => api.post("/clients", data);
 export const updateClient = (id: string, data: any) => api.put(`/clients/${id}`, data);
 export const deleteClient = (id: string) => api.delete(`/clients/${id}`);
 
-export const getProjects = (params: any) => api.get("/projects", { params });
+// Client-linked projects (under /client-projects)
+export const getClientProjects = (params: any) => api.get("/client-projects", { params });
+export const createClientProject = (data: any) => api.post("/client-projects", data);
+export const updateClientProject = (id: string, data: any) => api.put(`/client-projects/${id}`, data);
+export const deleteClientProject = (id: string) => api.delete(`/client-projects/${id}`);
+export const getMyClientProjects = () => api.get("/client-projects/my");
+export const updateClientProjectCompletion = (id: string, completionPercent: number) =>
+  api.put(`/client-projects/${id}/completion`, { completionPercent });
+
+// PM Projects (under /projects)
+export const getProjects = (params?: any) => api.get("/projects", { params });
 export const createProject = (data: any) => api.post("/projects", data);
-export const updateProject = (id: string, data: any) => api.put(`/projects/${id}`, data);
+export const updateProject = (id: string, data: any) => api.patch(`/projects/${id}`, data);
 export const deleteProject = (id: string) => api.delete(`/projects/${id}`);
+export const getMyProjects = () => api.get('/projects/my');
+export const getProject = (id: string) => api.get(`/projects/${id}`);
+export const assignProjectMembers = (id: string, userIds: string[]) =>
+  api.post(`/projects/${id}/members`, { userIds });
+export const removeProjectMember = (id: string, userId: string) =>
+  api.delete(`/projects/${id}/members/${userId}`);
+
+// Employee Assignment APIs (for managers to assign employees to projects)
+export const getProjectEmployees = (id: string) => api.get(`/projects/${id}/employees`);
+export const assignProjectEmployees = (id: string, userIds: string[]) =>
+  api.post(`/projects/${id}/employees`, { userIds });
+export const removeProjectEmployee = (id: string, userId: string) =>
+  api.delete(`/projects/${id}/employees/${userId}`);
+export const getMyTeamEmployees = () => api.get('/projects/managers/team');
+export const getAllOrgEmployees = (params?: {
+  search?: string;
+  designationId?: string;
+  limit?: number;
+}) => api.get('/projects/org-employees', { params });
+
+// Client Project Employee Assignment APIs
+export const getClientProjectEmployees = (id: string) => api.get(`/client-projects/${id}/employees`);
+export const assignClientProjectEmployees = (id: string, userIds: string[]) =>
+  api.post(`/client-projects/${id}/employees`, { userIds });
+export const removeClientProjectEmployee = (id: string, userId: string) =>
+  api.delete(`/client-projects/${id}/employees/${userId}`);
 
 // 🕒 Enhanced attendance report fetcher
 export const getAttendanceReport = async (params: {
@@ -243,7 +282,8 @@ export const getAttendanceReport = async (params: {
 };
 
 // ✈️ Leave Management APIs
-export const getLeaveTypes = (orgId: string) => api.get(`/leave/types/${orgId}`);
+export const getLeaveTypes = (orgId: string, gender?: string) =>
+  api.get(`/leave/types/${orgId}`, gender ? { params: { gender } } : undefined);
 export const createLeaveType = (data: any) => api.post(`/leave/types`, data);
 export const updateLeaveType = (id: string, data: any) => api.put(`/leave/types/${id}`, data);
 export const deleteLeaveType = (id: string) => api.delete(`/leave/types/${id}`);
@@ -272,6 +312,7 @@ export const getAllWfhRequests = (orgId: string) => api.get(`/wfh/all/${orgId}`)
 export const getAllWfhApprovals = (approverId: string) => api.get(`/wfh/my-approvals/${approverId}`);
 export const createWfhAssignment = (data: any) => api.post('/wfh/approval-assignments', data);
 export const getWfhAssignments = (userId: string) => api.get(`/wfh/approval-assignments/${userId}`);
+export const getWfhAssignmentsByOrg = (orgId: string) => api.get(`/wfh/approval-assignments/org/${orgId}`);
 export const deleteWfhAssignment = (id: string) => api.delete(`/wfh/approval-assignments/${id}`);
 export const getWfhBalance = (userId: string) => api.get(`/wfh/balance/${userId}`);
 export const initializeWfhBalance = (data: any) => api.post('/wfh/balance/initialize', data);
@@ -449,6 +490,129 @@ export const sendChatMessage = (conversationId: string, data: FormData) =>
   api.post(`/chat/conversations/${conversationId}/messages`, data, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+
+// 📡 WFH Monitoring APIs
+export const wfhHeartbeat = (data: { mouseEvents: number; keyboardEvents: number; tabSwitches: number }) =>
+  api.post('/wfh-monitoring/heartbeat', data);
+export const wfhToggleLunch = () => api.post('/wfh-monitoring/lunch/toggle');
+export const wfhToggleWork = () => api.post('/wfh-monitoring/work/toggle');
+export const getWfhToday = () => api.get('/wfh-monitoring/today');
+export const getEmployeeWfhActivity = (userId: string, date?: string) =>
+  api.get(`/wfh-monitoring/employee/${userId}`, { params: { date } });
+export const getTeamWfhActivity = (date?: string) =>
+  api.get('/wfh-monitoring/team', { params: { date } });
+export const getWfhChartData = (date?: string) =>
+  api.get('/wfh-monitoring/chart', { params: { date } });
+
+// 📋 Company Policy APIs
+export const getPolicies = () => api.get('/policy');
+export const getPolicyById = (id: string) => api.get(`/policy/${id}`);
+export const createPolicy = (data: { title: string; content: string; category?: string }) =>
+  api.post('/policy', data);
+export const updatePolicy = (id: string, data: Partial<{ title: string; content: string; category: string; isActive: boolean }>) =>
+  api.put(`/policy/${id}`, data);
+export const deletePolicy = (id: string) => api.delete(`/policy/${id}`);
+
+// 🙋 Resignation APIs
+export const createResignationRequest = (data: {
+  message: string;
+  proposedLastWorkingDay?: string;
+}) => api.post('/resignations/request', data);
+
+export const getMyResignationRequests = () => api.get('/resignations/me');
+
+export const getOrgResignationRequests = (status?: string) =>
+  api.get('/resignations/org', { params: { status } });
+
+export const reviewResignationRequest = (
+  id: string,
+  data: {
+    status: 'APPROVED' | 'REJECTED';
+    hrRemarks?: string;
+    approvedLastWorkingDay?: string;
+    allowEarlyRelieving?: boolean;
+  },
+) => api.patch(`/resignations/${id}/review`, data);
+
+// 🏆 Performance APIs
+export const getPerformanceSettings = () => api.get('/performance/settings');
+export const togglePerformanceEnabled = () => api.post('/performance/settings/toggle');
+export const updatePerformanceSettings = (data: { requireHrApproval?: boolean }) =>
+  api.patch('/performance/settings', data);
+export const getPerformanceQuestions = () => api.get('/performance/questions');
+export const createPerformanceQuestion = (data: { question: string; orderIndex?: number }) =>
+  api.post('/performance/questions', data);
+export const deletePerformanceQuestion = (id: string) => api.delete(`/performance/questions/${id}`);
+export const checkIsManager = () => api.get('/performance/is-manager');
+export const checkIsHr = () => api.get('/performance/is-hr');
+export const getTeamWithReviews = () => api.get('/performance/team');
+export const getAllEmployeesForHr = () => api.get('/performance/employees');
+export const submitSelfReview = (data: { period?: string; answers: { questionId: string; question: string; answer: string }[]; overallRating?: number; comments?: string }) =>
+  api.post('/performance/reviews/self', data);
+export const submitManagerReview = (data: { employeeId: string; period?: string; answers?: { questionId: string; question: string; answer: string }[]; overallRating?: number; comments?: string }) =>
+  api.post('/performance/reviews/manager', data);
+export const submitHrReview = (data: { employeeId: string; period?: string; answers?: { questionId: string; question: string; answer: string }[]; overallRating?: number; comments?: string }) =>
+  api.post('/performance/reviews/hr', data);
+export const getMyPerformanceReviews = () => api.get('/performance/reviews/me');
+export const getTeamPerformanceReviews = () => api.get('/performance/reviews/team');
+export const getAllPerformanceReviews = () => api.get('/performance/reviews/all');
+export const getAllReviewsAggregated = () => api.get('/performance/reviews/all-aggregated');
+
+// 💸 Expenses & Travel APIs
+export const createExpense = (userId: string, data: any) => api.post(`/expenses/${userId}`, data);
+export const getMyExpenses = (userId: string) => api.get(`/expenses/my/${userId}`);
+export const getAllExpenses = (organizationId: string) => api.get('/expenses/all', { params: { organizationId } });
+export const updateExpenseStatus = (id: string, data: { status: string; adminRemarks?: string }) =>
+  api.put(`/expenses/${id}/status`, data);
+export const deleteExpense = (id: string, userId: string) => api.delete(`/expenses/${id}/${userId}`);
+
+// Credit earned leave (admin → employee who worked on weekend/holiday)
+export const creditEarnedLeave = (userId: string, data: { days: number; organizationId: string }) =>
+  api.post(`/leave/credit-earned/${userId}`, data);
+
+// 📅 Meeting APIs
+export const createMeeting = (data: {
+  title: string;
+  description?: string;
+  scheduledAt: string;
+  durationMinutes?: number;
+  participantIds?: string[];
+  organizationId: string;
+  createdById: string;
+}) => api.post('/meetings', data);
+
+export const getMeetingsByOrg = (organizationId: string) =>
+  api.get(`/meetings/org/${organizationId}`);
+
+export const getUpcomingMeetingsByOrg = (organizationId: string) =>
+  api.get(`/meetings/org/${organizationId}/upcoming`);
+
+export const getMeetingsForUser = (userId: string) =>
+  api.get(`/meetings/user/${userId}`);
+
+export const getUpcomingMeetingsForUser = (userId: string) =>
+  api.get(`/meetings/user/${userId}/upcoming`);
+
+export const getMeetingById = (id: string) =>
+  api.get(`/meetings/${id}`);
+
+export const updateMeeting = (id: string, data: {
+  title?: string;
+  description?: string;
+  scheduledAt?: string;
+  durationMinutes?: number;
+  participantIds?: string[];
+  status?: string;
+}) => api.put(`/meetings/${id}`, data);
+
+export const deleteMeeting = (id: string) =>
+  api.delete(`/meetings/${id}`);
+
+export const sendMeetingNotification = (id: string) =>
+  api.post(`/meetings/${id}/notify`);
+
+export const updateMeetingStatus = (id: string, status: string) =>
+  api.put(`/meetings/${id}/status`, { status });
 
 // Export the axios instance as default and named export
 export { api, apiBaseURL };

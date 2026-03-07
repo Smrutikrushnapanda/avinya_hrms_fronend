@@ -57,6 +57,7 @@ import {
   approveWfh,
   createWfhAssignment,
   getWfhAssignments,
+  getWfhAssignmentsByOrg,
   deleteWfhAssignment,
   getOrganization,
   updateOrganization,
@@ -278,33 +279,20 @@ export default function WfhManagementPage() {
 
   // ------- Fetch assignments -------
   const fetchAssignments = useCallback(async () => {
-    if (!profile?.organizationId || employees.length === 0) return;
+    if (!profile?.organizationId) return;
     setAssignmentsLoading(true);
     try {
-      const allAssignments: WfhAssignment[] = [];
-      for (const emp of employees) {
-        try {
-          const res = await getWfhAssignments(emp.userId);
-          const data = res.data?.data || res.data || [];
-          const empAssignments = Array.isArray(data) ? data : [];
-          allAssignments.push(...empAssignments);
-        } catch {
-          // Employee may have no assignments
-        }
-      }
-      // Deduplicate by id
-      const uniqueMap = new Map<string, WfhAssignment>();
-      allAssignments.forEach((a) => {
-        if (a.id) uniqueMap.set(a.id, a);
-      });
-      setAssignments(Array.from(uniqueMap.values()));
+      // Use the new organization-level endpoint instead of looping through each employee
+      const res = await getWfhAssignmentsByOrg(profile.organizationId);
+      const data = res.data?.data || res.data || [];
+      setAssignments(Array.isArray(data) ? data : []);
     } catch (error: any) {
       console.error("Failed to fetch assignments:", error);
       toast.error("Failed to load approval assignments");
     } finally {
       setAssignmentsLoading(false);
     }
-  }, [profile?.organizationId, employees]);
+  }, [profile?.organizationId]);
 
   // ------- Fetch WFH balance templates -------
   const fetchWfhTemplates = useCallback(async () => {

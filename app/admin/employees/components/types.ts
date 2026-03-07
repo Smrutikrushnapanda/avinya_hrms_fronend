@@ -32,6 +32,9 @@ export interface Employee {
   branch?: { id: string; name: string };
   manager?: { id: string; firstName: string; lastName: string };
   user?: { id: string; lastLogin?: string; isActive: boolean };
+  roles?: { id: string; roleName: string }[];
+  roleId?: string | null;
+  primaryRole?: string | null;
   createdAt: string;
 }
 
@@ -44,6 +47,7 @@ export interface EmployeeFormData {
   employeeCode: string;
   loginUserName: string;
   loginPassword: string;
+  roleId?: string;
   firstName: string;
   middleName?: string;
   lastName?: string;

@@ -43,12 +43,6 @@ export const adminNavigation: NavItem[] = [
     description: "Review employee timesheets",
   },
   {
-    name: "Clients & Projects",
-    icon: BookMarked,
-    href: "/admin/clients-projects",
-    description: "Manage clients and projects",
-  },
-  {
     name: "Payroll",
     icon: BadgeDollarSign,
     href: "/admin/payroll",

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api, {
   getProfile,
+  updateAttendanceSettings,
   getWifiLocations,
   createWifiLocation,
   updateWifiLocation,
@@ -23,6 +24,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Save, Loader2, MapPin, Clock, Shield, AlertCircle, Wifi, Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import { toast } from "sonner";
@@ -68,6 +70,12 @@ interface Branch {
   workEndTime: string;
   graceMinutes: number;
   lateThresholdMinutes: number;
+  halfDayCutoffTime?: string;
+  workingDays?: number[];
+  weekdayOffRules?: Record<string, number[]>;
+  officeLatitude?: number | null;
+  officeLongitude?: number | null;
+  allowedRadiusMeters?: number;
   isActive: boolean;
   organizationId: string;
   createdAt: string;
@@ -109,16 +117,25 @@ const defaultBranchForm = {
   workEndTime: "18:00",
   graceMinutes: "15",
   lateThresholdMinutes: "30",
+  halfDayCutoffTime: "14:00",
+  workingDays: [1, 2, 3, 4, 5, 6] as number[],
+  weekdayOffRules: {} as Record<string, number[]>,
+  officeLatitude: "",
+  officeLongitude: "",
+  allowedRadiusMeters: "100",
   isActive: true,
 };
 
 const sanitizeIntInput = (value: string) => value.replace(/[^0-9]/g, "");
 const sanitizeFloatInput = (value: string) => value.replace(/[^0-9.-]/g, "");
+const normalizeBranchName = (value: string) => value.trim().replace(/\s+/g, " ");
+const canonicalBranchName = (value: string) => normalizeBranchName(value).toLowerCase();
 
 export default function AttendanceSettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("timing");
   const [settings, setSettings] = useState<AttendanceSettings>(defaultSettings);
   const [organizationId, setOrganizationId] = useState<string>("");
 
@@ -139,32 +156,51 @@ export default function AttendanceSettingsPage() {
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [branchForm, setBranchForm] = useState(defaultBranchForm);
   const [branchDeleteId, setBranchDeleteId] = useState<string | null>(null);
+  const [selectedTimingBranchId, setSelectedTimingBranchId] = useState<string>("organization");
+  const [branchTimingDraft, setBranchTimingDraft] = useState({
+    workStartTime: defaultBranchForm.workStartTime,
+    workEndTime: defaultBranchForm.workEndTime,
+    graceMinutes: defaultBranchForm.graceMinutes,
+    lateThresholdMinutes: defaultBranchForm.lateThresholdMinutes,
+    halfDayCutoffTime: defaultBranchForm.halfDayCutoffTime,
+    workingDays: defaultBranchForm.workingDays,
+    weekdayOffRules: defaultBranchForm.weekdayOffRules,
+  });
 
   const handleBranchSave = async () => {
     if (!organizationId) {
       toast.error("Organization not found. Please login again.");
       return;
     }
-    if (!branchForm.name.trim()) {
+    const normalizedName = normalizeBranchName(branchForm.name);
+    if (!normalizedName) {
       toast.error("Branch name is required");
+      return;
+    }
+    const duplicateBranch = branches.find(
+      (branch) =>
+        canonicalBranchName(branch.name) === canonicalBranchName(normalizedName) &&
+        branch.id !== editingBranch?.id,
+    );
+    if (duplicateBranch) {
+      toast.error("Branch name already exists");
       return;
     }
     setBranchSaving(true);
     try {
-      const payload = {
-        organizationId,
-        name: branchForm.name.trim(),
-        workStartTime: `${branchForm.workStartTime}:00`,
-        workEndTime: `${branchForm.workEndTime}:00`,
-        graceMinutes: Number(branchForm.graceMinutes || 0),
-        lateThresholdMinutes: Number(branchForm.lateThresholdMinutes || 0),
-        isActive: branchForm.isActive,
-      };
       if (editingBranch) {
-        await updateBranch(editingBranch.id, payload);
+        await updateBranch(editingBranch.id, {
+          organizationId,
+          name: normalizedName,
+          isActive: branchForm.isActive,
+        });
         toast.success("Branch updated");
       } else {
-        await createBranch(payload);
+        await createBranch({
+          organizationId,
+          name: normalizedName,
+          isActive: branchForm.isActive,
+        });
         toast.success("Branch created");
       }
       setBranchDialogOpen(false);
@@ -173,7 +209,9 @@ export default function AttendanceSettingsPage() {
       fetchBranches(organizationId);
     } catch (error) {
       console.error("Error saving branch:", error);
-      toast.error("Failed to save branch");
+      const message =
+        (error as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+      toast.error(Array.isArray(message) ? message[0] : message || "Failed to save branch");
     } finally {
       setBranchSaving(false);
     }
@@ -182,11 +220,8 @@ export default function AttendanceSettingsPage() {
   const handleBranchEdit = (branch: Branch) => {
     setEditingBranch(branch);
     setBranchForm({
+      ...defaultBranchForm,
       name: branch.name,
-      workStartTime: branch.workStartTime.slice(0, 5),
-      workEndTime: branch.workEndTime.slice(0, 5),
-      graceMinutes: String(branch.graceMinutes ?? 0),
-      lateThresholdMinutes: String(branch.lateThresholdMinutes ?? 0),
       isActive: branch.isActive,
     });
     setBranchDialogOpen(true);
@@ -286,11 +321,102 @@ export default function AttendanceSettingsPage() {
     }
   };
 
+  useEffect(() => {
+    if (selectedTimingBranchId === "organization") return;
+    const branchExists = branches.some((b) => b.id === selectedTimingBranchId);
+    if (!branchExists) {
+      setSelectedTimingBranchId("organization");
+    }
+  }, [branches, selectedTimingBranchId]);
+
+  const selectedTimingBranch =
+    selectedTimingBranchId === "organization"
+      ? null
+      : branches.find((b) => b.id === selectedTimingBranchId) || null;
+
+  const syncTimingDraftFromBranch = (branch: Branch | null) => {
+    if (!branch) {
+      setBranchTimingDraft({
+        workStartTime: defaultBranchForm.workStartTime,
+        workEndTime: defaultBranchForm.workEndTime,
+        graceMinutes: defaultBranchForm.graceMinutes,
+        lateThresholdMinutes: defaultBranchForm.lateThresholdMinutes,
+        halfDayCutoffTime: defaultBranchForm.halfDayCutoffTime,
+        workingDays: defaultBranchForm.workingDays,
+        weekdayOffRules: defaultBranchForm.weekdayOffRules,
+      });
+      return;
+    }
+    setBranchTimingDraft({
+      workStartTime: (branch.workStartTime || "09:00:00").slice(0, 5),
+      workEndTime: (branch.workEndTime || "18:00:00").slice(0, 5),
+      graceMinutes: String(branch.graceMinutes ?? 15),
+      lateThresholdMinutes: String(branch.lateThresholdMinutes ?? 30),
+      halfDayCutoffTime: (branch.halfDayCutoffTime || "14:00:00").slice(0, 5),
+      workingDays:
+        Array.isArray(branch.workingDays) && branch.workingDays.length
+          ? branch.workingDays
+          : defaultBranchForm.workingDays,
+      weekdayOffRules: branch.weekdayOffRules || {},
+    });
+  };
+
+  useEffect(() => {
+    syncTimingDraftFromBranch(selectedTimingBranch);
+  }, [selectedTimingBranchId, branches]);
+
+  const saveBranchTimingFromOfficeTab = async (branch: Branch) => {
+    const payload = {
+      organizationId,
+      workStartTime: `${branchTimingDraft.workStartTime}:00`,
+      workEndTime: `${branchTimingDraft.workEndTime}:00`,
+      graceMinutes: Number(branchTimingDraft.graceMinutes || 0),
+      lateThresholdMinutes: Number(branchTimingDraft.lateThresholdMinutes || 0),
+      halfDayCutoffTime: `${branchTimingDraft.halfDayCutoffTime}:00`,
+      workingDays: branchTimingDraft.workingDays,
+      weekdayOffRules: branchTimingDraft.weekdayOffRules,
+      isActive: branch.isActive,
+      officeLatitude: branch.officeLatitude ?? null,
+      officeLongitude: branch.officeLongitude ?? null,
+      allowedRadiusMeters: branch.allowedRadiusMeters ?? 100,
+    };
+
+    await updateBranch(branch.id, payload);
+    await fetchBranches(organizationId);
+    toast.success(`Updated timing for ${branch.name}`);
+  };
+
   const handleSave = async () => {
     if (!organizationId) {
       toast.error("Organization not found. Please login again.");
       return;
     }
+
+    if (activeTab === "timing" && selectedTimingBranch) {
+      if (!branchTimingDraft.workStartTime || !branchTimingDraft.workEndTime) {
+        toast.error("Start and end time are required");
+        return;
+      }
+      if (!branchTimingDraft.halfDayCutoffTime) {
+        toast.error("Half day cutoff time is required");
+        return;
+      }
+      if (!branchTimingDraft.workingDays.length) {
+        toast.error("Select at least one working day for the branch");
+        return;
+      }
+      setSaving(true);
+      try {
+        await saveBranchTimingFromOfficeTab(selectedTimingBranch);
+      } catch (error: any) {
+        const message = error.response?.data?.message;
+        toast.error(Array.isArray(message) ? message[0] : message || "Failed to save branch timing");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     setSaving(true);
     try {
       const raw: Record<string, any> = {
@@ -315,15 +441,25 @@ export default function AttendanceSettingsPage() {
       const payload = Object.fromEntries(
         Object.entries(raw).filter(([, v]) => v != null)
       );
-      await api.put(`/attendance/settings?organizationId=${organizationId}`, payload);
-      await updateOrganization(organizationId, {
-        enableGpsValidation: settings.enableGpsValidation,
-        enableWifiValidation: settings.enableWifiValidation,
-      });
+      await updateAttendanceSettings(organizationId, payload);
+
+      // Keep org-level validation flags in sync, but don't fail the whole save if this optional sync fails.
+      try {
+        await updateOrganization(organizationId, {
+          enableGpsValidation: settings.enableGpsValidation,
+          enableWifiValidation: settings.enableWifiValidation,
+        });
+      } catch (orgSyncError) {
+        console.error("Failed to sync organization validation flags:", orgSyncError);
+      }
+
       toast.success("Settings saved successfully!");
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast.error("Failed to save settings");
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Failed to save settings";
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -360,6 +496,22 @@ export default function AttendanceSettingsPage() {
     { label: "Sat", value: 6 },
   ];
 
+  const formatWeekdayOffRules = (rules?: Record<string, number[]>) => {
+    const safeRules = rules || {};
+    const parts = weekdayRuleOptions
+      .map((day) => {
+        const weeks = safeRules[String(day.value)] || [];
+        if (!weeks.length) return "";
+        const labels = weeks
+          .map((weekValue) => saturdayWeekOptions.find((w) => w.value === weekValue)?.label)
+          .filter(Boolean)
+          .join("/");
+        return labels ? `${day.label}(${labels})` : "";
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join(", ") : "None";
+  };
+
   const toggleWeekdayOffRule = (day: number, week: number) => {
     setSettings((prev) => {
       const rules = { ...(prev.weekdayOffRules || {}) };
@@ -389,6 +541,38 @@ export default function AttendanceSettingsPage() {
         return aa - bb;
       });
       return { ...prev, workingDays: ordered };
+    });
+  };
+
+  const toggleBranchTimingWorkingDay = (day: number) => {
+    setBranchTimingDraft((prev) => {
+      const set = new Set(prev.workingDays || []);
+      if (set.has(day)) {
+        if (set.size === 1) {
+          toast.error("At least one working day is required.");
+          return prev;
+        }
+        set.delete(day);
+      } else {
+        set.add(day);
+      }
+      const ordered = Array.from(set).sort((a, b) => {
+        const aa = a === 0 ? 7 : a;
+        const bb = b === 0 ? 7 : b;
+        return aa - bb;
+      });
+      return { ...prev, workingDays: ordered };
+    });
+  };
+
+  const toggleBranchTimingWeekdayOffRule = (day: number, week: number) => {
+    setBranchTimingDraft((prev) => {
+      const rules = { ...(prev.weekdayOffRules || {}) };
+      const set = new Set(rules[String(day)] || []);
+      if (set.has(week)) set.delete(week);
+      else set.add(week);
+      rules[String(day)] = Array.from(set).sort((a, b) => a - b);
+      return { ...prev, weekdayOffRules: rules };
     });
   };
 
@@ -484,11 +668,11 @@ export default function AttendanceSettingsPage() {
         </div>
         <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Save Changes
+          {activeTab === "timing" && selectedTimingBranch ? "Save Branch Timing" : "Save Changes"}
         </Button>
       </div>
 
-      <Tabs defaultValue="timing" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="timing" className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
@@ -521,116 +705,263 @@ export default function AttendanceSettingsPage() {
                 Office Timing Configuration
               </CardTitle>
               <CardDescription>
-                Set working hours, grace period, and late threshold for your organization
+                {selectedTimingBranch
+                  ? `Set timing for ${selectedTimingBranch.name}`
+                  : "Set default organization timing. Branches can override this from the selector below."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-[2fr_auto] gap-4 items-end">
                 <div className="space-y-2">
-                  <Label htmlFor="workStartTime">Work Start Time</Label>
-                  <Input
-                    id="workStartTime"
-                    type="time"
-                    value={settings.workStartTime?.slice(0, 5) || "09:00"}
-                    onChange={(e) => handleInputChange("workStartTime", e.target.value + ":00")}
-                  />
-                  <p className="text-xs text-muted-foreground">When the workday begins</p>
+                  <Label>Configure For</Label>
+                  <Select
+                    value={selectedTimingBranchId}
+                    onValueChange={setSelectedTimingBranchId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="organization">Organization Default</SelectItem>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="workEndTime">Work End Time</Label>
-                  <Input
-                    id="workEndTime"
-                    type="time"
-                    value={settings.workEndTime?.slice(0, 5) || "18:00"}
-                    onChange={(e) => handleInputChange("workEndTime", e.target.value + ":00")}
-                  />
-                  <p className="text-xs text-muted-foreground">When the workday ends</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="graceMinutes">Grace Minutes</Label>
-                  <Input
-                    id="graceMinutes"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={String(settings.graceMinutes ?? 15)}
-                    onChange={(e) => {
-                      const digitsOnly = sanitizeIntInput(e.target.value);
-                      handleInputChange("graceMinutes", digitsOnly === "" ? 0 : parseInt(digitsOnly, 10));
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground">Allowed late arrival in minutes</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lateThresholdMinutes">Late Threshold (minutes)</Label>
-                  <Input
-                    id="lateThresholdMinutes"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={String(settings.lateThresholdMinutes ?? 30)}
-                    onChange={(e) => {
-                      const digitsOnly = sanitizeIntInput(e.target.value);
-                      handleInputChange("lateThresholdMinutes", digitsOnly === "" ? 0 : parseInt(digitsOnly, 10));
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground">Minutes after start time to mark as late</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="halfDayCutoffTime">Half Day Cutoff Time</Label>
-                  <Input
-                    id="halfDayCutoffTime"
-                    type="time"
-                    value={settings.halfDayCutoffTime?.slice(0, 5) || "14:00"}
-                    onChange={(e) => handleInputChange("halfDayCutoffTime", e.target.value + ":00")}
-                  />
-                  <p className="text-xs text-muted-foreground">Time after which half day is marked</p>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Working Days</Label>
-                  <div className="flex flex-wrap gap-4">
-                    {workingDayOptions.map((day) => (
-                      <label key={day.value} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={settings.workingDays?.includes(day.value)}
-                          onCheckedChange={() => toggleWorkingDay(day.value)}
-                        />
-                        <span className="text-sm">{day.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Days considered working for attendance calculations
-                  </p>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Weekday Off Rules (Mon–Sat)</Label>
-                  <div className="space-y-3">
-                    {weekdayRuleOptions.map((day) => (
-                      <div key={day.value} className="flex flex-wrap items-center gap-3">
-                        <div className="w-12 text-sm font-medium text-muted-foreground">
-                          {day.label}
-                        </div>
-                        {saturdayWeekOptions.map((week) => (
-                          <label key={`${day.value}-${week.value}`} className="flex items-center gap-2">
-                            <Checkbox
-                              checked={
-                                settings.weekdayOffRules?.[String(day.value)]?.includes(week.value) || false
-                              }
-                              onCheckedChange={() => toggleWeekdayOffRule(day.value, week.value)}
-                              disabled={!settings.workingDays?.includes(day.value)}
-                            />
-                            <span className="text-sm">{week.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Example: select 1st and 3rd for Monday to make those Mondays off
-                  </p>
-                </div>
+                <Button variant="outline" onClick={() => setActiveTab("branches")}>
+                  Manage Branches
+                </Button>
               </div>
+
+              {selectedTimingBranch ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="branchWorkStartTime">Work Start Time</Label>
+                    <Input
+                      id="branchWorkStartTime"
+                      type="time"
+                      value={branchTimingDraft.workStartTime}
+                      onChange={(e) =>
+                        setBranchTimingDraft((prev) => ({
+                          ...prev,
+                          workStartTime: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="branchWorkEndTime">Work End Time</Label>
+                    <Input
+                      id="branchWorkEndTime"
+                      type="time"
+                      value={branchTimingDraft.workEndTime}
+                      onChange={(e) =>
+                        setBranchTimingDraft((prev) => ({
+                          ...prev,
+                          workEndTime: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="branchGraceMinutes">Grace Minutes</Label>
+                    <Input
+                      id="branchGraceMinutes"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={branchTimingDraft.graceMinutes}
+                      onChange={(e) =>
+                        setBranchTimingDraft((prev) => ({
+                          ...prev,
+                          graceMinutes: sanitizeIntInput(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="branchLateThresholdMinutes">Late Threshold (minutes)</Label>
+                    <Input
+                      id="branchLateThresholdMinutes"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={branchTimingDraft.lateThresholdMinutes}
+                      onChange={(e) =>
+                        setBranchTimingDraft((prev) => ({
+                          ...prev,
+                          lateThresholdMinutes: sanitizeIntInput(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="branchHalfDayCutoffTime">Half Day Cutoff Time</Label>
+                    <Input
+                      id="branchHalfDayCutoffTime"
+                      type="time"
+                      value={branchTimingDraft.halfDayCutoffTime}
+                      onChange={(e) =>
+                        setBranchTimingDraft((prev) => ({
+                          ...prev,
+                          halfDayCutoffTime: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Branch Working Days</Label>
+                    <div className="flex flex-wrap gap-4">
+                      {workingDayOptions.map((day) => (
+                        <label key={`branch-${day.value}`} className="flex items-center gap-2">
+                          <Checkbox
+                            checked={branchTimingDraft.workingDays.includes(day.value)}
+                            onCheckedChange={() => toggleBranchTimingWorkingDay(day.value)}
+                          />
+                          <span className="text-sm">{day.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Branch Weekday Off Rules (Mon–Sat)</Label>
+                    <div className="space-y-3">
+                      {weekdayRuleOptions.map((day) => (
+                        <div key={`branch-rule-${day.value}`} className="flex flex-wrap items-center gap-3">
+                          <div className="w-12 text-sm font-medium text-muted-foreground">
+                            {day.label}
+                          </div>
+                          {saturdayWeekOptions.map((week) => (
+                            <label key={`branch-rule-${day.value}-${week.value}`} className="flex items-center gap-2">
+                              <Checkbox
+                                checked={
+                                  branchTimingDraft.weekdayOffRules?.[String(day.value)]?.includes(week.value) || false
+                                }
+                                onCheckedChange={() => toggleBranchTimingWeekdayOffRule(day.value, week.value)}
+                                disabled={!branchTimingDraft.workingDays?.includes(day.value)}
+                              />
+                              <span className="text-sm">{week.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Example: select 2nd and 4th for Saturday to make those Saturdays off for this branch
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="workStartTime">Work Start Time</Label>
+                    <Input
+                      id="workStartTime"
+                      type="time"
+                      value={settings.workStartTime?.slice(0, 5) || "09:00"}
+                      onChange={(e) => handleInputChange("workStartTime", e.target.value + ":00")}
+                    />
+                    <p className="text-xs text-muted-foreground">When the workday begins</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="workEndTime">Work End Time</Label>
+                    <Input
+                      id="workEndTime"
+                      type="time"
+                      value={settings.workEndTime?.slice(0, 5) || "18:00"}
+                      onChange={(e) => handleInputChange("workEndTime", e.target.value + ":00")}
+                    />
+                    <p className="text-xs text-muted-foreground">When the workday ends</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="graceMinutes">Grace Minutes</Label>
+                    <Input
+                      id="graceMinutes"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={String(settings.graceMinutes ?? 15)}
+                      onChange={(e) => {
+                        const digitsOnly = sanitizeIntInput(e.target.value);
+                        handleInputChange("graceMinutes", digitsOnly === "" ? 0 : parseInt(digitsOnly, 10));
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">Allowed late arrival in minutes</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lateThresholdMinutes">Late Threshold (minutes)</Label>
+                    <Input
+                      id="lateThresholdMinutes"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={String(settings.lateThresholdMinutes ?? 30)}
+                      onChange={(e) => {
+                        const digitsOnly = sanitizeIntInput(e.target.value);
+                        handleInputChange("lateThresholdMinutes", digitsOnly === "" ? 0 : parseInt(digitsOnly, 10));
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">Minutes after start time to mark as late</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="halfDayCutoffTime">Half Day Cutoff Time</Label>
+                    <Input
+                      id="halfDayCutoffTime"
+                      type="time"
+                      value={settings.halfDayCutoffTime?.slice(0, 5) || "14:00"}
+                      onChange={(e) => handleInputChange("halfDayCutoffTime", e.target.value + ":00")}
+                    />
+                    <p className="text-xs text-muted-foreground">Time after which half day is marked</p>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Working Days</Label>
+                    <div className="flex flex-wrap gap-4">
+                      {workingDayOptions.map((day) => (
+                        <label key={day.value} className="flex items-center gap-2">
+                          <Checkbox
+                            checked={settings.workingDays?.includes(day.value)}
+                            onCheckedChange={() => toggleWorkingDay(day.value)}
+                          />
+                          <span className="text-sm">{day.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Days considered working for attendance calculations
+                    </p>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Weekday Off Rules (Mon–Sat)</Label>
+                    <div className="space-y-3">
+                      {weekdayRuleOptions.map((day) => (
+                        <div key={day.value} className="flex flex-wrap items-center gap-3">
+                          <div className="w-12 text-sm font-medium text-muted-foreground">
+                            {day.label}
+                          </div>
+                          {saturdayWeekOptions.map((week) => (
+                            <label key={`${day.value}-${week.value}`} className="flex items-center gap-2">
+                              <Checkbox
+                                checked={
+                                  settings.weekdayOffRules?.[String(day.value)]?.includes(week.value) || false
+                                }
+                                onCheckedChange={() => toggleWeekdayOffRule(day.value, week.value)}
+                                disabled={!settings.workingDays?.includes(day.value)}
+                              />
+                              <span className="text-sm">{week.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Example: select 1st and 3rd for Monday to make those Mondays off
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -954,7 +1285,10 @@ export default function AttendanceSettingsPage() {
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {branch.workStartTime.slice(0, 5)} - {branch.workEndTime.slice(0, 5)} | Grace {branch.graceMinutes}m | Late {branch.lateThresholdMinutes}m
+                          {branch.workStartTime.slice(0, 5)} - {branch.workEndTime.slice(0, 5)} | Grace {branch.graceMinutes}m | Late {branch.lateThresholdMinutes}m | Radius {branch.allowedRadiusMeters ?? 100}m
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Half-day cutoff {(branch.halfDayCutoffTime || "14:00:00").slice(0, 5)} | Working days {(branch.workingDays || [1, 2, 3, 4, 5, 6]).map((d) => workingDayOptions.find((w) => w.value === d)?.label).filter(Boolean).join(", ")} | Off rules {formatWeekdayOffRules(branch.weekdayOffRules)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1108,7 +1442,9 @@ export default function AttendanceSettingsPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingBranch ? "Edit Branch" : "Add Branch"}</DialogTitle>
-            <DialogDescription>Set branch name and working hours.</DialogDescription>
+            <DialogDescription>
+              Create branch name here. Configure timings and off rules from Office Timing Configuration.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -1119,48 +1455,6 @@ export default function AttendanceSettingsPage() {
                 onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
                 placeholder="e.g., Branch A"
               />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="branch-start">Work Start *</Label>
-                <Input
-                  id="branch-start"
-                  type="time"
-                  value={branchForm.workStartTime}
-                  onChange={(e) => setBranchForm({ ...branchForm, workStartTime: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="branch-end">Work End *</Label>
-                <Input
-                  id="branch-end"
-                  type="time"
-                  value={branchForm.workEndTime}
-                  onChange={(e) => setBranchForm({ ...branchForm, workEndTime: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="branch-grace">Grace Minutes</Label>
-                <Input
-                  id="branch-grace"
-                  type="number"
-                  min={0}
-                  value={branchForm.graceMinutes}
-                  onChange={(e) => setBranchForm({ ...branchForm, graceMinutes: sanitizeIntInput(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="branch-late">Late Threshold (minutes)</Label>
-                <Input
-                  id="branch-late"
-                  type="number"
-                  min={0}
-                  value={branchForm.lateThresholdMinutes}
-                  onChange={(e) => setBranchForm({ ...branchForm, lateThresholdMinutes: sanitizeIntInput(e.target.value) })}
-                />
-              </div>
             </div>
             <div className="flex items-center justify-between p-3 border rounded-lg">
               <div>

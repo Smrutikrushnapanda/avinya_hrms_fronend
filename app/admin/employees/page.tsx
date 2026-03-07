@@ -251,6 +251,7 @@ export default function EmployeesPage() {
     employeeCode: "",
     loginUserName: "",
     loginPassword: "",
+    roleId: "",
     firstName: "",
     middleName: "",
     lastName: "",
@@ -281,6 +282,15 @@ export default function EmployeesPage() {
     managerId: "",
     employmentType: "",
   });
+
+  const roleOptions = useMemo(() => employeeData?.filters?.roles || [], [employeeData?.filters?.roles]);
+  const defaultEmployeeRoleId = useMemo(
+    () =>
+      roleOptions.find(
+        (role: any) => String(role?.roleName || "").toUpperCase() === "EMPLOYEE"
+      )?.id || "",
+    [roleOptions]
+  );
 
   // Helper function for API delays
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -423,6 +433,14 @@ export default function EmployeesPage() {
       return { ...prev, employeeCode: autoEmployeeCode };
     });
   }, [autoEmployeeCode, isCreateDialogOpen, isEmployeeCodeTouched, setNewEmployee]);
+
+  useEffect(() => {
+    if (!isCreateDialogOpen || !defaultEmployeeRoleId) return;
+    setNewEmployee((prev) => {
+      if (prev.roleId) return prev;
+      return { ...prev, roleId: defaultEmployeeRoleId };
+    });
+  }, [defaultEmployeeRoleId, isCreateDialogOpen]);
 
   // Employee Details Navigation Handlers
   const handleViewEmployeeDetails = (employeeId: string) => {
@@ -567,6 +585,7 @@ export default function EmployeesPage() {
       cleanData.emergencyContactRelationship = data.emergencyContactRelationship.trim();
     if (data.emergencyContactPhone?.trim()) cleanData.emergencyContactPhone = data.emergencyContactPhone.trim();
     if (data.branchId) cleanData.branchId = data.branchId;
+    if (data.roleId) cleanData.roleId = data.roleId;
 
     if (includeCredentials) {
       cleanData.loginUserName = data.loginUserName?.trim();
@@ -924,6 +943,7 @@ export default function EmployeesPage() {
       employeeCode: employee.employeeCode,
       loginUserName: employee.userName || "",
       loginPassword: "",
+      roleId: employee.roleId || employee.roles?.[0]?.id || "",
       firstName: employee.firstName,
       middleName: employee.middleName || "",
       lastName: employee.lastName || "",

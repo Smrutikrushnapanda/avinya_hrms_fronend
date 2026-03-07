@@ -242,10 +242,10 @@ export default function HRDashboardPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <h1 className="text-xl sm:text-2xl font-bold border-b md:border-b-0 md:border-r md:pr-5 pb-2 md:pb-0">Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent">Dashboard</h1>
           <LiveClock />
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowWidgetSettings(!showWidgetSettings)} className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => setShowWidgetSettings(!showWidgetSettings)} className="flex items-center gap-2 rounded-md border-[#184a8c]/30 hover:bg-gradient-to-r hover:from-[#184a8c]/10 hover:to-[#00b4db]/10">
           <Settings className="h-4 w-4" />
           <span className="hidden sm:inline">Manage Widgets</span>
         </Button>
@@ -273,7 +273,7 @@ export default function HRDashboardPage() {
 
       {/* Widget Settings */}
       {showWidgetSettings && (
-        <Card className="mb-6 border-2 border-blue-200 dark:border-blue-800">
+        <Card className="mb-6 border-2 border-[#184a8c]/30 bg-gradient-to-r from-[#184a8c]/5 to-[#00b4db]/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />

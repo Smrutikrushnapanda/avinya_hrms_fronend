@@ -11,8 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Building2, Calendar, Umbrella, Users } from "lucide-react";
-import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, getLeaveTypes, createLeaveType, updateLeaveType, deleteLeaveType, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization } from "@/app/api/api";
+import { Plus, Pencil, Trash2, Building2, Calendar, Users, Mail, ClipboardList, CheckCircle2, XCircle, Clock3, Eye, EyeOff } from "lucide-react";
+import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest } from "@/app/api/api";
 import AttendanceSettingsPage from "../attendance/settings/page";
 
 interface Department {
@@ -35,13 +35,6 @@ interface Holiday {
   isOptional: boolean;
 }
 
-interface LeaveType {
-  id: string;
-  name: string;
-  description?: string;
-  isActive: boolean;
-}
-
 interface Role {
   id: string;
   roleName: string;
@@ -53,8 +46,31 @@ interface Organization {
   id: string;
   name: string;
   email?: string;
+  hrMail?: string;
   phone?: string;
   address?: string;
+  logoUrl?: string;
+  resignationPolicy?: string;
+  resignationNoticePeriodDays?: number;
+  allowEarlyRelievingByAdmin?: boolean;
+}
+
+interface ResignationRequest {
+  id: string;
+  message: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  proposedLastWorkingDay?: string | null;
+  approvedLastWorkingDay?: string | null;
+  allowEarlyRelieving?: boolean;
+  hrRemarks?: string | null;
+  createdAt: string;
+  employee?: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    employeeCode?: string;
+    workEmail?: string;
+  };
 }
 
 const EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Intern", "Consultant"];
@@ -63,7 +79,6 @@ export default function SettingsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [organizationId, setOrganizationId] = useState<string>("");
@@ -71,22 +86,46 @@ export default function SettingsPage() {
   const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
   const [isDesigDialogOpen, setIsDesigDialogOpen] = useState(false);
   const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
-  const [isLeaveTypeDialogOpen, setIsLeaveTypeDialogOpen] = useState(false);
   const [isOrgDialogOpen, setIsOrgDialogOpen] = useState(false);
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [editingDesig, setEditingDesig] = useState<Designation | null>(null);
   const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
-  const [editingLeaveType, setEditingLeaveType] = useState<LeaveType | null>(null);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   
   const [deptForm, setDeptForm] = useState({ name: "", code: "" });
   const [desigForm, setDesigForm] = useState({ name: "", code: "" });
   const [holidayForm, setHolidayForm] = useState({ name: "", date: "", description: "", isOptional: false });
-  const [leaveTypeForm, setLeaveTypeForm] = useState({ name: "", description: "", isActive: true });
-  const [orgForm, setOrgForm] = useState({ name: "", email: "", phone: "", address: "" });
+const [orgForm, setOrgForm] = useState({
+  name: "",
+  email: "",
+  hrMail: "",
+  phone: "",
+  address: "",
+  logoUrl: "",
+  resignationPolicy: "",
+  resignationNoticePeriodDays: 30,
+  allowEarlyRelievingByAdmin: false,
+});
+const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
   const [roleForm, setRoleForm] = useState({ roleName: "", description: "" });
+  const [resignationRequests, setResignationRequests] = useState<ResignationRequest[]>([]);
+  const [resignationStatusFilter, setResignationStatusFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED">("ALL");
+  const [isCredentialsDialogOpen, setIsCredentialsDialogOpen] = useState(false);
+  const [isDeleteOrgDialogOpen, setIsDeleteOrgDialogOpen] = useState(false);
+  const [credentialsForm, setCredentialsForm] = useState({ newUserName: "", newPassword: "", confirmPassword: "" });
+
+  const [showCredPassword, setShowCredPassword] = useState(false);
+  const [showCredConfirmPassword, setShowCredConfirmPassword] = useState(false);
+  const [isResignationReviewDialogOpen, setIsResignationReviewDialogOpen] = useState(false);
+  const [reviewingResignation, setReviewingResignation] = useState<ResignationRequest | null>(null);
+  const [resignationReviewForm, setResignationReviewForm] = useState({
+    status: "APPROVED" as "APPROVED" | "REJECTED",
+    hrRemarks: "",
+    approvedLastWorkingDay: "",
+    allowEarlyRelieving: false,
+  });
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -105,11 +144,16 @@ export default function SettingsPage() {
       loadDepartments();
       loadDesignations();
       loadHolidays();
-      loadLeaveTypes();
       loadRoles();
       loadOrganization();
+      loadResignationRequests(resignationStatusFilter);
     }
   }, [organizationId]);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    loadResignationRequests(resignationStatusFilter);
+  }, [resignationStatusFilter, organizationId]);
 
   const loadDepartments = async () => {
     try {
@@ -138,15 +182,6 @@ export default function SettingsPage() {
     }
   };
 
-  const loadLeaveTypes = async () => {
-    try {
-      const res = await getLeaveTypes(organizationId);
-      setLeaveTypes(res.data || []);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   const loadRoles = async () => {
     try {
       const res = await getOrgRoles(organizationId);
@@ -156,20 +191,47 @@ export default function SettingsPage() {
     }
   };
 
-  const loadOrganization = async () => {
+const loadOrganization = async () => {
     try {
       const res = await getOrganization(organizationId);
       setOrganization(res.data);
       setOrgForm({
         name: res.data.name || "",
         email: res.data.email || "",
+        hrMail: res.data.hrMail || "",
         phone: res.data.phone || "",
-        address: res.data.address || ""
+        address: res.data.address || "",
+        logoUrl: res.data.logoUrl || "",
+        resignationPolicy: res.data.resignationPolicy || "",
+        resignationNoticePeriodDays: Number(res.data.resignationNoticePeriodDays || 30),
+        allowEarlyRelievingByAdmin: Boolean(res.data.allowEarlyRelievingByAdmin),
       });
     } catch (error) {
       console.error(error);
     }
   };
+
+  const loadResignationRequests = async (status: "ALL" | "PENDING" | "APPROVED" | "REJECTED" = "ALL") => {
+    try {
+      const res = await getOrgResignationRequests(status === "ALL" ? undefined : status);
+      setResignationRequests(res.data || []);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load resignation requests");
+    }
+  };
+
+  const getResignationStatusClass = (status: string) => {
+    if (status === "APPROVED") return "bg-emerald-100 text-emerald-700 border-emerald-200";
+    if (status === "REJECTED") return "bg-rose-100 text-rose-700 border-rose-200";
+    return "bg-amber-100 text-amber-700 border-amber-200";
+  };
+
+  const getEmployeeName = (req: ResignationRequest) =>
+    [req.employee?.firstName, req.employee?.middleName, req.employee?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || req.employee?.employeeCode || "Employee";
 
   const handleSaveDepartment = async () => {
     if (!deptForm.name.trim()) {
@@ -237,13 +299,72 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveOrganization = async () => {
-    if (!orgForm.name.trim()) {
-      toast.error("Organization name is required");
+  const handleChangeCredentials = async () => {
+    if (!credentialsForm.newUserName.trim() && !credentialsForm.newPassword.trim()) {
+      toast.error("Enter a new username or password");
+      return;
+    }
+    if (credentialsForm.newPassword && credentialsForm.newPassword !== credentialsForm.confirmPassword) {
+      toast.error("Passwords do not match");
       return;
     }
     try {
-      await updateOrganization(organizationId, orgForm);
+      await changeOrgAdminCredentials(organizationId, {
+        newUserName: credentialsForm.newUserName || undefined,
+        newPassword: credentialsForm.newPassword || undefined,
+      });
+      toast.success("Admin credentials updated");
+      setIsCredentialsDialogOpen(false);
+      setCredentialsForm({ newUserName: "", newPassword: "", confirmPassword: "" });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to update credentials");
+    }
+  };
+
+  const handleDeleteOrganization = async () => {
+    try {
+      await deleteOrganization(organizationId);
+      toast.success("Organization deleted");
+      setIsDeleteOrgDialogOpen(false);
+      window.location.href = "/";
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to delete organization");
+    }
+  };
+
+  const handleSaveOrganization = async () => {
+    const errors: Record<string, string> = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!orgForm.name.trim()) errors.name = "Organization name is required";
+    else if (orgForm.name.trim().length < 2) errors.name = "Name must be at least 2 characters";
+
+    if (!orgForm.email.trim()) errors.email = "Email is required";
+    else if (!emailRegex.test(orgForm.email.trim())) errors.email = "Enter a valid email address";
+
+    if (orgForm.hrMail.trim() && !emailRegex.test(orgForm.hrMail.trim()))
+      errors.hrMail = "Enter a valid HR email address";
+
+    if (orgForm.phone.trim() && !/^\+?[\d\s\-()\[\]]{7,20}$/.test(orgForm.phone.trim()))
+      errors.phone = "Enter a valid phone number (7–20 digits)";
+
+    if (orgForm.logoUrl.trim() && !/^https?:\/\/.+/.test(orgForm.logoUrl.trim()))
+      errors.logoUrl = "Logo URL must start with http:// or https://";
+
+    if (orgForm.resignationNoticePeriodDays < 0)
+      errors.resignationNoticePeriodDays = "Notice period cannot be negative";
+
+    if (Object.keys(errors).length > 0) {
+      setOrgErrors(errors);
+      return;
+    }
+
+    setOrgErrors({});
+    try {
+      await updateOrganization(organizationId, {
+        ...orgForm,
+        resignationNoticePeriodDays: Number(orgForm.resignationNoticePeriodDays || 0),
+      });
       toast.success("Organization updated");
       setIsOrgDialogOpen(false);
       loadOrganization();
@@ -285,39 +406,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveLeaveType = async () => {
-    if (!leaveTypeForm.name.trim()) {
-      toast.error("Leave type name is required");
-      return;
-    }
-    try {
-      if (editingLeaveType) {
-        await updateLeaveType(editingLeaveType.id, { ...leaveTypeForm });
-        toast.success("Leave type updated");
-      } else {
-        await createLeaveType({ ...leaveTypeForm, organizationId });
-        toast.success("Leave type created");
-      }
-      setIsLeaveTypeDialogOpen(false);
-      setLeaveTypeForm({ name: "", description: "", isActive: true });
-      setEditingLeaveType(null);
-      loadLeaveTypes();
-    } catch (error) {
-      toast.error("Failed to save leave type");
-    }
-  };
-
-  const handleDeleteLeaveType = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this leave type?")) return;
-    try {
-      await deleteLeaveType(id);
-      toast.success("Leave type deleted");
-      loadLeaveTypes();
-    } catch (error) {
-      toast.error("Failed to delete leave type");
-    }
-  };
-
   const handleSaveRole = async () => {
     if (!roleForm.roleName.trim()) {
       toast.error("Role name is required");
@@ -355,6 +443,49 @@ export default function SettingsPage() {
     }
   };
 
+  const openResignationReviewDialog = (request: ResignationRequest, status: "APPROVED" | "REJECTED") => {
+    setReviewingResignation(request);
+    setResignationReviewForm({
+      status,
+      hrRemarks: request.hrRemarks || "",
+      approvedLastWorkingDay:
+        request.approvedLastWorkingDay || request.proposedLastWorkingDay || "",
+      allowEarlyRelieving: Boolean(request.allowEarlyRelieving),
+    });
+    setIsResignationReviewDialogOpen(true);
+  };
+
+  const handleSubmitResignationReview = async () => {
+    if (!reviewingResignation) return;
+    if (
+      resignationReviewForm.status === "APPROVED" &&
+      !resignationReviewForm.approvedLastWorkingDay
+    ) {
+      toast.error("Please set approved last working day");
+      return;
+    }
+    try {
+      await reviewResignationRequest(reviewingResignation.id, {
+        status: resignationReviewForm.status,
+        hrRemarks: resignationReviewForm.hrRemarks || undefined,
+        approvedLastWorkingDay:
+          resignationReviewForm.status === "APPROVED"
+            ? resignationReviewForm.approvedLastWorkingDay
+            : undefined,
+        allowEarlyRelieving:
+          resignationReviewForm.status === "APPROVED"
+            ? resignationReviewForm.allowEarlyRelieving
+            : false,
+      });
+      toast.success("Resignation request reviewed");
+      setIsResignationReviewDialogOpen(false);
+      setReviewingResignation(null);
+      loadResignationRequests(resignationStatusFilter);
+    } catch (error) {
+      toast.error("Failed to review resignation request");
+    }
+  };
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
@@ -363,10 +494,10 @@ export default function SettingsPage() {
         <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="office-config">Office Config</TabsTrigger>
           <TabsTrigger value="organization">Organization</TabsTrigger>
+          <TabsTrigger value="resignations">Resignations</TabsTrigger>
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="designations">Designations</TabsTrigger>
           <TabsTrigger value="holidays">Holidays</TabsTrigger>
-          <TabsTrigger value="leaves">Leave Types</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
         </TabsList>
 
@@ -383,13 +514,30 @@ export default function SettingsPage() {
                 </CardTitle>
                 <CardDescription>Manage your organization information</CardDescription>
               </div>
-              <Button onClick={() => setIsOrgDialogOpen(true)}>
-                <Pencil className="w-4 h-4 mr-2" /> Edit
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setIsCredentialsDialogOpen(true)}>
+                  <Pencil className="w-4 h-4 mr-2" /> Change Admin Credentials
+                </Button>
+                <Button onClick={() => setIsOrgDialogOpen(true)}>
+                  <Pencil className="w-4 h-4 mr-2" /> Edit
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+<CardContent className="space-y-4">
               {organization && (
                 <div className="grid grid-cols-2 gap-4">
+                  {organization.logoUrl && (
+                    <div className="col-span-2 mb-4">
+                      <Label className="text-sm font-medium">Logo</Label>
+                      <div className="mt-2">
+                        <img 
+                          src={organization.logoUrl} 
+                          alt={organization.name + " Logo"} 
+                          className="h-20 w-auto object-contain border rounded-md p-2"
+                        />
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <Label className="text-sm font-medium">Organization Name</Label>
                     <p className="text-sm text-muted-foreground">{organization.name}</p>
@@ -399,6 +547,10 @@ export default function SettingsPage() {
                     <p className="text-sm text-muted-foreground">{organization.email || "Not set"}</p>
                   </div>
                   <div>
+                    <Label className="text-sm font-medium">HR Mail</Label>
+                    <p className="text-sm text-muted-foreground">{organization.hrMail || "Not set"}</p>
+                  </div>
+                  <div>
                     <Label className="text-sm font-medium">Phone</Label>
                     <p className="text-sm text-muted-foreground">{organization.phone || "Not set"}</p>
                   </div>
@@ -406,8 +558,119 @@ export default function SettingsPage() {
                     <Label className="text-sm font-medium">Address</Label>
                     <p className="text-sm text-muted-foreground">{organization.address || "Not set"}</p>
                   </div>
+                  <div>
+                    <Label className="text-sm font-medium">Notice Period</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {organization.resignationNoticePeriodDays || 30} days
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Early Relieving by Admin</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {organization.allowEarlyRelievingByAdmin ? "Allowed" : "Not allowed"}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-sm font-medium">Resignation Policy</Label>
+                    <p className="text-sm text-muted-foreground whitespace-pre-line">
+                      {organization.resignationPolicy || "Not set"}
+                    </p>
+                  </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="resignations">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <ClipboardList className="w-5 h-5" />
+                  Resignation Requests
+                </CardTitle>
+                <CardDescription>
+                  Review resignation messages, approve/reject, and set early relieving.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={resignationStatusFilter}
+                  onChange={(e) =>
+                    setResignationStatusFilter(
+                      e.target.value as "ALL" | "PENDING" | "APPROVED" | "REJECTED",
+                    )
+                  }
+                >
+                  <option value="ALL">All</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Message</TableHead>
+                    <TableHead>Requested LWD</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {resignationRequests.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No resignation requests found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {resignationRequests.map((req) => (
+                    <TableRow key={req.id}>
+                      <TableCell>
+                        <div className="font-medium">{getEmployeeName(req)}</div>
+                        <div className="text-xs text-muted-foreground">{req.employee?.workEmail || "—"}</div>
+                      </TableCell>
+                      <TableCell className="max-w-[360px]">
+                        <p className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-line">{req.message}</p>
+                      </TableCell>
+                      <TableCell>{req.proposedLastWorkingDay || "—"}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${getResignationStatusClass(req.status)}`}>
+                          {req.status === "PENDING" && <Clock3 className="h-3 w-3" />}
+                          {req.status === "APPROVED" && <CheckCircle2 className="h-3 w-3" />}
+                          {req.status === "REJECTED" && <XCircle className="h-3 w-3" />}
+                          {req.status}
+                        </span>
+                      </TableCell>
+                      <TableCell>{new Date(req.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        {req.status === "PENDING" ? (
+                          <div className="inline-flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => openResignationReviewDialog(req, "APPROVED")}>
+                              Approve
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => openResignationReviewDialog(req, "REJECTED")}>
+                              Reject
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {req.status === "APPROVED" ? "Reviewed & Approved" : "Reviewed & Rejected"}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
@@ -534,52 +797,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="leaves">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Umbrella className="w-5 h-5" />
-                  Leave Types
-                </CardTitle>
-                <CardDescription>Manage leave types and policies</CardDescription>
-              </div>
-              <Button onClick={() => { setEditingLeaveType(null); setLeaveTypeForm({ name: "", description: "", isActive: true }); setIsLeaveTypeDialogOpen(true); }}>
-                <Plus className="w-4 h-4 mr-2" /> Add Leave Type
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leaveTypes.map((leave) => (
-                    <TableRow key={leave.id}>
-                      <TableCell>{leave.name}</TableCell>
-                      <TableCell>{leave.description || "-"}</TableCell>
-                      <TableCell>{leave.isActive ? "Active" : "Inactive"}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingLeaveType(leave); setLeaveTypeForm({ name: leave.name, description: leave.description || "", isActive: leave.isActive }); setIsLeaveTypeDialogOpen(true); }}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteLeaveType(leave.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="roles">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -671,31 +888,109 @@ export default function SettingsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isOrgDialogOpen} onOpenChange={setIsOrgDialogOpen}>
-        <DialogContent>
+<Dialog open={isOrgDialogOpen} onOpenChange={(open) => { setIsOrgDialogOpen(open); if (!open) setOrgErrors({}); }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Organization</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
             <div>
-              <Label>Organization Name *</Label>
-              <Input value={orgForm.name} onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })} />
+              <Label>Organization Name <span className="text-destructive">*</span></Label>
+              <Input
+                value={orgForm.name}
+                onChange={(e) => { setOrgForm({ ...orgForm, name: e.target.value }); setOrgErrors((p) => ({ ...p, name: "" })); }}
+                className={orgErrors.name ? "border-destructive" : ""}
+              />
+              {orgErrors.name && <p className="text-xs text-destructive mt-1">{orgErrors.name}</p>}
             </div>
             <div>
-              <Label>Email</Label>
-              <Input type="email" value={orgForm.email} onChange={(e) => setOrgForm({ ...orgForm, email: e.target.value })} />
+              <Label>Email <span className="text-destructive">*</span></Label>
+              <Input
+                type="email"
+                value={orgForm.email}
+                onChange={(e) => { setOrgForm({ ...orgForm, email: e.target.value }); setOrgErrors((p) => ({ ...p, email: "" })); }}
+                placeholder="admin@company.com"
+                className={orgErrors.email ? "border-destructive" : ""}
+              />
+              {orgErrors.email && <p className="text-xs text-destructive mt-1">{orgErrors.email}</p>}
+            </div>
+            <div>
+              <Label className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                HR Mail
+              </Label>
+              <Input
+                type="email"
+                value={orgForm.hrMail}
+                onChange={(e) => { setOrgForm({ ...orgForm, hrMail: e.target.value }); setOrgErrors((p) => ({ ...p, hrMail: "" })); }}
+                placeholder="hr@company.com"
+                className={orgErrors.hrMail ? "border-destructive" : ""}
+              />
+              {orgErrors.hrMail && <p className="text-xs text-destructive mt-1">{orgErrors.hrMail}</p>}
             </div>
             <div>
               <Label>Phone</Label>
-              <Input value={orgForm.phone} onChange={(e) => setOrgForm({ ...orgForm, phone: e.target.value })} />
+              <Input
+                value={orgForm.phone}
+                onChange={(e) => { setOrgForm({ ...orgForm, phone: e.target.value }); setOrgErrors((p) => ({ ...p, phone: "" })); }}
+                placeholder="+91 98765 43210"
+                className={orgErrors.phone ? "border-destructive" : ""}
+              />
+              {orgErrors.phone && <p className="text-xs text-destructive mt-1">{orgErrors.phone}</p>}
+            </div>
+            <div>
+              <Label>Logo URL</Label>
+              <Input
+                value={orgForm.logoUrl}
+                onChange={(e) => { setOrgForm({ ...orgForm, logoUrl: e.target.value }); setOrgErrors((p) => ({ ...p, logoUrl: "" })); }}
+                placeholder="https://example.com/logo.png"
+                className={orgErrors.logoUrl ? "border-destructive" : ""}
+              />
+              {orgErrors.logoUrl && <p className="text-xs text-destructive mt-1">{orgErrors.logoUrl}</p>}
             </div>
             <div>
               <Label>Address</Label>
-              <Textarea value={orgForm.address} onChange={(e) => setOrgForm({ ...orgForm, address: e.target.value })} />
+              <Textarea
+                value={orgForm.address}
+                onChange={(e) => setOrgForm({ ...orgForm, address: e.target.value })}
+                placeholder="123 Main St, City, Country"
+              />
+            </div>
+            <div>
+              <Label>Resignation Notice Period (days)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={orgForm.resignationNoticePeriodDays}
+                onChange={(e) => { setOrgForm({ ...orgForm, resignationNoticePeriodDays: Number(e.target.value || 0) }); setOrgErrors((p) => ({ ...p, resignationNoticePeriodDays: "" })); }}
+                className={orgErrors.resignationNoticePeriodDays ? "border-destructive" : ""}
+              />
+              {orgErrors.resignationNoticePeriodDays && <p className="text-xs text-destructive mt-1">{orgErrors.resignationNoticePeriodDays}</p>}
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label>Allow Early Relieving by Admin</Label>
+                <p className="text-xs text-muted-foreground">
+                  Admin/HR can approve an employee to leave before notice completion.
+                </p>
+              </div>
+              <Switch
+                checked={orgForm.allowEarlyRelievingByAdmin}
+                onCheckedChange={(v) => setOrgForm({ ...orgForm, allowEarlyRelievingByAdmin: v })}
+              />
+            </div>
+            <div>
+              <Label>Resignation Policy</Label>
+              <Textarea
+                rows={4}
+                value={orgForm.resignationPolicy}
+                onChange={(e) => setOrgForm({ ...orgForm, resignationPolicy: e.target.value })}
+                placeholder="Example: Employees must serve 30 days notice, complete handover, and return company assets."
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOrgDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setIsOrgDialogOpen(false); setOrgErrors({}); }}>Cancel</Button>
             <Button onClick={handleSaveOrganization}>Save</Button>
           </DialogFooter>
         </DialogContent>
@@ -731,32 +1026,6 @@ export default function SettingsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isLeaveTypeDialogOpen} onOpenChange={setIsLeaveTypeDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingLeaveType ? "Edit" : "Add"} Leave Type</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Name *</Label>
-              <Input value={leaveTypeForm.name} onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, name: e.target.value })} />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Textarea value={leaveTypeForm.description} onChange={(e) => setLeaveTypeForm({ ...leaveTypeForm, description: e.target.value })} />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>Active</Label>
-              <Switch checked={leaveTypeForm.isActive} onCheckedChange={(v) => setLeaveTypeForm({ ...leaveTypeForm, isActive: v })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsLeaveTypeDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveLeaveType}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -775,6 +1044,180 @@ export default function SettingsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRoleDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveRole}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isResignationReviewDialogOpen} onOpenChange={setIsResignationReviewDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {resignationReviewForm.status === "APPROVED" ? "Approve" : "Reject"} Resignation
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Status</Label>
+              <select
+                className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={resignationReviewForm.status}
+                onChange={(e) =>
+                  setResignationReviewForm({
+                    ...resignationReviewForm,
+                    status: e.target.value as "APPROVED" | "REJECTED",
+                  })
+                }
+              >
+                <option value="APPROVED">APPROVED</option>
+                <option value="REJECTED">REJECTED</option>
+              </select>
+            </div>
+            {resignationReviewForm.status === "APPROVED" && (
+              <>
+                <div>
+                  <Label>Approved Last Working Day</Label>
+                  <Input
+                    type="date"
+                    value={resignationReviewForm.approvedLastWorkingDay}
+                    onChange={(e) =>
+                      setResignationReviewForm({
+                        ...resignationReviewForm,
+                        approvedLastWorkingDay: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label>Allow Early Relieving</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Approve employee exit earlier than standard notice period.
+                      {!organization?.allowEarlyRelievingByAdmin
+                        ? " Enable this in Organization settings first."
+                        : ""}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={resignationReviewForm.allowEarlyRelieving}
+                    disabled={!organization?.allowEarlyRelievingByAdmin}
+                    onCheckedChange={(v) =>
+                      setResignationReviewForm({
+                        ...resignationReviewForm,
+                        allowEarlyRelieving: v,
+                      })
+                    }
+                  />
+                </div>
+              </>
+            )}
+            <div>
+              <Label>HR Remarks</Label>
+              <Textarea
+                rows={4}
+                value={resignationReviewForm.hrRemarks}
+                onChange={(e) =>
+                  setResignationReviewForm({
+                    ...resignationReviewForm,
+                    hrRemarks: e.target.value,
+                  })
+                }
+                placeholder="Add decision remarks for employee and records."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsResignationReviewDialogOpen(false);
+                setReviewingResignation(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={resignationReviewForm.status === "APPROVED" ? "default" : "destructive"}
+              onClick={handleSubmitResignationReview}
+            >
+              Submit Review
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Admin Credentials Dialog */}
+      <Dialog open={isCredentialsDialogOpen} onOpenChange={setIsCredentialsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Admin Credentials</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>New Username</Label>
+              <Input
+                placeholder="Leave blank to keep current"
+                value={credentialsForm.newUserName}
+                onChange={(e) => setCredentialsForm({ ...credentialsForm, newUserName: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>New Password</Label>
+              <div className="relative">
+                <Input
+                  type={showCredPassword ? "text" : "password"}
+                  placeholder="Leave blank to keep current"
+                  value={credentialsForm.newPassword}
+                  onChange={(e) => setCredentialsForm({ ...credentialsForm, newPassword: e.target.value })}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowCredPassword((v) => !v)}
+                >
+                  {showCredPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <Label>Confirm Password</Label>
+              <div className="relative">
+                <Input
+                  type={showCredConfirmPassword ? "text" : "password"}
+                  placeholder="Repeat new password"
+                  value={credentialsForm.confirmPassword}
+                  onChange={(e) => setCredentialsForm({ ...credentialsForm, confirmPassword: e.target.value })}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowCredConfirmPassword((v) => !v)}
+                >
+                  {showCredConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCredentialsDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleChangeCredentials}>Save Credentials</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Organization Confirmation Dialog */}
+      <Dialog open={isDeleteOrgDialogOpen} onOpenChange={setIsDeleteOrgDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Organization</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will permanently delete the organization and all its data. This action cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOrgDialogOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteOrganization}>Yes, Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

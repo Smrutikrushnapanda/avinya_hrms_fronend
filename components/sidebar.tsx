@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { getProfile, getChatConversations } from "@/app/api/api";
+import { getProfile, getChatConversations, getPerformanceSettings, getWfhToday } from "@/app/api/api";
 import { toast } from "sonner";
 import {
   Boxes,
@@ -23,6 +23,13 @@ import {
   FileText,
   ChevronDown,
   Clock,
+  Shield,
+  TrendingUp,
+  Monitor,
+  FolderKanban,
+  Receipt,
+  Video,
+  UserRound,
 } from "lucide-react";
 import {
   Tooltip,
@@ -54,6 +61,7 @@ interface Profile {
   middleName?: string;
   lastName?: string;
   avatar?: string;
+  organizationId?: string;
 }
 
 interface MenuItemChild {
@@ -78,7 +86,6 @@ const menuByRole: Record<string, MenuItem[]> = {
     { name: "Attendance", icon: Calendar, href: "/admin/attendance", animation: "flip" },
     { name: "Timesheet", icon: BookMarked, href: "/admin/timesheets", animation: "swing" },
     { name: "Time Slips", icon: Clock, href: "/admin/timeslips", animation: "float" },
-    { name: "Clients & Projects", icon: ListMinus, href: "/admin/clients-projects", animation: "float" },
     {
       name: "Leave & WFH",
       icon: CalendarDays,
@@ -86,11 +93,17 @@ const menuByRole: Record<string, MenuItem[]> = {
       children: [
         { name: "Leave", icon: CalendarDays, href: "/admin/leave", animation: "float" },
         { name: "WFH", icon: Home, href: "/admin/wfh", animation: "wiggle" },
+        { name: "WFH Monitor", icon: Monitor, href: "/admin/wfh-monitor", animation: "pulse" },
       ],
     },
+    { name: "Meetings", icon: Video, href: "/admin/meetings", animation: "bounce" },
     { name: "Payroll", icon: BadgeDollarSign, href: "/admin/payroll", animation: "bounce" },
     { name: "Reports", icon: BookMarked, href: "/admin/reports", animation: "swing" },
     { name: "Polls", icon: Vote, href: "/admin/polls", animation: "rubberBand" },
+    { name: "Projects", icon: FolderKanban, href: "/admin/projects", animation: "float" },
+    { name: "Performance", icon: TrendingUp, href: "/admin/performance", animation: "float" },
+    { name: "Policy", icon: Shield, href: "/admin/policy", animation: "float" },
+    { name: "Expenses", icon: Receipt, href: "/admin/expenses", animation: "float" },
     { name: "Settings", icon: Settings, href: "/admin/settings", animation: "spin" },
     { name: "Log Report", icon: FileText, href: "/admin/logreport", animation: "float" },
   ],
@@ -99,10 +112,15 @@ const menuByRole: Record<string, MenuItem[]> = {
     { name: "Attendance", icon: Calendar, href: "/user/attendance", animation: "flip" },
     { name: "Timesheet", icon: BookMarked, href: "/user/timesheet", animation: "swing" },
     { name: "Leave", icon: CalendarDays, href: "/user/leave", animation: "float" },
+    { name: "WFH", icon: Home, href: "/user/wfh", animation: "wiggle" },
     { name: "Time Slips", icon: Clock, href: "/user/timeslips", animation: "float" },
     { name: "Salary Slips", icon: BadgeDollarSign, href: "/user/payroll", animation: "bounce" },
+    { name: "Expenses & Travels", icon: Receipt, href: "/user/expenses", animation: "float" },
     { name: "Messages", icon: Users, href: "/user/messages", animation: "wiggle" },
     { name: "Polls", icon: Vote, href: "/user/polls", animation: "rubberBand" },
+    { name: "Policy", icon: Shield, href: "/user/policy", animation: "float" },
+    { name: "My Meetings", icon: Video, href: "/user/meetings", animation: "bounce" },
+    { name: "My Profile", icon: UserRound, href: "/user/profile", animation: "pulse" },
   ],
 };
 
@@ -110,10 +128,11 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [mode, setMode] = useState<SidebarMode>("expanded");
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [dashboardHref, setDashboardHref] = useState<string>("/");
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  const [user, setUser] = useState({
+  const sidebarIconGradientClass =
+    "bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent";
+const [user, setUser] = useState({
     name: "",
     role: "",
     avatar: "",
@@ -122,7 +141,7 @@ export default function Sidebar() {
   const isExpanded = mode === "expanded";
 
   useEffect(() => {
-    const fetchProfile = async () => {
+const fetchProfile = async () => {
       try {
         const res = await getProfile();
         const user: Profile = res.data;
@@ -159,15 +178,44 @@ export default function Sidebar() {
         if (menuByRole[primaryRole]) {
           items = [...menuByRole[primaryRole]];
         }
-        
+
+        // For employees: conditionally add Performance, WFH Monitor, Projects
+        if (primaryRole === "EMPLOYEE") {
+          // Performance — only if admin enabled it
+          try {
+            const perfRes = await getPerformanceSettings();
+            if (perfRes.data?.isEnabled) {
+              items = [
+                ...items,
+                { name: "Performance", icon: TrendingUp, href: "/user/performance", animation: "float" as const },
+              ];
+            }
+          } catch {
+            // ignore — don't block sidebar load
+          }
+
+          // WFH Monitor — only if today's WFH is approved
+          try {
+            const wfhRes = await getWfhToday();
+            if (wfhRes.data?.hasApprovedWfh) {
+              items = [
+                ...items,
+                { name: "WFH Monitor", icon: Monitor, href: "/user/wfh-monitor", animation: "pulse" as const },
+              ];
+            }
+          } catch {
+            // ignore — don't block sidebar load
+          }
+
+          // My Projects — always visible for employees
+          items = [
+            ...items,
+            { name: "My Projects", icon: FolderKanban, href: "/user/projects", animation: "float" as const },
+          ];
+        }
+
         setMenuItems(items);
 
-        // Set dashboard href based on role
-        if (primaryRole === "ADMIN") {
-          setDashboardHref("/admin/dashboard");
-        } else {
-          setDashboardHref("/user/dashboard");
-        }
       } catch (err: unknown) {
         toast.error("Failed to load profile");
       }
@@ -220,14 +268,18 @@ export default function Sidebar() {
         )}
         style={{ width: isExpanded ? "224px" : "56px" }}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
-          {isExpanded && (
-            <Link href={dashboardHref} className="font-semibold text-lg text-gray-900 dark:text-gray-100 hover:opacity-80 transition-opacity">
-              Avinya HRMS
-            </Link>
-          )}
-          {!isExpanded && (
-            <Boxes className="w-6 h-6 text-gray-900 dark:text-gray-100 transition-transform duration-200 hover:scale-125" />
+        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-800">
+          {isExpanded ? (
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-7 w-7 rounded-md bg-gradient-to-r from-[#184a8c] to-[#00b4db] flex items-center justify-center shrink-0">
+  <Boxes className="h-4 w-4 text-white" />
+</div>
+              <span className="font-semibold text-sm bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent truncate">
+  Avinya HRMS
+</span>
+            </div>
+          ) : (
+            <span />
           )}
           <button
             onClick={() => setMode(isExpanded ? "collapsed" : "expanded")}
@@ -242,7 +294,7 @@ export default function Sidebar() {
           </button>
         </div>
 
-        <div className="flex-1 flex flex-col items-start px-2 py-4 gap-1">
+        <div className="flex-1 flex flex-col items-start px-2 py-4 gap-1 overflow-y-auto scrollbar-hide">
           {menuItems.map((item) => {
             const isGroup = Boolean(item.children?.length);
             const isActive = !isGroup && item.href ? pathname === item.href : false;
@@ -276,11 +328,8 @@ export default function Sidebar() {
                           icon={item.icon}
                           animation={item.animation}
                           isActive={isGroupActive}
-                          className={cn(
-                            isGroupActive
-                              ? "text-gray-900 dark:text-gray-100"
-                              : "text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
-                          )}
+                          className={sidebarIconGradientClass}
+                          gradient
                         />
                         {isExpanded && (
                           <>
@@ -320,11 +369,8 @@ export default function Sidebar() {
                             icon={item.icon}
                             animation={item.animation}
                             isActive={isActive}
-                            className={cn(
-                              isActive
-                                ? "text-gray-900 dark:text-gray-100"
-                                : "text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
-                            )}
+                            className={sidebarIconGradientClass}
+                            gradient
                           />
                           {!isExpanded &&
                             item.href === "/user/messages" &&
@@ -393,11 +439,8 @@ export default function Sidebar() {
                           icon={child.icon}
                           animation={child.animation}
                           isActive={isChildActive}
-                          className={cn(
-                            isChildActive
-                              ? "text-gray-900 dark:text-gray-100"
-                              : "text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
-                          )}
+                          className={sidebarIconGradientClass}
+                          gradient
                         />
                         <span
                           className={cn(

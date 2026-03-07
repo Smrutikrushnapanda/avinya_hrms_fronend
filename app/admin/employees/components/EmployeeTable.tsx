@@ -177,7 +177,7 @@ export default function EmployeeTable({
               <CardTitle>Employee Directory</CardTitle>
             </div>
 
-            <Button className="bg-blue-600 hover:bg-blue-700" onClick={onCreateEmployee}>
+            <Button onClick={onCreateEmployee}>
               <UserPlus className="w-4 h-4 mr-2" />
               Add Employee
             </Button>

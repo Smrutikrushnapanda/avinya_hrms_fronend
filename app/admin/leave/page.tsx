@@ -11,6 +11,9 @@ import {
   Users,
   ClipboardList,
   Filter,
+  Tag,
+  Venus,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +66,8 @@ import {
   initializeLeaveBalance,
   setLeaveBalanceTemplates,
   getLeaveBalanceTemplates,
+  createLeaveType,
+  deleteLeaveType,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -230,6 +235,17 @@ export default function LeaveManagementPage() {
   });
   const [createLoading, setCreateLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+
+  // Leave Types tab state
+  const [ltDialogOpen, setLtDialogOpen] = useState(false);
+  const [ltForm, setLtForm] = useState({
+    name: "",
+    description: "",
+    genderRestriction: "none",
+    isEarned: false,
+  });
+  const [ltCreating, setLtCreating] = useState(false);
+  const [ltDeleteLoading, setLtDeleteLoading] = useState<string | null>(null);
 
   // ------- Fetch profile on mount -------
   useEffect(() => {
@@ -511,6 +527,43 @@ export default function LeaveManagementPage() {
     }
   };
 
+  // ------- Leave Types handlers -------
+  const handleCreateLeaveType = async () => {
+    if (!ltForm.name.trim()) { toast.error("Enter a leave type name"); return; }
+    setLtCreating(true);
+    try {
+      await createLeaveType({
+        organizationId: profile.organizationId,
+        name: ltForm.name.trim(),
+        description: ltForm.description.trim() || undefined,
+        genderRestriction: ltForm.genderRestriction === "none" ? null : ltForm.genderRestriction,
+        isEarned: ltForm.isEarned,
+      });
+      toast.success("Leave type created");
+      setLtDialogOpen(false);
+      setLtForm({ name: "", description: "", genderRestriction: "none", isEarned: false });
+      fetchLeaveTypes();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to create leave type");
+    } finally {
+      setLtCreating(false);
+    }
+  };
+
+  const handleDeleteLeaveType = async (id: string) => {
+    if (!confirm("Delete this leave type? This cannot be undone.")) return;
+    setLtDeleteLoading(id);
+    try {
+      await deleteLeaveType(id);
+      toast.success("Leave type deleted");
+      fetchLeaveTypes();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to delete leave type");
+    } finally {
+      setLtDeleteLoading(null);
+    }
+  };
+
   const filteredRequests =
     statusFilter === "all"
       ? leaveRequests
@@ -530,7 +583,7 @@ export default function LeaveManagementPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="requests" className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
             Requests
@@ -542,6 +595,10 @@ export default function LeaveManagementPage() {
           <TabsTrigger value="balances" className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4" />
             Balances
+          </TabsTrigger>
+          <TabsTrigger value="types" className="flex items-center gap-2">
+            <Tag className="h-4 w-4" />
+            Leave Types
           </TabsTrigger>
         </TabsList>
 
@@ -883,6 +940,87 @@ export default function LeaveManagementPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="types" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Leave Types</CardTitle>
+                <CardDescription>
+                  Manage leave types. Set gender restrictions for maternity/paternity leave,
+                  or mark as earned for holiday working credits.
+                </CardDescription>
+              </div>
+              <Button className="gap-2" onClick={() => setLtDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Add Leave Type
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {leaveTypes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No leave types yet. Add one to get started.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Gender Restriction</TableHead>
+                      <TableHead>Earned Leave</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {leaveTypes.map((lt) => (
+                      <TableRow key={lt.id}>
+                        <TableCell className="font-medium">{lt.name}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {lt.description || "-"}
+                        </TableCell>
+                        <TableCell>
+                          {lt.genderRestriction ? (
+                            <Badge className="gap-1 bg-pink-100 text-pink-700 border-pink-300 hover:bg-pink-100">
+                              <Venus className="h-3 w-3" />
+                              {lt.genderRestriction === "female" ? "Female only" : "Male only"}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">All genders</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {lt.isEarned ? (
+                            <Badge className="gap-1 bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100">
+                              <Star className="h-3 w-3" />
+                              Earned
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Standard</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="gap-1"
+                            onClick={() => handleDeleteLeaveType(lt.id)}
+                            disabled={ltDeleteLoading === lt.id}
+                          >
+                            {ltDeleteLoading === lt.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                            Delete
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
@@ -999,6 +1137,84 @@ export default function LeaveManagementPage() {
               ) : (
                 "Create"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Leave Type Dialog */}
+      <Dialog open={ltDialogOpen} onOpenChange={(open) => {
+        setLtDialogOpen(open);
+        if (!open) setLtForm({ name: "", description: "", genderRestriction: "none", isEarned: false });
+      }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Add Leave Type</DialogTitle>
+            <DialogDescription>
+              Create a new leave type for your organization.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                placeholder="e.g. Maternity Leave"
+                value={ltForm.name}
+                onChange={(e) => setLtForm((p) => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Description{" "}
+                <span className="text-muted-foreground text-xs">(optional)</span>
+              </Label>
+              <Input
+                placeholder="e.g. Paid leave for childbirth"
+                value={ltForm.description}
+                onChange={(e) => setLtForm((p) => ({ ...p, description: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Gender Restriction</Label>
+              <Select
+                value={ltForm.genderRestriction}
+                onValueChange={(v) => setLtForm((p) => ({ ...p, genderRestriction: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">All genders (no restriction)</SelectItem>
+                  <SelectItem value="female">Female only (e.g. Maternity)</SelectItem>
+                  <SelectItem value="male">Male only (e.g. Paternity)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3 p-3 border rounded-md">
+              <input
+                id="is-earned"
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={ltForm.isEarned}
+                onChange={(e) => setLtForm((p) => ({ ...p, isEarned: e.target.checked }))}
+              />
+              <div>
+                <label htmlFor="is-earned" className="text-sm font-medium cursor-pointer">
+                  Earned Leave
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Credit this leave when an employee works on weekends or holidays
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setLtDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateLeaveType} disabled={ltCreating} className="gap-2">
+              {ltCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Create
             </Button>
           </DialogFooter>
         </DialogContent>

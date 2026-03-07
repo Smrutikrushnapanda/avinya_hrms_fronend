@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Briefcase, Building2, PlusCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Briefcase, Building2, PlusCircle, ArrowLeft } from "lucide-react";
 
 import {
   createClient,
-  createProject,
+  createClientProject,
   deleteClient,
-  deleteProject,
+  deleteClientProject,
+  getClientProjects,
   getClients,
   getProfile,
-  getProjects,
   updateClient,
-  updateProject,
+  updateClientProject,
+  getEmployees,
 } from "@/app/api/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,10 +27,12 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function ClientsProjectsPage() {
+  const router = useRouter();
   const [organizationId, setOrganizationId] = useState("");
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [managers, setManagers] = useState<any[]>([]);
   const [clientSubmitting, setClientSubmitting] = useState(false);
   const [projectSubmitting, setProjectSubmitting] = useState(false);
   const [editClientId, setEditClientId] = useState<string | null>(null);
@@ -53,15 +57,37 @@ export default function ClientsProjectsPage() {
     startDate: "",
     endDate: "",
     description: "",
+    managerId: "",
   });
 
   const loadData = async (orgId: string) => {
-    const [clientsRes, projectsRes] = await Promise.all([
+    const [clientsRes, projectsRes, employeesRes] = await Promise.all([
       getClients({ organizationId: orgId }),
-      getProjects({ organizationId: orgId }),
+      getClientProjects({ organizationId: orgId }),
+      getEmployees(orgId).catch(() => ({ data: [] })),
     ]);
     setClients(Array.isArray(clientsRes.data) ? clientsRes.data : []);
     setProjects(Array.isArray(projectsRes.data) ? projectsRes.data : []);
+
+    const employees = Array.isArray(employeesRes.data)
+      ? employeesRes.data
+      : employeesRes.data?.data ?? employeesRes.data?.employees ?? [];
+
+    // A manager is anyone who has at least one direct report (reportingTo points to them)
+    const reportsSet = new Set<string>();
+    employees.forEach((e: any) => {
+      if (e.reportingTo) reportsSet.add(e.reportingTo);
+    });
+
+    const mgrs = employees
+      .filter((e: any) => reportsSet.has(e.id))
+      .map((e: any) => ({
+        id: e.id,
+        name: [e.firstName, e.lastName].filter(Boolean).join(" ") || e.user?.firstName || "",
+        email: e.user?.email ?? e.workEmail ?? "",
+      }));
+
+    setManagers(mgrs);
   };
 
   useEffect(() => {
@@ -246,7 +272,7 @@ export default function ClientsProjectsPage() {
     }
     try {
       setProjectSubmitting(true);
-      await createProject({
+      await createClientProject({
         organizationId,
         clientId: projectForm.clientId || undefined,
         projectName: projectForm.projectName,
@@ -254,6 +280,7 @@ export default function ClientsProjectsPage() {
         startDate: projectForm.startDate || undefined,
         endDate: projectForm.endDate || undefined,
         description: projectForm.description || undefined,
+        managerId: projectForm.managerId || undefined,
       });
       toast.success("Project added");
       setProjectForm({
@@ -263,6 +290,7 @@ export default function ClientsProjectsPage() {
         startDate: "",
         endDate: "",
         description: "",
+        managerId: "",
       });
       await loadData(organizationId);
     } catch (error: any) {
@@ -281,6 +309,7 @@ export default function ClientsProjectsPage() {
       startDate: project.startDate || "",
       endDate: project.endDate || "",
       description: project.description || "",
+      managerId: project.managerId || project.manager?.id || "",
     });
   };
 
@@ -300,13 +329,14 @@ export default function ClientsProjectsPage() {
     }
     try {
       setProjectSubmitting(true);
-      await updateProject(editProjectId, {
+      await updateClientProject(editProjectId, {
         clientId: projectForm.clientId || undefined,
         projectName: projectForm.projectName,
         status: projectForm.status || "ACTIVE",
         startDate: projectForm.startDate || undefined,
         endDate: projectForm.endDate || undefined,
         description: projectForm.description || undefined,
+        managerId: projectForm.managerId || undefined,
       });
       toast.success("Project updated");
       setEditProjectId(null);
@@ -317,6 +347,7 @@ export default function ClientsProjectsPage() {
         startDate: "",
         endDate: "",
         description: "",
+        managerId: "",
       });
       await loadData(organizationId);
     } catch (error: any) {
@@ -340,7 +371,7 @@ export default function ClientsProjectsPage() {
   const handleDeleteProject = async (id: string) => {
     if (!confirm("Delete this project?")) return;
     try {
-      await deleteProject(id);
+      await deleteClientProject(id);
       toast.success("Project deleted");
       await loadData(organizationId);
     } catch (error: any) {
@@ -359,6 +390,14 @@ export default function ClientsProjectsPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9"
+          onClick={() => router.push("/admin/projects")}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
         <Building2 className="h-6 w-6 text-primary" />
         <div>
           <h1 className="text-2xl font-semibold">Clients & Projects</h1>
@@ -580,11 +619,11 @@ export default function ClientsProjectsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Client (optional)</Label>
-                  <Select
-                    value={projectForm.clientId}
-                    onValueChange={(value) => setProjectForm((prev) => ({ ...prev, clientId: value }))}
+              <div className="space-y-1.5">
+                <Label>Client (optional)</Label>
+                <Select
+                  value={projectForm.clientId}
+                  onValueChange={(value) => setProjectForm((prev) => ({ ...prev, clientId: value }))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select client" />
@@ -595,6 +634,30 @@ export default function ClientsProjectsPage() {
                           {client.clientName}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Assign Manager</Label>
+                  <Select
+                    value={projectForm.managerId}
+                    onValueChange={(value) => setProjectForm((prev) => ({ ...prev, managerId: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={managers.length ? "Select manager" : "No managers found"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {managers.length === 0 ? (
+                        <SelectItem value="" disabled>
+                          No managers available
+                        </SelectItem>
+                      ) : (
+                        managers.map((mgr) => (
+                          <SelectItem key={mgr.id} value={mgr.id}>
+                            {mgr.name || "Unnamed"} {mgr.email ? `• ${mgr.email}` : ""}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -672,6 +735,7 @@ export default function ClientsProjectsPage() {
                         startDate: "",
                         endDate: "",
                         description: "",
+                        managerId: "",
                       });
                     }}
                   >
@@ -694,13 +758,14 @@ export default function ClientsProjectsPage() {
                     <TableHead>Project</TableHead>
                     <TableHead>Client</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Manager</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {projects.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-sm text-muted-foreground">
+                      <TableCell colSpan={5} className="text-sm text-muted-foreground">
                         No projects added yet.
                       </TableCell>
                     </TableRow>
@@ -712,6 +777,11 @@ export default function ClientsProjectsPage() {
                         </TableCell>
                         <TableCell>{project.client?.clientName || "--"}</TableCell>
                         <TableCell>{project.status || "--"}</TableCell>
+                        <TableCell>
+                          {project.manager?.firstName || project.manager?.lastName
+                            ? `${project.manager?.firstName ?? ""} ${project.manager?.lastName ?? ""}`.trim()
+                            : project.manager?.email || "--"}
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" onClick={() => openEditProject(project)}>

@@ -103,12 +103,12 @@ export function DataTable<TData, TValue>({
   return (
     <div className="w-full space-y-4">
       {/* Search & Column Toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <Input
           placeholder="Search..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
 
         <DropdownMenu>
@@ -116,7 +116,7 @@ export function DataTable<TData, TValue>({
             <Button
               variant="outline"
               size="sm"
-              className="flex items-center gap-1"
+              className="hidden sm:inline-flex items-center gap-1"
             >
               <span>Columns</span>
               <ChevronDown className="w-4 h-4" />
@@ -140,19 +140,19 @@ export function DataTable<TData, TValue>({
       </div>
 
       {/* Table */}
-      <div className="rounded-md border overflow-x-auto">
+      <div className="rounded-md border border-border bg-card overflow-x-auto">
         <Table className="">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow
               key={headerGroup.id}
-              className="border-b border-gray-200 bg-muted"
+              className="border-b border-border bg-muted/60"
             >
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
                   onClick={header.column.getToggleSortingHandler()}
-                  className="cursor-pointer select-none whitespace-nowrap border-r border-gray-200 last:border-r-0 py-2 text-left text-sm font-medium text-muted-foreground"
+                  className="cursor-pointer select-none whitespace-nowrap border-r border-border last:border-r-0 py-2 text-left text-sm font-medium text-muted-foreground"
                 >
                   <div className="flex items-center gap-1">
                     {flexRender(
@@ -173,12 +173,12 @@ export function DataTable<TData, TValue>({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="border-b border-gray-100 hover:bg-muted/50"
+                  className="border-b border-border/60 hover:bg-muted/40"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className="border-r border-gray-100 last:border-r-0 px-4 py-2 whitespace-nowrap text-sm"
+                      className="border-r border-border/60 last:border-r-0 px-4 py-2 whitespace-nowrap text-sm"
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -203,7 +203,7 @@ export function DataTable<TData, TValue>({
       </div>
 
       {/* Pagination Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -227,7 +227,7 @@ export function DataTable<TData, TValue>({
             Page {state.page + 1} of {pageCount}
           </span>
           <select
-            className="border rounded px-2 py-1 text-sm"
+            className="border border-border rounded bg-background px-2 py-1 text-sm"
             value={state.pageSize}
             onChange={(e) => setState({ ...state, pageSize: +e.target.value })}
           >

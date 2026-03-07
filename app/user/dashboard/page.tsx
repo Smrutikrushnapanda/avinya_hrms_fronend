@@ -28,6 +28,7 @@ import {
   getTodayLogs,
   getHolidays,
   getAttendanceSettings,
+  getUpcomingMeetingsForUser,
 } from "@/app/api/api";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -129,29 +130,42 @@ function HolidayCalendarWidget({
   })();
 
   return (
-    <div className="flex flex-col">
-      <Calendar
-        mode="single"
-        month={month}
-        onMonthChange={setMonth}
-        modifiers={{ holiday: holidayDates, weekend: weekendDates }}
-        modifiersClassNames={{
-          holiday:
-            "!bg-rose-100 !text-rose-600 dark:!bg-rose-900/40 dark:!text-rose-400 font-bold rounded-full ring-2 ring-rose-300 dark:ring-rose-700",
-          weekend:
-            "!bg-blue-100 !text-blue-700 dark:!bg-blue-900/30 dark:!text-blue-300 font-bold rounded-full ring-2 ring-blue-200 dark:ring-blue-700",
-        }}
-        onDayClick={handleDayClick}
-        classNames={{
-          root: "w-full",
-          table: "w-full",
-          today:
-            "!bg-[#00BBA7] !text-white rounded-full font-bold shadow-[0_0_0_3px_rgba(0,187,167,0.25)] scale-110 transition-transform duration-200",
-        }}
-      />
+    <div className="flex min-w-0 flex-col">
+      <div
+        className="min-w-0 overflow-x-auto"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <Calendar
+          mode="single"
+          month={month}
+          onMonthChange={setMonth}
+          modifiers={{ holiday: holidayDates, weekend: weekendDates }}
+          modifiersClassNames={{
+            holiday:
+              "!bg-rose-100 !text-rose-600 dark:!bg-rose-900/40 dark:!text-rose-400 font-bold rounded-full ring-2 ring-rose-300 dark:ring-rose-700",
+            weekend:
+              "!bg-blue-100 !text-blue-700 dark:!bg-blue-900/30 dark:!text-blue-300 font-bold rounded-full ring-2 ring-blue-200 dark:ring-blue-700",
+          }}
+          onDayClick={handleDayClick}
+          className="w-full min-w-[17rem] p-2 sm:p-3"
+          classNames={{
+            root: "w-full min-w-[17rem] max-w-full",
+            months: "w-full",
+            month: "w-full min-w-0",
+            table: "w-full table-fixed",
+            weekdays: "flex w-full",
+            weekday: "flex-1 text-center text-[0.72rem] sm:text-[0.8rem]",
+            week: "flex w-full",
+            day:
+              "relative flex-1 min-w-0 h-full p-0 text-center aspect-square [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md group/day",
+            today:
+              "!bg-[#00BBA7] !text-white rounded-full font-bold shadow-[0_0_0_3px_rgba(0,187,167,0.25)] scale-110 transition-transform duration-200",
+          }}
+        />
+      </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-1 px-1">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
         <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
           Holiday
@@ -239,12 +253,21 @@ interface LeaveBalanceData {
 }
 
 interface Meeting {
-  time: string;
-  date: string;
+  id: string;
   title: string;
-  topic: string;
-  members: string[];
-  colors: string[];
+  description?: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  status: string;
+  createdBy?: {
+    firstName: string;
+    lastName: string;
+  };
+  participants?: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+  }>;
 }
 
 interface Award {
@@ -276,6 +299,7 @@ export default function UserDashboardPage() {
   const [hasPunchedInToday, setHasPunchedInToday] = useState(false);
   const [workingDays, setWorkingDays] = useState<number[] | undefined>(undefined);
   const [weekdayOffRules, setWeekdayOffRules] = useState<Record<string, number[]> | undefined>(undefined);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
 
   const normalizeLeaveBalance = (balance: LeaveBalanceData): LeaveBalanceData => {
     const openingBalance = Number(balance.openingBalance ?? 0);
@@ -370,7 +394,7 @@ export default function UserDashboardPage() {
             const holidaysResponse = await getHolidays({ organizationId: profile.organizationId });
             if (holidaysResponse.data) {
               // Handle different response formats
-              let holidaysData = holidaysResponse.data;
+              const holidaysData = holidaysResponse.data;
               if (holidaysData.holidays) {
                 setHolidays(holidaysData.holidays);
               } else if (Array.isArray(holidaysData)) {
@@ -379,6 +403,18 @@ export default function UserDashboardPage() {
             }
           } catch (holidayError) {
             console.log("Holidays not available:", holidayError);
+          }
+
+          // Fetch upcoming meetings for this user
+          if (resolvedUserId) {
+            try {
+              const meetingsRes = await getUpcomingMeetingsForUser(resolvedUserId);
+              if (meetingsRes.data) {
+                setMeetings(Array.isArray(meetingsRes.data) ? meetingsRes.data : []);
+              }
+            } catch (meetingError) {
+              console.log("Meetings not available:", meetingError);
+            }
           }
 
           // Fetch attendance settings for weekend/off-day rules
@@ -464,34 +500,6 @@ export default function UserDashboardPage() {
       }
     : attendanceBreakdownBase;
 
-  // Sample meetings
-  const meetings: Meeting[] = [
-    {
-      time: "2:00 – 4:30",
-      date: "22 Aug",
-      title: "Q1 Strategy Planning",
-      topic: "Product roadmap alignment",
-      members: ["A", "B", "C"],
-      colors: ["#7c6cff", "#e87e8e", "#5cc8a8"],
-    },
-    {
-      time: "6:00 – 7:30",
-      date: "22 Aug",
-      title: "Design Review",
-      topic: "UX team sync & feedback",
-      members: ["D", "E"],
-      colors: ["#e8b86c", "#6cb8e8"],
-    },
-    {
-      time: "9:00 – 10:00",
-      date: "23 Aug",
-      title: "Client Presentation",
-      topic: "Acme Corp live demo",
-      members: ["F", "G", "H"],
-      colors: ["#5cc8a8", "#e87e8e", "#7c6cff"],
-    },
-  ];
-
   // Sample awards
   const awards: Award[] = [
     {
@@ -555,7 +563,7 @@ export default function UserDashboardPage() {
           <p className="text-sm text-muted-foreground font-medium">
             {getGreeting()}
           </p>
-          <h1 className="text-3xl font-extrabold text-foreground tracking-tight leading-tight">
+          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent tracking-tight leading-tight">
             {getUserName()}
           </h1>
         </div>
@@ -568,15 +576,16 @@ export default function UserDashboardPage() {
           return (
             <Card
               key={card.label}
-              className="p-5 hover:-translate-y-1 transition-transform duration-200 cursor-pointer relative overflow-hidden"
+              className="p-5 hover:-translate-y-1 transition-transform duration-200 cursor-pointer relative overflow-hidden border-l-4 border-[#184a8c]/50 rounded-2xl"
             >
-              <div className={`w-11 h-11 rounded-xl ${card.accent} flex items-center justify-center mb-3`}>
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#184a8c]/10 to-[#00b4db]/10 rounded-full blur-xl -mr-12 -mt-12" />
+              <div className={`w-11 h-11 rounded-xl ${card.accent} flex items-center justify-center mb-3 relative z-10`}>
                 <Icon className="w-5 h-5" />
               </div>
-              <p className="text-2xl font-extrabold text-foreground tracking-tight">
+              <p className="text-2xl font-extrabold text-foreground tracking-tight relative z-10">
                 {card.value}
               </p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">
+              <p className="text-xs text-muted-foreground font-medium mt-0.5 relative z-10">
                 {card.label}
               </p>
               <span
@@ -599,9 +608,9 @@ export default function UserDashboardPage() {
       </div>
 
       {/* ── ROW 1: DONUT + HOLIDAY CALENDAR + MEETINGS ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-5">
         {/* ATTENDANCE DONUT */}
-        <Card className="p-5">
+        <Card className="p-5 min-w-0 border-t-4 border-t-[#184a8c]/50 rounded-2xl">
           <div className="flex items-start justify-between mb-2">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -622,7 +631,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* HOLIDAY CALENDAR */}
-        <Card className="p-5">
+        <Card className="p-5 min-w-0 border-t-4 border-t-[#00b4db]/50 rounded-2xl">
           <div className="flex items-start justify-between mb-1">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -644,61 +653,79 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* UPCOMING MEETINGS */}
-        <Card className="p-5">
+        <Card className="p-5 min-w-0 md:col-span-2 xl:col-span-1 border-t-4 border-t-[#184a8c]/50 rounded-2xl">
           <div className="flex items-start justify-between mb-3">
             <div>
               <h2 className="text-sm font-bold text-foreground">
                 Upcoming Meetings
               </h2>
               <p className="text-xs text-muted-foreground">
-                Today&apos;s schedule
+                Your scheduled meetings
               </p>
             </div>
-            <button className="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-lg hover:bg-primary/15 transition-colors">
-              Show All
-            </button>
           </div>
           <div className="space-y-3">
-            {meetings.map((m, i) => (
-              <div
-                key={i}
-                className="flex gap-3 p-3 rounded-xl bg-muted/50 border border-transparent hover:border-primary/20 hover:bg-primary/5 transition-all cursor-pointer"
-              >
-                <div className="flex flex-col items-center gap-1 min-w-[48px]">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center shadow-sm">
-                    <Clock className="w-4 h-4 text-primary" />
-                  </div>
-                  <span className="text-[10px] font-bold text-primary whitespace-nowrap">
-                    {m.time}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground truncate">
-                    {m.title}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">{m.topic}</p>
-                  <div className="flex mt-1.5">
-                    {m.members.map((mem, j) => (
-                      <div
-                        key={j}
-                        className="w-5 h-5 rounded-full border-2 border-card flex items-center justify-center text-[8px] font-bold text-white -ml-1 first:ml-0"
-                        style={{ background: m.colors[j] }}
-                      >
-                        {mem}
+            {meetings.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No upcoming meetings
+              </p>
+            ) : (
+              meetings.slice(0, 5).map((m) => {
+                const meetingDate = new Date(m.scheduledAt);
+                const timeStr = meetingDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                const dateStr = meetingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                
+                return (
+                  <div
+                    key={m.id}
+                    className="flex gap-3 p-3 rounded-xl bg-gradient-to-r from-[#184a8c]/5 to-[#00b4db]/5 border border-[#184a8c]/20 hover:border-[#00b4db] hover:shadow-md transition-all cursor-pointer"
+                  >
+                    <div className="flex flex-col items-center gap-1 min-w-[48px]">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#184a8c] to-[#00b4db] flex items-center justify-center shadow-sm">
+                        <Clock className="w-4 h-4 text-white" />
                       </div>
-                    ))}
+                      <span className="text-[10px] font-bold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent whitespace-nowrap">
+                        {timeStr}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground truncate">
+                        {m.title}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {m.description || `${m.durationMinutes} minutes`}
+                      </p>
+                      {m.participants && m.participants.length > 0 && (
+                        <div className="flex mt-1.5">
+                          {m.participants.slice(0, 4).map((p, j) => (
+                            <div
+                              key={p.id}
+                              className="w-5 h-5 rounded-full border-2 border-card flex items-center justify-center text-[8px] font-bold text-white -ml-1 first:ml-0"
+                              style={{ background: ['#7c6cff', '#e87e8e', '#5cc8a8', '#e8b86c'][j % 4] }}
+                            >
+                              {p.firstName?.[0] || '?'}{p.lastName?.[0] || ''}
+                            </div>
+                          ))}
+                          {m.participants.length > 4 && (
+                            <div className="w-5 h-5 rounded-full border-2 border-card flex items-center justify-center text-[8px] font-bold text-foreground -ml-1 bg-muted">
+                              +{m.participants.length - 4}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-primary/10 dark:bg-primary/20 rounded-xl px-2.5 py-1.5 text-center flex-shrink-0 self-start">
+                      <p className="text-base font-extrabold text-primary leading-tight">
+                        {meetingDate.getDate()}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground font-medium">
+                        {dateStr.split(' ')[0]}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="bg-primary/10 dark:bg-primary/20 rounded-xl px-2.5 py-1.5 text-center flex-shrink-0 self-start">
-                  <p className="text-base font-extrabold text-primary leading-tight">
-                    {m.date.split(" ")[0]}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-medium">
-                    {m.date.split(" ")[1]}
-                  </p>
-                </div>
-              </div>
-            ))}
+                );
+              })
+            )}
           </div>
         </Card>
       </div>
@@ -706,7 +733,7 @@ export default function UserDashboardPage() {
       {/* ── ROW 2: ATTENDANCE + LEAVE BALANCE + AWARD TABLE ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* TODAY'S ATTENDANCE STATUS */}
-        <Card className="p-5">
+        <Card className="p-5 border-l-4 border-l-[#184a8c]/50 rounded-2xl">
           <div className="flex items-start justify-between mb-1">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -724,7 +751,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* LEAVE BALANCE */}
-        <Card className="p-5">
+        <Card className="p-5 border-l-4 border-l-[#00b4db]/50 rounded-2xl">
           <div className="mb-4">
             <h2 className="text-sm font-bold text-foreground">Leave Balance</h2>
             <p className="text-xs text-muted-foreground">
@@ -787,7 +814,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* EMPLOYEE AWARD LIST */}
-        <Card className="p-5">
+        <Card className="p-5 border-l-4 border-l-[#184a8c]/50 rounded-2xl">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -797,7 +824,7 @@ export default function UserDashboardPage() {
                 Recent recognitions
               </p>
             </div>
-            <button className="text-xs font-semibold text-primary bg-primary/10 px-3 py-1 rounded-lg hover:bg-primary/15 transition-colors flex items-center gap-1">
+            <button className="text-xs font-semibold text-white bg-gradient-to-r from-[#184a8c] to-[#00b4db] px-3 py-1 rounded-lg hover:shadow-lg transition-all flex items-center gap-1">
               <Trophy className="w-3.5 h-3.5" />
               Award list
             </button>

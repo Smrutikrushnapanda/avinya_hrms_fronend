@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { motion, type Variants } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,8 @@ interface AnimatedIconProps {
   animation: AnimationType;
   isActive?: boolean;
   className?: string;
+  style?: CSSProperties;
+  gradient?: boolean;
 }
 
 const animationVariants: Record<AnimationType, Variants> = {
@@ -159,8 +161,17 @@ export default function AnimatedIcon({
   animation,
   isActive = false,
   className,
+  style,
+  gradient = false,
 }: AnimatedIconProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const iconClassName = cn("w-5 h-5", className);
+  const gradientSlices = [
+    { clipPath: "inset(0 75% 0 0)", color: "#184a8c" },
+    { clipPath: "inset(0 50% 0 25%)", color: "#1467a1" },
+    { clipPath: "inset(0 25% 0 50%)", color: "#0c8dbd" },
+    { clipPath: "inset(0 0 0 75%)", color: "#00b4db" },
+  ] as const;
 
   const currentState = isHovered ? "hover" : isActive ? "active" : "idle";
 
@@ -170,9 +181,26 @@ export default function AnimatedIcon({
       onMouseLeave={() => setIsHovered(false)}
       variants={animationVariants[animation]}
       animate={currentState}
-      style={{ display: "inline-flex", originX: 0.5, originY: 0.5 }}
+      style={{ display: "inline-flex", originX: 0.5, originY: 0.5, position: "relative", width: "1.25rem", height: "1.25rem" }}
     >
-      <Icon className={cn("w-5 h-5", className)} />
+      {gradient ? (
+        <>
+          {gradientSlices.map((slice) => (
+            <span
+              key={slice.clipPath}
+              className="absolute inset-0 overflow-hidden"
+              style={{ clipPath: slice.clipPath }}
+            >
+              <Icon
+                className={iconClassName}
+                style={{ ...style, color: slice.color, stroke: slice.color }}
+              />
+            </span>
+          ))}
+        </>
+      ) : (
+        <Icon className={iconClassName} style={style} />
+      )}
     </motion.div>
   );
 }

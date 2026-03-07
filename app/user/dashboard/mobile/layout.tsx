@@ -14,6 +14,7 @@ import {
   BarChart2,
   Settings,
   Bell,
+  Users,
 } from "lucide-react";
 
 const tabs = [
@@ -25,6 +26,7 @@ const tabs = [
 ];
 
 const serviceItems = [
+  { name: "Profile", href: "/user/dashboard/mobile/profile", icon: Users, color: "#026D94" },
   { name: "Timesheet", href: "/user/dashboard/mobile/timesheet", icon: FileText, color: "#026D94" },
   { name: "Payroll", href: "/user/dashboard/mobile/payroll", icon: DollarSign, color: "#026D94" },
   { name: "Messages", href: "/user/dashboard/mobile/messages", icon: MessageSquare, color: "#026D94" },
@@ -62,37 +64,37 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="employee-mobile-shell min-h-screen bg-background text-foreground flex flex-col">
       {children}
 
       {/* Bottom Sheet Overlay */}
       {sheetOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-300"
+          className="fixed inset-0 bg-black/45 dark:bg-black/70 z-40 transition-opacity duration-300"
           onClick={() => setSheetOpen(false)}
         />
       )}
 
       {/* Bottom Sheet */}
       <div
-        className={`fixed left-0 w-full bg-white z-50 rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed left-0 w-full bg-card border-t border-border z-50 rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
           sheetOpen ? "translate-y-0" : "translate-y-full"
         }`}
         style={{ bottom: "64px" }} // sits just above the nav bar
       >
         {/* Sheet Handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+          <div className="w-10 h-1 bg-border rounded-full" />
         </div>
 
         {/* Sheet Header */}
         <div className="flex items-center justify-between px-5 py-3">
-          <span className="text-base font-semibold text-gray-800">Services</span>
+          <span className="text-base font-semibold text-foreground">Services</span>
           <button
             onClick={() => setSheetOpen(false)}
-            className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center"
+            className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
           >
-            <X className="w-4 h-4 text-gray-500" />
+            <X className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
 
@@ -107,12 +109,12 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                   setSheetOpen(false);
                   router.push(item.href);
                 }}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-gray-50 hover:bg-[#026D94]/10 active:scale-95 transition-all duration-150"
+                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-muted/70 hover:bg-[#026D94]/10 active:scale-95 transition-all duration-150"
               >
-                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center border border-gray-100">
+                <div className="w-12 h-12 rounded-full bg-background shadow-sm flex items-center justify-center border border-border">
                   <Icon className="w-5 h-5 text-[#026D94]" />
                 </div>
-                <span className="text-[11px] font-medium text-gray-600">{item.name}</span>
+                <span className="text-[11px] font-medium text-muted-foreground">{item.name}</span>
               </button>
             );
           })}
@@ -120,7 +122,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 shadow-lg z-50" style={{ height: "64px" }}>
+      <div className="fixed bottom-0 left-0 w-full bg-card border-t border-border shadow-lg z-50" style={{ height: "64px" }}>
         <div className="flex items-end h-full relative">
           {tabs.map((tab, index) => {
             const isCenter = index === 2;
@@ -143,7 +145,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                   </button>
                   <span
                     className={`text-[10px] ${
-                      isActive || sheetOpen ? "text-[#026D94] font-semibold" : "text-[#b9b9b9] font-medium"
+                      isActive || sheetOpen ? "text-[#026D94] font-semibold" : "text-muted-foreground font-medium"
                     }`}
                   >
                     {tab.name}
@@ -157,7 +159,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                 key={tab.name}
                 onClick={() => tab.href && router.push(tab.href)}
                 className={`flex-1 flex flex-col items-center pt-1 pb-3 relative transition-colors ${
-                  isActive ? "text-[#026D94]" : "text-[#b9b9b9]"
+                  isActive ? "text-[#026D94]" : "text-muted-foreground"
                 }`}
               >
                 {isActive && (

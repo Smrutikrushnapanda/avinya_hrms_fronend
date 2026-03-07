@@ -9,7 +9,7 @@ export const metadata = {
   title: "Avinya HRMS – Reinventing the Way You Work",
   description: "Streamline your workforce with Avinya HRMS – your all-in-one solution for modern human resource management.",
   icons: {
-    icon: "/fav.png",
+    icon: "/favicon.ico",
   },
 };
 
@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-background text-foreground">
+      <body className="bg-background text-foreground" suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

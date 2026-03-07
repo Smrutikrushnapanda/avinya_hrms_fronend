@@ -358,12 +358,13 @@ export default function UserLeavePage() {
     fetchLeaveRequests();
   }, [profile, fetchBalances, fetchLeaveRequests]);
 
-  // Fetch leave types for apply modal
+  // Fetch leave types for apply modal (pass gender to filter gender-restricted types)
   useEffect(() => {
     if (!profile?.organizationId) return;
     const fetchLeaveTypes = async () => {
       try {
-        const res = await getLeaveTypes(profile.organizationId);
+        const gender = profile?.employee?.gender ?? undefined;
+        const res = await getLeaveTypes(profile.organizationId, gender);
         const data = res.data || [];
         setLeaveTypes(Array.isArray(data) ? data : []);
       } catch {
@@ -371,7 +372,7 @@ export default function UserLeavePage() {
       }
     };
     fetchLeaveTypes();
-  }, [profile?.organizationId]);
+  }, [profile?.organizationId, profile?.employee?.gender]);
 
   // Reset to page 0 when status filter changes
   useEffect(() => {

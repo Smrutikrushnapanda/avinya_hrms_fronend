@@ -11,12 +11,15 @@ import {
   sendChatMessage,
   apiBaseURL,
 } from "@/app/api/api";
+import { useProfilePhotoStore } from "@/stores/profilePhotoStore";
 import { createMessageSocket } from "@/lib/socket";
 import {
-  Circle,
+  ArrowLeft,
   ImageIcon,
   Loader2,
+  Maximize2,
   MessageSquare,
+  Minimize2,
   Paperclip,
   Plus,
   Search,
@@ -27,6 +30,7 @@ import {
   X,
   Video,
   Clipboard,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
@@ -83,6 +87,7 @@ type Employee = {
   firstName?: string;
   lastName?: string;
   workEmail?: string;
+  photoUrl?: string;
 };
 
 type PresencePayload = {
@@ -118,6 +123,22 @@ const formatDate = (value?: string) => {
     day: "numeric",
     year: "numeric",
   });
+};
+
+const normalizeSystemText = (text?: string) => (text || "").trim().toLowerCase();
+
+const getMeetingSystemLabel = (text?: string) => {
+  const normalized = normalizeSystemText(text);
+  if (normalized === "meeting started" || normalized === "you entered") return "You entered";
+  if (normalized === "meeting ended" || normalized === "you left") return "You left";
+  return null;
+};
+
+const extractMeetingUrlFromText = (text?: string) => {
+  if (!text) return null;
+  const match = text.match(/Join meeting:\s*(https?:\/\/\S+)/i);
+  if (!match?.[1]) return null;
+  return match[1].trim();
 };
 
 const resolveAttachmentUrl = (url?: string) => {
@@ -209,8 +230,15 @@ export default function MessagesPage() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [meetingMinimized, setMeetingMinimized] = useState(false);
+  const [showChatDetails, setShowChatDetails] = useState(false);
   const [meetingLoading, setMeetingLoading] = useState(false);
   const [meetingError, setMeetingError] = useState("");
+  const [activeMeetingUrl, setActiveMeetingUrl] = useState<string | null>(null);
+  const [meetingMiniPosition, setMeetingMiniPosition] = useState<{ x: number; y: number } | null>(null);
+  const [meetingMiniDragging, setMeetingMiniDragging] = useState(false);
+  const [viewPhotoUrl, setViewPhotoUrl] = useState<string | null>(null);
+
+  const { setPhotos: storePhotos, getPhoto } = useProfilePhotoStore();
   const jitsiContainerRef = useRef<HTMLDivElement | null>(null);
   const jitsiApiRef = useRef<any | null>(null);
 
@@ -224,6 +252,7 @@ export default function MessagesPage() {
   const conversationIdsRef = useRef<Set<string>>(new Set());
   const selectedConversationRef = useRef<string>("");
   const selfUserIdsRef = useRef<Set<string>>(new Set());
+  const meetingMiniDragOffsetRef = useRef({ x: 0, y: 0 });
 
   const selectedConversation = useMemo(
     () => conversations.find((conv) => conv.id === selectedConversationId) || null,
@@ -246,6 +275,13 @@ export default function MessagesPage() {
       return name || employee.workEmail || "Unknown";
     },
     [employeeUserMap]
+  );
+
+  const getParticipantPhoto = useCallback(
+    (userId: string): string | null => {
+      return employeeUserMap.get(userId)?.photoUrl || getPhoto(userId) || null;
+    },
+    [employeeUserMap, getPhoto]
   );
 
   const getConversationTitle = useCallback(
@@ -434,24 +470,54 @@ export default function MessagesPage() {
       setSelfName(fullName || "You");
       setSelfUserIds(currentIds);
 
-      if (!profile?.organizationId) return;
-      const employeesRes = await getEmployees(profile.organizationId);
-      const employeeList = Array.isArray(employeesRes.data?.employees)
-        ? employeesRes.data.employees
-        : Array.isArray(employeesRes.data)
-          ? employeesRes.data
-          : [];
-      setEmployees(
-        employeeList.map((employee: Employee) => ({
-          id: employee.id,
-          userId: employee.userId,
-          firstName: employee.firstName || "",
-          lastName: employee.lastName || "",
-          workEmail: employee.workEmail || "",
-        }))
-      );
+      const orgId =
+        typeof profile?.organizationId === "string"
+          ? profile.organizationId
+          : typeof profile?.organization?.id === "string"
+            ? profile.organization.id
+            : null;
+
+      if (!orgId) {
+        setEmployees([]);
+        return;
+      }
+
+      try {
+        const employeesRes = await getEmployees(orgId);
+        const employeeList = Array.isArray(employeesRes.data?.employees)
+          ? employeesRes.data.employees
+          : Array.isArray(employeesRes.data?.data)
+            ? employeesRes.data.data
+            : Array.isArray(employeesRes.data)
+              ? employeesRes.data
+              : [];
+
+        const mapped: Employee[] = employeeList
+          .filter((employee: unknown) => Boolean(employee))
+          .map((employee: Employee) => ({
+            id: employee.id,
+            userId: employee.userId,
+            firstName: employee.firstName || "",
+            lastName: employee.lastName || "",
+            photoUrl: employee.photoUrl || "",
+            workEmail: employee.workEmail || "",
+          }))
+          .filter((employee: Employee) => Boolean(employee.userId));
+
+        setEmployees(mapped);
+
+        // Cache photos in Zustand store (sessionStorage) so they survive page navigation
+        const photoMap: Record<string, string> = {};
+        mapped.forEach((emp) => {
+          if (emp.userId && emp.photoUrl) photoMap[emp.userId] = emp.photoUrl;
+        });
+        storePhotos(photoMap);
+      } catch (error) {
+        console.error("Failed to load employees list for chat:", error);
+        setEmployees([]);
+      }
     } catch (error) {
-      console.error("Failed to load employees/profile:", error);
+      console.error("Failed to load profile for chat:", error);
       toast.error("Failed to load chat participants");
     }
   }, []);
@@ -761,6 +827,45 @@ export default function MessagesPage() {
     }
   }, []);
 
+  const getRecentMeetingUrl = useCallback((list: ChatMessage[]) => {
+    const now = Date.now();
+    const withLinks = [...list]
+      .filter((message) => Boolean(extractMeetingUrlFromText(message.text)))
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+      );
+    const recent = withLinks.find(
+      (message) => now - new Date(message.createdAt || 0).getTime() <= 2 * 60 * 60 * 1000,
+    );
+    return extractMeetingUrlFromText(recent?.text || "");
+  }, []);
+
+  useEffect(() => {
+    if (!selectedConversationId) {
+      setActiveMeetingUrl(null);
+      return;
+    }
+    const stored = getMeetingState(selectedConversationId);
+    if (stored?.url) {
+      setActiveMeetingUrl(stored.url);
+      return;
+    }
+    const recent = getRecentMeetingUrl(messages);
+    if (recent) {
+      setMeetingState({ conversationId: selectedConversationId, url: recent, linkPosted: true });
+      setActiveMeetingUrl(recent);
+      return;
+    }
+    setActiveMeetingUrl(null);
+  }, [
+    getMeetingState,
+    getRecentMeetingUrl,
+    messages,
+    selectedConversationId,
+    setMeetingState,
+  ]);
+
   const renderTextWithLinks = (text: string, isMine: boolean) => {
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
     return text.split(urlRegex).map((part, idx) => {
@@ -810,7 +915,7 @@ export default function MessagesPage() {
       document.body.appendChild(script);
     });
 
-  const startMeeting = async () => {
+  const startMeeting = async (mode: "create" | "join") => {
     if (!selectedConversationId || !selfUserId) {
       toast.error("Select a conversation first");
       return;
@@ -824,12 +929,21 @@ export default function MessagesPage() {
     setMeetingLoading(true);
     setMeetingError("");
     try {
-      // reuse active meeting if one exists
       const existing = getMeetingState(selectedConversationId);
-      const meetingRoomUrl = existing?.url || meetingUrl;
+      const recentMeetingUrl = getRecentMeetingUrl(messages);
+      const joinableMeetingUrl = existing?.url || activeMeetingUrl || recentMeetingUrl;
+      const meetingRoomUrl =
+        mode === "create" ? meetingUrl : joinableMeetingUrl || "";
+
+      if (mode === "join" && !meetingRoomUrl) {
+        toast.error("No active meeting in this chat yet");
+        setMeetingLoading(false);
+        return;
+      }
 
       await loadJitsiScript();
       setMeetingOpen(true);
+      setMeetingMinimized(false);
       const createMeeting = () => {
         if (!jitsiContainerRef.current) {
           requestAnimationFrame(createMeeting);
@@ -846,21 +960,31 @@ export default function MessagesPage() {
       };
       requestAnimationFrame(createMeeting);
 
-      // drop the meeting link into the conversation so others can join (only first time)
-      if (selectedConversationId && !existing?.linkPosted) {
-        const formData = new FormData();
-        formData.append("text", `Join meeting: ${meetingRoomUrl}`);
+      if (selectedConversationId) {
+        if (mode === "create" && !existing?.linkPosted) {
+          const formData = new FormData();
+          formData.append("text", `Join meeting: ${meetingRoomUrl}`);
+          try {
+            await sendChatMessage(selectedConversationId, formData);
+          } catch {
+            // non-blocking; ignore send errors
+          }
+        }
+
         try {
-          await sendChatMessage(selectedConversationId, formData);
-          const started = new FormData();
-          started.append("text", "Meeting started");
-          await sendChatMessage(selectedConversationId, started);
+          const entered = new FormData();
+          entered.append("text", "You entered");
+          await sendChatMessage(selectedConversationId, entered);
         } catch {
           // non-blocking; ignore send errors
         }
-        setMeetingState({ conversationId: selectedConversationId, url: meetingRoomUrl, linkPosted: true });
-      } else if (selectedConversationId && existing) {
-        setMeetingState({ conversationId: selectedConversationId, url: meetingRoomUrl, linkPosted: true });
+
+        setMeetingState({
+          conversationId: selectedConversationId,
+          url: meetingRoomUrl,
+          linkPosted: true,
+        });
+        setActiveMeetingUrl(meetingRoomUrl);
       }
     } catch (error) {
       const message = (error as Error).message || "Unable to start meeting";
@@ -878,20 +1002,89 @@ export default function MessagesPage() {
     if (selectedConversationId && getMeetingState(selectedConversationId)) {
       try {
         const formData = new FormData();
-        formData.append("text", "Meeting ended");
+        formData.append("text", "You left");
         void sendChatMessage(selectedConversationId, formData);
       } catch {
         // ignore
       }
       setMeetingState(null);
     }
+    setMeetingMinimized(false);
+    setMeetingMiniPosition(null);
+    setActiveMeetingUrl(null);
     setMeetingOpen(false);
   };
 
+  const clampMiniPosition = useCallback((nextX: number, nextY: number) => {
+    if (typeof window === "undefined") return { x: nextX, y: nextY };
+    const width = 320;
+    const height = 210;
+    const minX = 8;
+    const minY = 8;
+    const maxX = Math.max(minX, window.innerWidth - width - 8);
+    const maxY = Math.max(minY, window.innerHeight - height - 8);
+    return {
+      x: Math.min(Math.max(nextX, minX), maxX),
+      y: Math.min(Math.max(nextY, minY), maxY),
+    };
+  }, []);
+
+  const beginMiniDrag = useCallback(
+    (event: { clientX: number; clientY: number }) => {
+      if (!meetingMiniPosition) return;
+      meetingMiniDragOffsetRef.current = {
+        x: event.clientX - meetingMiniPosition.x,
+        y: event.clientY - meetingMiniPosition.y,
+      };
+      setMeetingMiniDragging(true);
+    },
+    [meetingMiniPosition],
+  );
+
+  useEffect(() => {
+    if (!meetingMiniDragging) return;
+    const onPointerMove = (event: PointerEvent) => {
+      const next = clampMiniPosition(
+        event.clientX - meetingMiniDragOffsetRef.current.x,
+        event.clientY - meetingMiniDragOffsetRef.current.y,
+      );
+      setMeetingMiniPosition(next);
+    };
+    const onPointerUp = () => setMeetingMiniDragging(false);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [clampMiniPosition, meetingMiniDragging]);
+
+  useEffect(() => {
+    if (!meetingOpen || !meetingMinimized || meetingMiniPosition) return;
+    if (typeof window === "undefined") return;
+    const initial = clampMiniPosition(window.innerWidth - 336, window.innerHeight - 226);
+    setMeetingMiniPosition(initial);
+  }, [clampMiniPosition, meetingMiniPosition, meetingMinimized, meetingOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!meetingMiniPosition) return;
+    const onResize = () => {
+      setMeetingMiniPosition((prev) => {
+        if (!prev) return prev;
+        return clampMiniPosition(prev.x, prev.y);
+      });
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [clampMiniPosition, meetingMiniPosition]);
+
+  const hasActiveMeeting = Boolean(activeMeetingUrl);
+
   if (loading) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-slate-50">
-        <div className="flex items-center gap-2 text-slate-700">
+      <div className="flex h-full w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
           <Loader2 className="h-5 w-5 animate-spin" />
           Loading chats...
         </div>
@@ -900,8 +1093,8 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 bg-slate-100">
-      <aside className="flex w-[360px] min-w-[320px] flex-col border-r border-slate-200 bg-white">
+    <div className="employee-messages-shell flex h-full min-h-0 bg-slate-100 dark:bg-slate-950">
+      <aside className={`${selectedConversation ? "hidden md:flex" : "flex"} w-full md:w-[360px] md:min-w-[320px] flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900`}>
         <div className="border-b border-slate-200 p-4">
           <div className="mb-3 flex items-center justify-between">
             <h1 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -945,7 +1138,9 @@ export default function MessagesPage() {
             filteredConversations.map((conversation) => {
               const isActive = selectedConversationId === conversation.id;
               const title = getConversationTitle(conversation);
+              const meetingPreview = getMeetingSystemLabel(conversation.lastMessage?.text);
               const preview =
+                meetingPreview ||
                 conversation.lastMessage?.text ||
                 (conversation.lastMessage?.attachments?.length
                   ? "Attachment"
@@ -957,41 +1152,59 @@ export default function MessagesPage() {
                 conversation.type === "DIRECT" &&
                 Boolean(directUser && onlineUsers.has(directUser.userId));
 
+              const convPhoto = conversation.type === "DIRECT" && directUser
+                ? getParticipantPhoto(directUser.userId)
+                : null;
+
               return (
                 <button
                   key={conversation.id}
                   onClick={() => setSelectedConversationId(conversation.id)}
-                  className={`mb-1 w-full rounded-lg border px-3 py-2 text-left transition ${
+                  className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left transition ${
                     isActive
                       ? "border-[#0077b6] bg-[#e6f4fa]"
                       : "border-transparent hover:bg-slate-100"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        {conversation.type === "GROUP" ? (
-                          <Users className="h-4 w-4 text-slate-500" />
-                        ) : (
-                          <Circle
-                            className={`h-3 w-3 ${
-                              isOnline ? "fill-green-500 text-green-500" : "text-slate-300"
-                            }`}
+                  <div className="flex items-center gap-3">
+                    {/* Avatar */}
+                    <div className="relative flex-shrink-0">
+                      <div className="h-11 w-11 overflow-hidden rounded-full bg-[#e6f4fa] flex items-center justify-center">
+                        {convPhoto ? (
+                          <img
+                            src={convPhoto}
+                            alt={title}
+                            className="h-full w-full object-cover cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); setViewPhotoUrl(convPhoto); }}
                           />
+                        ) : conversation.type === "GROUP" ? (
+                          <Users className="h-5 w-5 text-[#0077b6]" />
+                        ) : (
+                          <span className="text-sm font-semibold text-[#0077b6]">
+                            {title[0]?.toUpperCase() || "?"}
+                          </span>
                         )}
-                        <p className="truncate text-sm font-semibold text-slate-900">{title}</p>
                       </div>
-                      <p className="mt-1 truncate text-xs text-slate-600">{preview}</p>
+                      {isOnline && (
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-500" />
+                      )}
                     </div>
-                    <div className="text-right">
-                      <p className="text-[11px] text-slate-500">
-                        {formatTime(conversation.lastMessage?.createdAt || conversation.updatedAt)}
-                      </p>
-                      {(conversation.unreadCount || 0) > 0 ? (
-                        <span className="mt-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0077b6] px-1 text-[11px] font-semibold text-white">
-                          {conversation.unreadCount}
-                        </span>
-                      ) : null}
+                    {/* Text */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">{title}</p>
+                        <p className="flex-shrink-0 text-[11px] text-slate-500">
+                          {formatTime(conversation.lastMessage?.createdAt || conversation.updatedAt)}
+                        </p>
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-between gap-1">
+                        <p className="truncate text-xs text-slate-600">{preview}</p>
+                        {(conversation.unreadCount || 0) > 0 ? (
+                          <span className="flex-shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0077b6] px-1 text-[11px] font-semibold text-white">
+                            {conversation.unreadCount}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </button>
@@ -1001,7 +1214,7 @@ export default function MessagesPage() {
         </div>
       </aside>
 
-      <section className="relative flex min-w-0 flex-1 flex-col">
+      <section className={`${selectedConversation ? "flex" : "hidden md:flex"} relative min-w-0 flex-1 flex-col`}>
         {!selectedConversation ? (
           <div className="flex h-full flex-col items-center justify-center text-slate-500">
             <MessageSquare className="mb-3 h-12 w-12 text-slate-300" />
@@ -1009,35 +1222,73 @@ export default function MessagesPage() {
           </div>
         ) : (
           <>
-            <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">
-                  {getConversationTitle(selectedConversation)}
-                </h2>
-                <p className="text-xs text-slate-500">
-                  {selectedConversation.type === "GROUP"
-                    ? `${selectedConversation.participants.length} members`
-                    : "Direct conversation"}
-                </p>
-              </div>
+            <header 
+              className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3 cursor-pointer"
+              onClick={() => setShowChatDetails(true)}
+            >
               <div className="flex items-center gap-2">
                 <button
-                  onClick={startMeeting}
-                  disabled={meetingLoading}
-                  className="flex items-center gap-1 rounded-md bg-[#0b7ebd] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#06659a] disabled:opacity-60"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setSelectedConversationId("");
+                  }}
+                  className="md:hidden flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-100"
+                  aria-label="Back to chat list"
+                  title="Back"
                 >
-                  {meetingLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Video className="h-4 w-4" />
-                  )}
-                  {meetingLoading ? "Preparing..." : getMeetingState(selectedConversationId || "") ? "Join Meeting" : "Start Meeting"}
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">
+                    {getConversationTitle(selectedConversation)}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    {selectedConversation.type === "GROUP"
+                      ? `${selectedConversation.participants.length} members`
+                      : "Direct conversation"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void startMeeting("create");
+                  }}
+                  disabled={meetingLoading}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0b7ebd] text-white hover:bg-[#06659a] disabled:opacity-60"
+                  title={meetingLoading ? "Preparing..." : "Create meeting"}
+                  aria-label="Create meeting"
+                >
+                  {meetingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </button>
                 <button
-                  onClick={() => loadConversations(true)}
-                  className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void startMeeting("join");
+                  }}
+                  disabled={meetingLoading || !hasActiveMeeting}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0b7ebd] text-white hover:bg-[#06659a] disabled:cursor-not-allowed disabled:opacity-40"
+                  title={
+                    meetingLoading
+                      ? "Preparing..."
+                      : hasActiveMeeting
+                        ? "Join meeting"
+                        : "No meeting created yet"
+                  }
+                  aria-label="Join meeting"
                 >
-                  Refresh
+                  {meetingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
+                </button>
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowChatDetails(true);
+                  }}
+                  className="flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-100"
+                  title="Chat Details"
+                >
+                  <Info className="h-4 w-4" />
                 </button>
               </div>
             </header>
@@ -1065,6 +1316,7 @@ export default function MessagesPage() {
                 <div className="space-y-3">
                   {messages.map((message, index) => {
                     const isMine = selfUserIds.has(message.senderId);
+                    const meetingSystemLabel = getMeetingSystemLabel(message.text);
                     const showDateLabel =
                       index === 0 ||
                       formatDate(messages[index - 1]?.createdAt) !==
@@ -1072,14 +1324,38 @@ export default function MessagesPage() {
 
                     return (
                       <div key={message.id}>
-                        {showDateLabel ? (
+                        {showDateLabel && !meetingSystemLabel ? (
                           <div className="my-4 text-center text-xs text-slate-500">
                             {formatDate(message.createdAt)}
                           </div>
                         ) : null}
-                        <div className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                        {meetingSystemLabel ? (
+                          <div className="my-2 text-center text-xs text-slate-500">
+                            {meetingSystemLabel} • {formatDate(message.createdAt)}
+                          </div>
+                        ) : (
+                        <div className={`flex items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}>
+                          {!isMine && (() => {
+                            const sPhoto = getParticipantPhoto(message.senderId);
+                            const sName = message.sender?.firstName || getParticipantName(message.senderId);
+                            return (
+                              <button
+                                onClick={() => sPhoto && setViewPhotoUrl(sPhoto)}
+                                className="mb-1 flex-shrink-0 h-7 w-7 overflow-hidden rounded-full bg-[#e6f4fa] flex items-center justify-center cursor-pointer"
+                                title={sName}
+                              >
+                                {sPhoto ? (
+                                  <img src={sPhoto} alt={sName} className="h-full w-full object-cover" />
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-[#0077b6]">
+                                    {sName[0]?.toUpperCase() || "?"}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })()}
                           <div
-                            className={`relative max-w-[78%] rounded-2xl px-3 py-2 shadow-sm ${
+                            className={`relative max-w-[75%] rounded-2xl px-3 py-2 shadow-sm ${
                               isMine
                                 ? "rounded-br-sm bg-[#0077b6] text-white"
                                 : "rounded-bl-sm bg-white text-slate-900"
@@ -1161,6 +1437,7 @@ export default function MessagesPage() {
                             </div>
                           </div>
                         </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1280,6 +1557,28 @@ export default function MessagesPage() {
         )}
       </section>
 
+      {/* Profile Photo Viewer */}
+      {viewPhotoUrl && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setViewPhotoUrl(null)}
+        >
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={viewPhotoUrl}
+              alt="Profile"
+              className="max-h-[80vh] max-w-[80vw] rounded-2xl object-contain shadow-2xl"
+            />
+            <button
+              onClick={() => setViewPhotoUrl(null)}
+              className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {showNewChatModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -1352,13 +1651,17 @@ export default function MessagesPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setMeetingMinimized(true)}
-                    className="flex h-9 px-3 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    title="Minimize"
+                    aria-label="Minimize meeting"
                   >
-                    Minimize
+                    <Minimize2 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={closeMeeting}
                     className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    title="End meeting"
+                    aria-label="End meeting"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1377,25 +1680,38 @@ export default function MessagesPage() {
       ) : null}
 
       {meetingOpen && meetingMinimized ? (
-        <div className="pointer-events-auto fixed bottom-4 right-4 z-[70] w-80 h-48 rounded-xl shadow-2xl border border-slate-200 overflow-hidden bg-white">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-white">
+        <div
+          className="pointer-events-auto fixed z-[70] h-[210px] w-[320px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+          style={{
+            left: meetingMiniPosition?.x ?? 16,
+            top: meetingMiniPosition?.y ?? 16,
+          }}
+        >
+          <div
+            className={`flex cursor-move items-center justify-between border-b border-slate-200 bg-white px-3 py-2 ${meetingMiniDragging ? "select-none" : ""}`}
+            onPointerDown={beginMiniDrag}
+          >
             <p className="text-xs font-semibold text-slate-800 truncate">Live Meeting</p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setMeetingMinimized(false)}
-                className="h-7 px-2 rounded-full bg-slate-100 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                title="Expand to full screen"
+                aria-label="Expand to full screen"
               >
-                Restore
+                <Maximize2 className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={closeMeeting}
-                className="h-7 w-7 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center hover:bg-slate-200"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                title="End meeting"
+                aria-label="End meeting"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
-          <div className="relative h-[calc(100%-42px)] bg-black">
+          <div className="relative h-[calc(100%-41px)] bg-black">
             <div ref={jitsiContainerRef} className="absolute inset-0 z-20 rounded-b-xl overflow-hidden bg-black" />
           </div>
         </div>
@@ -1493,6 +1809,115 @@ export default function MessagesPage() {
       ) : null}
 
       {/* Jitsi opens in a new tab; no embedded modal */}
+
+      {/* Chat Details Panel - WhatsApp Style */}
+      {showChatDetails && selectedConversation && (
+        <div className="fixed inset-0 z-[70] flex">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/30" 
+            onClick={() => setShowChatDetails(false)}
+          />
+          {/* Slide-in Panel */}
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+            {/* Header */}
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-slate-50">
+              <button 
+                onClick={() => setShowChatDetails(false)}
+                className="p-1 rounded-full hover:bg-slate-200"
+              >
+                <X className="h-5 w-5 text-slate-600" />
+              </button>
+              <h3 className="text-base font-semibold text-slate-900">Chat Details</h3>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+              {/* Chat Info Section */}
+              <div className="p-4 border-b border-slate-200">
+                <div className="flex flex-col items-center text-center">
+                  <div className="h-20 w-20 rounded-full bg-[#e6f4fa] flex items-center justify-center mb-3 overflow-hidden">
+                    {selectedConversation.type === "DIRECT" ? (
+                      (() => {
+                        const directUser = selectedConversation.participants.find(
+                          (p) => !selfUserIds.has(p.userId)
+                        );
+                        const photo = directUser ? getParticipantPhoto(directUser.userId) : null;
+                        return photo ? (
+                          <img src={photo} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-2xl font-semibold text-[#0077b6]">
+                            {getConversationTitle(selectedConversation)[0]?.toUpperCase()}
+                          </span>
+                        );
+                      })()
+                    ) : (
+                      <Users className="h-10 w-10 text-[#0077b6]" />
+                    )}
+                  </div>
+                  <h4 className="text-lg font-semibold text-slate-900">
+                    {getConversationTitle(selectedConversation)}
+                  </h4>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {selectedConversation.type === "GROUP"
+                      ? `${selectedConversation.participants.length} participants`
+                      : "Direct conversation"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Participants Section (for Groups) */}
+              {selectedConversation.type === "GROUP" && (
+                <div className="p-4 border-b border-slate-200">
+                  <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                    Participants
+                  </h5>
+                  <div className="space-y-2">
+                    {selectedConversation.participants.map((participant) => {
+                      const name = `${participant.firstName || ""} ${participant.lastName || ""}`.trim() || "Unknown";
+                      const photo = getParticipantPhoto(participant.userId);
+                      const isOnline = onlineUsers.has(participant.userId);
+                      
+                      return (
+                        <div key={participant.userId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50">
+                          <div className="relative">
+                            <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                              {photo ? (
+                                <img src={photo} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="text-sm font-semibold text-slate-600">
+                                  {name[0]?.toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            {isOnline && (
+                              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-500" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900 truncate">{name}</p>
+                            <p className="text-xs text-slate-500">{isOnline ? "Online" : "Offline"}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Shared Media Section - Placeholder */}
+              <div className="p-4">
+                <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                  Shared Media
+                </h5>
+                <div className="text-center py-8 text-slate-400">
+                  <p className="text-sm">No shared media yet</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

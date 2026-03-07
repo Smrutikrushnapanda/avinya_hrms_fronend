@@ -55,15 +55,16 @@ export function StatCard({ title, value, subtitle, icon: Icon, trend, color = "b
   const colors = colorMap[color] || colorMap.blue;
 
   return (
-    <Card className={`h-full transition-all hover:shadow-md border-l-4 ${colors.bg} ${colors.darkBg} ${colors.border} ${colors.darkBorder}`}>
-      <CardHeader className="pb-2">
+    <Card className={`h-full transition-all hover:shadow-md border-l-4 ${colors.bg} ${colors.darkBg} ${colors.border} ${colors.darkBorder} relative overflow-hidden`}>
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#184a8c]/5 to-[#00b4db]/5 rounded-full blur-2xl -mr-16 -mt-16" />
+      <CardHeader className="pb-2 relative z-10">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold">{title}</CardTitle>
           {Icon && <Icon className={`h-6 w-6 ${colors.icon} ${colors.darkIcon} opacity-80`} />}
         </div>
         <CardDescription className="text-xs opacity-70">{subtitle}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="relative z-10">
         <div className="flex items-end justify-between">
           <div className="text-3xl font-bold">{value}</div>
           {trend !== undefined && (

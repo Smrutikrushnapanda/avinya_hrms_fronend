@@ -22,16 +22,17 @@ export function middleware(req: NextRequest) {
 
   // Role-based access control using the user_role cookie
   const role = userRoleCookie.toUpperCase();
+  const isAdminSideRole = role === "ADMIN" || role === "HR";
 
   // Admin route: must have ADMIN role
-  if (isAdminRoute && role !== "ADMIN") {
+  if (isAdminRoute && !isAdminSideRole) {
     const url = req.nextUrl.clone();
     url.pathname = "/user/dashboard";
     return NextResponse.redirect(url);
   }
 
   // User route: must have EMPLOYEE role
-  if (isUserRoute && role !== "EMPLOYEE") {
+  if (isUserRoute && isAdminSideRole) {
     const url = req.nextUrl.clone();
     url.pathname = "/admin/dashboard";
     return NextResponse.redirect(url);

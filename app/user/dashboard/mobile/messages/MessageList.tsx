@@ -150,7 +150,7 @@ const formatChatTime = (dateString?: string) => {
 
 const resolveUrl = (url?: string) => {
   if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
 
   const base =
     process.env.NEXT_PUBLIC_API_BASE_URL ||
@@ -158,6 +158,15 @@ const resolveUrl = (url?: string) => {
     "https://avinya-hrms-backend-y6f5.onrender.com";
 
   return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
+};
+
+const normalizeSystemText = (text?: string) => (text || "").trim().toLowerCase();
+
+const getMeetingSystemLabel = (text?: string) => {
+  const normalized = normalizeSystemText(text);
+  if (normalized === "meeting started" || normalized === "you entered") return "You entered";
+  if (normalized === "meeting ended" || normalized === "you left") return "You left";
+  return null;
 };
 
 export default function MessageList() {
@@ -219,11 +228,13 @@ export default function MessageList() {
   const loadEmployees = useCallback(async (orgId: string, me: string) => {
     if (!orgId) return;
     const response = await getEmployees(orgId);
-    const raw: unknown[] = Array.isArray(response.data?.data)
-      ? response.data.data
-      : Array.isArray(response.data)
-        ? response.data
-        : [];
+    const raw: unknown[] = Array.isArray(response.data?.employees)
+      ? response.data.employees
+      : Array.isArray(response.data?.data)
+        ? response.data.data
+        : Array.isArray(response.data)
+          ? response.data
+          : [];
 
     const normalized = raw
       .map((item: unknown) => normalizeEmployee(item))
@@ -365,8 +376,8 @@ export default function MessageList() {
   }, [conversations, onlineUsers]);
 
   return (
-    <div className="h-[100dvh] bg-[#f8fbff] flex flex-col overflow-hidden pb-16">
-      <div className="sticky top-0 z-20 shrink-0 bg-[#f8fbff]">
+    <div className="h-[100dvh] bg-background text-foreground flex flex-col overflow-hidden pb-16">
+      <div className="sticky top-0 z-20 shrink-0 bg-background">
         <div className="bg-[#005F90] pt-[max(32px,env(safe-area-inset-top))] pb-3 px-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <button
@@ -383,17 +394,17 @@ export default function MessageList() {
           </button>
         </div>
 
-        <div className="mx-4 -mt-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 flex items-center gap-2">
-          <Search className="w-4.5 h-4.5 text-slate-500" />
+        <div className="mx-4 -mt-3 bg-card border border-border rounded-xl px-3 py-2.5 flex items-center gap-2">
+          <Search className="w-4.5 h-4.5 text-muted-foreground" />
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search"
-            className="flex-1 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none"
+            className="flex-1 bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground outline-none"
           />
           {search ? (
             <button onClick={() => setSearch("")}>
-              <X className="w-4.5 h-4.5 text-slate-500" />
+              <X className="w-4.5 h-4.5 text-muted-foreground" />
             </button>
           ) : null}
         </div>
@@ -407,11 +418,11 @@ export default function MessageList() {
 
       <div className="min-h-0 flex-1 overflow-y-auto pt-2 pb-4">
         {loading ? (
-          <div className="px-4 py-12 text-center text-sm text-slate-500">Loading chats...</div>
+          <div className="px-4 py-12 text-center text-sm text-muted-foreground">Loading chats...</div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-14 flex flex-col items-center">
-            <MessageCircle className="w-10 h-10 text-slate-300" />
-            <p className="mt-2 text-sm text-slate-400">No conversations yet</p>
+            <MessageCircle className="w-10 h-10 text-muted-foreground/50" />
+            <p className="mt-2 text-sm text-muted-foreground">No conversations yet</p>
             <button
               className="mt-3 h-8 px-4 rounded-2xl bg-[#005F90] text-white text-xs font-bold"
               onClick={() => router.push("/user/dashboard/mobile/messages/new")}
@@ -422,7 +433,7 @@ export default function MessageList() {
         ) : (
           <>
             {refreshing ? (
-              <p className="px-4 pb-2 text-xs text-slate-500">Refreshing...</p>
+              <p className="px-4 pb-2 text-xs text-muted-foreground">Refreshing...</p>
             ) : null}
             <button onClick={onRefresh} className="px-4 pb-2 text-xs font-semibold text-[#005F90]">
               Refresh
@@ -432,8 +443,9 @@ export default function MessageList() {
               const name = getConversationTitle(item);
               const employee = participant?.userId ? employeeMap.get(participant.userId) : null;
               const avatar = employee?.photoUrl || "";
+              const meetingPreview = getMeetingSystemLabel(item.lastMessage?.text);
               const lastMessage = item.lastMessage?.text
-                ? item.lastMessage.text
+                ? meetingPreview || item.lastMessage.text
                 : item.lastMessage?.attachments?.length
                   ? "Attachment"
                   : "Say hi";
@@ -444,7 +456,6 @@ export default function MessageList() {
 
               const params = new URLSearchParams({
                 title: name,
-                avatar: item.type === "GROUP" ? "" : avatar,
                 peerId: item.type === "GROUP" ? "" : participant?.userId || "",
                 type: item.type,
               });
@@ -452,15 +463,20 @@ export default function MessageList() {
               return (
                 <button
                   key={item.id}
-                  className={`w-full px-4 py-3 border-b border-slate-100 flex items-center text-left ${
-                    (item.unreadCount || 0) > 0 ? "bg-slate-50" : "bg-transparent"
+                  className={`w-full px-4 py-3 border-b border-border/60 flex items-center text-left ${
+                    (item.unreadCount || 0) > 0 ? "bg-muted/50" : "bg-transparent"
                   }`}
-                  onClick={() => router.push(`/user/dashboard/mobile/messages/${item.id}?${params.toString()}`)}
+                  onClick={() => {
+                    if (item.type === "DIRECT" && avatar) {
+                      try { sessionStorage.setItem(`chat_avatar_${item.id}`, avatar); } catch { /* ignore */ }
+                    }
+                    router.push(`/user/dashboard/mobile/messages/${item.id}?${params.toString()}`);
+                  }}
                 >
                   <div className="relative mr-3">
-                    <div className="w-[46px] h-[46px] rounded-full bg-slate-200 overflow-hidden flex items-center justify-center">
+                    <div className="w-[46px] h-[46px] rounded-full bg-muted overflow-hidden flex items-center justify-center">
                       {item.type === "GROUP" ? (
-                        <Users className="w-5 h-5 text-slate-600" />
+                        <Users className="w-5 h-5 text-muted-foreground" />
                       ) : avatar ? (
                         <Image
                           src={resolveUrl(avatar)}
@@ -471,25 +487,25 @@ export default function MessageList() {
                           unoptimized
                         />
                       ) : (
-                        <span className="text-slate-900 font-bold">{name.charAt(0).toUpperCase()}</span>
+                        <span className="text-foreground font-bold">{name.charAt(0).toUpperCase()}</span>
                       )}
                     </div>
                     {isOnline ? (
-                      <span className="absolute right-0 bottom-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white" />
+                      <span className="absolute right-0 bottom-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-card" />
                     ) : null}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className={`text-sm truncate ${(item.unreadCount || 0) > 0 ? "font-bold text-[#0B1F3A]" : "font-bold text-slate-900"}`}>
+                      <p className={`text-sm truncate ${(item.unreadCount || 0) > 0 ? "font-bold text-foreground" : "font-bold text-foreground"}`}>
                         {name}
                       </p>
-                      <p className={`text-[10px] ${(item.unreadCount || 0) > 0 ? "text-slate-600 font-semibold" : "text-slate-400"}`}>
+                      <p className={`text-[10px] ${(item.unreadCount || 0) > 0 ? "text-muted-foreground font-semibold" : "text-muted-foreground"}`}>
                         {time}
                       </p>
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      <p className={`text-xs truncate ${(item.unreadCount || 0) > 0 ? "text-slate-700 font-semibold" : "text-slate-500"}`}>
+                      <p className={`text-xs truncate ${(item.unreadCount || 0) > 0 ? "text-foreground/80 font-semibold" : "text-muted-foreground"}`}>
                         {lastMessage}
                       </p>
                       {(item.unreadCount || 0) > 0 ? (
@@ -516,10 +532,10 @@ export default function MessageList() {
 
 function SummaryPill({ label, value, online = false }: { label: string; value: number; online?: boolean }) {
   return (
-    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-2xl px-2.5 py-1.5">
+    <div className="flex items-center gap-1.5 bg-card border border-border rounded-2xl px-2.5 py-1.5">
       {online ? <Circle className="w-1.5 h-1.5 fill-green-500 text-green-500" /> : null}
-      <span className="text-[11px] text-slate-500 font-semibold">{label}</span>
-      <span className="text-xs text-slate-900 font-bold">{value}</span>
+      <span className="text-[11px] text-muted-foreground font-semibold">{label}</span>
+      <span className="text-xs text-foreground font-bold">{value}</span>
     </div>
   );
 }

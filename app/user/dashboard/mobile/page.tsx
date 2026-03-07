@@ -16,6 +16,12 @@ import {
   BadgeCheck,
   Briefcase,
   Loader2,
+  MapPin,
+  Moon,
+  Sun,
+  UserCheck,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -32,6 +38,7 @@ import {
 import { useRouter } from "next/navigation";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
+import { useTheme } from "next-themes";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,6 +112,8 @@ function mapApiStatus(status: string): AttendanceStatus["status"] {
 
 export default function MobileDashboardPage() {
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const isDarkTheme = theme === "dark";
 
   // ── User
   const [user, setUser] = useState({
@@ -112,10 +121,13 @@ export default function MobileDashboardPage() {
     role: "",
     avatar: "",
     email: "",
+    workEmail: "",
     phone: "",
     department: "",
     employeeId: "",
     designation: "",
+    managerName: "",
+    location: "",
     userId: "",
     organizationId: "",
   });
@@ -305,10 +317,17 @@ export default function MobileDashboardPage() {
           role: data?.roles?.[0]?.roleName ?? "Employee",
           avatar: data?.avatar ?? "/avatar.jpg",
           email: data?.email ?? "",
+          workEmail: data?.workEmail ?? data?.employee?.workEmail ?? "",
           phone: data?.phone ?? "",
           department: data?.department ?? "",
           employeeId: data?.employeeId ?? "",
           designation: data?.designation ?? "",
+          managerName:
+            data?.managerName ??
+            data?.reportingManagerName ??
+            data?.reportingToName ??
+            "",
+          location: data?.location ?? data?.branchName ?? data?.officeLocation ?? "",
           userId,
           organizationId: orgId,
         });
@@ -614,7 +633,17 @@ export default function MobileDashboardPage() {
             <div className="flex justify-between items-center mt-3 text-xs">
               {settings.enableWifiValidation && (
                 <p className={wifiConnected ? "text-green-600" : "text-red-500"}>
-                  {wifiConnected ? "✅ WiFi: Connected" : "❌ WiFi: Offline"}
+                  {wifiConnected ? (
+                    <>
+                      <Wifi className="w-3 h-3 inline mr-1" />
+                      WiFi: Connected
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="w-3 h-3 inline mr-1" />
+                      WiFi: Offline
+                    </>
+                  )}
                 </p>
               )}
               {settings.enableGpsValidation && (
@@ -627,11 +656,22 @@ export default function MobileDashboardPage() {
                       : "text-yellow-500"
                   }
                 >
-                  {locationStatus === "available"
-                    ? "📍 Location: Available"
-                    : locationStatus === "denied"
-                    ? "📍 Location: Denied"
-                    : "📍 Location: Fetching…"}
+                  {locationStatus === "available" ? (
+                    <>
+                      <MapPin className="w-3 h-3 inline mr-1" />
+                      Location: Available
+                    </>
+                  ) : locationStatus === "denied" ? (
+                    <>
+                      <MapPin className="w-3 h-3 inline mr-1" />
+                      Location: Denied
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="w-3 h-3 inline mr-1" />
+                      Location: Fetching…
+                    </>
+                  )}
                 </p>
               )}
             </div>
@@ -846,6 +886,16 @@ export default function MobileDashboardPage() {
                   </div>
                 )}
 
+                {user.workEmail && user.workEmail !== user.email && (
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-5 h-5 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-400">Work Email</p>
+                      <p className="text-sm text-gray-700 break-all">{user.workEmail}</p>
+                    </div>
+                  </div>
+                )}
+
                 {user.phone && (
                   <div className="flex items-center gap-3">
                     <Phone className="w-5 h-5 text-gray-400 shrink-0" />
@@ -875,11 +925,39 @@ export default function MobileDashboardPage() {
                     </div>
                   </div>
                 )}
+
+                {user.managerName && (
+                  <div className="flex items-center gap-3">
+                    <UserCheck className="w-5 h-5 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-400">Reporting Manager</p>
+                      <p className="text-sm text-gray-700">{user.managerName}</p>
+                    </div>
+                  </div>
+                )}
+
+                {user.location && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-5 h-5 text-gray-400 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-400">Location</p>
+                      <p className="text-sm text-gray-700">{user.location}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Sidebar Footer */}
             <div className="p-4 border-t border-gray-100">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
+                onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
+              >
+                {isDarkTheme ? <Sun className="w-5 h-5 mr-3" /> : <Moon className="w-5 h-5 mr-3" />}
+                Theme: {isDarkTheme ? "Dark" : "Light"}
+              </Button>
               <Button
                 variant="ghost"
                 className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-12"
