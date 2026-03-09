@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Users,
   UserCheck,
@@ -13,6 +13,8 @@ import {
   Trophy,
   CalendarDays,
   X,
+  Star,
+  Sparkles,
 } from "lucide-react";
 import {
   Card,
@@ -29,6 +31,8 @@ import {
   getHolidays,
   getAttendanceSettings,
   getUpcomingMeetingsForUser,
+  getAttendanceReport2,
+  getEmployees,
 } from "@/app/api/api";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -46,23 +50,168 @@ function getNumericValue(value: any): number {
   return 0;
 }
 
-function StatusPill({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    Approved:
-      "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
-    Declined:
-      "bg-red-50 text-red-500 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20",
-    Pending:
-      "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20",
+// ─── LEADERBOARD SCORING ──────────────────────────────────────────────────────
+
+interface ScoredEmployee {
+  rank: number;
+  userId: string;
+  name: string;
+  score: number;
+  attendancePct: number;
+  avgHours: number;
+  onTimePct: number;
+  presentDays: number;
+  totalWorkingDays: number;
+}
+
+function parseTimeToMinutes(timeStr?: string): number | null {
+  if (!timeStr) return null;
+  try {
+    if (timeStr.includes("T")) {
+      const d = new Date(timeStr);
+      const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+      return ist.getUTCHours() * 60 + ist.getUTCMinutes();
+    }
+    const clean = timeStr.trim();
+    const isPM = clean.toUpperCase().includes("PM");
+    const isAM = clean.toUpperCase().includes("AM");
+    const parts = clean.replace(/AM|PM/gi, "").trim().split(":");
+    let h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1] || "0", 10);
+    if (isPM && h !== 12) h += 12;
+    if (isAM && h === 12) h = 0;
+    return h * 60 + m;
+  } catch { return null; }
+}
+
+function computeScore(row: any): ScoredEmployee {
+  const attendancePct = Math.min(row.attendancePercentage ?? 0, 100);
+  const avgHours = row.averageWorkingHours ?? 0;
+  const hoursScore = Math.min((avgHours / 9) * 100, 100);
+  let onTimeDays = 0, checkedDays = 0;
+  if (Array.isArray(row.dailyRecords)) {
+    for (const rec of row.dailyRecords) {
+      if (rec.isHoliday || rec.isSunday) continue;
+      if (rec.status !== "PRESENT" && rec.status !== "HALF_DAY") continue;
+      checkedDays++;
+      const mins = parseTimeToMinutes(rec.inTime);
+      if (mins !== null && mins <= 9 * 60 + 30) onTimeDays++;
+    }
+  }
+  const onTimePct = checkedDays > 0 ? (onTimeDays / checkedDays) * 100 : 0;
+  const score = attendancePct * 0.4 + hoursScore * 0.35 + onTimePct * 0.25;
+  return {
+    rank: 0,
+    userId: row.userId,
+    name: row.userName ?? "Unknown",
+    score: Math.round(score * 10) / 10,
+    attendancePct: Math.round(attendancePct),
+    avgHours: Math.round(avgHours * 10) / 10,
+    onTimePct: Math.round(onTimePct),
+    presentDays: row.presentDays ?? 0,
+    totalWorkingDays: row.totalWorkingDays ?? 0,
   };
+}
+
+// ─── CONFETTI PARTICLE ─────────────────────────────────────────────────────────
+
+const CONFETTI_COLORS = ["#f59e0b", "#3b82f6", "#10b981", "#f43f5e", "#8b5cf6", "#ec4899", "#fbbf24"];
+
+function ConfettiParticle({ i }: { i: number }) {
+  const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+  const left = (i * 7.7 + 3) % 100;
+  const duration = 1.8 + (i % 5) * 0.4;
+  const delay = (i % 8) * 0.25;
+  const size = 6 + (i % 3) * 4;
+  const isCircle = i % 3 === 0;
   return (
-    <span
-      className={`text-xs font-semibold px-3 py-1 rounded-full border ${map[status] ?? ""}`}
-    >
-      {status}
-    </span>
+    <div
+      className="animate-confetti absolute top-0 pointer-events-none"
+      style={{
+        left: `${left}%`,
+        animationDuration: `${duration}s`,
+        animationDelay: `${delay}s`,
+        width: size,
+        height: isCircle ? size : size * 0.5,
+        borderRadius: isCircle ? "50%" : "2px",
+        backgroundColor: color,
+        opacity: 0.9,
+      }}
+    />
   );
 }
+
+// ─── CELEBRATION OVERLAY ───────────────────────────────────────────────────────
+
+function CelebrationOverlay({ name, score, onDismiss }: { name: string; score: number; onDismiss: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[99] flex items-center justify-center" onClick={onDismiss}>
+      {/* Blur backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+      {/* Confetti layer */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {Array.from({ length: 48 }).map((_, i) => <ConfettiParticle key={i} i={i} />)}
+      </div>
+
+      {/* Card */}
+      <div
+        className="relative z-10 animate-celebration-pop max-w-sm w-full mx-4 rounded-3xl overflow-hidden shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Gold gradient header */}
+        <div className="bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 p-6 text-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.3),transparent_70%)]" />
+          <div className="relative z-10">
+            <div className="text-6xl mb-2">🏆</div>
+            <h2 className="text-2xl font-black text-white drop-shadow-md tracking-tight">
+              Congratulations!
+            </h2>
+            <p className="text-amber-950/80 text-sm font-semibold mt-1">
+              Employee of the Month 🎉
+            </p>
+          </div>
+          {/* sparkle icons */}
+          <Sparkles className="absolute top-4 left-4 w-5 h-5 text-white/70" />
+          <Sparkles className="absolute top-4 right-4 w-5 h-5 text-white/70" />
+          <Star className="absolute bottom-3 left-8 w-4 h-4 text-white/60" />
+          <Star className="absolute bottom-3 right-8 w-4 h-4 text-white/60" />
+        </div>
+
+        {/* Content */}
+        <div className="bg-white dark:bg-gray-900 p-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-2xl font-black mx-auto mb-3 shadow-lg shadow-amber-200/60">
+            {name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()}
+          </div>
+          <h3 className="text-xl font-extrabold text-foreground">{name}</h3>
+          <p className="text-muted-foreground text-sm mt-1">
+            You&apos;re the <span className="font-bold text-amber-500">#1 top performer</span> this month!
+          </p>
+
+          <div className="mt-4 flex items-center justify-center gap-6">
+            <div className="text-center">
+              <div className="text-2xl font-black bg-gradient-to-br from-amber-400 to-orange-500 bg-clip-text text-transparent">{score}</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Score</div>
+            </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="text-center">
+              <div className="text-2xl">🥇</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Rank 1</div>
+            </div>
+          </div>
+
+          <button
+            onClick={onDismiss}
+            className="mt-5 w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold text-sm hover:shadow-lg hover:shadow-amber-200/50 transition-all active:scale-95"
+          >
+            Thank you! 🎊
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 // ─── HOLIDAY CALENDAR WIDGET ──────────────────────────────────────────────────
 
@@ -130,88 +279,87 @@ function HolidayCalendarWidget({
   })();
 
   return (
-    <div className="flex min-w-0 flex-col">
-      <div
-        className="min-w-0 overflow-x-auto"
-        style={{ WebkitOverflowScrolling: "touch" }}
-      >
-        <Calendar
-          mode="single"
-          month={month}
-          onMonthChange={setMonth}
-          modifiers={{ holiday: holidayDates, weekend: weekendDates }}
-          modifiersClassNames={{
-            holiday:
-              "!bg-rose-100 !text-rose-600 dark:!bg-rose-900/40 dark:!text-rose-400 font-bold rounded-full ring-2 ring-rose-300 dark:ring-rose-700",
-            weekend:
-              "!bg-blue-100 !text-blue-700 dark:!bg-blue-900/30 dark:!text-blue-300 font-bold rounded-full ring-2 ring-blue-200 dark:ring-blue-700",
-          }}
-          onDayClick={handleDayClick}
-          className="w-full min-w-[17rem] p-2 sm:p-3"
-          classNames={{
-            root: "w-full min-w-[17rem] max-w-full",
-            months: "w-full",
-            month: "w-full min-w-0",
-            table: "w-full table-fixed",
-            weekdays: "flex w-full",
-            weekday: "flex-1 text-center text-[0.72rem] sm:text-[0.8rem]",
-            week: "flex w-full",
-            day:
-              "relative flex-1 min-w-0 h-full p-0 text-center aspect-square [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md group/day",
-            today:
-              "!bg-[#00BBA7] !text-white rounded-full font-bold shadow-[0_0_0_3px_rgba(0,187,167,0.25)] scale-110 transition-transform duration-200",
-          }}
-        />
+    <div className="flex flex-col w-full h-full">
+      <div className="flex-1 w-full min-w-0 flex items-center justify-center p-1 sm:p-2 bg-muted/20 dark:bg-muted/10 rounded-xl border border-border/50">
+        <div className="w-full max-w-[260px] sm:max-w-[280px] mx-auto overflow-hidden relative">
+          <Calendar
+            mode="single"
+            month={month}
+            onMonthChange={setMonth}
+            modifiers={{ holiday: holidayDates, weekend: weekendDates }}
+            modifiersClassNames={{
+              holiday:
+                "!bg-rose-100/80 !text-rose-600 dark:!bg-rose-900/40 dark:!text-rose-400 font-bold rounded-full ring-2 ring-rose-300/50 dark:ring-rose-700/50",
+              weekend:
+                "!bg-blue-100/60 !text-blue-600 dark:!bg-blue-900/30 dark:!text-blue-300 font-bold rounded-full ring-2 ring-blue-200/50 dark:ring-blue-800/50",
+            }}
+            onDayClick={handleDayClick}
+            className="w-full p-0"
+            classNames={{
+              root: "w-full flex justify-center relative",
+              months: "relative w-full flex-col sm:flex-row space-y-2 sm:space-x-4 sm:space-y-0",
+              month: "relative space-y-2 w-full flex flex-col items-center",
+              nav: "flex items-center gap-1 w-full absolute top-0 inset-x-0 justify-between z-10",
+              month_caption: "flex items-center justify-center h-8 w-full px-8",
+              table: "w-full border-collapse table-fixed",
+              weekdays: "flex w-full justify-between pb-1 border-b border-border/50 gap-1.5",
+              weekday: "text-muted-foreground w-7 sm:w-8 font-bold text-[0.65rem] sm:text-[0.7rem] tracking-wider uppercase flex items-center justify-center",
+              week: "flex w-full justify-between mt-3 max-w-full gap-1.5",
+              day: "relative p-0 text-center text-xs sm:text-sm focus-within:relative focus-within:z-20 w-7 sm:w-8 h-7 sm:h-8 flex items-center justify-center rounded-full overflow-hidden [&:has([aria-selected])]:bg-transparent aspect-square group",
+              today: "!bg-gradient-to-br !from-[#184a8c] !to-[#00b4db] !text-white rounded-full font-bold shadow-md shadow-[#00b4db]/20 scale-[1.1] ring-2 ring-white dark:ring-background z-10 transition-transform",
+            }}
+          />
+        </div>
       </div>
 
       {/* Legend */}
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
-        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 px-2 py-2 bg-muted/30 dark:bg-muted/10 rounded-lg border border-border/40">
+        <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors">
+          <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.6)]" />
           Holiday
         </span>
-        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
-          Weekend / Off
+        <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors">
+          <span className="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]" />
+          Off Day
         </span>
-        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: "#00BBA7" }} />
+        <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors">
+          <span className="w-2 h-2 rounded-full bg-gradient-to-r from-[#184a8c] to-[#00b4db] shadow-[0_0_8px_rgba(0,180,219,0.6)]" />
           Today
         </span>
       </div>
 
       {/* Holiday detail popup on date click */}
-      {selectedHoliday && (
-        <div className="mt-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-150">
-          <div className="w-10 h-10 rounded-lg bg-rose-500 text-white flex flex-col items-center justify-center flex-shrink-0 text-center">
-            <span className="text-[9px] font-medium leading-none">
-              {normalizeDate(selectedHoliday.date!).toLocaleDateString("en-US", { month: "short" })}
-            </span>
-            <span className="text-sm font-extrabold leading-tight">
-              {normalizeDate(selectedHoliday.date!).getDate()}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-foreground truncate">
-              {selectedHoliday.name || "Holiday"}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {selectedHoliday.isOptional ? "Restricted Holiday" : "General Holiday"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-[10px] font-semibold text-rose-600 bg-rose-100 dark:bg-rose-900/50 px-2 py-1 rounded-full">
-              {selectedHoliday.isOptional ? "RH" : "H"}
-            </span>
+      <div className={`mt-3 overflow-hidden transition-all duration-300 ease-in-out ${selectedHoliday ? 'max-h-[140px] opacity-100' : 'max-h-0 opacity-0'}`}>
+        {selectedHoliday && (
+          <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-br from-rose-50 to-orange-50 dark:from-rose-950/30 dark:to-orange-950/30 border border-rose-200/60 dark:border-rose-800/60 flex items-center gap-3 sm:gap-4 shadow-sm relative group overflow-hidden">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-rose-400/10 to-orange-400/10 rounded-full blur-xl -mr-10 -mt-10 pointer-events-none" />
+            <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-rose-500 to-orange-400 text-white flex flex-col items-center justify-center flex-shrink-0 shadow-md shadow-rose-500/30 relative z-10 border border-white/20">
+              <span className="text-[9px] sm:text-[11px] font-bold tracking-widest uppercase leading-none opacity-90 mb-0.5">
+                {normalizeDate(selectedHoliday.date!).toLocaleDateString("en-US", { month: "short" })}
+              </span>
+              <span className="text-lg sm:text-xl font-black leading-none drop-shadow-sm">
+                {normalizeDate(selectedHoliday.date!).getDate()}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0 relative z-10">
+              <p className="text-sm sm:text-[15px] font-extrabold text-foreground truncate drop-shadow-sm leading-tight">
+                {selectedHoliday.name || "Holiday"}
+              </p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-[9px] sm:text-[10px] font-bold tracking-wider text-rose-700 dark:text-rose-300 bg-white/60 dark:bg-rose-900/40 px-2 py-0.5 rounded-full border border-rose-200 dark:border-rose-800 backdrop-blur-sm shadow-sm">
+                  {selectedHoliday.isOptional ? "RESTRICTED" : "GENERAL"}
+                </span>
+              </div>
+            </div>
             <button
               onClick={() => setSelectedHoliday(null)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20 text-muted-foreground hover:text-foreground transition-all flex-shrink-0 relative z-10"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -270,16 +418,6 @@ interface Meeting {
   }>;
 }
 
-interface Award {
-  id: string;
-  name: string;
-  dept: string;
-  award: string;
-  date: string;
-  status: string;
-  initials: string;
-  avatarBg: string;
-}
 
 interface Holiday {
   id?: number;
@@ -300,6 +438,10 @@ export default function UserDashboardPage() {
   const [workingDays, setWorkingDays] = useState<number[] | undefined>(undefined);
   const [weekdayOffRules, setWeekdayOffRules] = useState<Record<string, number[]> | undefined>(undefined);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  // Leaderboard state
+  const [leaderboard, setLeaderboard] = useState<ScoredEmployee[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   const normalizeLeaveBalance = (balance: LeaveBalanceData): LeaveBalanceData => {
     const openingBalance = Number(balance.openingBalance ?? 0);
@@ -437,6 +579,72 @@ export default function UserDashboardPage() {
     fetchData();
   }, []);
 
+  // ── Fetch Leaderboard ────────────────────────────────────────────────────
+  const fetchLeaderboard = useCallback(async (orgId: string, userId: string) => {
+    try {
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const year = now.getFullYear();
+
+      // Parallel fetch: report data + employees list (to exclude admin-only accounts)
+      const [reportRes, empRes] = await Promise.allSettled([
+        getAttendanceReport2({ organizationId: orgId, year, month, userIds: "ALL" }),
+        getEmployees(orgId),
+      ]);
+
+      const rawData: any[] =
+        reportRes.status === "fulfilled"
+          ? (reportRes.value.data?.reportData ?? reportRes.value.data ?? [])
+          : [];
+
+      if (!Array.isArray(rawData) || rawData.length === 0) return;
+
+      // Build Set of employee userIds — excludes pure-admin accounts
+      const employeeUserIds = new Set<string>();
+      if (empRes.status === "fulfilled") {
+        const empList: any[] = empRes.value.data?.employees ?? empRes.value.data ?? [];
+        for (const e of empList) {
+          if (e.userId || e.user?.id) employeeUserIds.add(e.userId ?? e.user?.id);
+        }
+      }
+
+      const scored = rawData
+        .filter((r) => {
+          if ((r.totalWorkingDays ?? 0) === 0) return false;
+          if (employeeUserIds.size > 0 && !employeeUserIds.has(r.userId)) return false;
+          return true;
+        })
+        .map(computeScore)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 4)
+        .map((emp, i) => ({ ...emp, rank: i + 1 }));
+
+      setLeaderboard(scored);
+
+      // Month-end celebration: last 3 days of month + logged-in user is #1
+      const lastDay = new Date(year, month, 0).getDate();
+      const isMonthEnd = now.getDate() >= lastDay - 2;
+      const isNo1 = scored.length > 0 && scored[0].userId === userId;
+      if (isMonthEnd && isNo1) {
+        const celebKey = `celebrated_${year}_${month}`;
+        if (!sessionStorage.getItem(celebKey)) {
+          setShowCelebration(true);
+          sessionStorage.setItem(celebKey, "1");
+        }
+      }
+    } catch (err) {
+      console.error("Leaderboard fetch failed:", err);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (userData?.organizationId && userData?.id) {
+      fetchLeaderboard(userData.organizationId, userData.id);
+    }
+  }, [userData, fetchLeaderboard]);
+
   const getUserName = () => {
     if (userData?.firstName || userData?.lastName) {
       return `${userData.firstName || ""} ${userData.lastName || ""}`.trim();
@@ -500,49 +708,6 @@ export default function UserDashboardPage() {
       }
     : attendanceBreakdownBase;
 
-  // Sample awards
-  const awards: Award[] = [
-    {
-      id: "01",
-      name: "Jonathan I. Sheikh",
-      dept: "Production",
-      award: "Coby Beach",
-      date: "30-11-2023",
-      status: "Approved",
-      initials: "JI",
-      avatarBg: "bg-indigo-500/15 text-indigo-600 dark:bg-indigo-500/25 dark:text-indigo-400",
-    },
-    {
-      id: "02",
-      name: "Maisha Lucy",
-      dept: "Electrical",
-      award: "Best Employee",
-      date: "01-06-2024",
-      status: "Declined",
-      initials: "ML",
-      avatarBg: "bg-teal-500/15 text-teal-600 dark:bg-teal-500/25 dark:text-teal-400",
-    },
-    {
-      id: "03",
-      name: "Alex Rodriguez",
-      dept: "Engineering",
-      award: "Innovation Star",
-      date: "15-08-2024",
-      status: "Pending",
-      initials: "AR",
-      avatarBg: "bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400",
-    },
-    {
-      id: "04",
-      name: "Sarah Chen",
-      dept: "Design",
-      award: "Team Leader",
-      date: "22-09-2024",
-      status: "Approved",
-      initials: "SC",
-      avatarBg: "bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400",
-    },
-  ];
 
   if (loading) {
     return (
@@ -610,7 +775,7 @@ export default function UserDashboardPage() {
       {/* ── ROW 1: DONUT + HOLIDAY CALENDAR + MEETINGS ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-5">
         {/* ATTENDANCE DONUT */}
-        <Card className="p-5 min-w-0 border-t-4 border-t-[#184a8c]/50 rounded-2xl">
+        <Card className="p-5 min-w-0 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
           <div className="flex items-start justify-between mb-2">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -631,18 +796,18 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* HOLIDAY CALENDAR */}
-        <Card className="p-5 min-w-0 border-t-4 border-t-[#00b4db]/50 rounded-2xl">
-          <div className="flex items-start justify-between mb-1">
+        <Card className="p-5 min-w-0 border-t-4 border-t-[#00b4db]/50 rounded-2xl h-full flex flex-col">
+          <div className="flex items-start justify-between mb-3 shadow-sm pb-2 border-b border-border/40">
             <div>
               <h2 className="text-sm font-bold text-foreground">
                 Holiday Calendar
               </h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Click a highlighted date to see details
               </p>
             </div>
-            <div className="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center">
-              <CalendarDays className="w-4 h-4 text-rose-500" />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#00b4db]/10 to-[#184a8c]/10 flex items-center justify-center border border-[#00b4db]/20">
+              <CalendarDays className="w-4 h-4 text-[#00b4db]" />
             </div>
           </div>
           <HolidayCalendarWidget
@@ -653,7 +818,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* UPCOMING MEETINGS */}
-        <Card className="p-5 min-w-0 md:col-span-2 xl:col-span-1 border-t-4 border-t-[#184a8c]/50 rounded-2xl">
+        <Card className="p-5 min-w-0 md:col-span-2 xl:col-span-1 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
           <div className="flex items-start justify-between mb-3">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -813,76 +978,96 @@ export default function UserDashboardPage() {
           </div>
         </Card>
 
-        {/* EMPLOYEE AWARD LIST */}
+        {/* EMPLOYEE LEADERBOARD */}
         <Card className="p-5 border-l-4 border-l-[#184a8c]/50 rounded-2xl">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-bold text-foreground">
-                Employee Award List
-              </h2>
+              <h2 className="text-sm font-bold text-foreground">Employee Leaderboard</h2>
               <p className="text-xs text-muted-foreground">
-                Recent recognitions
+                {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })} · Auto-calculated
               </p>
             </div>
-            <button className="text-xs font-semibold text-white bg-gradient-to-r from-[#184a8c] to-[#00b4db] px-3 py-1 rounded-lg hover:shadow-lg transition-all flex items-center gap-1">
-              <Trophy className="w-3.5 h-3.5" />
-              Award list
-            </button>
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400/10 to-orange-400/10 flex items-center justify-center border border-amber-300/30">
+              <Trophy className="w-4 h-4 text-amber-500" />
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-muted/50 rounded-xl">
-                  <th className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-3 py-2 first:rounded-l-xl">
-                    #
-                  </th>
-                  <th className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-3 py-2">
-                    Employee
-                  </th>
-                  <th className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-3 py-2">
-                    Award
-                  </th>
-                  <th className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-3 py-2 last:rounded-r-xl">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {awards.map((emp, i) => (
-                  <tr
-                    key={emp.id}
-                    className={`hover:bg-muted/30 transition-colors ${
-                      i < awards.length - 1 ? "border-b border-border" : ""
-                    }`}
-                  >
-                    <td className="px-3 py-3 text-xs font-bold text-muted-foreground">
-                      {emp.id}
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`w-7 h-7 rounded-lg ${emp.avatarBg} flex items-center justify-center text-[10px] font-bold flex-shrink-0`}
-                        >
-                          {emp.initials}
-                        </div>
-                        <span className="text-xs font-semibold text-foreground whitespace-nowrap">
-                          {emp.name}
-                        </span>
+
+          {leaderboardLoading ? (
+            <div className="space-y-3">
+              {[1,2,3,4].map(i => (
+                <div key={i} className="h-14 rounded-xl bg-muted/40 animate-pulse" />
+              ))}
+            </div>
+          ) : leaderboard.length === 0 ? (
+            <div className="text-center py-8">
+              <Trophy className="w-10 h-10 mx-auto text-amber-300 mb-2" />
+              <p className="text-sm text-muted-foreground">No attendance data yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1 scrollbar-hide">
+              {leaderboard.map((emp) => {
+                const EMOJIS = ["🥇","🥈","🥉","🏅"];
+                const GRADIENTS = [
+                  "from-amber-400 to-yellow-400",
+                  "from-slate-400 to-gray-300",
+                  "from-orange-500 to-amber-600",
+                  "from-blue-400 to-indigo-400",
+                ];
+                const BG = [
+                  "bg-amber-50 dark:bg-amber-950/30 border-amber-200/60",
+                  "bg-slate-50 dark:bg-slate-950/30 border-slate-200/50",
+                  "bg-orange-50 dark:bg-orange-950/30 border-orange-200/50",
+                  "bg-blue-50 dark:bg-blue-950/30 border-blue-200/40",
+                ];
+                const grad = GRADIENTS[emp.rank - 1] || GRADIENTS[3];
+                const bg = BG[emp.rank - 1] || BG[3];
+                const isMe = emp.userId === userData?.id;
+                const pct = Math.min(emp.score, 100);
+                return (
+                  <div key={emp.userId} className={`rounded-xl border p-2.5 ${bg} ${isMe ? 'ring-2 ring-[#184a8c]/40' : ''} animate-fade-in`}>
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm relative`}>
+                        {emp.name.split(" ").map((n:string) => n[0]).slice(0, 2).join("").toUpperCase()}
+                        <span className="absolute -top-1.5 -right-1.5 text-sm">{EMOJIS[emp.rank - 1]}</span>
                       </div>
-                    </td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground">
-                      {emp.award}
-                    </td>
-                    <td className="px-3 py-3">
-                      <StatusPill status={emp.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-xs font-bold text-foreground truncate">{emp.name}</span>
+                          {isMe && <span className="text-[9px] font-bold text-[#184a8c] bg-[#184a8c]/10 px-1.5 py-0.5 rounded-full">You</span>}
+                        </div>
+                        <div className="h-1.5 bg-gray-200/60 dark:bg-gray-700/60 rounded-full overflow-hidden">
+                          <div className={`h-full bg-gradient-to-r ${grad} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className={`text-base font-black bg-gradient-to-br ${grad} bg-clip-text text-transparent`}>{emp.score}</div>
+                        <div className="text-[9px] text-muted-foreground">pts</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 mt-1.5 ml-11 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-0.5"><UserCheck className="w-2.5 h-2.5" />{emp.attendancePct}%</span>
+                      <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{emp.avgHours}h</span>
+                      <span className="flex items-center gap-0.5"><Star className="w-2.5 h-2.5" />{emp.onTimePct}% on-time</span>
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-center text-[10px] text-muted-foreground pt-1">
+                Score = Attendance 40% · Hours 35% · On-Time 25%
+              </p>
+            </div>
+          )}
         </Card>
       </div>
+
+      {/* ── CELEBRATION OVERLAY (Month-end #1) ── */}
+      {showCelebration && leaderboard.length > 0 && leaderboard[0].userId === userData?.id && (
+        <CelebrationOverlay
+          name={leaderboard[0].name}
+          score={leaderboard[0].score}
+          onDismiss={() => setShowCelebration(false)}
+        />
+      )}
     </div>
   );
 }

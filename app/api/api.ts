@@ -362,6 +362,8 @@ export const getUserActivities = (params?: any) => api.get("/user-activities", {
 // 📊 Polls APIs
 export const saveResponse = (data: any) => api.post("/polls/save-response", data);
 export const createPoll = (data: any) => api.post("/polls", data);
+export const deletePoll = (id: string) => api.delete(`/polls/${id}`);
+export const updatePoll = (id: string, data: any) => api.patch(`/polls/${id}`, data);
 export const getPolls = () => api.get("/polls");
 export const getActivePoll = (userId?: string) => api.get("/polls/active", { params: { userId } });
 export const getPoll = (id: string) => api.get(`/polls/${id}`);
@@ -378,6 +380,34 @@ export const getActivePollsWithAnalytics = () => api.get("/polls/active-with-ana
 export const getActiveNotices = () => api.get("/notices/active");
 export const createNotice = (data: any) => api.post("/notices", data);
 export const getNotices = () => api.get("/notices");
+
+// 📝 Posts/Community APIs
+export const getPosts = (organizationId: string) => api.get("/posts", { params: { organizationId } });
+export const getLatestPosts = (params: { organizationId?: string; limit?: number }) => api.get("/posts/latest", { params });
+export const getPost = (id: string) => api.get(`/posts/${id}`);
+export const createPost = (data: {
+  content: string;
+  imageUrl?: string;
+  postType?: string;
+  authorId: string;
+  organizationId: string;
+  isPinned?: boolean;
+}) => api.post("/posts", data);
+export const updatePost = (id: string, data: {
+  content?: string;
+  imageUrl?: string;
+  postType?: string;
+  isPinned?: boolean;
+}) => api.put(`/posts/${id}`, data);
+export const deletePost = (id: string) => api.delete(`/posts/${id}`);
+export const likePost = (postId: string, userId: string) => api.post(`/posts/${postId}/like`, { userId });
+export const unlikePost = (postId: string, userId: string) => api.delete(`/posts/${postId}/like`, { params: { userId } });
+export const getPostLikes = (postId: string) => api.get(`/posts/${postId}/likes`);
+export const hasUserLiked = (postId: string, userId: string) => api.get(`/posts/${postId}/liked`, { params: { userId } });
+export const commentPost = (postId: string, data: { userId: string; content: string }) => api.post(`/posts/${postId}/comments`, data);
+export const getPostComments = (postId: string) => api.get(`/posts/${postId}/comments`);
+export const deleteComment = (commentId: string) => api.delete(`/posts/comments/${commentId}`);
+export const getPostCount = (organizationId: string) => api.get("/posts/count/all", { params: { organizationId } });
 
 // 💬 Messaging APIs
 export const createMessage = (data: {

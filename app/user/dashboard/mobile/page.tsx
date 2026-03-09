@@ -22,6 +22,7 @@ import {
   UserCheck,
   Wifi,
   WifiOff,
+  Newspaper,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -39,6 +40,7 @@ import { useRouter } from "next/navigation";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
 import { useTheme } from "next-themes";
+import { motion, useMotionValue, useTransform } from "framer-motion";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -114,6 +116,24 @@ export default function MobileDashboardPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const isDarkTheme = theme === "dark";
+
+  // ── Swipe gesture handling
+  const x = useMotionValue(0);
+  const background = useTransform(
+    x,
+    [-150, 0, 150],
+    ["rgba(0,0,0,0.1)", "rgba(0,0,0,0)", "rgba(0,0,0,0.1)"]
+  );
+
+  const handleDragEnd = (_: any, info: { offset: { x: number }; velocity: { x: number } }) => {
+    const swipeThreshold = 100;
+    const velocityThreshold = 500;
+
+    if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
+      // Swiped left - go to Posts
+      router.push("/user/dashboard/mobile/posts");
+    }
+  };
 
   // ── User
   const [user, setUser] = useState({
@@ -604,7 +624,14 @@ export default function MobileDashboardPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <motion.div 
+      className="min-h-screen bg-white flex flex-col"
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={0.3}
+      onDragEnd={handleDragEnd}
+      style={{ x }}
+    >
       {/* ── Header ── */}
       <MobileHomeHeader
         user={user}
@@ -970,6 +997,6 @@ export default function MobileDashboardPage() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

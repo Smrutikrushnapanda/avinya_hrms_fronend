@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { format, isAfter, isBefore } from "date-fns";
 import { 
   Vote, MessageSquare, Clock, Bell, AlertTriangle, Cake, Gift, PartyPopper,
-  Users, Activity, PieChart, BarChart3, UserCheck, X, CalendarDays
+  Users, Activity, PieChart, BarChart3, UserCheck, X, CalendarDays, Pencil, Trash2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -12,14 +12,19 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
+} from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { WidgetCard } from "./StatCard";
 import { PollManagement } from "./PollManagement";
-import { getQuestions, saveResponse, getHolidays } from "@/app/api/api";
+import { getQuestions, saveResponse, getHolidays, deletePoll, updatePoll } from "@/app/api/api";
 import { toast } from "sonner";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
-  PieChart as RechartsPieChart, Pie, Cell
+  PieChart as RechartsPieChart, Pie, Cell, LineChart, Line
 } from "recharts";
 
 // Enhanced Modal Components with smooth animations and blur background
@@ -235,6 +240,10 @@ export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[];
   const [questions, setQuestions] = useState<any[]>([]);
   const [responses, setResponses] = useState<{ [key: string]: string | string[] }>({});
   const [submitting, setSubmitting] = useState(false);
+  
+  const [editPollOpen, setEditPollOpen] = useState(false);
+  const [editPollData, setEditPollData] = useState({ title: '', description: '', start_time: '', end_time: '', is_anonymous: false });
+  const [updating, setUpdating] = useState(false);
 
   const activePoll = polls.find(poll => {
     const now = new Date();
@@ -286,6 +295,52 @@ export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[];
     }
   };
 
+  const handleDeletePoll = async (pollId: string) => {
+    if (!confirm('Are you sure you want to delete this poll?')) return;
+    try {
+      await deletePoll(pollId);
+      toast.success('Poll deleted successfully!');
+      onPollUpdate();
+    } catch (error) {
+      toast.error('Failed to delete poll');
+    }
+  };
+
+  const openEditPoll = (poll: any) => {
+    setEditPollData({
+      title: poll.title,
+      description: poll.description || '',
+      start_time: poll.start_time ? new Date(poll.start_time).toISOString().slice(0, 16) : '',
+      end_time: poll.end_time ? new Date(poll.end_time).toISOString().slice(0, 16) : '',
+      is_anonymous: poll.is_anonymous || false,
+    });
+    setEditPollOpen(true);
+  };
+
+  const handleUpdatePoll = async () => {
+    if (!activePoll || !editPollData.title || !editPollData.start_time || !editPollData.end_time) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    setUpdating(true);
+    try {
+      await updatePoll(activePoll.id, {
+        title: editPollData.title,
+        description: editPollData.description,
+        startTime: new Date(editPollData.start_time).toISOString(),
+        endTime: new Date(editPollData.end_time).toISOString(),
+        isAnonymous: editPollData.is_anonymous,
+      });
+      toast.success('Poll updated successfully!');
+      setEditPollOpen(false);
+      onPollUpdate();
+    } catch (error) {
+      toast.error('Failed to update poll');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   return (
     <WidgetCard>
       <CardHeader>
@@ -306,8 +361,22 @@ export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[];
         {activePoll ? (
           <div className="space-y-4">
             <div>
-              <h3 className="font-semibold text-lg">{activePoll.title}</h3>
-              <p className="text-sm opacity-70 mt-1">{activePoll.description}</p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold text-lg">{activePoll.title}</h3>
+                  <p className="text-sm opacity-70 mt-1">{activePoll.description}</p>
+                </div>
+                {currentUser?.role === 'admin' && (
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditPoll(activePoll)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeletePoll(activePoll.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
               <div className="flex items-center gap-2 mt-2 text-xs opacity-60">
                 <Clock className="h-3 w-3" />
                 <span>Ends: {format(new Date(activePoll.end_time), 'MMM dd, yyyy HH:mm')}</span>
@@ -362,14 +431,29 @@ export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[];
             <p className="font-medium">No Active Polls</p>
             <p className="text-sm mt-1">Check back later for new polls</p>
             {polls.length > 0 && (
-              <div className="mt-4">
-                <p className="text-xs opacity-60 mb-2">Recent Polls:</p>
-                {polls.slice(0, 2).map((poll) => (
-                  <div key={poll.id} className="text-xs bg-muted p-2 rounded mb-1">
-                    <span className="font-medium">{poll.title}</span>
-                    <span className="opacity-60 ml-2">
-                      (Ended: {format(new Date(poll.end_time), 'MMM dd')})
-                    </span>
+              <div className="mt-4 text-left">
+                <p className="text-xs opacity-60 mb-2 font-medium">Recent Polls:</p>
+                {polls.slice(0, 3).map((poll) => (
+                  <div key={poll.id} className="text-xs bg-muted p-3 rounded mb-2 border hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-medium text-sm block mb-1">{poll.title}</span>
+                        <span className="opacity-60 flex items-center gap-1">
+                          <Clock className="h-3 w-3" /> Ended: {format(new Date(poll.end_time), 'MMM dd')}
+                        </span>
+                      </div>
+                      {currentUser?.role === 'admin' && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50" 
+                          onClick={() => handleDeletePoll(poll.id)}
+                          title="Delete Poll"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -377,6 +461,43 @@ export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[];
           </div>
         )}
       </CardContent>
+
+      <Dialog open={editPollOpen} onOpenChange={setEditPollOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Poll</DialogTitle>
+            <DialogDescription>Update the details of the active poll.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={editPollData.title} onChange={e => setEditPollData({...editPollData, title: e.target.value})} />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea value={editPollData.description} onChange={e => setEditPollData({...editPollData, description: e.target.value})} rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Time</Label>
+                <Input type="datetime-local" value={editPollData.start_time} onChange={e => setEditPollData({...editPollData, start_time: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>End Time</Label>
+                <Input type="datetime-local" value={editPollData.end_time} onChange={e => setEditPollData({...editPollData, end_time: e.target.value})} />
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
+              <Switch id="edit-anonymous" checked={editPollData.is_anonymous} onCheckedChange={c => setEditPollData({...editPollData, is_anonymous: c})} />
+              <Label htmlFor="edit-anonymous">Anonymous Poll</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditPollOpen(false)}>Cancel</Button>
+            <Button onClick={handleUpdatePoll} disabled={updating}>{updating ? 'Updating...' : 'Save Changes'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </WidgetCard>
   );
 }
@@ -476,7 +597,7 @@ export function BirthdayWidget({ upcomingBirthdays }: { upcomingBirthdays: any[]
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[184px] overflow-y-auto pr-2 custom-scrollbar">
           {todayBirthdays.length > 0 && (
             <div>
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
@@ -662,6 +783,18 @@ export function DepartmentChart({ departmentData }: { departmentData: any[] }) {
 }
 
 export function UserActivitiesWidget({ activities }: { activities: any[] }) {
+  // Group activities by date and count
+  const activityData = activities.reduce((acc: any[], activity) => {
+    const date = activity.timestamp ? format(new Date(activity.timestamp), 'MMM dd') : 'Unknown';
+    const existing = acc.find(item => item.date === date);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      acc.push({ date, count: 1 });
+    }
+    return acc;
+  }, []).slice(-7); // Last 7 days
+
   return (
     <WidgetCard>
       <CardHeader>
@@ -671,20 +804,21 @@ export function UserActivitiesWidget({ activities }: { activities: any[] }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3 max-h-48 overflow-y-auto">
-          {activities.length > 0 ? activities.slice(0, 5).map((activity, index) => (
-            <div key={index} className="flex items-start gap-3 p-2 border-b last:border-b-0">
-              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <div className="flex-1">
-                <div className="text-sm font-medium">{activity.action || 'Activity'}</div>
-                <div className="text-xs opacity-70">{activity.details || 'No details available'}</div>
-                <div className="text-xs opacity-50">{activity.timestamp ? format(new Date(activity.timestamp), 'MMM dd, HH:mm') : 'Recently'}</div>
-              </div>
-            </div>
-          )) : (
-            <div className="text-center opacity-60 py-4">No recent activities</div>
-          )}
-        </div>
+        {activityData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={activityData}>
+              <XAxis dataKey="date" fontSize={12} />
+              <YAxis allowDecimals={false} fontSize={12} />
+              <Tooltip />
+              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} name="Activities" />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="text-center opacity-60 py-8">
+            <Activity className="h-12 w-12 mx-auto mb-3 opacity-40" />
+            <p className="font-medium">No recent activities</p>
+          </div>
+        )}
       </CardContent>
     </WidgetCard>
   );

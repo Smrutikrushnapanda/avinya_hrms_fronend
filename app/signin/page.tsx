@@ -16,6 +16,21 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showRoleSelection, setShowRoleSelection] = useState(false);
+  const [pendingAuthData, setPendingAuthData] = useState<{ user: any; access_token: string; cookieMaxAge: number } | null>(null);
+
+  const finalizeLogin = (userParams: any, token: string, cookieMaxAge: number, chosenRole: "ADMIN" | "EMPLOYEE") => {
+    localStorage.setItem("access_token", token);
+    localStorage.setItem("user", JSON.stringify(userParams));
+    localStorage.setItem("user_role", chosenRole);
+    document.cookie = `user=${encodeURIComponent(JSON.stringify(userParams))}; path=/; max-age=${cookieMaxAge}`;
+    document.cookie = `user_role=${chosenRole}; path=/; max-age=${cookieMaxAge}`;
+
+    toast.success("Welcome back! 🎉");
+    setTimeout(() => {
+      router.push(chosenRole === "ADMIN" ? "/admin/dashboard" : "/user/dashboard");
+    }, 100);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,19 +78,17 @@ export default function LoginPage() {
         return;
       }
 
-      const redirectToAdmin = hasAdminSideRole;
-
-      localStorage.setItem("access_token", access_token);
-      localStorage.setItem("user", JSON.stringify(responseUser));
-      localStorage.setItem("user_role", redirectToAdmin ? "ADMIN" : "EMPLOYEE");
       const cookieMaxAge = rememberMe ? 2592000 : 86400;
-      document.cookie = `user=${encodeURIComponent(JSON.stringify(responseUser))}; path=/; max-age=${cookieMaxAge}`;
-      document.cookie = `user_role=${redirectToAdmin ? "ADMIN" : "EMPLOYEE"}; path=/; max-age=${cookieMaxAge}`;
 
-      toast.success("Welcome back! 🎉");
-      setTimeout(() => {
-        router.push(redirectToAdmin ? "/admin/dashboard" : "/user/dashboard");
-      }, 100);
+      if (normalizedRoles.includes("HR")) {
+        setPendingAuthData({ user: responseUser, access_token, cookieMaxAge });
+        setShowRoleSelection(true);
+        setLoading(false);
+        return;
+      }
+
+      const redirectToAdmin = hasAdminSideRole;
+      finalizeLogin(responseUser, access_token, cookieMaxAge, redirectToAdmin ? "ADMIN" : "EMPLOYEE");
     } catch (error: any) {
       setError(error.response?.data?.message || error.message || "Invalid credentials. Please try again.");
       setLoading(false);
@@ -669,6 +682,45 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Role Selection Modal */}
+      {showRoleSelection && pendingAuthData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
+            <div className="p-6 text-center border-b border-slate-100 dark:border-slate-700">
+              <div className="w-12 h-12 bg-[#184a8c]/10 dark:bg-[#7dd3fc]/10 text-[#184a8c] dark:text-[#7dd3fc] rounded-full flex items-center justify-center mx-auto mb-3">
+                <Shield size={24} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Select Login Role</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                You have an HR role. Please specify how you'd like to access the system for this session.
+              </p>
+            </div>
+            <div className="p-6 flex flex-col gap-3">
+              <button
+                onClick={() => finalizeLogin(pendingAuthData.user, pendingAuthData.access_token, pendingAuthData.cookieMaxAge, "ADMIN")}
+                className="w-full flex items-center justify-between p-4 rounded-xl text-white hover:shadow-lg hover:-translate-y-0.5 transition-all font-semibold"
+                style={{ background: "linear-gradient(135deg, #184a8c, #1e6fbf)" }}
+              >
+                <div className="flex items-center gap-3"><Shield size={18} /> HR Login</div>
+                <ArrowRight size={18} />
+              </button>
+              <button
+                onClick={() => finalizeLogin(pendingAuthData.user, pendingAuthData.access_token, pendingAuthData.cookieMaxAge, "EMPLOYEE")}
+                className="w-full flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-[#184a8c] hover:bg-slate-50 dark:hover:border-[#7dd3fc] dark:hover:bg-slate-700/50 transition-all font-semibold"
+              >
+                <div className="flex items-center gap-3"><Users size={18} /> Employee Login</div>
+                <ArrowRight size={18} />
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 }

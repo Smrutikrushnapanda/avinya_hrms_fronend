@@ -199,6 +199,14 @@ export default function EmployeeDialogs({
     mode: "new" | "edit"
   ) => {
     if (!file) return;
+    
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      alert(`File size (${sizeMB}MB) exceeds 10MB limit. Please compress or choose a smaller image.`);
+      return;
+    }
+    
     const dataUrl = await readFileAsDataUrl(file);
     if (mode === "new") {
       setNewEmployee({ ...newEmployee, [field]: dataUrl });
@@ -1145,6 +1153,9 @@ export default function EmployeeDialogs({
                 <Briefcase className="w-5 h-5 mr-2" />
                 Login Credentials (Optional)
               </h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Leave both fields empty to keep current credentials. Provide both to update.
+              </p>
               <div className="grid gap-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">

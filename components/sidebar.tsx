@@ -30,6 +30,7 @@ import {
   Receipt,
   Video,
   UserRound,
+  MessageSquarePlus,
 } from "lucide-react";
 import {
   Tooltip,
@@ -100,12 +101,39 @@ const menuByRole: Record<string, MenuItem[]> = {
     { name: "Payroll", icon: BadgeDollarSign, href: "/admin/payroll", animation: "bounce" },
     { name: "Reports", icon: BookMarked, href: "/admin/reports", animation: "swing" },
     { name: "Polls", icon: Vote, href: "/admin/polls", animation: "rubberBand" },
+    { name: "Community Posts", icon: MessageSquarePlus, href: "/admin/posts", animation: "float" },
     { name: "Projects", icon: FolderKanban, href: "/admin/projects", animation: "float" },
     { name: "Performance", icon: TrendingUp, href: "/admin/performance", animation: "float" },
     { name: "Policy", icon: Shield, href: "/admin/policy", animation: "float" },
     { name: "Expenses", icon: Receipt, href: "/admin/expenses", animation: "float" },
     { name: "Settings", icon: Settings, href: "/admin/settings", animation: "spin" },
     { name: "Log Report", icon: FileText, href: "/admin/logreport", animation: "float" },
+  ],
+  HR: [
+    { name: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", animation: "pulse" },
+    { name: "Employees", icon: Users, href: "/admin/employees", animation: "wiggle" },
+    { name: "Attendance", icon: Calendar, href: "/admin/attendance", animation: "flip" },
+    { name: "Time Slips", icon: Clock, href: "/admin/timeslips", animation: "float" },
+    { name: "Timesheet", icon: BookMarked, href: "/admin/timesheets", animation: "swing" },
+    {
+      name: "Leave & WFH",
+      icon: CalendarDays,
+      animation: "float",
+      children: [
+        { name: "Leave", icon: CalendarDays, href: "/admin/leave", animation: "float" },
+        { name: "WFH", icon: Home, href: "/admin/wfh", animation: "wiggle" },
+        { name: "WFH Monitor", icon: Monitor, href: "/admin/wfh-monitor", animation: "pulse" },
+      ],
+    },
+    { name: "Meetings", icon: Video, href: "/admin/meetings", animation: "bounce" },
+    { name: "Payroll", icon: BadgeDollarSign, href: "/admin/payroll", animation: "bounce" },
+    { name: "Reports", icon: BookMarked, href: "/admin/reports", animation: "swing" },
+    { name: "Polls", icon: Vote, href: "/admin/polls", animation: "rubberBand" },
+    { name: "Community Posts", icon: MessageSquarePlus, href: "/admin/posts", animation: "float" },
+    { name: "Performance", icon: TrendingUp, href: "/admin/performance", animation: "float" },
+    { name: "Policy", icon: Shield, href: "/admin/policy", animation: "float" },
+    { name: "Expenses", icon: Receipt, href: "/admin/expenses", animation: "float" },
+    { name: "Settings", icon: Settings, href: "/admin/settings", animation: "spin" },
   ],
   EMPLOYEE: [
     { name: "Dashboard", icon: LayoutDashboard, href: "/user/dashboard", animation: "pulse" },
@@ -119,7 +147,8 @@ const menuByRole: Record<string, MenuItem[]> = {
     { name: "Messages", icon: Users, href: "/user/messages", animation: "wiggle" },
     { name: "Polls", icon: Vote, href: "/user/polls", animation: "rubberBand" },
     { name: "Policy", icon: Shield, href: "/user/policy", animation: "float" },
-    { name: "My Meetings", icon: Video, href: "/user/meetings", animation: "bounce" },
+{ name: "My Meetings", icon: Video, href: "/user/meetings", animation: "bounce" },
+    { name: "Posts", icon: LayoutDashboard, href: "/user/posts", animation: "pulse" },
     { name: "My Profile", icon: UserRound, href: "/user/profile", animation: "pulse" },
   ],
 };
@@ -166,8 +195,13 @@ const fetchProfile = async () => {
         let primaryRole = "";
         
         if (isAdminRoute) {
-          // If on admin route, show admin menu
-          primaryRole = "ADMIN";
+          if (roles.includes("SUPER_ADMIN") || roles.includes("ORG_ADMIN")) {
+            primaryRole = "ADMIN";
+          } else if (roles.includes("HR")) {
+            primaryRole = "HR";
+          } else {
+            primaryRole = "ADMIN"; // Default fallback
+          }
         } else {
           // If on user route, show employee menu
           primaryRole = "EMPLOYEE";

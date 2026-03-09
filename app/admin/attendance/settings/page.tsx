@@ -367,7 +367,6 @@ export default function AttendanceSettingsPage() {
 
   const saveBranchTimingFromOfficeTab = async (branch: Branch) => {
     const payload = {
-      organizationId,
       workStartTime: `${branchTimingDraft.workStartTime}:00`,
       workEndTime: `${branchTimingDraft.workEndTime}:00`,
       graceMinutes: Number(branchTimingDraft.graceMinutes || 0),
@@ -375,7 +374,6 @@ export default function AttendanceSettingsPage() {
       halfDayCutoffTime: `${branchTimingDraft.halfDayCutoffTime}:00`,
       workingDays: branchTimingDraft.workingDays,
       weekdayOffRules: branchTimingDraft.weekdayOffRules,
-      isActive: branch.isActive,
       officeLatitude: branch.officeLatitude ?? null,
       officeLongitude: branch.officeLongitude ?? null,
       allowedRadiusMeters: branch.allowedRadiusMeters ?? 100,

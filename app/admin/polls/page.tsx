@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Vote, Users, Clock, ChevronRight, Calendar, User, MessageCircle, BarChart3, Eye, X, Plus } from "lucide-react";
+import { Vote, Users, Clock, ChevronRight, Calendar, User, MessageCircle, BarChart3, Eye, X, Plus, Pencil, Trash2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, isBefore, formatDistanceToNow } from "date-fns";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip } from "recharts";
-import { getPollsSummary, getPollAnalytics, getEmployeeByUserId, createPoll, getProfile } from "@/app/api/api";
+import { getPollsSummary, getPollAnalytics, getEmployeeByUserId, createPoll, getProfile, deletePoll, updatePoll } from "@/app/api/api";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -462,6 +462,11 @@ export default function PollsPage() {
   const [respondentsModalOpen, setRespondentsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  const [editPollOpen, setEditPollOpen] = useState(false);
+  const [editPollData, setEditPollData] = useState({ id: '', title: '', description: '', start_time: '', end_time: '', is_anonymous: false });
+  const [editQuestions, setEditQuestions] = useState<Array<{ text: string; type: string; options: string[] }>>([]);
+  const [updating, setUpdating] = useState(false);
+
   useEffect(() => {
     fetchPolls();
     getProfile()
@@ -511,6 +516,99 @@ export default function PollsPage() {
     setSelectedOptionText(optionText);
     setSelectedRespondents(respondents);
     setRespondentsModalOpen(true);
+  };
+
+  const handleDeletePoll = async (pollId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this poll?')) return;
+    try {
+      await deletePoll(pollId);
+      toast.success('Poll deleted successfully!');
+      fetchPolls();
+    } catch (error) {
+      toast.error('Failed to delete poll');
+    }
+  };
+
+  const openEditPoll = async (poll: Poll, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditPollData({
+      id: poll.id,
+      title: poll.title,
+      description: poll.description || '',
+      start_time: poll.start_time ? new Date(poll.start_time).toISOString().slice(0, 16) : '',
+      end_time: poll.end_time ? new Date(poll.end_time).toISOString().slice(0, 16) : '',
+      is_anonymous: poll.is_anonymous || false,
+    });
+    try {
+      const res = await getQuestions(poll.id);
+      const questions = res.data || [];
+      setEditQuestions(questions.map((q: any) => ({
+        text: q.question_text,
+        type: q.question_type,
+        options: q.options?.map((o: any) => o.option_text) || []
+      })));
+    } catch (error) {
+      console.error('Failed to fetch questions:', error);
+      setEditQuestions([]);
+    }
+    setEditPollOpen(true);
+  };
+
+  const handleUpdatePoll = async () => {
+    if (!editPollData.id || !editPollData.title || !editPollData.start_time || !editPollData.end_time) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    setUpdating(true);
+    try {
+      await updatePoll(editPollData.id, {
+        title: editPollData.title,
+        description: editPollData.description,
+        startTime: new Date(editPollData.start_time).toISOString(),
+        endTime: new Date(editPollData.end_time).toISOString(),
+        isAnonymous: editPollData.is_anonymous,
+      });
+      toast.success('Poll updated successfully!');
+      setEditPollOpen(false);
+      fetchPolls();
+    } catch (error) {
+      toast.error('Failed to update poll');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const updateEditQuestion = (index: number, field: string, value: any) => {
+    const updated = [...editQuestions];
+    updated[index] = { ...updated[index], [field]: value };
+    setEditQuestions(updated);
+  };
+
+  const addEditOption = (questionIndex: number) => {
+    const updated = [...editQuestions];
+    updated[questionIndex].options.push('');
+    setEditQuestions(updated);
+  };
+
+  const updateEditOption = (questionIndex: number, optionIndex: number, value: string) => {
+    const updated = [...editQuestions];
+    updated[questionIndex].options[optionIndex] = value;
+    setEditQuestions(updated);
+  };
+
+  const removeEditQuestion = (index: number) => {
+    setEditQuestions(editQuestions.filter((_, i) => i !== index));
+  };
+
+  const removeEditOption = (questionIndex: number, optionIndex: number) => {
+    const updated = [...editQuestions];
+    updated[questionIndex].options = updated[questionIndex].options.filter((_, i) => i !== optionIndex);
+    setEditQuestions(updated);
+  };
+
+  const addEditQuestion = () => {
+    setEditQuestions([...editQuestions, { text: '', type: 'single_choice', options: [''] }]);
   };
 
   const getStatusBadge = (poll: Poll) => {
@@ -579,7 +677,7 @@ export default function PollsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col items-end min-w-fit border-l border-dashed border-gray-200 pl-4 h-16 justify-center ml-4">
+      <div className="flex flex-col items-end min-w-fit border-l border-dashed border-gray-200 pl-4 h-full justify-center ml-4 gap-2">
         <div className="flex flex-col items-center space-y-2">
           {poll.is_active ? (
             <Badge className="bg-green-100 text-green-700 border-green-300">
@@ -590,7 +688,15 @@ export default function PollsPage() {
               Inactive
             </Badge>
           )}
-          <ChevronRight className="h-5 w-5 text-gray-400 opacity-80 group-hover:text-blue-600 transition-opacity" />
+        </div>
+        
+        <div className="flex items-center gap-1 mt-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={(e) => openEditPoll(poll, e)} title="Edit Poll">
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => handleDeletePoll(poll.id, e)} title="Delete Poll">
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </div>
@@ -887,6 +993,79 @@ export default function PollsPage() {
           optionText={selectedOptionText}
           respondents={selectedRespondents}
         />
+
+        {/* Edit Poll Modal */}
+        <Dialog open={editPollOpen} onOpenChange={setEditPollOpen}>
+          <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Poll</DialogTitle>
+              <DialogDescription>Update poll details and questions (Note: Questions are read-only after creation)</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <Label htmlFor="edit-title">Poll Title *</Label>
+                  <Input id="edit-title" value={editPollData.title} onChange={e => setEditPollData({...editPollData, title: e.target.value})} placeholder="Enter poll title" />
+                </div>
+                <div>
+                  <Label htmlFor="edit-description">Description</Label>
+                  <Textarea id="edit-description" value={editPollData.description} onChange={e => setEditPollData({...editPollData, description: e.target.value})} placeholder="Enter poll description" rows={3} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="edit-start-time">Start Time *</Label>
+                    <Input id="edit-start-time" type="datetime-local" value={editPollData.start_time} onChange={e => setEditPollData({...editPollData, start_time: e.target.value})} />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit-end-time">End Time *</Label>
+                    <Input id="edit-end-time" type="datetime-local" value={editPollData.end_time} onChange={e => setEditPollData({...editPollData, end_time: e.target.value})} />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch id="edit-anonymous" checked={editPollData.is_anonymous} onCheckedChange={c => setEditPollData({...editPollData, is_anonymous: c})} />
+                  <Label htmlFor="edit-anonymous">Anonymous Poll</Label>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-base font-semibold">Questions (Read-Only)</Label>
+                </div>
+                <div className="space-y-4">
+                  {editQuestions.map((question, qIndex) => (
+                    <div key={qIndex} className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-2">
+                          <Input placeholder="Question text" value={question.text} readOnly className="flex-1 bg-gray-100" />
+                        </div>
+                        <Input value={question.type.replace('_', ' ').toUpperCase()} readOnly className="bg-gray-100" />
+                        {(question.type === 'single_choice' || question.type === 'multiple_choice') && question.options.length > 0 && (
+                          <div className="ml-4">
+                            <Label className="text-sm font-medium mb-2 block">Options</Label>
+                            <div className="space-y-2">
+                              {question.options.map((option, oIndex) => (
+                                <Input key={oIndex} value={option} readOnly className="bg-gray-100" />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {editQuestions.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Vote className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No questions found</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditPollOpen(false)}>Cancel</Button>
+              <Button onClick={handleUpdatePoll} disabled={updating}>{updating ? 'Updating...' : 'Save Changes'}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   );

@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Loader2,
   MessageSquare,
+  Trash,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -460,6 +461,13 @@ export default function EmployeeTable({
                                   Send Message
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => onDeleteEmployee(employee)}
+                                  className="text-red-600"
+                                >
+                                  <Trash className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
                                     navigator.clipboard.writeText(employee.workEmail);

@@ -460,12 +460,12 @@ export default function EmployeesPage() {
       if (userProfile?.userId) {
         await createUserActivity({
           userId: userProfile.userId,
-          action,
-          details,
-          timestamp: new Date().toISOString(),
+          activityType: action,
+          activityDescription: details,
         });
       }
     } catch (error) {
+      // Silently fail - don't block main operation
       console.error("Failed to log activity:", error);
     }
   };
@@ -550,6 +550,21 @@ export default function EmployeesPage() {
       errors.workEmail = "Email already exists";
     }
 
+    // Validate credentials: if updating credentials in edit mode, require both username AND password
+    if (isUpdate) {
+      const hasUsername = data.loginUserName?.trim();
+      const hasPassword = data.loginPassword?.trim();
+      
+      // If providing only one credential, show error
+      if ((hasUsername && !hasPassword) || (!hasUsername && hasPassword)) {
+        if (hasUsername && !hasPassword) {
+          errors.loginPassword = "Please also provide password when updating username";
+        } else if (!hasUsername && hasPassword) {
+          errors.loginUserName = "Please also provide username when updating password";
+        }
+      }
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -587,12 +602,24 @@ export default function EmployeesPage() {
     if (data.branchId) cleanData.branchId = data.branchId;
     if (data.roleId) cleanData.roleId = data.roleId;
 
+    // Handle credentials properly
     if (includeCredentials) {
+      // Create mode: always include credentials
       cleanData.loginUserName = data.loginUserName?.trim();
       cleanData.loginPassword = data.loginPassword;
     } else {
-      if (data.loginUserName?.trim()) cleanData.loginUserName = data.loginUserName.trim();
-      if (data.loginPassword?.trim()) cleanData.loginPassword = data.loginPassword;
+      // Edit mode: only include credentials if BOTH username AND password are provided together
+      // This prevents partial updates that cause credential mismatches
+      const hasUsername = data.loginUserName?.trim();
+      const hasPassword = data.loginPassword?.trim();
+      
+      // Only send credentials if both are provided (updating as a pair)
+      if (hasUsername && hasPassword) {
+        cleanData.loginUserName = hasUsername;
+        cleanData.loginPassword = hasPassword;
+      }
+      // If neither or only one is provided, don't send credentials (keep current)
+      // This ensures credentials remain unchanged unless explicitly updating both
     }
 
     return cleanData;
@@ -654,12 +681,16 @@ export default function EmployeesPage() {
     try {
       setIsUpdatingEmployee(true);
       const cleanData = prepareEmployeeData(formData, false);
+      
+      // Check payload size before sending
+      const payloadSize = new Blob([JSON.stringify(cleanData)]).size;
+      if (payloadSize > 10 * 1024 * 1024) {
+        toast.error("Data too large. Please remove or compress document images before updating.");
+        setIsUpdatingEmployee(false);
+        return;
+      }
+      
       await updateEmployee(selectedEmployee.id, cleanData);
-
-      await logActivity(
-        "UPDATE_EMPLOYEE",
-        `Updated employee: ${cleanData.firstName} ${cleanData.lastName || ""}`
-      );
 
       setIsEditDialogOpen(false);
       setSelectedEmployee(null);
@@ -667,10 +698,20 @@ export default function EmployeesPage() {
       setFormErrors({});
       await refreshData();
       toast.success("Employee updated successfully");
+      
+      // Log activity after success (non-blocking)
+      logActivity(
+        "UPDATE_EMPLOYEE",
+        `Updated employee: ${cleanData.firstName} ${cleanData.lastName || ""}`
+      ).catch(() => {});
     } catch (error: any) {
       console.error("Failed to update employee:", error);
-      const errorMessage = error.response?.data?.message || error.message || "Failed to update employee";
-      toast.error(errorMessage);
+      if (error.response?.status === 413) {
+        toast.error("File size too large. Please remove or compress document images.");
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || "Failed to update employee";
+        toast.error(errorMessage);
+      }
     } finally {
       setIsUpdatingEmployee(false);
     }
