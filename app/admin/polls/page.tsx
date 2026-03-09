@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, isAfter, isBefore, formatDistanceToNow } from "date-fns";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RechartsTooltip } from "recharts";
-import { getPollsSummary, getPollAnalytics, getEmployeeByUserId, createPoll, getProfile, deletePoll, updatePoll } from "@/app/api/api";
+import { getPollsSummary, getPollAnalytics, getEmployeeByUserId, createPoll, getProfile, deletePoll, updatePoll, getQuestions } from "@/app/api/api";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

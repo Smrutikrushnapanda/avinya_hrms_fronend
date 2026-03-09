@@ -38,6 +38,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, parseISO, differenceInDays } from 'date-fns';
+import { uploadFile } from "@/app/api/api";
 import { Employee, EmployeeFormData, ExportFields } from "./types";
 
 interface EmployeeDialogsProps {
@@ -185,14 +186,6 @@ export default function EmployeeDialogs({
     return statusConfig[status as keyof typeof statusConfig] || statusConfig.active;
   };
 
-  const readFileAsDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Failed to read file"));
-      reader.readAsDataURL(file);
-    });
-
   const handleDocUpload = async (
     file: File | null,
     field: "aadharPhotoUrl" | "passportPhotoUrl" | "panCardPhotoUrl",
@@ -206,12 +199,24 @@ export default function EmployeeDialogs({
       alert(`File size (${sizeMB}MB) exceeds 10MB limit. Please compress or choose a smaller image.`);
       return;
     }
-    
-    const dataUrl = await readFileAsDataUrl(file);
-    if (mode === "new") {
-      setNewEmployee({ ...newEmployee, [field]: dataUrl });
-    } else {
-      setEditEmployee({ ...editEmployee, [field]: dataUrl });
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await uploadFile(formData, { path: "employees/documents", public: "true" });
+      const url = res.data?.url || res.data?.fileUrl;
+
+      if (!url) {
+        throw new Error("Upload did not return a file URL");
+      }
+
+      if (mode === "new") {
+        setNewEmployee({ ...newEmployee, [field]: url });
+      } else {
+        setEditEmployee({ ...editEmployee, [field]: url });
+      }
+    } catch {
+      alert("Failed to upload file. Please try again.");
     }
   };
 

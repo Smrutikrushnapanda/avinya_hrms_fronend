@@ -55,6 +55,7 @@ interface Comment {
     firstName?: string;
     lastName?: string;
     avatar?: string;
+    passportPhotoUrl?: string;
   };
 }
 
@@ -525,4 +526,3 @@ export default function EmployeePostsPage() {
     </div>
   );
 }
-

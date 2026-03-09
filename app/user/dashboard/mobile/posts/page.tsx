@@ -75,11 +75,7 @@ interface Post {
   commentCount?: number;
 }
 
-interface MobilePostsPageProps {
-  onSwipeRight?: () => void;
-}
-
-export default function MobilePostsPage({ onSwipeRight }: MobilePostsPageProps) {
+export default function MobilePostsPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -517,4 +513,3 @@ export default function MobilePostsPage({ onSwipeRight }: MobilePostsPageProps) 
     </div>
   );
 }
-
