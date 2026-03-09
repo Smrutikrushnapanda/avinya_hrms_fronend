@@ -666,6 +666,7 @@ export default function UserDashboardPage() {
       up: true,
       icon: Users,
       accent: "text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/20",
+      borderColor: "border-l-indigo-500",
     },
     {
       label: "Present Today",
@@ -674,6 +675,7 @@ export default function UserDashboardPage() {
       up: true,
       icon: UserCheck,
       accent: "text-rose-400 bg-rose-400/10 dark:bg-rose-400/20",
+      borderColor: "border-l-rose-400",
     },
     {
       label: "On Leave",
@@ -682,6 +684,7 @@ export default function UserDashboardPage() {
       up: false,
       icon: Palmtree,
       accent: "text-teal-500 bg-teal-500/10 dark:bg-teal-500/20",
+      borderColor: "border-l-teal-500",
     },
     {
       label: "Payroll Due",
@@ -690,6 +693,7 @@ export default function UserDashboardPage() {
       up: true,
       icon: DollarSign,
       accent: "text-amber-500 bg-amber-500/10 dark:bg-amber-500/20",
+      borderColor: "border-l-amber-500",
     },
   ];
 
@@ -741,7 +745,7 @@ export default function UserDashboardPage() {
           return (
             <Card
               key={card.label}
-              className="p-5 hover:-translate-y-1 transition-transform duration-200 cursor-pointer relative overflow-hidden border-l-4 border-[#184a8c]/50 rounded-2xl"
+              className={`p-5 hover:-translate-y-1 transition-transform duration-200 cursor-pointer relative overflow-hidden border-l-4 ${card.borderColor} rounded-2xl`}
             >
               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#184a8c]/10 to-[#00b4db]/10 rounded-full blur-xl -mr-12 -mt-12" />
               <div className={`w-11 h-11 rounded-xl ${card.accent} flex items-center justify-center mb-3 relative z-10`}>

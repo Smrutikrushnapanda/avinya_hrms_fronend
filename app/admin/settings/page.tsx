@@ -50,6 +50,10 @@ interface Organization {
   phone?: string;
   address?: string;
   logoUrl?: string;
+  homeHeaderBackgroundColor?: string;
+  homeHeaderMediaUrl?: string;
+  homeHeaderMediaStartDate?: string;
+  homeHeaderMediaEndDate?: string;
   resignationPolicy?: string;
   resignationNoticePeriodDays?: number;
   allowEarlyRelievingByAdmin?: boolean;
@@ -74,6 +78,7 @@ interface ResignationRequest {
 }
 
 const EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Intern", "Consultant"];
+const DEFAULT_HOME_HEADER_COLOR = "#026D94";
 
 export default function SettingsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -104,6 +109,10 @@ const [orgForm, setOrgForm] = useState({
   phone: "",
   address: "",
   logoUrl: "",
+  homeHeaderBackgroundColor: "#026D94",
+  homeHeaderMediaUrl: "",
+  homeHeaderMediaStartDate: "",
+  homeHeaderMediaEndDate: "",
   resignationPolicy: "",
   resignationNoticePeriodDays: 30,
   allowEarlyRelievingByAdmin: false,
@@ -202,6 +211,10 @@ const loadOrganization = async () => {
         phone: res.data.phone || "",
         address: res.data.address || "",
         logoUrl: res.data.logoUrl || "",
+        homeHeaderBackgroundColor: res.data.homeHeaderBackgroundColor || DEFAULT_HOME_HEADER_COLOR,
+        homeHeaderMediaUrl: res.data.homeHeaderMediaUrl || "",
+        homeHeaderMediaStartDate: res.data.homeHeaderMediaStartDate || "",
+        homeHeaderMediaEndDate: res.data.homeHeaderMediaEndDate || "",
         resignationPolicy: res.data.resignationPolicy || "",
         resignationNoticePeriodDays: Number(res.data.resignationNoticePeriodDays || 30),
         allowEarlyRelievingByAdmin: Boolean(res.data.allowEarlyRelievingByAdmin),
@@ -350,6 +363,25 @@ const loadOrganization = async () => {
 
     if (orgForm.logoUrl.trim() && !/^https?:\/\/.+/.test(orgForm.logoUrl.trim()))
       errors.logoUrl = "Logo URL must start with http:// or https://";
+
+    if (
+      orgForm.homeHeaderBackgroundColor.trim() &&
+      !/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(orgForm.homeHeaderBackgroundColor.trim())
+    ) {
+      errors.homeHeaderBackgroundColor = "Header color must be a valid hex value like #026D94";
+    }
+
+    if (orgForm.homeHeaderMediaUrl.trim() && !/^https?:\/\/.+/.test(orgForm.homeHeaderMediaUrl.trim())) {
+      errors.homeHeaderMediaUrl = "Header media URL must start with http:// or https://";
+    }
+
+    if (
+      orgForm.homeHeaderMediaStartDate &&
+      orgForm.homeHeaderMediaEndDate &&
+      orgForm.homeHeaderMediaStartDate > orgForm.homeHeaderMediaEndDate
+    ) {
+      errors.homeHeaderMediaEndDate = "End date must be on or after the start date";
+    }
 
     if (orgForm.resignationNoticePeriodDays < 0)
       errors.resignationNoticePeriodDays = "Notice period cannot be negative";
@@ -557,6 +589,30 @@ const loadOrganization = async () => {
                   <div>
                     <Label className="text-sm font-medium">Address</Label>
                     <p className="text-sm text-muted-foreground">{organization.address || "Not set"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Home Header Color</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {organization.homeHeaderBackgroundColor || DEFAULT_HOME_HEADER_COLOR}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Home Header Media</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {organization.homeHeaderMediaUrl || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Media Active From</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {organization.homeHeaderMediaStartDate || "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Media Active Till</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {organization.homeHeaderMediaEndDate || "Not set"}
+                    </p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium">Notice Period</Label>
@@ -947,6 +1003,90 @@ const loadOrganization = async () => {
                 className={orgErrors.logoUrl ? "border-destructive" : ""}
               />
               {orgErrors.logoUrl && <p className="text-xs text-destructive mt-1">{orgErrors.logoUrl}</p>}
+            </div>
+            <div>
+              <Label>Home Header Color</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="color"
+                  value={orgForm.homeHeaderBackgroundColor || DEFAULT_HOME_HEADER_COLOR}
+                  onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderBackgroundColor: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderBackgroundColor: "" })); }}
+                  className="h-10 w-16 p-1"
+                />
+                <Input
+                  value={orgForm.homeHeaderBackgroundColor}
+                  onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderBackgroundColor: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderBackgroundColor: "" })); }}
+                  placeholder="#026D94"
+                  className={orgErrors.homeHeaderBackgroundColor ? "border-destructive" : ""}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setOrgForm({
+                      ...orgForm,
+                      homeHeaderBackgroundColor: DEFAULT_HOME_HEADER_COLOR,
+                    })
+                  }
+                >
+                  Reset
+                </Button>
+              </div>
+              {orgErrors.homeHeaderBackgroundColor && <p className="text-xs text-destructive mt-1">{orgErrors.homeHeaderBackgroundColor}</p>}
+              <p className="text-xs text-muted-foreground mt-1">
+                Default app header color: {DEFAULT_HOME_HEADER_COLOR}
+              </p>
+            </div>
+            <div>
+              <Label>Home Header Image/GIF URL</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={orgForm.homeHeaderMediaUrl}
+                  onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderMediaUrl: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderMediaUrl: "", homeHeaderMediaEndDate: "" })); }}
+                  placeholder="https://example.com/christmas-banner.gif"
+                  className={orgErrors.homeHeaderMediaUrl ? "border-destructive" : ""}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setOrgForm({
+                      ...orgForm,
+                      homeHeaderMediaUrl: "",
+                      homeHeaderMediaStartDate: "",
+                      homeHeaderMediaEndDate: "",
+                    })
+                  }
+                >
+                  Delete
+                </Button>
+              </div>
+              {orgErrors.homeHeaderMediaUrl && <p className="text-xs text-destructive mt-1">{orgErrors.homeHeaderMediaUrl}</p>}
+              {orgForm.homeHeaderMediaUrl ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Delete will remove the media and clear the active date range.
+                </p>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Header Media Start Date</Label>
+                <Input
+                  type="date"
+                  value={orgForm.homeHeaderMediaStartDate}
+                  onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderMediaStartDate: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderMediaEndDate: "" })); }}
+                />
+              </div>
+              <div>
+                <Label>Header Media End Date</Label>
+                <Input
+                  type="date"
+                  value={orgForm.homeHeaderMediaEndDate}
+                  onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderMediaEndDate: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderMediaEndDate: "" })); }}
+                  className={orgErrors.homeHeaderMediaEndDate ? "border-destructive" : ""}
+                />
+                {orgErrors.homeHeaderMediaEndDate && <p className="text-xs text-destructive mt-1">{orgErrors.homeHeaderMediaEndDate}</p>}
+              </div>
             </div>
             <div>
               <Label>Address</Label>
