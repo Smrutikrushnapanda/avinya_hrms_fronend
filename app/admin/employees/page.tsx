@@ -477,7 +477,7 @@ export default function EmployeesPage() {
     const digitsOnly = (value: string) => value.replace(/\D/g, "");
     const isValidContactNumber = (value: string) => {
       const digits = digitsOnly(value);
-      return digits.length >= 5 && digits.length <= 20;
+      return digits.length === 10;
     };
     const isValidEmergencyPhone = (value: string) => {
       const cleaned = value.replace(/\s|-/g, "");
@@ -522,7 +522,7 @@ export default function EmployeesPage() {
     }
 
     if (data.contactNumber?.trim() && !isValidContactNumber(data.contactNumber)) {
-      errors.contactNumber = "Contact number must be 5-20 digits";
+      errors.contactNumber = "Contact number must be exactly 10 digits";
     }
 
     if (data.emergencyContactPhone?.trim() && !isValidEmergencyPhone(data.emergencyContactPhone)) {

@@ -291,6 +291,7 @@ export default function TimeslipTab({ employeeId, employee }: TimeslipTabProps) 
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Sl#</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Missing Type</TableHead>
                 <TableHead>Corrected In</TableHead>
@@ -301,8 +302,9 @@ export default function TimeslipTab({ employeeId, employee }: TimeslipTabProps) 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {timeslips.map((timeslip) => (
+              {timeslips.map((timeslip, index) => (
                 <TableRow key={timeslip.id}>
+                  <TableCell className="font-medium">{index + 1}</TableCell>
                   <TableCell>
                     {format(parseISO(timeslip.date), "MMM dd, yyyy")}
                   </TableCell>

@@ -35,6 +35,19 @@ import {
 } from "./components/DashboardWidgets";
 import EmployeeAwardWidget from "./components/EmployeeAwardWidget";
 
+const DEPARTMENT_COLORS = [
+  "#93c5fd",
+  "#86efac",
+  "#fdba74",
+  "#c4b5fd",
+  "#7dd3fc",
+  "#fca5a5",
+  "#5eead4",
+  "#fcd34d",
+  "#f9a8d4",
+  "#a5b4fc",
+];
+
 // AttendanceChart Component
 function AttendanceChart({ attendanceChartData }: { attendanceChartData: any[] }) {
   return (
@@ -98,7 +111,14 @@ function DepartmentChart({ departmentData }: { departmentData: any[] }) {
               <XAxis dataKey="name" fontSize={12} angle={-45} textAnchor="end" height={60} />
               <YAxis allowDecimals={false} fontSize={12} />
               <Tooltip formatter={(value) => [value, 'Active Employees']} labelFormatter={(label) => `Department: ${label}`} />
-              <Bar dataKey="employees" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Active Employees" />
+              <Bar dataKey="employees" radius={[4, 4, 0, 0]} name="Active Employees">
+                {departmentData.map((entry, index) => (
+                  <Cell
+                    key={`dept-color-${entry.name}-${index}`}
+                    fill={DEPARTMENT_COLORS[index % DEPARTMENT_COLORS.length]}
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}

@@ -699,6 +699,7 @@ export default function WfhManagementPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
+                        <TableHead>Sl#</TableHead>
                         <TableHead>Employee</TableHead>
                         <TableHead>Start Date</TableHead>
                         <TableHead>End Date</TableHead>
@@ -709,8 +710,9 @@ export default function WfhManagementPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRequests.map((request) => (
+                      {filteredRequests.map((request, index) => (
                         <TableRow key={request.id}>
+                          <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {getFullName(request.user)}
                           </TableCell>
@@ -858,6 +860,7 @@ export default function WfhManagementPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
+                        <TableHead>Sl#</TableHead>
                         <TableHead>Employee</TableHead>
                         <TableHead className="text-center">Level</TableHead>
                         <TableHead>Approver</TableHead>
@@ -865,8 +868,9 @@ export default function WfhManagementPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {assignments.map((assignment) => (
+                      {assignments.map((assignment, index) => (
                         <TableRow key={assignment.id}>
+                          <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {assignment.user
                               ? getFullName(assignment.user)
@@ -990,17 +994,19 @@ export default function WfhManagementPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Sl#</TableHead>
                       <TableHead>Employment Type</TableHead>
                       <TableHead>Opening Balance</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {EMPLOYMENT_TYPE_OPTIONS.map((et) => {
+                    {EMPLOYMENT_TYPE_OPTIONS.map((et, index) => {
                       const match = wfhTemplates.find(
                         (t) => t.employmentType === et.value
                       );
                       return (
                         <TableRow key={et.value}>
+                          <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">{et.label}</TableCell>
                           <TableCell>{match?.openingBalance ?? "-"}</TableCell>
                         </TableRow>

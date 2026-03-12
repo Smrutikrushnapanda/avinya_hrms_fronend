@@ -15,6 +15,8 @@ import {
   X,
   Star,
   Sparkles,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   Card,
@@ -33,6 +35,7 @@ import {
   getUpcomingMeetingsForUser,
   getAttendanceReport2,
   getEmployees,
+  getPayrollRecords,
 } from "@/app/api/api";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -442,6 +445,9 @@ export default function UserDashboardPage() {
   const [leaderboard, setLeaderboard] = useState<ScoredEmployee[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showSalaryAmount, setShowSalaryAmount] = useState(false);
+  const [salaryMonthAmount, setSalaryMonthAmount] = useState<number>(0);
+  const [salaryMonthLabel, setSalaryMonthLabel] = useState<string>("");
 
   const normalizeLeaveBalance = (balance: LeaveBalanceData): LeaveBalanceData => {
     const openingBalance = Number(balance.openingBalance ?? 0);
@@ -496,6 +502,52 @@ export default function UserDashboardPage() {
                   setLeaveBalances(
                     balances.balances.map((b: LeaveBalanceData) => normalizeLeaveBalance(b))
                   );
+                }
+              }
+
+              if (profile.organizationId && empResponse.data.id) {
+                const now = new Date();
+                const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const month = previousMonthDate.getMonth() + 1;
+                const year = previousMonthDate.getFullYear();
+                const monthName = previousMonthDate.toLocaleDateString("en-US", { month: "long" });
+                setSalaryMonthLabel(monthName);
+
+                // Prefer paid salary for the month; fallback to latest record (draft/processed/paid).
+                const paidRes = await getPayrollRecords({
+                  organizationId: profile.organizationId,
+                  employeeId: empResponse.data.id,
+                  month,
+                  year,
+                  status: "paid",
+                  page: 1,
+                  limit: 1,
+                });
+
+                const paidList = paidRes.data?.data || [];
+                if (paidList.length > 0) {
+                  setSalaryMonthAmount(Number(paidList[0]?.netPay || 0));
+                } else {
+                  const latestPaidRes = await getPayrollRecords({
+                    organizationId: profile.organizationId,
+                    employeeId: empResponse.data.id,
+                    status: "paid",
+                    page: 1,
+                    limit: 1,
+                  });
+                  const latestPaidList = latestPaidRes.data?.data || [];
+                  if (latestPaidList.length > 0) {
+                    const latest = latestPaidList[0];
+                    setSalaryMonthAmount(Number(latest?.netPay || 0));
+                    const pp = String(latest?.payPeriod || "");
+                    if (/^\d{4}-\d{2}$/.test(pp)) {
+                      const [y, m] = pp.split("-").map((x: string) => Number(x));
+                      const d = new Date(y, m - 1, 1);
+                      setSalaryMonthLabel(d.toLocaleDateString("en-US", { month: "long" }));
+                    }
+                  } else {
+                    setSalaryMonthAmount(0);
+                  }
                 }
               }
             }
@@ -656,6 +708,18 @@ export default function UserDashboardPage() {
   const totalEmployees = getNumericValue(stats?.totalEmployees);
   const presentToday = getNumericValue(stats?.presentToday);
   const onLeave = getNumericValue(stats?.onLeaveToday);
+  const payrollDue = getNumericValue(stats?.payrollDue);
+  const previousMonthShort = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleDateString("en-US", { month: "long" });
+  const formatInrCompact = (value: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(Number(value || 0));
+  const effectiveSalaryAmount = salaryMonthAmount || 0;
+  const payrollDigits = Math.round(Number(effectiveSalaryAmount || 0)).toString().replace(/\D/g, "");
+  const hiddenLastTwo = payrollDigits.slice(-2).padStart(2, "0");
+  const salaryDisplayValue = showSalaryAmount ? formatInrCompact(effectiveSalaryAmount) : `****${hiddenLastTwo}`;
 
   // Stat cards
   const statCards = [
@@ -687,13 +751,14 @@ export default function UserDashboardPage() {
       borderColor: "border-l-teal-500",
     },
     {
-      label: "Payroll Due",
-      value: "$0",
-      badge: "+0.8%",
+      label: `Salary Month (${salaryMonthLabel || previousMonthShort})`,
+      value: salaryDisplayValue,
+      badge: "Paid",
       up: true,
       icon: DollarSign,
       accent: "text-amber-500 bg-amber-500/10 dark:bg-amber-500/20",
       borderColor: "border-l-amber-500",
+      sensitive: true,
     },
   ];
 
@@ -754,6 +819,16 @@ export default function UserDashboardPage() {
               <p className="text-2xl font-extrabold text-foreground tracking-tight relative z-10">
                 {card.value}
               </p>
+              {card.sensitive && (
+                <button
+                  type="button"
+                  onClick={() => setShowSalaryAmount((prev) => !prev)}
+                  className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground relative z-10"
+                >
+                  {showSalaryAmount ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showSalaryAmount ? "Hide" : "Show"}
+                </button>
+              )}
               <p className="text-xs text-muted-foreground font-medium mt-0.5 relative z-10">
                 {card.label}
               </p>

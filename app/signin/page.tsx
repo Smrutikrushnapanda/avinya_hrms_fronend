@@ -90,7 +90,12 @@ export default function LoginPage() {
       const redirectToAdmin = hasAdminSideRole;
       finalizeLogin(responseUser, access_token, cookieMaxAge, redirectToAdmin ? "ADMIN" : "EMPLOYEE");
     } catch (error: any) {
-      setError(error.response?.data?.message || error.message || "Invalid credentials. Please try again.");
+      const isTimeout = error?.code === "ECONNABORTED" || String(error?.message || "").toLowerCase().includes("timeout");
+      if (isTimeout) {
+        setError("Server is waking up (cold start). Please wait a few seconds and try again.");
+      } else {
+        setError(error.response?.data?.message || error.message || "Invalid credentials. Please try again.");
+      }
       setLoading(false);
     }
   };

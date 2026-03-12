@@ -87,6 +87,7 @@ function AttendanceDetailsModal({ open, onClose, data }: { open: boolean; onClos
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b-2 border-gray-200 dark:border-gray-700">
+                    <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">Sl#</th>
                     <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">Employee</th>
                     <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">Status</th>
                     <th className="text-left py-4 px-4 font-semibold text-gray-700 dark:text-gray-300">In Time</th>
@@ -97,6 +98,7 @@ function AttendanceDetailsModal({ open, onClose, data }: { open: boolean; onClos
                 <tbody>
                   {data.map((item, idx) => (
                     <tr key={idx} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                      <td className="py-4 px-4 font-medium">{idx + 1}</td>
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">

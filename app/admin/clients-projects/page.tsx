@@ -560,6 +560,7 @@ export default function ClientsProjectsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Sl#</TableHead>
                     <TableHead>Client</TableHead>
                     <TableHead>Industry</TableHead>
                     <TableHead>Contact</TableHead>
@@ -569,13 +570,14 @@ export default function ClientsProjectsPage() {
                 <TableBody>
                   {clients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-sm text-muted-foreground">
+                      <TableCell colSpan={5} className="text-sm text-muted-foreground">
                         No clients added yet.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    clients.map((client) => (
+                    clients.map((client, index) => (
                       <TableRow key={client.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell>
                           <div className="font-medium">{client.clientName}</div>
                         </TableCell>
@@ -755,6 +757,7 @@ export default function ClientsProjectsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Sl#</TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead>Client</TableHead>
                     <TableHead>Status</TableHead>
@@ -765,13 +768,14 @@ export default function ClientsProjectsPage() {
                 <TableBody>
                   {projects.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-sm text-muted-foreground">
+                      <TableCell colSpan={6} className="text-sm text-muted-foreground">
                         No projects added yet.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    projects.map((project) => (
+                    projects.map((project, index) => (
                       <TableRow key={project.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell>
                           <div className="font-medium">{project.projectName}</div>
                         </TableCell>

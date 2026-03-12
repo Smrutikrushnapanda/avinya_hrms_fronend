@@ -284,6 +284,7 @@ export default function EmployeeTable({
             <Table className="min-w-[1200px]">
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-14">Sl#</TableHead>
                   <TableHead className="w-12">
                     <Checkbox
                       checked={selectedEmployees.length === employees.length && employees.length > 0}
@@ -336,7 +337,7 @@ export default function EmployeeTable({
                       exit={{ opacity: 0, scale: 0.8 }}
                       transition={{ duration: 0.3 }}
                     >
-                      <TableCell colSpan={8} className="h-24 text-center">
+                      <TableCell colSpan={9} className="h-24 text-center">
                         <div className="flex flex-col items-center space-y-2">
                           <Users className="h-8 w-8 text-muted-foreground" />
                           <p className="text-muted-foreground">No employees found</p>
@@ -364,6 +365,7 @@ export default function EmployeeTable({
                           }}
                           className={selectedEmployees.includes(employee.id) ? "bg-muted/50" : ""}
                         >
+                          <TableCell className="w-14 font-medium">{index + 1}</TableCell>
                           <TableCell className="w-12">
                             <Checkbox
                               checked={selectedEmployees.includes(employee.id)}

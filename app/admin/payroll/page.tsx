@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Download, Plus, Pencil, Send, Mail, Smartphone, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { deductionFieldKeys, earningFieldKeys, payrollLayoutConfig, type PayrollAmountFieldKey } from "@/lib/payroll-config";
 import {
   getProfile,
   getEmployees,
@@ -57,6 +58,16 @@ interface PayrollSettings {
   logoUrl?: string;
   primaryColor?: string;
   footerNote?: string;
+  cinNumber?: string;
+  panNumber?: string;
+  tanNumber?: string;
+  gstinNumber?: string;
+  pfRegistrationNumber?: string;
+  esiRegistrationNumber?: string;
+  customFields?: Array<{
+    label: string;
+    value: string;
+  }>;
 }
 
 const emptyForm = {
@@ -71,6 +82,13 @@ const emptyForm = {
   pf: 0,
   tds: 0,
 };
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
 
 export default function PayrollPage() {
   const [organizationId, setOrganizationId] = useState<string>("");
@@ -89,7 +107,7 @@ export default function PayrollPage() {
   const [editing, setEditing] = useState<PayrollRecord | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
 
-  const [settings, setSettings] = useState<PayrollSettings>({});
+  const [settings, setSettings] = useState<PayrollSettings>({ customFields: [] });
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
@@ -104,7 +122,11 @@ export default function PayrollPage() {
         setEmployees(empRes.data?.data || empRes.data || []);
 
         const settingsRes = await getPayrollSettings(orgId);
-        setSettings(settingsRes.data || {});
+        const incomingSettings = settingsRes.data || {};
+        setSettings({
+          ...incomingSettings,
+          customFields: Array.isArray(incomingSettings.customFields) ? incomingSettings.customFields : [],
+        });
       } catch (error) {
         toast.error("Failed to load payroll data");
       }
@@ -167,8 +189,8 @@ export default function PayrollPage() {
   };
 
   const calcTotals = () => {
-    const totalEarnings = Number(form.basic) + Number(form.hra) + Number(form.conveyance) + Number(form.otherAllowances);
-    const totalDeductions = Number(form.pf) + Number(form.tds);
+    const totalEarnings = earningFieldKeys.reduce((sum, key) => sum + Number(form[key] || 0), 0);
+    const totalDeductions = deductionFieldKeys.reduce((sum, key) => sum + Number(form[key] || 0), 0);
     const netPay = totalEarnings - totalDeductions;
     return { totalEarnings, totalDeductions, netPay };
   };
@@ -187,18 +209,17 @@ export default function PayrollPage() {
       return;
     }
     const payPeriod = form.periodStart.slice(0, 7);
+    const amountValues = payrollLayoutConfig.amountFields.reduce(
+      (acc, field) => ({ ...acc, [field.key]: Number(form[field.key] || 0) }),
+      {} as Record<PayrollAmountFieldKey, number>
+    );
     const payload: any = {
       organizationId,
       employeeId: form.employeeId,
       payPeriod,
       periodStart: new Date(form.periodStart).toISOString(),
       periodEnd: new Date(form.periodEnd).toISOString(),
-      basic: Number(form.basic),
-      hra: Number(form.hra),
-      conveyance: Number(form.conveyance),
-      otherAllowances: Number(form.otherAllowances),
-      pf: Number(form.pf),
-      tds: Number(form.tds),
+      ...amountValues,
       status: form.status,
     };
 
@@ -261,7 +282,28 @@ export default function PayrollPage() {
     if (!organizationId) return;
     try {
       setSavingSettings(true);
-      await updatePayrollSettings(organizationId, settings);
+      const payload = {
+        companyName: settings.companyName || "",
+        address: settings.address || "",
+        logoUrl: settings.logoUrl || "",
+        primaryColor: settings.primaryColor || "",
+        footerNote: settings.footerNote || "",
+        cinNumber: settings.cinNumber || "",
+        panNumber: settings.panNumber || "",
+        tanNumber: settings.tanNumber || "",
+        gstinNumber: settings.gstinNumber || "",
+        pfRegistrationNumber: settings.pfRegistrationNumber || "",
+        esiRegistrationNumber: settings.esiRegistrationNumber || "",
+        customFields: (settings.customFields || [])
+          .map((field) => ({
+            label: field.label?.trim() || "",
+            value: field.value?.trim() || "",
+          }))
+          .filter((field) => field.label),
+      };
+      await updatePayrollSettings(organizationId, {
+        ...payload,
+      });
       toast.success("Payroll configuration updated");
     } catch (error) {
       toast.error("Failed to update configuration");
@@ -271,6 +313,29 @@ export default function PayrollPage() {
   };
 
   const totals = useMemo(calcTotals, [form]);
+
+  const addCustomField = () => {
+    setSettings((prev) => ({
+      ...prev,
+      customFields: [...(prev.customFields || []), { label: "", value: "" }],
+    }));
+  };
+
+  const updateCustomField = (index: number, key: "label" | "value", value: string) => {
+    setSettings((prev) => {
+      const nextFields = [...(prev.customFields || [])];
+      if (!nextFields[index]) return prev;
+      nextFields[index] = { ...nextFields[index], [key]: value };
+      return { ...prev, customFields: nextFields };
+    });
+  };
+
+  const removeCustomField = (index: number) => {
+    setSettings((prev) => ({
+      ...prev,
+      customFields: (prev.customFields || []).filter((_, idx) => idx !== index),
+    }));
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -284,8 +349,8 @@ export default function PayrollPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Payroll Management</CardTitle>
-                <CardDescription>Generate payroll and download salary slips</CardDescription>
+                <CardTitle>{payrollLayoutConfig.moduleTitle}</CardTitle>
+                <CardDescription>{payrollLayoutConfig.moduleDescription}</CardDescription>
               </div>
               <Button onClick={openCreate}>
                 <Plus className="w-4 h-4 mr-2" /> Add Payroll
@@ -382,22 +447,22 @@ export default function PayrollPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Net Pay</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Sl#</TableHead>
+                    {payrollLayoutConfig.tableColumns.map((column) => (
+                      <TableHead key={column.key}>{column.label}</TableHead>
+                    ))}
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {records.map((r) => (
+                  {records.map((r, index) => (
                     <TableRow key={r.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>{r.employee?.firstName} {r.employee?.lastName || ""}</TableCell>
                       <TableCell>{r.employee?.employeeCode || "-"}</TableCell>
                       <TableCell>{r.payPeriod}</TableCell>
-                      <TableCell>{r.netPay}</TableCell>
-                      <TableCell>{r.status}</TableCell>
+                      <TableCell className="font-semibold">{formatCurrency(r.netPay)}</TableCell>
+                      <TableCell className="capitalize">{r.status}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
                           <Pencil className="w-4 h-4" />
@@ -437,7 +502,7 @@ export default function PayrollPage() {
                   ))}
                   {records.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         <div className="flex flex-col items-center gap-2 py-6">
                           <div>No payroll records found for the selected filters.</div>
                           <Button variant="outline" onClick={openCreate}>
@@ -456,8 +521,8 @@ export default function PayrollPage() {
         <TabsContent value="settings">
           <Card>
             <CardHeader>
-              <CardTitle>Payroll Slip Configuration</CardTitle>
-              <CardDescription>Design fields for PDF salary slips</CardDescription>
+              <CardTitle>{payrollLayoutConfig.settingsTitle}</CardTitle>
+              <CardDescription>{payrollLayoutConfig.settingsDescription}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -481,6 +546,52 @@ export default function PayrollPage() {
               <div className="space-y-2">
                 <Label>Footer Note</Label>
                 <Textarea value={settings.footerNote || ""} onChange={(e) => setSettings({ ...settings, footerNote: e.target.value })} />
+              </div>
+              <div>
+                <Label className="mb-2 block">Company Statutory Details</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {payrollLayoutConfig.statutoryFields.map((field) => (
+                    <div className="space-y-2" key={field.key}>
+                      <Label>{field.label}</Label>
+                      <Input
+                        value={settings[field.key] || ""}
+                        onChange={(e) => setSettings({ ...settings, [field.key]: e.target.value })}
+                        placeholder={field.placeholder}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Custom Company Fields</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addCustomField}>
+                    <Plus className="w-4 h-4 mr-2" /> Add Custom Field
+                  </Button>
+                </div>
+                {(settings.customFields || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No custom fields added yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {(settings.customFields || []).map((field, index) => (
+                      <div key={`${index}-${field.label}`} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3">
+                        <Input
+                          value={field.label}
+                          onChange={(e) => updateCustomField(index, "label", e.target.value)}
+                          placeholder="Field name (e.g., Professional Tax No.)"
+                        />
+                        <Input
+                          value={field.value}
+                          onChange={(e) => updateCustomField(index, "value", e.target.value)}
+                          placeholder="Field value"
+                        />
+                        <Button type="button" variant="ghost" onClick={() => removeCustomField(index)}>
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <Button onClick={handleSaveSettings} disabled={savingSettings}>
                 {savingSettings ? "Saving..." : "Save Configuration"}
@@ -523,78 +634,23 @@ export default function PayrollPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label>Basic</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={form.basic}
-                  onChange={(e) => {
-                    const v = normalizeNumberInput(e.target.value);
-                    setForm({ ...form, basic: v === "" ? 0 : Number(v) });
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>HRA</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={form.hra}
-                  onChange={(e) => {
-                    const v = normalizeNumberInput(e.target.value);
-                    setForm({ ...form, hra: v === "" ? 0 : Number(v) });
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Conveyance</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={form.conveyance}
-                  onChange={(e) => {
-                    const v = normalizeNumberInput(e.target.value);
-                    setForm({ ...form, conveyance: v === "" ? 0 : Number(v) });
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Other Allowances</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={form.otherAllowances}
-                  onChange={(e) => {
-                    const v = normalizeNumberInput(e.target.value);
-                    setForm({ ...form, otherAllowances: v === "" ? 0 : Number(v) });
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>PF</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={form.pf}
-                  onChange={(e) => {
-                    const v = normalizeNumberInput(e.target.value);
-                    setForm({ ...form, pf: v === "" ? 0 : Number(v) });
-                  }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>TDS</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={form.tds}
-                  onChange={(e) => {
-                    const v = normalizeNumberInput(e.target.value);
-                    setForm({ ...form, tds: v === "" ? 0 : Number(v) });
-                  }}
-                />
-              </div>
+              {payrollLayoutConfig.amountFields.map((field) => {
+                return (
+                  <div className="space-y-2" key={field.key}>
+                    <Label>{field.label}</Label>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={field.placeholder}
+                      value={form[field.key]}
+                      onChange={(e) => {
+                        const v = normalizeNumberInput(e.target.value);
+                        setForm({ ...form, [field.key]: v === "" ? 0 : Number(v) });
+                      }}
+                    />
+                  </div>
+                );
+              })}
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(v: any) => setForm({ ...form, status: v })}>

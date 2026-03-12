@@ -222,6 +222,7 @@ export default function PayrollPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
+                    <th className="py-2 pr-4">Sl#</th>
                     <th className="py-2 pr-4">Pay Period</th>
                     <th className="py-2 pr-4">Date Range</th>
                     <th className="py-2 pr-4">Net Pay</th>
@@ -230,8 +231,9 @@ export default function PayrollPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {records.map((record) => (
+                  {records.map((record, index) => (
                     <tr key={record.id} className="border-b last:border-b-0">
+                      <td className="py-3 pr-4 font-medium">{index + 1}</td>
                       <td className="py-3 pr-4 font-medium">{record.payPeriod || "-"}</td>
                       <td className="py-3 pr-4">
                         {formatDate(record.periodStart)} - {formatDate(record.periodEnd)}

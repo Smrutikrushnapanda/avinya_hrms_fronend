@@ -6,10 +6,12 @@ const envOverrideURL =
   process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_LOCAL_API_BASE_URL;
 
 const apiBaseURL = envOverrideURL || cloudFallbackURL;
+const DEFAULT_API_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS || 30000);
+const LOGIN_API_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_LOGIN_TIMEOUT_MS || 90000);
 
 const api = axios.create({
   baseURL: apiBaseURL,
-  timeout: 30000,
+  timeout: DEFAULT_API_TIMEOUT_MS,
 });
 
 api.interceptors.request.use((config) => {
@@ -73,7 +75,8 @@ export const updateHoliday = (id: number, data: any) => api.put(`/attendance/hol
 export const deleteHoliday = (id: number) => api.delete(`/attendance/holidays/${id}`);
 
 // 🔑 Authentication APIs
-export const login = (data: any) => api.post("/auth/login", data);
+export const login = (data: any) =>
+  api.post("/auth/login", data, { timeout: LOGIN_API_TIMEOUT_MS });
 export const logout = () => api.post("/auth/logout");
 export const getProfile = () => api.get("/auth/profile");
 

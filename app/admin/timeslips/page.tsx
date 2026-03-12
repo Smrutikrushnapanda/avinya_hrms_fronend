@@ -189,6 +189,7 @@ export default function TimeslipsApprovalPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
+                  <th className="p-3 text-left">Sl#</th>
                   <th className="p-3 text-left">Date</th>
                   <th className="p-3 text-left">Employee</th>
                   <th className="p-3 text-left">Missing</th>
@@ -200,8 +201,9 @@ export default function TimeslipsApprovalPage() {
                 </tr>
               </thead>
               <tbody>
-                {timeslips.map((row) => (
+                {timeslips.map((row, index) => (
                   <tr key={row.id} className="border-t">
+                    <td className="p-3 font-medium">{index + 1}</td>
                     <td className="p-3">
                       {new Date(row.date).toLocaleDateString()}
                     </td>
@@ -249,7 +251,7 @@ export default function TimeslipsApprovalPage() {
                 ))}
                 {timeslips.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                    <td colSpan={9} className="p-6 text-center text-muted-foreground">
                       {loading ? "Loading..." : "No timeslips found"}
                     </td>
                   </tr>

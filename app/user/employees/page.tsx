@@ -85,6 +85,7 @@ export default function EmployeesPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Sl#</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Gender</TableHead>
@@ -94,6 +95,7 @@ export default function EmployeesPage() {
             <TableBody>
               {filteredEmployees.map((emp, i) => (
                 <TableRow key={i} className="hover:bg-muted/50">
+                  <TableCell className="font-medium">{i + 1}</TableCell>
                   <TableCell>{emp.employee_code}</TableCell>
                   <TableCell>
                     {emp.first_name}{" "}
@@ -107,7 +109,7 @@ export default function EmployeesPage() {
               {filteredEmployees.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={5}
                     className="text-center text-muted-foreground py-6"
                   >
                     🚫 No employees found. Try adjusting your search.

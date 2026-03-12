@@ -313,6 +313,7 @@ export default function AdminExpensesPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Sl#</TableHead>
                         <TableHead>Employee</TableHead>
                         <TableHead>Title</TableHead>
                         <TableHead>Category</TableHead>
@@ -326,8 +327,9 @@ export default function AdminExpensesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filtered.map((exp) => (
+                      {filtered.map((exp, index) => (
                         <TableRow key={exp.id}>
+                          <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {employeeName(exp)}
                           </TableCell>

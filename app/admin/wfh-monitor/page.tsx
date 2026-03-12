@@ -267,6 +267,7 @@ export default function AdminWfhMonitorPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Sl#</TableHead>
                 <TableHead>Employee</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Work Session</TableHead>
@@ -284,11 +285,12 @@ export default function AdminWfhMonitorPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((row) => {
+              {filtered.map((row, index) => {
                 const status = getStatus(row);
                 const cfg = statusConfig[status];
                 return (
                   <TableRow key={row.id} className="hover:bg-accent/30">
+                    <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
                       <div>
                         <p className="text-sm font-medium">{displayName(row)}</p>

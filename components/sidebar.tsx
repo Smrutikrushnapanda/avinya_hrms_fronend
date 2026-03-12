@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { getProfile, getChatConversations, getPerformanceSettings, getWfhToday } from "@/app/api/api";
-import { toast } from "sonner";
 import {
   Boxes,
   Users,
@@ -38,7 +37,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import AnimatedIcon from "@/components/animated-icon";
 
 type SidebarMode = "expanded" | "collapsed";
@@ -153,21 +151,30 @@ const menuByRole: Record<string, MenuItem[]> = {
   ],
 };
 
+const getPrimaryRoleFromPathAndRoles = (pathname: string, roles: string[] = []): string => {
+  const isAdminRoute = pathname.startsWith("/admin");
+  if (!isAdminRoute) return "EMPLOYEE";
+
+  if (roles.includes("SUPER_ADMIN") || roles.includes("ORG_ADMIN")) return "ADMIN";
+  if (roles.includes("HR")) return "HR";
+  return "ADMIN";
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [mode, setMode] = useState<SidebarMode>("expanded");
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const initialRole = useMemo(() => getPrimaryRoleFromPathAndRoles(pathname || "/"), [pathname]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => [...(menuByRole[initialRole] || [])]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const sidebarIconGradientClass =
     "bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent";
-const [user, setUser] = useState({
-    name: "",
-    role: "",
-    avatar: "",
-  });
-
   const isExpanded = mode === "expanded";
+
+  useEffect(() => {
+    const roleFromPath = getPrimaryRoleFromPathAndRoles(pathname || "/");
+    setMenuItems([...(menuByRole[roleFromPath] || [])]);
+  }, [pathname]);
 
   useEffect(() => {
 const fetchProfile = async () => {
@@ -175,43 +182,10 @@ const fetchProfile = async () => {
         const res = await getProfile();
         const user: Profile = res.data;
 
-        setUser({
-          name: [user?.firstName, user?.middleName, user?.lastName]
-            .filter(Boolean)
-            .join(" ") || "User",
-          role: user?.roles?.[0]?.roleName || "Role",
-          avatar: user?.avatar || "/avatar.jpg",
-        });
-
         const roles: string[] = user.roles?.map((r: Role) => r.roleName) || [];
-        
-        // Determine which dashboard we're on
-        const pathname = window.location.pathname;
-        const isAdminRoute = pathname.startsWith('/admin');
-        
-        // Check stored role preference or determine from current route
-        const storedRole = localStorage.getItem("user_role");
-        
-        let primaryRole = "";
-        
-        if (isAdminRoute) {
-          if (roles.includes("SUPER_ADMIN") || roles.includes("ORG_ADMIN")) {
-            primaryRole = "ADMIN";
-          } else if (roles.includes("HR")) {
-            primaryRole = "HR";
-          } else {
-            primaryRole = "ADMIN"; // Default fallback
-          }
-        } else {
-          // If on user route, show employee menu
-          primaryRole = "EMPLOYEE";
-        }
-        
-        // Get menu items based on primary role
-        let items: MenuItem[] = [];
-        if (menuByRole[primaryRole]) {
-          items = [...menuByRole[primaryRole]];
-        }
+        const primaryRole = getPrimaryRoleFromPathAndRoles(pathname || "/", roles);
+        let items: MenuItem[] = [...(menuByRole[primaryRole] || [])];
+        setMenuItems(items);
 
         // For employees: conditionally add Performance, WFH Monitor, Projects
         if (primaryRole === "EMPLOYEE") {
@@ -250,13 +224,13 @@ const fetchProfile = async () => {
 
         setMenuItems(items);
 
-      } catch (err: unknown) {
-        toast.error("Failed to load profile");
+      } catch {
+        // Keep fallback menu rendered from path; avoid blocking interaction.
       }
     };
 
     fetchProfile();
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     const activeGroups: Record<string, boolean> = {};
@@ -272,7 +246,7 @@ const fetchProfile = async () => {
 
   // Fetch initial chat unread count and listen for real-time updates
   useEffect(() => {
-    const isEmployeeRoute = window.location.pathname.startsWith("/user");
+    const isEmployeeRoute = pathname?.startsWith("/user");
     if (!isEmployeeRoute) return;
 
     getChatConversations()
@@ -292,7 +266,7 @@ const fetchProfile = async () => {
     };
     window.addEventListener("chatUnreadUpdate", handler);
     return () => window.removeEventListener("chatUnreadUpdate", handler);
-  }, []);
+  }, [pathname]);
 
   return (
     <TooltipProvider delayDuration={100}>

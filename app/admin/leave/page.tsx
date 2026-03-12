@@ -638,6 +638,7 @@ export default function LeaveManagementPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Sl#</TableHead>
                       <TableHead>Employee</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Dates</TableHead>
@@ -649,12 +650,12 @@ export default function LeaveManagementPage() {
                   <TableBody>
                     {filteredRequests.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground">
                           No leave requests found
                         </TableCell>
                       </TableRow>
                     )}
-                    {filteredRequests.map((req) => {
+                    {filteredRequests.map((req, index) => {
                       const start = req.startDate || req.fromDate;
                       const end = req.endDate || req.toDate;
                       const days = req.totalDays ?? req.days ?? req.duration ?? "-";
@@ -664,6 +665,7 @@ export default function LeaveManagementPage() {
                           : req.leaveType?.name || "Leave";
                       return (
                         <TableRow key={req.id}>
+                          <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell>{getFullName(req.user)}</TableCell>
                           <TableCell>{type}</TableCell>
                           <TableCell>
@@ -743,6 +745,7 @@ export default function LeaveManagementPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Sl#</TableHead>
                       <TableHead>Employee</TableHead>
                       <TableHead>Approver</TableHead>
                       <TableHead>Level</TableHead>
@@ -752,13 +755,14 @@ export default function LeaveManagementPage() {
                   <TableBody>
                     {assignments.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">
                           No assignments found
                         </TableCell>
                       </TableRow>
                     )}
-                    {assignments.map((as) => (
+                    {assignments.map((as, index) => (
                       <TableRow key={as.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell>{getFullName(as.user)}</TableCell>
                         <TableCell>{getFullName(as.approver)}</TableCell>
                         <TableCell>{as.level}</TableCell>
@@ -889,6 +893,7 @@ export default function LeaveManagementPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Sl#</TableHead>
                       <TableHead>Employment Type</TableHead>
                       {leaveTypes.map((lt) => (
                         <TableHead key={lt.id}>{lt.name}</TableHead>
@@ -896,7 +901,7 @@ export default function LeaveManagementPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {EMPLOYMENT_TYPE_OPTIONS.map((et) => {
+                    {EMPLOYMENT_TYPE_OPTIONS.map((et, index) => {
                       const rowTemplates = allTemplates.filter(
                         (t) => t.employmentType === et.value
                       );
@@ -904,6 +909,7 @@ export default function LeaveManagementPage() {
                       if (!hasAny) {
                         return (
                           <TableRow key={et.value}>
+                            <TableCell className="font-medium">{index + 1}</TableCell>
                             <TableCell className="font-medium">{et.label}</TableCell>
                             {leaveTypes.map((lt) => (
                               <TableCell key={`${et.value}-${lt.id}`}>-</TableCell>
@@ -913,6 +919,7 @@ export default function LeaveManagementPage() {
                       }
                       return (
                         <TableRow key={et.value}>
+                          <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">{et.label}</TableCell>
                           {leaveTypes.map((lt) => {
                             const match = rowTemplates.find(
@@ -929,7 +936,7 @@ export default function LeaveManagementPage() {
                     })}
                     {leaveTypes.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={2} className="text-center text-muted-foreground">
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
                           No leave types found.
                         </TableCell>
                       </TableRow>
@@ -963,6 +970,7 @@ export default function LeaveManagementPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Sl#</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Gender Restriction</TableHead>
@@ -971,8 +979,9 @@ export default function LeaveManagementPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {leaveTypes.map((lt) => (
+                    {leaveTypes.map((lt, index) => (
                       <TableRow key={lt.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell className="font-medium">{lt.name}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">
                           {lt.description || "-"}

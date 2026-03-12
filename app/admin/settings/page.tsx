@@ -672,6 +672,7 @@ const loadOrganization = async () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Sl#</TableHead>
                     <TableHead>Employee</TableHead>
                     <TableHead>Message</TableHead>
                     <TableHead>Requested LWD</TableHead>
@@ -683,13 +684,14 @@ const loadOrganization = async () => {
                 <TableBody>
                   {resignationRequests.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No resignation requests found.
                       </TableCell>
                     </TableRow>
                   )}
-                  {resignationRequests.map((req) => (
+                  {resignationRequests.map((req, index) => (
                     <TableRow key={req.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>
                         <div className="font-medium">{getEmployeeName(req)}</div>
                         <div className="text-xs text-muted-foreground">{req.employee?.workEmail || "—"}</div>
@@ -743,14 +745,16 @@ const loadOrganization = async () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Sl#</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {departments.map((dept) => (
+                  {departments.map((dept, index) => (
                     <TableRow key={dept.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>{dept.name}</TableCell>
                       <TableCell>{dept.code}</TableCell>
                       <TableCell className="text-right">
@@ -781,14 +785,16 @@ const loadOrganization = async () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Sl#</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {designations.map((desig) => (
+                  {designations.map((desig, index) => (
                     <TableRow key={desig.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>{desig.name}</TableCell>
                       <TableCell>{desig.code}</TableCell>
                       <TableCell className="text-right">
@@ -825,6 +831,7 @@ const loadOrganization = async () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Sl#</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Optional</TableHead>
@@ -832,8 +839,9 @@ const loadOrganization = async () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {holidays.map((holiday) => (
+                  {holidays.map((holiday, index) => (
                     <TableRow key={holiday.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>{holiday.name}</TableCell>
                       <TableCell>{holiday.date?.toString().slice(0, 10)}</TableCell>
                       <TableCell>{holiday.isOptional ? "Yes" : "No"}</TableCell>
@@ -871,6 +879,7 @@ const loadOrganization = async () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Sl#</TableHead>
                     <TableHead>Role Name</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Type</TableHead>
@@ -878,8 +887,9 @@ const loadOrganization = async () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {roles.map((role) => (
+                  {roles.map((role, index) => (
                     <TableRow key={role.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell className="font-medium">{role.roleName}</TableCell>
                       <TableCell>{role.description || "No description"}</TableCell>
                       <TableCell>{role.type || "CUSTOM"}</TableCell>

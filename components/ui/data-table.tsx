@@ -148,6 +148,9 @@ export function DataTable<TData, TValue>({
               key={headerGroup.id}
               className="border-b border-border bg-muted/60"
             >
+              <TableHead className="whitespace-nowrap border-r border-border py-2 text-left text-sm font-medium text-muted-foreground w-16">
+                Sl#
+              </TableHead>
               {headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
@@ -175,6 +178,9 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   className="border-b border-border/60 hover:bg-muted/40"
                 >
+                  <TableCell className="border-r border-border/60 px-4 py-2 whitespace-nowrap text-sm font-medium">
+                    {state.page * state.pageSize + row.index + 1}
+                  </TableCell>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
@@ -191,7 +197,7 @@ export function DataTable<TData, TValue>({
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columns.length}
+                  colSpan={columns.length + 1}
                   className="text-center h-24"
                 >
                   No results.

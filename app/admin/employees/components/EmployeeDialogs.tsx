@@ -396,8 +396,15 @@ export default function EmployeeDialogs({
                   <Input
                     id="contactNumber"
                     value={newEmployee.contactNumber}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, contactNumber: e.target.value })}
-                    placeholder="+91 9876543210"
+                    onChange={(e) =>
+                      setNewEmployee({
+                        ...newEmployee,
+                        contactNumber: e.target.value.replace(/\D/g, "").slice(0, 10),
+                      })
+                    }
+                    inputMode="numeric"
+                    maxLength={10}
+                    placeholder="9876543210"
                   />
                   {formErrors.contactNumber && (
                     <p className="text-sm text-red-500">{formErrors.contactNumber}</p>
@@ -914,7 +921,14 @@ export default function EmployeeDialogs({
                   <Input
                     id="editContactNumber"
                     value={editEmployee.contactNumber}
-                    onChange={(e) => setEditEmployee({ ...editEmployee, contactNumber: e.target.value })}
+                    onChange={(e) =>
+                      setEditEmployee({
+                        ...editEmployee,
+                        contactNumber: e.target.value.replace(/\D/g, "").slice(0, 10),
+                      })
+                    }
+                    inputMode="numeric"
+                    maxLength={10}
                   />
                   {formErrors.contactNumber && (
                     <p className="text-sm text-red-500">{formErrors.contactNumber}</p>

@@ -376,14 +376,16 @@ export default function PollsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
+                    <th className="py-2 pr-4">Sl#</th>
                     <th className="py-2 pr-4">Poll</th>
                     <th className="py-2 pr-4">Answered Questions</th>
                     <th className="py-2 pr-4">Submitted On</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((item) => (
+                  {history.map((item, index) => (
                     <tr key={item.pollId} className="border-b last:border-b-0">
+                      <td className="py-3 pr-4 font-medium">{index + 1}</td>
                       <td className="py-3 pr-4 font-medium">{item.title}</td>
                       <td className="py-3 pr-4">{item.answeredQuestions}</td>
                       <td className="py-3 pr-4">{formatDateTime(item.submittedAt)}</td>
