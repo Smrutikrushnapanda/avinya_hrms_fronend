@@ -52,11 +52,12 @@ import {
 } from 'recharts';
 import {
   getDashboardStats,
-  getDailyStats,
   getEmployees,
   getProfile,
   getAttendanceReport,
-  getLeaveReport,
+  getAllLeaveRequests,
+  getPayrollRecords,
+  getAllPerformanceReviews,
 } from "@/app/api/api";
 import {
   exportAttendanceReport,
@@ -66,7 +67,7 @@ import {
   exportPerformanceReport,
   exportChartData,
 } from "@/utils/reportExport";
-import { adaptAttendanceData, generateMockAttendanceData } from "@/utils/dataAdapter";
+import { adaptAttendanceData } from "@/utils/dataAdapter";
 
 interface WeeklyAttendanceData {
   name: string;
@@ -87,31 +88,6 @@ interface DepartmentData {
   color: string;
 }
 
-// Mock API functions for missing endpoints
-const getPayrollReport = async (params: any) => {
-  console.warn('Payroll report API not implemented, using mock data');
-  toast.warning("Payroll API is not available. Using sample data.");
-  return {
-    data: {
-      success: true,
-      data: [],
-      total: 0,
-    }
-  };
-};
-
-const getPerformanceReport = async (params: any) => {
-  console.warn('Performance report API not implemented, using mock data');
-  toast.warning("Performance API is not available. Using sample data.");
-  return {
-    data: {
-      success: true,
-      data: [],
-      total: 0,
-    }
-  };
-};
-
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [reportLoading, setReportLoading] = useState<string | null>(null);
@@ -119,10 +95,77 @@ export default function ReportsPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [selectedPeriod, setSelectedPeriod] = useState("this-month");
-  const [selectedReport, setSelectedReport] = useState("attendance");
   const [attendanceData, setAttendanceData] = useState<WeeklyAttendanceData[]>([]);
   const [departmentData, setDepartmentData] = useState<DepartmentData[]>([]);
   const [monthlyTrendData, setMonthlyTrendData] = useState<MonthlyTrendData[]>([]);
+  const [reportStats, setReportStats] = useState({
+    leaveApplications: 0,
+    leaveApprovedPct: "0%",
+    payrollTotalPaid: 0,
+    payrollEmployeeCount: 0,
+    performanceReviews: 0,
+    performanceAvgScore: "0.0",
+  });
+
+  const getPeriodRangeAndLabel = () => {
+    const today = new Date();
+    let startDate: Date;
+    let endDate: Date;
+    let periodLabel: string;
+
+    switch (selectedPeriod) {
+      case "this-week":
+        startDate = startOfWeek(today);
+        endDate = endOfWeek(today);
+        periodLabel = `Week_${format(startDate, "MMM_dd")}_to_${format(endDate, "MMM_dd")}`;
+        break;
+      case "this-month":
+        startDate = startOfMonth(today);
+        endDate = endOfMonth(today);
+        periodLabel = format(today, "MMM_yyyy");
+        break;
+      case "last-month": {
+        const lastMonth = subMonths(today, 1);
+        startDate = startOfMonth(lastMonth);
+        endDate = endOfMonth(lastMonth);
+        periodLabel = format(lastMonth, "MMM_yyyy");
+        break;
+      }
+      case "this-quarter": {
+        const quarter = Math.floor(today.getMonth() / 3);
+        startDate = new Date(today.getFullYear(), quarter * 3, 1);
+        endDate = new Date(today.getFullYear(), quarter * 3 + 3, 0);
+        periodLabel = `Q${quarter + 1}_${today.getFullYear()}`;
+        break;
+      }
+      case "this-year":
+        startDate = new Date(today.getFullYear(), 0, 1);
+        endDate = new Date(today.getFullYear(), 11, 31);
+        periodLabel = today.getFullYear().toString();
+        break;
+      default:
+        startDate = startOfMonth(today);
+        endDate = endOfMonth(today);
+        periodLabel = format(today, "MMM_yyyy");
+    }
+
+    return { startDate, endDate, periodLabel };
+  };
+
+  const normalizeList = (payload: any): any[] => {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.data?.data)) return payload.data.data;
+    if (Array.isArray(payload?.results)) return payload.results;
+    return [];
+  };
+
+  const isDateInRange = (dateValue: unknown, startDate: Date, endDate: Date): boolean => {
+    if (!dateValue) return false;
+    const date = new Date(String(dateValue));
+    if (Number.isNaN(date.getTime())) return false;
+    return date >= startDate && date <= endDate;
+  };
 
   useEffect(() => {
     fetchData();
@@ -133,6 +176,18 @@ export default function ReportsPage() {
       fetchChartData();
     }
   }, [selectedPeriod, userProfile]);
+
+  useEffect(() => {
+    if (employees.length > 0) {
+      processDepartmentData();
+    }
+  }, [employees]);
+
+  useEffect(() => {
+    if (userProfile?.organizationId) {
+      fetchReportStats();
+    }
+  }, [selectedPeriod, userProfile?.organizationId]);
 
   // FIXED: Enhanced error handling with API availability checks
   const fetchData = async () => {
@@ -161,7 +216,8 @@ export default function ReportsPage() {
         if (profileRes.value?.data?.organizationId) {
           try {
             const employeesRes = await getEmployees(profileRes.value.data.organizationId);
-            setEmployees(Array.isArray(employeesRes.data) ? employeesRes.data : []);
+            const employeeList = normalizeList(employeesRes.data);
+            setEmployees(employeeList);
           } catch (error) {
             console.error("Employees API error:", error);
             toast.error("Employees API is currently unavailable");
@@ -186,7 +242,6 @@ export default function ReportsPage() {
     }
   };
 
-  // FIXED: Enhanced chart data fetching with error handling
   const fetchChartData = async () => {
     if (!userProfile?.organizationId) return;
 
@@ -221,33 +276,28 @@ export default function ReportsPage() {
         toDate: format(endDate, 'yyyy-MM-dd'),
       };
 
-      try {
-        const attendanceRes = await getAttendanceReport(params);
-        const adaptedData = adaptAttendanceData(attendanceRes.data);
-
-        if (Array.isArray(adaptedData) && adaptedData.length > 0) {
-          processAttendanceData(adaptedData);
-        } else {
-          generateMockChartData();
-        }
-      } catch (error) {
-        console.error("Attendance report API error:", error);
-        toast.warning("Attendance report API is not available. Using sample chart data.");
-        generateMockChartData();
-      }
+      const attendanceRes = await getAttendanceReport(params);
+      const adaptedData = adaptAttendanceData(attendanceRes.data);
+      processAttendanceData(adaptedData);
 
       // Generate department distribution from employees
       processDepartmentData();
       
     } catch (error) {
       console.error("Failed to fetch chart data:", error);
-      toast.warning("Chart data APIs are not available. Using sample data.");
-      generateMockChartData();
+      toast.warning("Unable to load chart data for this period.");
+      setAttendanceData([]);
+      setMonthlyTrendData([]);
     }
   };
 
   const processAttendanceData = (data: any[]) => {
     try {
+      if (!Array.isArray(data) || data.length === 0) {
+        setAttendanceData([]);
+        setMonthlyTrendData([]);
+        return;
+      }
       // Process attendance data for weekly chart with proper typing
       const weeklyData: WeeklyAttendanceData[] = [];
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -273,55 +323,95 @@ export default function ReportsPage() {
 
       setAttendanceData(weeklyData);
 
-      // Generate monthly trend data with proper typing
-      const monthlyTrend: MonthlyTrendData[] = [
-        { month: 'Jan', attendance: 92, leaves: 8 },
-        { month: 'Feb', attendance: 89, leaves: 11 },
-        { month: 'Mar', attendance: 94, leaves: 6 },
-        { month: 'Apr', attendance: 91, leaves: 9 },
-        { month: 'May', attendance: 88, leaves: 12 },
-        { month: 'Jun', attendance: 93, leaves: 7 },
-        { month: 'Jul', attendance: 90, leaves: 10 },
-        { month: 'Aug', attendance: 95, leaves: 5 },
-      ];
+      const monthBuckets = new Map<string, { present: number; leaves: number; total: number }>();
+      data.forEach((record) => {
+        const rawDate = record?.date;
+        if (!rawDate) return;
+        const date = new Date(rawDate);
+        if (Number.isNaN(date.getTime())) return;
+        const month = format(date, "MMM");
+        const status = String(record?.status || "").toUpperCase();
+        const bucket = monthBuckets.get(month) || { present: 0, leaves: 0, total: 0 };
+        bucket.total += 1;
+        if (status === "PRESENT") {
+          bucket.present += 1;
+        } else if (status === "ABSENT" || status === "HALF_DAY" || status === "HALFDAY") {
+          bucket.leaves += 1;
+        }
+        monthBuckets.set(month, bucket);
+      });
+
+      const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const monthlyTrend: MonthlyTrendData[] = monthOrder
+        .filter((m) => monthBuckets.has(m))
+        .map((m) => {
+          const bucket = monthBuckets.get(m)!;
+          return {
+            month: m,
+            attendance: bucket.total ? Math.round((bucket.present / bucket.total) * 100) : 0,
+            leaves: bucket.total ? Math.round((bucket.leaves / bucket.total) * 100) : 0,
+          };
+        });
       setMonthlyTrendData(monthlyTrend);
     } catch (error) {
       console.error("Error processing attendance data:", error);
-      generateMockChartData();
+      setAttendanceData([]);
+      setMonthlyTrendData([]);
     }
   };
 
-  const generateMockChartData = () => {
+  const fetchReportStats = async () => {
+    if (!userProfile?.organizationId) return;
+    const { startDate, endDate } = getPeriodRangeAndLabel();
     try {
-      // Mock weekly attendance data with proper typing
-      const mockWeeklyData: WeeklyAttendanceData[] = [
-        { name: 'Mon', present: 120, absent: 5, halfDay: 3 },
-        { name: 'Tue', present: 115, absent: 8, halfDay: 5 },
-        { name: 'Wed', present: 125, absent: 3, halfDay: 2 },
-        { name: 'Thu', present: 118, absent: 7, halfDay: 3 },
-        { name: 'Fri', present: 110, absent: 12, halfDay: 6 },
-        { name: 'Sat', present: 85, absent: 25, halfDay: 18 },
-        { name: 'Sun', present: 0, absent: 0, halfDay: 0 },
-      ];
-      setAttendanceData(mockWeeklyData);
+      const [leaveRes, payrollRes, performanceRes] = await Promise.allSettled([
+        getAllLeaveRequests(userProfile.organizationId),
+        getPayrollRecords({
+          organizationId: userProfile.organizationId,
+          from: format(startDate, "yyyy-MM-dd"),
+          to: format(endDate, "yyyy-MM-dd"),
+          page: 1,
+          limit: 1000,
+        }),
+        getAllPerformanceReviews(),
+      ]);
 
-      // Mock monthly trend data with proper typing
-      const mockMonthlyTrend: MonthlyTrendData[] = [
-        { month: 'Jan', attendance: 92, leaves: 8 },
-        { month: 'Feb', attendance: 89, leaves: 11 },
-        { month: 'Mar', attendance: 94, leaves: 6 },
-        { month: 'Apr', attendance: 91, leaves: 9 },
-        { month: 'May', attendance: 88, leaves: 12 },
-        { month: 'Jun', attendance: 93, leaves: 7 },
-        { month: 'Jul', attendance: 90, leaves: 10 },
-        { month: 'Aug', attendance: 95, leaves: 5 },
-      ];
-      setMonthlyTrendData(mockMonthlyTrend);
+      const leaves = leaveRes.status === "fulfilled"
+        ? normalizeList(leaveRes.value?.data).filter((l: any) =>
+            isDateInRange(l?.createdAt || l?.startDate || l?.fromDate, startDate, endDate)
+          )
+        : [];
+      const approvedLeaves = leaves.filter((l: any) => String(l?.status || "").toUpperCase() === "APPROVED").length;
+      const leaveApprovedPct = leaves.length ? `${((approvedLeaves / leaves.length) * 100).toFixed(1)}%` : "0%";
+
+      const payrollRows = payrollRes.status === "fulfilled" ? normalizeList(payrollRes.value?.data) : [];
+      const payrollTotalPaid = payrollRows.reduce((sum: number, row: any) => sum + Number(row?.netPay || 0), 0);
+      const payrollEmployeeCount = new Set(
+        payrollRows.map((row: any) => row?.employeeId || row?.employee?.id).filter(Boolean)
+      ).size;
+
+      const performanceRows = performanceRes.status === "fulfilled"
+        ? normalizeList(performanceRes.value?.data).filter((r: any) =>
+            isDateInRange(r?.createdAt, startDate, endDate)
+          )
+        : [];
+      const scores = performanceRows
+        .map((row: any) => Number(row?.overallRating))
+        .filter((score: number) => Number.isFinite(score));
+      const avgScore = scores.length
+        ? (scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length).toFixed(1)
+        : "0.0";
+
+      setReportStats({
+        leaveApplications: leaves.length,
+        leaveApprovedPct,
+        payrollTotalPaid,
+        payrollEmployeeCount,
+        performanceReviews: performanceRows.length,
+        performanceAvgScore: avgScore,
+      });
     } catch (error) {
-      console.error("Error generating mock chart data:", error);
-      // Set empty arrays as fallback
-      setAttendanceData([]);
-      setMonthlyTrendData([]);
+      console.error("Failed to fetch report stats:", error);
     }
   };
 
@@ -352,7 +442,6 @@ export default function ReportsPage() {
     }
   };
 
-  // FIXED: Enhanced report generation with better API error handling
   const generateReport = async (reportType: string) => {
     if (!userProfile?.organizationId) {
       toast.error("Organization not found. Cannot generate reports.");
@@ -362,48 +451,12 @@ export default function ReportsPage() {
     setReportLoading(reportType);
 
     try {
-      const today = new Date();
-      let startDate, endDate, periodLabel;
-
-      // Calculate date range and label
-      switch (selectedPeriod) {
-        case "this-week":
-          startDate = startOfWeek(today);
-          endDate = endOfWeek(today);
-          periodLabel = `Week_${format(startDate, 'MMM_dd')}_to_${format(endDate, 'MMM_dd')}`;
-          break;
-        case "this-month":
-          startDate = startOfMonth(today);
-          endDate = endOfMonth(today);
-          periodLabel = format(today, 'MMM_yyyy');
-          break;
-        case "last-month":
-          const lastMonth = subMonths(today, 1);
-          startDate = startOfMonth(lastMonth);
-          endDate = endOfMonth(lastMonth);
-          periodLabel = format(lastMonth, 'MMM_yyyy');
-          break;
-        case "this-quarter":
-          const quarter = Math.floor(today.getMonth() / 3);
-          startDate = new Date(today.getFullYear(), quarter * 3, 1);
-          endDate = new Date(today.getFullYear(), quarter * 3 + 3, 0);
-          periodLabel = `Q${quarter + 1}_${today.getFullYear()}`;
-          break;
-        case "this-year":
-          startDate = new Date(today.getFullYear(), 0, 1);
-          endDate = new Date(today.getFullYear(), 11, 31);
-          periodLabel = today.getFullYear().toString();
-          break;
-        default:
-          startDate = startOfMonth(today);
-          endDate = endOfMonth(today);
-          periodLabel = format(today, 'MMM_yyyy');
-      }
+      const { startDate, endDate, periodLabel } = getPeriodRangeAndLabel();
 
       const params = {
         organizationId: userProfile.organizationId,
-        fromDate: format(startDate, 'yyyy-MM-dd'),
-        toDate: format(endDate, 'yyyy-MM-dd'),
+        fromDate: format(startDate, "yyyy-MM-dd"),
+        toDate: format(endDate, "yyyy-MM-dd"),
       };
 
       switch (reportType) {
@@ -412,32 +465,19 @@ export default function ReportsPage() {
             console.log("Fetching attendance report with params:", params);
             
             const response = await getAttendanceReport(params);
-            let attendanceData = adaptAttendanceData(response.data);
+            const attendanceRows = adaptAttendanceData(response.data);
             
-            console.log("Adapted attendance data:", attendanceData);
+            console.log("Adapted attendance data:", attendanceRows);
 
-            if (!Array.isArray(attendanceData) || attendanceData.length === 0) {
-              console.log("No real data found, generating mock data");
-              attendanceData = generateMockAttendanceData(employees, params);
-              toast.warning("Attendance API returned no data. Sample report generated.");
-            } else {
-              toast.success("Real attendance data found and processed!");
-            }
-
-            if (attendanceData.length > 0) {
-              exportAttendanceReport(attendanceData, periodLabel);
-              toast.success(`Attendance report exported successfully! (${attendanceData.length} records)`);
-            } else {
+            if (!Array.isArray(attendanceRows) || attendanceRows.length === 0) {
               toast.error("No data available to export");
+              break;
             }
+            exportAttendanceReport(attendanceRows, periodLabel);
+            toast.success(`Attendance report exported successfully! (${attendanceRows.length} records)`);
           } catch (error) {
             console.error("Attendance report error:", error);
             toast.error("Attendance API is currently unavailable");
-            
-            // Generate mock data as fallback
-            const mockData = generateMockAttendanceData(employees, params);
-            exportAttendanceReport(mockData, periodLabel);
-            toast.warning("API failed. Sample attendance report generated.");
           }
           break;
 
@@ -457,8 +497,10 @@ export default function ReportsPage() {
 
         case 'leave':
           try {
-            const response = await getLeaveReport(params);
-            let leaveData = response?.data || [];
+            const response = await getAllLeaveRequests(userProfile.organizationId);
+            const leaveData = normalizeList(response.data).filter((leave: any) =>
+              isDateInRange(leave?.createdAt || leave?.startDate || leave?.fromDate, startDate, endDate)
+            );
             
             if (Array.isArray(leaveData) && leaveData.length > 0) {
               const adaptedLeaveData = leaveData.map((leave: any) => ({
@@ -467,7 +509,7 @@ export default function ReportsPage() {
                   `${leave.user.firstName} ${leave.user.lastName || ''}` : 
                   leave.employeeName || leave.userName || 'Unknown',
                 employeeCode: leave.employeeCode || leave.user?.employeeCode || 'N/A',
-                leaveType: leave.leaveType || leave.type || 'General Leave',
+                leaveType: leave.leaveType?.name || leave.leaveType || leave.type || 'General Leave',
                 fromDate: leave.startDate || leave.fromDate || '',
                 toDate: leave.endDate || leave.toDate || '',
                 days: leave.totalDays || leave.days || leave.duration || '1',
@@ -480,23 +522,7 @@ export default function ReportsPage() {
               exportLeaveReport(adaptedLeaveData, periodLabel);
               toast.success(`Leave report exported successfully! (${adaptedLeaveData.length} records)`);
             } else {
-              // Generate mock leave data
-              const mockLeaveData = (Array.isArray(employees) ? employees : []).slice(0, Math.min(employees.length, 8)).map((emp, index) => ({
-                employeeId: emp.id,
-                employeeName: `${emp.firstName} ${emp.lastName || ''}`,
-                employeeCode: emp.employeeCode || `EMP${String(index + 1).padStart(3, '0')}`,
-                leaveType: ['Annual Leave', 'Sick Leave', 'Personal Leave', 'Maternity Leave'][index % 4],
-                fromDate: format(subDays(today, 7 - index), 'yyyy-MM-dd'),
-                toDate: format(subDays(today, 5 - index), 'yyyy-MM-dd'),
-                days: String(2 + (index % 3)),
-                status: ['Approved', 'Pending', 'Rejected'][index % 3],
-                appliedDate: format(subDays(today, 15), 'yyyy-MM-dd'),
-                approvedBy: 'Direct Manager',
-                reason: ['Family vacation', 'Medical treatment', 'Personal matters', 'Emergency'][index % 4],
-              }));
-              
-              exportLeaveReport(mockLeaveData, periodLabel);
-              toast.warning("Leave API returned no data. Sample leave report generated.");
+              toast.error("No leave records found for selected period");
             }
           } catch (error) {
             console.error("Leave report error:", error);
@@ -506,71 +532,84 @@ export default function ReportsPage() {
 
         case 'payroll':
           try {
-            const response = await getPayrollReport(params);
-            
-            // Generate mock payroll data since API is not implemented
-            const mockPayrollData = (Array.isArray(employees) ? employees : []).map((emp, index) => {
-              const basic = 30000 + (index * 5000) + Math.floor(Math.random() * 20000);
-              const allowances = 8000 + (index * 1000) + Math.floor(Math.random() * 5000);
-              const deductions = 3000 + (index * 300) + Math.floor(Math.random() * 2000);
-              const gross = basic + allowances;
-              const net = gross - deductions;
+            const response = await getPayrollRecords({
+              organizationId: userProfile.organizationId,
+              from: format(startDate, "yyyy-MM-dd"),
+              to: format(endDate, "yyyy-MM-dd"),
+              page: 1,
+              limit: 1000,
+            });
+            const payrollRows = normalizeList(response.data);
+            if (!payrollRows.length) {
+              toast.error("No payroll records found for selected period");
+              break;
+            }
 
+            const exported = payrollRows.map((pay: any) => {
+              const allowances =
+                Number(pay?.allowances ?? 0) ||
+                (Number(pay?.hra || 0) + Number(pay?.conveyance || 0) + Number(pay?.otherAllowances || 0));
               return {
-                employeeId: emp.id,
-                employeeName: `${emp.firstName} ${emp.lastName || ''}`,
-                employeeCode: emp.employeeCode || `EMP${String(index + 1).padStart(3, '0')}`,
-                basicSalary: basic.toString(),
-                allowances: allowances.toString(),
-                deductions: deductions.toString(),
-                grossSalary: gross.toString(),
-                netSalary: net.toString(),
-                payDate: format(endOfMonth(startDate), 'yyyy-MM-dd'),
-                status: ['Paid', 'Processing', 'Pending'][index % 3],
+                employeeId: pay?.employeeId || pay?.employee?.id || "",
+                employeeName:
+                  pay?.employee?.firstName || pay?.employee?.lastName
+                    ? `${pay.employee.firstName || ""} ${pay.employee.lastName || ""}`.trim()
+                    : "Unknown",
+                basicSalary: String(pay?.basic ?? pay?.basicSalary ?? 0),
+                allowances: String(allowances),
+                deductions: String(pay?.totalDeductions ?? pay?.deductions ?? (Number(pay?.pf || 0) + Number(pay?.tds || 0))),
+                grossSalary: String(pay?.totalEarnings ?? pay?.grossSalary ?? 0),
+                netSalary: String(pay?.netPay ?? pay?.netSalary ?? 0),
+                payDate: pay?.periodEnd || pay?.payDate || pay?.createdAt || "",
+                status: pay?.status || "",
               };
             });
-            
-            exportPayrollReport(mockPayrollData, periodLabel);
-            toast.success(`Payroll report exported successfully! (${mockPayrollData.length} records)`);
+
+            exportPayrollReport(exported, periodLabel);
+            toast.success(`Payroll report exported successfully! (${exported.length} records)`);
           } catch (error) {
             console.error("Payroll report error:", error);
-            toast.error("Payroll API is currently unavailable");
+            toast.error("Failed to load payroll records");
           }
           break;
 
         case 'performance':
           try {
-            const response = await getPerformanceReport(params);
-            
-            // Generate mock performance data since API is not implemented
-            const mockPerformanceData = (Array.isArray(employees) ? employees : []).slice(0, Math.min(employees.length, 15)).map((emp, index) => {
-              const baseScore = 3.0 + (Math.random() * 2);
-              const goals = 4 + Math.floor(Math.random() * 6);
-              
+            const response = await getAllPerformanceReviews();
+            const performanceRows = normalizeList(response.data).filter((review: any) =>
+              isDateInRange(review?.createdAt, startDate, endDate)
+            );
+            if (!performanceRows.length) {
+              toast.error("No performance reviews found for selected period");
+              break;
+            }
+
+            const exported = performanceRows.map((review: any) => {
+              const totalAnswers = Array.isArray(review?.answers) ? review.answers.length : 0;
+              const answered = Array.isArray(review?.answers)
+                ? review.answers.filter((ans: any) => String(ans?.answer || "").trim().length > 0).length
+                : 0;
               return {
-                employeeId: emp.id,
-                employeeName: `${emp.firstName} ${emp.lastName || ''}`,
-                employeeCode: emp.employeeCode || `EMP${String(index + 1).padStart(3, '0')}`,
-                reviewPeriod: periodLabel,
-                overallScore: baseScore.toFixed(1),
-                goalsAchieved: `${Math.floor(goals * 0.7 + Math.random() * goals * 0.3)}/${goals}`,
-                reviewer: ['Direct Manager', 'Team Lead', 'Department Head'][index % 3],
-                reviewDate: format(subDays(today, Math.floor(Math.random() * 30)), 'yyyy-MM-dd'),
-                comments: [
-                  'Excellent performance with consistent delivery',
-                  'Good performance with room for improvement',
-                  'Outstanding contribution to team goals',
-                  'Meets expectations with potential for growth',
-                  'Exceptional leadership and technical skills'
-                ][index % 5],
+                employeeId: review?.employee?.id || "",
+                employeeName: review?.employee
+                  ? `${review.employee.firstName || ""} ${review.employee.lastName || ""}`.trim()
+                  : "Unknown",
+                reviewPeriod: review?.period || periodLabel,
+                overallScore: review?.overallRating ?? "",
+                goalsAchieved: totalAnswers ? `${answered}/${totalAnswers}` : "-",
+                reviewer: review?.reviewer
+                  ? `${review.reviewer.firstName || ""} ${review.reviewer.lastName || ""}`.trim()
+                  : review?.reviewType || "Reviewer",
+                reviewDate: review?.createdAt || "",
+                comments: review?.comments || "",
               };
             });
-            
-            exportPerformanceReport(mockPerformanceData, periodLabel);
-            toast.success(`Performance report exported successfully! (${mockPerformanceData.length} records)`);
+
+            exportPerformanceReport(exported, periodLabel);
+            toast.success(`Performance report exported successfully! (${exported.length} records)`);
           } catch (error) {
             console.error("Performance report error:", error);
-            toast.error("Performance API is currently unavailable");
+            toast.error("Failed to load performance reviews");
           }
           break;
 
@@ -627,7 +666,9 @@ export default function ReportsPage() {
 
   // Safe calculations with fallbacks
   const totalEmployees = Array.isArray(employees) ? employees.length : 0;
-  const activeEmployees = Array.isArray(employees) ? employees.filter(e => e.status === 'active').length : 0;
+  const activeEmployees = Array.isArray(employees)
+    ? employees.filter((e) => String(e?.status || "").toUpperCase() === "ACTIVE").length
+    : 0;
   const attendanceRate = totalEmployees > 0 ? ((activeEmployees / totalEmployees) * 100).toFixed(1) : '0';
 
   return (
@@ -696,7 +737,7 @@ export default function ReportsPage() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">76%</div>
+                  <div className="text-2xl font-bold">{reportStats.leaveApprovedPct}</div>
                   <p className="text-xs text-muted-foreground">Of allocated leaves used</p>
                 </CardContent>
               </Card>
@@ -988,11 +1029,11 @@ export default function ReportsPage() {
                           <div className="space-y-3">
                             <div className="flex items-center justify-between text-sm">
                               <span>Applications</span>
-                              <Badge variant="outline">87</Badge>
+                              <Badge variant="outline">{reportStats.leaveApplications}</Badge>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Approved</span>
-                              <span className="text-muted-foreground">76%</span>
+                              <span className="text-muted-foreground">{reportStats.leaveApprovedPct}</span>
                             </div>
                             <Button 
                               size="sm" 
@@ -1028,11 +1069,11 @@ export default function ReportsPage() {
                           <div className="space-y-3">
                             <div className="flex items-center justify-between text-sm">
                               <span>Total Paid</span>
-                              <Badge variant="outline">₹45.2L</Badge>
+                              <Badge variant="outline">₹{Math.round(reportStats.payrollTotalPaid).toLocaleString("en-IN")}</Badge>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Employees</span>
-                              <span className="text-muted-foreground">{totalEmployees}</span>
+                              <span className="text-muted-foreground">{reportStats.payrollEmployeeCount || totalEmployees}</span>
                             </div>
                             <Button 
                               size="sm" 
@@ -1068,11 +1109,11 @@ export default function ReportsPage() {
                           <div className="space-y-3">
                             <div className="flex items-center justify-between text-sm">
                               <span>Reviews</span>
-                              <Badge variant="outline">156</Badge>
+                              <Badge variant="outline">{reportStats.performanceReviews}</Badge>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Avg Score</span>
-                              <span className="text-muted-foreground">4.2/5</span>
+                              <span className="text-muted-foreground">{reportStats.performanceAvgScore}/5</span>
                             </div>
                             <Button 
                               size="sm" 

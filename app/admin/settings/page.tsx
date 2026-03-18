@@ -57,6 +57,9 @@ interface Organization {
   resignationPolicy?: string;
   resignationNoticePeriodDays?: number;
   allowEarlyRelievingByAdmin?: boolean;
+  sessionStartMonth?: number;
+  leaveCarryForwardEnabled?: boolean;
+  wfhCarryForwardEnabled?: boolean;
 }
 
 interface ResignationRequest {
@@ -116,6 +119,9 @@ const [orgForm, setOrgForm] = useState({
   resignationPolicy: "",
   resignationNoticePeriodDays: 30,
   allowEarlyRelievingByAdmin: false,
+  sessionStartMonth: 4,
+  leaveCarryForwardEnabled: false,
+  wfhCarryForwardEnabled: false,
 });
 const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
   const [roleForm, setRoleForm] = useState({ roleName: "", description: "" });
@@ -218,6 +224,9 @@ const loadOrganization = async () => {
         resignationPolicy: res.data.resignationPolicy || "",
         resignationNoticePeriodDays: Number(res.data.resignationNoticePeriodDays || 30),
         allowEarlyRelievingByAdmin: Boolean(res.data.allowEarlyRelievingByAdmin),
+        sessionStartMonth: Number(res.data.sessionStartMonth || 4),
+        leaveCarryForwardEnabled: Boolean(res.data.leaveCarryForwardEnabled),
+        wfhCarryForwardEnabled: Boolean(res.data.wfhCarryForwardEnabled),
       });
     } catch (error) {
       console.error(error);
@@ -385,6 +394,9 @@ const loadOrganization = async () => {
 
     if (orgForm.resignationNoticePeriodDays < 0)
       errors.resignationNoticePeriodDays = "Notice period cannot be negative";
+    if (orgForm.sessionStartMonth < 1 || orgForm.sessionStartMonth > 12) {
+      errors.sessionStartMonth = "Session start month must be between January and December";
+    }
 
     if (Object.keys(errors).length > 0) {
       setOrgErrors(errors);
@@ -523,10 +535,10 @@ const loadOrganization = async () => {
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
       
       <Tabs defaultValue="organization" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="flex h-auto w-full flex-wrap gap-2">
           <TabsTrigger value="office-config">Office Config</TabsTrigger>
           <TabsTrigger value="organization">Organization</TabsTrigger>
-          <TabsTrigger value="resignations">Resignations</TabsTrigger>
+          <TabsTrigger value="organization-settings">Organization Configuration</TabsTrigger>
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="designations">Designations</TabsTrigger>
           <TabsTrigger value="holidays">Holidays</TabsTrigger>
@@ -544,7 +556,7 @@ const loadOrganization = async () => {
                   <Building2 className="w-5 h-5" />
                   Organization Settings
                 </CardTitle>
-                <CardDescription>Manage your organization information</CardDescription>
+                <CardDescription>Manage core organization details</CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={() => setIsCredentialsDialogOpen(true)}>
@@ -590,55 +602,123 @@ const loadOrganization = async () => {
                     <Label className="text-sm font-medium">Address</Label>
                     <p className="text-sm text-muted-foreground">{organization.address || "Not set"}</p>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium">Home Header Color</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {organization.homeHeaderBackgroundColor || DEFAULT_HOME_HEADER_COLOR}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Home Header Media</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {organization.homeHeaderMediaUrl || "Not set"}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Media Active From</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {organization.homeHeaderMediaStartDate || "Not set"}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Media Active Till</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {organization.homeHeaderMediaEndDate || "Not set"}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Notice Period</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {organization.resignationNoticePeriodDays || 30} days
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium">Early Relieving by Admin</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {organization.allowEarlyRelievingByAdmin ? "Allowed" : "Not allowed"}
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-sm font-medium">Resignation Policy</Label>
-                    <p className="text-sm text-muted-foreground whitespace-pre-line">
-                      {organization.resignationPolicy || "Not set"}
-                    </p>
-                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="resignations">
+        <TabsContent value="organization-settings" className="space-y-4">
+          {/* Home Header Media Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Home Header Media</CardTitle>
+                <CardDescription>Home header media and color settings</CardDescription>
+              </div>
+              <Button onClick={() => setIsOrgDialogOpen(true)}>
+                <Pencil className="w-4 h-4 mr-2" /> Edit
+              </Button>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Home Header Color</Label>
+                <p className="text-sm text-muted-foreground">
+                  {organization?.homeHeaderBackgroundColor || DEFAULT_HOME_HEADER_COLOR}
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Home Header Media</Label>
+                <p className="text-sm text-muted-foreground break-all">
+                  {organization?.homeHeaderMediaUrl || "Not set"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Media Active From</Label>
+                <p className="text-sm text-muted-foreground">
+                  {organization?.homeHeaderMediaStartDate || "Not set"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Media Active Till</Label>
+                <p className="text-sm text-muted-foreground">
+                  {organization?.homeHeaderMediaEndDate || "Not set"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Session & Carry Forward Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Session & Carry Forward</CardTitle>
+                <CardDescription>Session reload and yearly carry forward settings</CardDescription>
+              </div>
+              <Button onClick={() => setIsOrgDialogOpen(true)}>
+                <Pencil className="w-4 h-4 mr-2" /> Edit
+              </Button>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Session Start Month</Label>
+                <p className="text-sm text-muted-foreground">
+                  {Number(organization?.sessionStartMonth || 4) === 1
+                    ? "January"
+                    : Number(organization?.sessionStartMonth || 4) === 4
+                      ? "April"
+                      : organization?.sessionStartMonth}
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Leave Carry Forward</Label>
+                <p className="text-sm text-muted-foreground">
+                  {organization?.leaveCarryForwardEnabled ? "Enabled" : "Disabled"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">WFH Carry Forward</Label>
+                <p className="text-sm text-muted-foreground">
+                  {organization?.wfhCarryForwardEnabled ? "Enabled" : "Disabled"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Resignation Policy Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Resignation Policy</CardTitle>
+                <CardDescription>Notice period and early relieving rules</CardDescription>
+              </div>
+              <Button onClick={() => setIsOrgDialogOpen(true)}>
+                <Pencil className="w-4 h-4 mr-2" /> Edit
+              </Button>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Notice Period</Label>
+                <p className="text-sm text-muted-foreground">
+                  {organization?.resignationNoticePeriodDays || 30} days
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Early Relieving by Admin</Label>
+                <p className="text-sm text-muted-foreground">
+                  {organization?.allowEarlyRelievingByAdmin ? "Allowed" : "Not allowed"}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-sm font-medium">Resignation Policy</Label>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                  {organization?.resignationPolicy || "Not set"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Resignation Requests Card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -1117,6 +1197,23 @@ const loadOrganization = async () => {
               />
               {orgErrors.resignationNoticePeriodDays && <p className="text-xs text-destructive mt-1">{orgErrors.resignationNoticePeriodDays}</p>}
             </div>
+            <div>
+              <Label>Session Start Month</Label>
+              <select
+                className={`mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm ${orgErrors.sessionStartMonth ? "border-destructive" : ""}`}
+                value={orgForm.sessionStartMonth}
+                onChange={(e) =>
+                  setOrgForm({ ...orgForm, sessionStartMonth: Number(e.target.value) })
+                }
+              >
+                <option value={1}>January</option>
+                <option value={4}>April</option>
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Changing this month will automatically reload Leave and WFH session balances.
+              </p>
+              {orgErrors.sessionStartMonth && <p className="text-xs text-destructive mt-1">{orgErrors.sessionStartMonth}</p>}
+            </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <Label>Allow Early Relieving by Admin</Label>
@@ -1127,6 +1224,30 @@ const loadOrganization = async () => {
               <Switch
                 checked={orgForm.allowEarlyRelievingByAdmin}
                 onCheckedChange={(v) => setOrgForm({ ...orgForm, allowEarlyRelievingByAdmin: v })}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label>Leave Carry Forward</Label>
+                <p className="text-xs text-muted-foreground">
+                  Carry remaining leave balance to the next session year.
+                </p>
+              </div>
+              <Switch
+                checked={orgForm.leaveCarryForwardEnabled}
+                onCheckedChange={(v) => setOrgForm({ ...orgForm, leaveCarryForwardEnabled: v })}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label>WFH Carry Forward</Label>
+                <p className="text-xs text-muted-foreground">
+                  Carry remaining WFH balance to the next session year.
+                </p>
+              </div>
+              <Switch
+                checked={orgForm.wfhCarryForwardEnabled}
+                onCheckedChange={(v) => setOrgForm({ ...orgForm, wfhCarryForwardEnabled: v })}
               />
             </div>
             <div>

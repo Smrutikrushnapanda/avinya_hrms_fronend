@@ -6,6 +6,7 @@ import {
   Check,
   X,
   Trash2,
+  Pencil,
   Plus,
   Loader2,
   Users,
@@ -53,6 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 import {
   getProfile,
   getEmployees,
@@ -60,14 +62,16 @@ import {
   getAllLeaveRequests,
   approveLeave,
   createApprovalAssignment,
-  getApprovalAssignments,
   getApprovalAssignmentsByOrg,
   deleteApprovalAssignment,
   initializeLeaveBalance,
   setLeaveBalanceTemplates,
   getLeaveBalanceTemplates,
   createLeaveType,
+  updateLeaveType,
   deleteLeaveType,
+  getOrganization,
+  updateOrganization,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -225,6 +229,8 @@ export default function LeaveManagementPage() {
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [allTemplatesLoading, setAllTemplatesLoading] = useState(false);
   const [allTemplates, setAllTemplates] = useState<any[]>([]);
+  const [leaveCarryForwardEnabled, setLeaveCarryForwardEnabled] = useState(false);
+  const [savingCarryForward, setSavingCarryForward] = useState(false);
 
   // Add assignment dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -235,6 +241,10 @@ export default function LeaveManagementPage() {
   });
   const [createLoading, setCreateLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [editAssignmentOpen, setEditAssignmentOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<ApprovalAssignment | null>(null);
+  const [editApproverId, setEditApproverId] = useState("");
+  const [editAssignmentLoading, setEditAssignmentLoading] = useState(false);
 
   // Leave Types tab state
   const [ltDialogOpen, setLtDialogOpen] = useState(false);
@@ -246,6 +256,15 @@ export default function LeaveManagementPage() {
   });
   const [ltCreating, setLtCreating] = useState(false);
   const [ltDeleteLoading, setLtDeleteLoading] = useState<string | null>(null);
+  const [ltEditDialogOpen, setLtEditDialogOpen] = useState(false);
+  const [ltEditLoading, setLtEditLoading] = useState(false);
+  const [ltEditingId, setLtEditingId] = useState<string | null>(null);
+  const [ltEditForm, setLtEditForm] = useState({
+    name: "",
+    description: "",
+    genderRestriction: "none",
+    isEarned: false,
+  });
 
   // ------- Fetch profile on mount -------
   useEffect(() => {
@@ -253,6 +272,10 @@ export default function LeaveManagementPage() {
       try {
         const res = await getProfile();
         setProfile(res.data);
+        if (res.data?.organizationId) {
+          const orgRes = await getOrganization(res.data.organizationId);
+          setLeaveCarryForwardEnabled(Boolean(orgRes.data?.leaveCarryForwardEnabled));
+        }
       } catch (error: any) {
         console.error("Failed to fetch profile:", error);
         toast.error("Failed to fetch user profile");
@@ -476,6 +499,39 @@ export default function LeaveManagementPage() {
     }
   };
 
+  const openEditAssignment = (assignment: ApprovalAssignment) => {
+    setEditingAssignment(assignment);
+    setEditApproverId(assignment.approverId);
+    setEditAssignmentOpen(true);
+  };
+
+  const handleEditAssignment = async () => {
+    if (!profile?.organizationId || !editingAssignment) return;
+    if (!editApproverId) {
+      toast.error("Select approver");
+      return;
+    }
+    setEditAssignmentLoading(true);
+    try {
+      await createApprovalAssignment({
+        userId: editingAssignment.userId,
+        approverId: editApproverId,
+        organizationId: profile.organizationId,
+        level: Number(editingAssignment.level || 1),
+      });
+      toast.success("Assignment updated");
+      setEditAssignmentOpen(false);
+      setEditingAssignment(null);
+      setEditApproverId("");
+      fetchAssignments();
+    } catch (error: any) {
+      console.error("Update assignment failed:", error);
+      toast.error("Failed to update assignment");
+    } finally {
+      setEditAssignmentLoading(false);
+    }
+  };
+
   const handleApplyBalances = async () => {
     if (!selectedEmploymentType) {
       toast.error("Select an employment type");
@@ -527,6 +583,28 @@ export default function LeaveManagementPage() {
     }
   };
 
+  const handleLeaveCarryForwardToggle = async (checked: boolean) => {
+    if (!profile?.organizationId) return;
+    const previous = leaveCarryForwardEnabled;
+    setLeaveCarryForwardEnabled(checked);
+    setSavingCarryForward(true);
+    try {
+      await updateOrganization(profile.organizationId, {
+        leaveCarryForwardEnabled: checked,
+      });
+      toast.success(
+        checked
+          ? "Leave carry forward enabled"
+          : "Leave carry forward disabled",
+      );
+    } catch (error: any) {
+      setLeaveCarryForwardEnabled(previous);
+      toast.error("Failed to update leave carry forward setting");
+    } finally {
+      setSavingCarryForward(false);
+    }
+  };
+
   // ------- Leave Types handlers -------
   const handleCreateLeaveType = async () => {
     if (!ltForm.name.trim()) { toast.error("Enter a leave type name"); return; }
@@ -561,6 +639,44 @@ export default function LeaveManagementPage() {
       toast.error(err?.response?.data?.message || "Failed to delete leave type");
     } finally {
       setLtDeleteLoading(null);
+    }
+  };
+
+  const openEditLeaveType = (lt: any) => {
+    setLtEditingId(lt.id);
+    setLtEditForm({
+      name: lt.name || "",
+      description: lt.description || "",
+      genderRestriction: lt.genderRestriction || "none",
+      isEarned: Boolean(lt.isEarned),
+    });
+    setLtEditDialogOpen(true);
+  };
+
+  const handleEditLeaveType = async () => {
+    if (!ltEditingId) return;
+    if (!ltEditForm.name.trim()) {
+      toast.error("Enter a leave type name");
+      return;
+    }
+    setLtEditLoading(true);
+    try {
+      await updateLeaveType(ltEditingId, {
+        name: ltEditForm.name.trim(),
+        description: ltEditForm.description.trim() || undefined,
+        genderRestriction:
+          ltEditForm.genderRestriction === "none" ? null : ltEditForm.genderRestriction,
+        isEarned: ltEditForm.isEarned,
+      });
+      toast.success("Leave type updated");
+      setLtEditDialogOpen(false);
+      setLtEditingId(null);
+      setLtEditForm({ name: "", description: "", genderRestriction: "none", isEarned: false });
+      fetchLeaveTypes();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to update leave type");
+    } finally {
+      setLtEditLoading(false);
     }
   };
 
@@ -767,20 +883,31 @@ export default function LeaveManagementPage() {
                         <TableCell>{getFullName(as.approver)}</TableCell>
                         <TableCell>{as.level}</TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="gap-1"
-                            onClick={() => handleDeleteAssignment(as.id)}
-                            disabled={deleteLoading === as.id}
-                          >
-                            {deleteLoading === as.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                            Delete
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={() => openEditAssignment(as)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="gap-1"
+                              onClick={() => handleDeleteAssignment(as.id)}
+                              disabled={deleteLoading === as.id}
+                            >
+                              {deleteLoading === as.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                              Delete
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -800,6 +927,19 @@ export default function LeaveManagementPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Carry Forward Unused Leave</p>
+                  <p className="text-xs text-muted-foreground">
+                    Unused leave balance will be added in next session year.
+                  </p>
+                </div>
+                <Switch
+                  checked={leaveCarryForwardEnabled}
+                  onCheckedChange={handleLeaveCarryForwardToggle}
+                  disabled={savingCarryForward}
+                />
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Employment Type</Label>
@@ -1007,20 +1147,31 @@ export default function LeaveManagementPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="gap-1"
-                            onClick={() => handleDeleteLeaveType(lt.id)}
-                            disabled={ltDeleteLoading === lt.id}
-                          >
-                            {ltDeleteLoading === lt.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                            Delete
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={() => openEditLeaveType(lt)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="gap-1"
+                              onClick={() => handleDeleteLeaveType(lt.id)}
+                              disabled={ltDeleteLoading === lt.id}
+                            >
+                              {ltDeleteLoading === lt.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                              Delete
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1151,6 +1302,63 @@ export default function LeaveManagementPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={editAssignmentOpen}
+        onOpenChange={(open) => {
+          setEditAssignmentOpen(open);
+          if (!open) {
+            setEditingAssignment(null);
+            setEditApproverId("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Approval Assignment</DialogTitle>
+            <DialogDescription>
+              Change the approver for this assignment.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Employee</Label>
+              <Input value={getFullName(editingAssignment?.user)} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label>Approver</Label>
+              <Select value={editApproverId} onValueChange={setEditApproverId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select approver" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.userId} value={emp.userId}>
+                      {emp.firstName} {emp.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Approval Level</Label>
+              <Input value={String(editingAssignment?.level ?? "")} disabled />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditAssignmentOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditAssignment} disabled={editAssignmentLoading}>
+              {editAssignmentLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Update"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Add Leave Type Dialog */}
       <Dialog open={ltDialogOpen} onOpenChange={(open) => {
         setLtDialogOpen(open);
@@ -1224,6 +1432,89 @@ export default function LeaveManagementPage() {
             <Button onClick={handleCreateLeaveType} disabled={ltCreating} className="gap-2">
               {ltCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={ltEditDialogOpen}
+        onOpenChange={(open) => {
+          setLtEditDialogOpen(open);
+          if (!open) {
+            setLtEditingId(null);
+            setLtEditForm({ name: "", description: "", genderRestriction: "none", isEarned: false });
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Edit Leave Type</DialogTitle>
+            <DialogDescription>
+              Update this leave type configuration.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                placeholder="e.g. Maternity Leave"
+                value={ltEditForm.name}
+                onChange={(e) => setLtEditForm((p) => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Description{" "}
+                <span className="text-muted-foreground text-xs">(optional)</span>
+              </Label>
+              <Input
+                placeholder="e.g. Paid leave for childbirth"
+                value={ltEditForm.description}
+                onChange={(e) => setLtEditForm((p) => ({ ...p, description: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Gender Restriction</Label>
+              <Select
+                value={ltEditForm.genderRestriction}
+                onValueChange={(v) => setLtEditForm((p) => ({ ...p, genderRestriction: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">All genders (no restriction)</SelectItem>
+                  <SelectItem value="female">Female only (e.g. Maternity)</SelectItem>
+                  <SelectItem value="male">Male only (e.g. Paternity)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3 p-3 border rounded-md">
+              <input
+                id="edit-is-earned"
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={ltEditForm.isEarned}
+                onChange={(e) => setLtEditForm((p) => ({ ...p, isEarned: e.target.checked }))}
+              />
+              <div>
+                <label htmlFor="edit-is-earned" className="text-sm font-medium cursor-pointer">
+                  Earned Leave
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Credit this leave when an employee works on weekends or holidays
+                </p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" onClick={() => setLtEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditLeaveType} disabled={ltEditLoading} className="gap-2">
+              {ltEditLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+              Update
             </Button>
           </DialogFooter>
         </DialogContent>

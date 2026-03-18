@@ -134,6 +134,9 @@ export default function ApplyLeavePage() {
             </div>
             <p className="text-sm font-bold text-[#0077B6]">Apply for Leave</p>
             <p className="text-xs text-gray-500">Submit a new leave request</p>
+            <p className="text-xs text-red-600">
+              If balance is exhausted, request will be submitted as unpaid leave.
+            </p>
           </div>
 
           <div className="space-y-4">

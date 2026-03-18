@@ -187,6 +187,16 @@ export default function UserLeavePage() {
   });
   const [applySubmitting, setApplySubmitting] = useState(false);
 
+  const leaveTypeBalanceMap = useMemo(() => {
+    const map = new Map<string, number>();
+    balances.forEach((b) => {
+      if (b.leaveType?.id) {
+        map.set(b.leaveType.id, Number(b.closingBalance ?? 0));
+      }
+    });
+    return map;
+  }, [balances]);
+
   // Column definitions
   const columns = useMemo<ColumnDef<LeaveRequest>[]>(
     () => [
@@ -197,9 +207,23 @@ export default function UserLeavePage() {
         enableSorting: false,
         cell: ({ row }) => {
           const lt = row.original.leaveType;
+          const leaveTypeId = typeof lt === "string" ? undefined : lt?.id;
           const name =
             typeof lt === "string" ? lt : lt?.name || "Leave";
-          return <span className="font-medium">{name}</span>;
+          const remaining = leaveTypeId
+            ? leaveTypeBalanceMap.get(leaveTypeId)
+            : undefined;
+          const isUnpaid = typeof remaining === "number" && remaining < 0;
+          return (
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{name}</span>
+              {isUnpaid && (
+                <Badge className="bg-red-100 text-red-700 border-red-300 hover:bg-red-100">
+                  Unpaid
+                </Badge>
+              )}
+            </div>
+          );
         },
       },
       {
@@ -276,7 +300,7 @@ export default function UserLeavePage() {
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
       },
     ],
-    []
+    [leaveTypeBalanceMap]
   );
 
 // Fetch profile
@@ -578,6 +602,8 @@ export default function UserLeavePage() {
                 : 0;
             const color = BALANCE_COLORS[index % BALANCE_COLORS.length];
             const name = bal.leaveType?.name || `Leave ${index + 1}`;
+            const isUnpaid = remaining < 0;
+            const iconColor = isUnpaid ? "#dc2626" : color;
             return (
               <Card
                 key={name}
@@ -586,13 +612,13 @@ export default function UserLeavePage() {
                 <div className="flex items-start justify-between mb-3">
                   <div
                     className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: `${color}20` }}
+                    style={{ background: `${iconColor}20` }}
                   >
-                    <CalendarDays className="w-5 h-5" style={{ color }} />
+                    <CalendarDays className="w-5 h-5" style={{ color: iconColor }} />
                   </div>
                   <span
                     className="text-2xl font-extrabold"
-                    style={{ color }}
+                    style={{ color: iconColor }}
                   >
                     {remaining}
                   </span>
@@ -603,10 +629,15 @@ export default function UserLeavePage() {
                 <p className="text-xs text-muted-foreground mb-2">
                   Used {used} / {allocated}
                 </p>
+                {isUnpaid && (
+                  <p className="text-xs font-semibold text-red-600 mb-2">
+                    Unpaid Leave
+                  </p>
+                )}
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${pct}%`, background: color }}
+                    style={{ width: `${pct}%`, background: iconColor }}
                   />
                 </div>
               </Card>
@@ -699,6 +730,9 @@ export default function UserLeavePage() {
               </div>
               <DialogTitle>Apply for Leave</DialogTitle>
               <DialogDescription>Submit a new leave request</DialogDescription>
+              <p className="text-xs text-red-600">
+                If balance is exhausted, request will still be submitted as unpaid leave.
+              </p>
             </div>
           </DialogHeader>
 

@@ -50,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Switch } from "@/components/ui/switch";
 import {
   getProfile,
   getEmployees,
@@ -193,6 +194,8 @@ export default function WfhManagementPage() {
   const [activeTab, setActiveTab] = useState("requests");
   const [wfhApprovalMode, setWfhApprovalMode] = useState<"ADMIN" | "MANAGER">("MANAGER");
   const [savingApprovalMode, setSavingApprovalMode] = useState(false);
+  const [wfhCarryForwardEnabled, setWfhCarryForwardEnabled] = useState(false);
+  const [savingWfhCarryForward, setSavingWfhCarryForward] = useState(false);
 
   // Requests tab state
   const [wfhRequests, setWfhRequests] = useState<WfhRequest[]>([]);
@@ -238,6 +241,7 @@ export default function WfhManagementPage() {
           const orgRes = await getOrganization(res.data.organizationId);
           const mode = (orgRes.data?.wfhApprovalMode || "MANAGER").toUpperCase();
           setWfhApprovalMode(mode === "ADMIN" ? "ADMIN" : "MANAGER");
+          setWfhCarryForwardEnabled(Boolean(orgRes.data?.wfhCarryForwardEnabled));
         }
       } catch (error: any) {
         console.error("Failed to fetch profile:", error);
@@ -454,6 +458,26 @@ export default function WfhManagementPage() {
       toast.error("Failed to update approval mode");
     } finally {
       setSavingApprovalMode(false);
+    }
+  };
+
+  const handleWfhCarryForwardToggle = async (checked: boolean) => {
+    if (!profile?.organizationId) return;
+    const previous = wfhCarryForwardEnabled;
+    setWfhCarryForwardEnabled(checked);
+    setSavingWfhCarryForward(true);
+    try {
+      await updateOrganization(profile.organizationId, {
+        wfhCarryForwardEnabled: checked,
+      });
+      toast.success(
+        checked ? "WFH carry forward enabled" : "WFH carry forward disabled",
+      );
+    } catch (error: any) {
+      setWfhCarryForwardEnabled(previous);
+      toast.error("Failed to update WFH carry forward setting");
+    } finally {
+      setSavingWfhCarryForward(false);
     }
   };
 
@@ -928,6 +952,19 @@ export default function WfhManagementPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Carry Forward Unused WFH</p>
+                  <p className="text-xs text-muted-foreground">
+                    Unused WFH balance will be added in next session year.
+                  </p>
+                </div>
+                <Switch
+                  checked={wfhCarryForwardEnabled}
+                  onCheckedChange={handleWfhCarryForwardToggle}
+                  disabled={savingWfhCarryForward}
+                />
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Employment Type</Label>

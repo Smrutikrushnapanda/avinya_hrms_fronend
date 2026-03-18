@@ -309,10 +309,20 @@ export default function MobileLeavePage() {
                       <p className="text-xs text-gray-500">Balance</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-bold text-blue-600">
-                        {balance.closingBalance ?? balance.remaining ?? 0}
-                      </p>
-                      <p className="text-xs text-gray-500">Available</p>
+                      {(() => {
+                        const remaining = Number(balance.closingBalance ?? balance.remaining ?? 0);
+                        const isUnpaid = remaining < 0;
+                        return (
+                          <>
+                            <p className={`text-xl font-bold ${isUnpaid ? "text-red-600" : "text-blue-600"}`}>
+                              {remaining}
+                            </p>
+                            <p className={`text-xs ${isUnpaid ? "text-red-600 font-semibold" : "text-gray-500"}`}>
+                              {isUnpaid ? "Unpaid Leave" : "Available"}
+                            </p>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   {index < leaveBalances.length - 1 && (

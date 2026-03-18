@@ -97,7 +97,6 @@ const menuByRole: Record<string, MenuItem[]> = {
     },
     { name: "Meetings", icon: Video, href: "/admin/meetings", animation: "bounce" },
     { name: "Payroll", icon: BadgeDollarSign, href: "/admin/payroll", animation: "bounce" },
-    { name: "Reports", icon: BookMarked, href: "/admin/reports", animation: "swing" },
     { name: "Polls", icon: Vote, href: "/admin/polls", animation: "rubberBand" },
     { name: "Community Posts", icon: MessageSquarePlus, href: "/admin/posts", animation: "float" },
     { name: "Projects", icon: FolderKanban, href: "/admin/projects", animation: "float" },
@@ -105,6 +104,7 @@ const menuByRole: Record<string, MenuItem[]> = {
     { name: "Policy", icon: Shield, href: "/admin/policy", animation: "float" },
     { name: "Expenses", icon: Receipt, href: "/admin/expenses", animation: "float" },
     { name: "Settings", icon: Settings, href: "/admin/settings", animation: "spin" },
+    { name: "Reports", icon: BookMarked, href: "/admin/reports", animation: "swing" },
     { name: "Log Report", icon: FileText, href: "/admin/logreport", animation: "float" },
   ],
   HR: [
