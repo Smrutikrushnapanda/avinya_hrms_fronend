@@ -458,7 +458,7 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
 
 // Existing Tab Components (keep these as they are)
 function LeaveTab({ employeeId, employee }: { employeeId: string; employee: Employee }) {
-  const [leaveData, setLeaveData] = useState(null);
+  const [leaveData, setLeaveData] = useState<Array<{ type: string; balance: number | string }> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -468,7 +468,7 @@ function LeaveTab({ employeeId, employee }: { employeeId: string; employee: Empl
   const fetchLeaveData = async () => {
     try {
       const response = await getLeaveBalance(employeeId);
-      setLeaveData(response.data);
+      setLeaveData(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Leave API not available:", error);
     } finally {
