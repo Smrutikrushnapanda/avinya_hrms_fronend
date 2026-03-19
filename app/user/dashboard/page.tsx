@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   Users,
   UserCheck,
+  Coffee,
   Palmtree,
   DollarSign,
   TrendingUp,
@@ -36,6 +37,7 @@ import {
   getAttendanceReport2,
   getEmployees,
   getPayrollRecords,
+  toggleBreakStatus,
 } from "@/app/api/api";
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -114,6 +116,24 @@ function computeScore(row: any): ScoredEmployee {
     presentDays: row.presentDays ?? 0,
     totalWorkingDays: row.totalWorkingDays ?? 0,
   };
+}
+
+function getBreakStateFromLogs(logs: any[]): { isOnBreak: boolean; activeBreakSince: string | null } {
+  const sorted = [...(logs || [])].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+  let isOnBreak = false;
+  let activeBreakSince: string | null = null;
+  for (const log of sorted) {
+    if (log.type === "check-out" || log.type === "break-end") {
+      isOnBreak = false;
+      activeBreakSince = null;
+    } else if (log.type === "break-start") {
+      isOnBreak = true;
+      activeBreakSince = log.timestamp ?? null;
+    }
+  }
+  return { isOnBreak, activeBreakSince };
 }
 
 // ─── CONFETTI PARTICLE ─────────────────────────────────────────────────────────
@@ -448,6 +468,9 @@ export default function UserDashboardPage() {
   const [showSalaryAmount, setShowSalaryAmount] = useState(false);
   const [salaryMonthAmount, setSalaryMonthAmount] = useState<number>(0);
   const [salaryMonthLabel, setSalaryMonthLabel] = useState<string>("");
+  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [activeBreakSince, setActiveBreakSince] = useState<string | null>(null);
+  const [breakLoading, setBreakLoading] = useState(false);
 
   const normalizeLeaveBalance = (balance: LeaveBalanceData): LeaveBalanceData => {
     const openingBalance = Number(balance.openingBalance ?? 0);
@@ -569,9 +592,23 @@ export default function UserDashboardPage() {
             const hasLogs =
               (todayLogsRes.data?.logs?.length ?? todayLogsRes.data?.data?.logs?.length ?? 0) > 0;
             setHasPunchedInToday(Boolean(punchInTime || hasLogs));
+            const logs = todayLogsRes.data?.logs ?? todayLogsRes.data?.data?.logs ?? [];
+            const apiIsOnBreak = todayLogsRes.data?.isOnBreak ?? todayLogsRes.data?.data?.isOnBreak;
+            const apiActiveBreakSince =
+              todayLogsRes.data?.activeBreakSince ?? todayLogsRes.data?.data?.activeBreakSince;
+            if (typeof apiIsOnBreak === "boolean") {
+              setIsOnBreak(apiIsOnBreak);
+              setActiveBreakSince(apiActiveBreakSince ?? null);
+            } else {
+              const breakState = getBreakStateFromLogs(logs);
+              setIsOnBreak(breakState.isOnBreak);
+              setActiveBreakSince(breakState.activeBreakSince);
+            }
           } catch (todayLogError) {
             console.log("Today's attendance logs not available:", todayLogError);
             setHasPunchedInToday(false);
+            setIsOnBreak(false);
+            setActiveBreakSince(null);
           }
 
           try {
@@ -777,6 +814,33 @@ export default function UserDashboardPage() {
       }
     : attendanceBreakdownBase;
 
+  const handleBreakToggle = async () => {
+    if (!userData?.organizationId || !userData?.id || breakLoading) return;
+    setBreakLoading(true);
+    try {
+      const res = await toggleBreakStatus({
+        organizationId: userData.organizationId,
+        userId: userData.id,
+        source: "web",
+        timestamp: new Date().toISOString(),
+      });
+      const nextOnBreak = Boolean(res.data?.isOnBreak);
+      setIsOnBreak(nextOnBreak);
+      setActiveBreakSince(res.data?.activeBreakSince ?? null);
+    } catch (error: any) {
+      console.error("Failed to toggle break:", error);
+    } finally {
+      setBreakLoading(false);
+    }
+  };
+
+  const breakSinceLabel = activeBreakSince
+    ? new Date(activeBreakSince).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
 
   if (loading) {
     return (
@@ -975,7 +1039,7 @@ export default function UserDashboardPage() {
       </div>
 
       {/* ── ROW 2: ATTENDANCE + LEAVE BALANCE + AWARD TABLE ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
         {/* TODAY'S ATTENDANCE STATUS */}
         <Card className="p-5 border-l-4 border-l-[#184a8c]/50 rounded-2xl">
           <div className="flex items-start justify-between mb-1">
@@ -992,6 +1056,46 @@ export default function UserDashboardPage() {
             </button>
           </div>
           <AttendanceStatus userId={userData?.id} organizationId={userData?.organizationId} />
+        </Card>
+
+        {/* BREAK TOGGLE */}
+        <Card className="p-5 border-l-4 border-l-[#f59e0b]/60 rounded-2xl">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Break Status</h2>
+              <p className="text-xs text-muted-foreground">
+                Visible to team and admin dashboard
+              </p>
+            </div>
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isOnBreak ? "bg-amber-100 text-amber-600" : "bg-emerald-100 text-emerald-600"}`}>
+              <Coffee className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="rounded-xl border border-border/60 p-3 mb-3">
+            <p className={`text-sm font-bold ${isOnBreak ? "text-amber-600" : "text-emerald-600"}`}>
+              {isOnBreak ? "On Break" : "Available"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {isOnBreak && breakSinceLabel ? `Since ${breakSinceLabel}` : "Not currently on break"}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={breakLoading || !hasPunchedInToday}
+            onClick={handleBreakToggle}
+            className={`w-full rounded-xl py-2 text-sm font-semibold transition-colors ${
+              !hasPunchedInToday
+                ? "bg-muted text-muted-foreground cursor-not-allowed"
+                : isOnBreak
+                ? "bg-amber-500 hover:bg-amber-600 text-white"
+                : "bg-emerald-500 hover:bg-emerald-600 text-white"
+            }`}
+          >
+            {breakLoading ? "Updating..." : isOnBreak ? "End Break" : "Start Break"}
+          </button>
+          {!hasPunchedInToday && (
+            <p className="text-[11px] text-muted-foreground mt-2">Punch in first to use break toggle.</p>
+          )}
         </Card>
 
         {/* LEAVE BALANCE */}

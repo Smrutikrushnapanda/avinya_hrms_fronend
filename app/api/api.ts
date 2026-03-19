@@ -162,6 +162,11 @@ export const deleteBranch = (id: string) => api.delete(`/attendance/branches/${i
 export const registerDevice = (data: any) => api.post("/attendance/devices", data);
 export const logAttendance = (data: any) => api.post("/attendance/log", data);
 export const getTodayLogs = (params: any) => api.get("/attendance/today-logs", { params });
+export const toggleBreakStatus = (data: any) => api.post("/attendance/break/toggle", data);
+export const getBreakStatus = (params: { organizationId: string; userId: string }) =>
+  api.get("/attendance/break/status", { params });
+export const getLiveBreakOverview = (organizationId: string) =>
+  api.get("/attendance/break/live", { params: { organizationId } });
 export const getAttendanceSummary = (userId: string, params: any) => api.get(`/attendance/summary/${userId}`, { params });
 export const getMonthlyAttendance = (params: any) => api.get("/attendance/monthly", { params });
 export const getDailyStats = (params: any) => api.get("/attendance/daily-stats", { params });

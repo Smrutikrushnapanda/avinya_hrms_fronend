@@ -9,6 +9,7 @@ import {
   LogIn,
   LogOut,
   Timer,
+  Coffee,
   X,
   Mail,
   Phone,
@@ -35,6 +36,7 @@ import {
   getCurrentTime,
   getMonthlyAttendance,
   getAttendanceSettings,
+  toggleBreakStatus,
 } from "@/app/api/api";
 import { useRouter } from "next/navigation";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
@@ -176,6 +178,9 @@ export default function MobileDashboardPage() {
   const [punchOutTimeStr, setPunchOutTimeStr] = useState("--:-- --");
   const [punchInTimestamp, setPunchInTimestamp] = useState<Date | null>(null);
   const [workingSeconds, setWorkingSeconds] = useState(0);
+  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [activeBreakSince, setActiveBreakSince] = useState<string | null>(null);
+  const [breakLoading, setBreakLoading] = useState(false);
 
   // ── Device signals
   const [wifiConnected, setWifiConnected] = useState(true);
@@ -228,7 +233,11 @@ export default function MobileDashboardPage() {
   }, []);
 
   // ── Parse today logs and update state
-  const parseTodayLogs = useCallback((logs: any[]) => {
+  const parseTodayLogs = useCallback((payload: any) => {
+    const logs: any[] =
+      payload?.logs ??
+      payload?.data?.logs ??
+      (Array.isArray(payload) ? payload : []);
     const sorted = [...logs].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
@@ -261,18 +270,59 @@ export default function MobileDashboardPage() {
     }
 
     setPunchOutTimeStr(lastOut?.timestamp ? formatTime12h(lastOut.timestamp) : "--:-- --");
+
+    const apiIsOnBreak = payload?.isOnBreak ?? payload?.data?.isOnBreak;
+    const apiBreakSince = payload?.activeBreakSince ?? payload?.data?.activeBreakSince;
+    if (typeof apiIsOnBreak === "boolean") {
+      setIsOnBreak(apiIsOnBreak);
+      setActiveBreakSince(apiBreakSince ?? null);
+      return;
+    }
+
+    let breakState = false;
+    let breakSince: string | null = null;
+    for (const log of sorted) {
+      if (log.type === "check-out" || log.type === "break-end") {
+        breakState = false;
+        breakSince = null;
+      } else if (log.type === "break-start") {
+        breakState = true;
+        breakSince = log.timestamp ?? null;
+      }
+    }
+    setIsOnBreak(breakState);
+    setActiveBreakSince(breakSince);
   }, []);
 
   // ── Fetch today's logs
   const fetchTodayLogs = useCallback(async (orgId: string, userId: string) => {
     try {
       const res = await getTodayLogs({ organizationId: orgId, userId });
-      const logs: any[] = res.data?.logs ?? res.data?.data ?? (Array.isArray(res.data) ? res.data : []);
-      parseTodayLogs(logs);
+      parseTodayLogs(res.data);
     } catch (e) {
       console.error("Failed to fetch today logs:", e);
     }
   }, [parseTodayLogs]);
+
+  const handleBreakToggle = async () => {
+    if (!user.organizationId || !user.userId || !hasPunchedInToday || breakLoading) return;
+    try {
+      setBreakLoading(true);
+      const res = await toggleBreakStatus({
+        organizationId: user.organizationId,
+        userId: user.userId,
+        source: "web",
+        timestamp: new Date().toISOString(),
+      });
+      setIsOnBreak(Boolean(res.data?.isOnBreak));
+      setActiveBreakSince(res.data?.activeBreakSince ?? null);
+      await fetchTodayLogs(user.organizationId, user.userId);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message ?? "Failed to update break status");
+    } finally {
+      setBreakLoading(false);
+    }
+  };
 
   // ── Fetch monthly attendance for calendar
   const fetchMonthlyCalendar = useCallback(async (orgId: string, userId: string, month: Date) => {
@@ -841,6 +891,33 @@ export default function MobileDashboardPage() {
               <p className="text-sm font-medium text-gray-700">
                 {workingSeconds > 0 ? formatWorkingTime(workingSeconds) : "0:00:00 hrs"}
               </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`${isOnBreak ? "bg-amber-100" : "bg-emerald-100"} rounded-full p-1`}>
+                    <Coffee className={`w-5 h-5 ${isOnBreak ? "text-amber-600" : "text-emerald-600"}`} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Break</p>
+                    <p className="text-xs text-gray-500">
+                      {isOnBreak && activeBreakSince
+                        ? `Since ${formatTime12h(activeBreakSince)}`
+                        : "Not on break"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleBreakToggle}
+                  disabled={!hasPunchedInToday || breakLoading}
+                  className={`${isOnBreak ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"} text-white`}
+                >
+                  {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

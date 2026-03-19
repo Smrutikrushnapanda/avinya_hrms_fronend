@@ -11,6 +11,7 @@ import api, {
   getProfile,
   getHolidays,
   getLatestPosts,
+  getLiveBreakOverview,
 } from "@/app/api/api";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { format } from "date-fns";
 import {
   Users, UserCheck, Calendar, AlertTriangle, Clock, Bell, Settings,
-  Eye, EyeOff, Vote, Plus, UserPlus, PieChart, BarChart3, Heart, MessageCircle
+  Eye, EyeOff, Vote, Plus, UserPlus, PieChart, BarChart3, Heart, MessageCircle, Coffee
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
@@ -49,7 +50,13 @@ const DEPARTMENT_COLORS = [
 ];
 
 // AttendanceChart Component
-function AttendanceChart({ attendanceChartData }: { attendanceChartData: any[] }) {
+function AttendanceChart({
+  attendanceChartData,
+  breakEmployees,
+}: {
+  attendanceChartData: any[];
+  breakEmployees: any[];
+}) {
   return (
     <WidgetCard>
       <CardHeader>
@@ -73,16 +80,39 @@ function AttendanceChart({ attendanceChartData }: { attendanceChartData: any[] }
             <p className="text-xs opacity-70">Data will appear once employees check in</p>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <RechartsPieChart>
-              <Pie data={attendanceChartData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} dataKey="value">
-                {attendanceChartData.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip /><Legend />
-            </RechartsPieChart>
-          </ResponsiveContainer>
+          <>
+            <ResponsiveContainer width="100%" height={200}>
+              <RechartsPieChart>
+                <Pie data={attendanceChartData} cx="50%" cy="50%" innerRadius={40} outerRadius={80} dataKey="value">
+                  {attendanceChartData.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip /><Legend />
+              </RechartsPieChart>
+            </ResponsiveContainer>
+
+            <div className="mt-3 pt-3 border-t border-border/60">
+              <div className="flex items-center gap-2 mb-2">
+                <Coffee className="h-4 w-4 text-amber-600" />
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Employees Currently on Break ({breakEmployees.length})
+                </p>
+              </div>
+              {breakEmployees.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No one is on break right now.</p>
+              ) : (
+                <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+                  {breakEmployees.slice(0, 5).map((emp, idx) => (
+                    <div key={`${emp.userId}-${idx}`} className="flex items-center justify-between text-xs">
+                      <span className="truncate pr-2">{emp.employeeName || "Employee"}</span>
+                      <span className="text-amber-600 font-medium">{emp.breakMinutes} min</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </CardContent>
     </WidgetCard>
@@ -328,6 +358,7 @@ export default function HRDashboardPage() {
 const [holidays, setHolidays] = useState<any[]>([]);
   const [latestPosts, setLatestPosts] = useState<any[]>([]);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [liveBreakData, setLiveBreakData] = useState<any>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -350,10 +381,11 @@ const [holidays, setHolidays] = useState<any[]>([]);
         getNotices(),
         getPolls(),
         api.get("/attendance/daily-stats", { params: { organizationId: orgId, date: formattedDate } }),
+        getLiveBreakOverview(orgId),
 getHolidays({ organizationId: orgId }),
         getLatestPosts({ limit: 5 }),
       ]);
-      const [dashboardRes, activitiesRes, anomaliesRes, noticesRes, pollsRes, dailyStatsRes, holidaysRes, postsRes] = results;
+      const [dashboardRes, activitiesRes, anomaliesRes, noticesRes, pollsRes, dailyStatsRes, liveBreakRes, holidaysRes, postsRes] = results;
 
       setDashboardData(dashboardRes.status === 'fulfilled' && dashboardRes.value.data.success ? dashboardRes.value.data.data : null);
       setActivities(activitiesRes.status === 'fulfilled' ? activitiesRes.value.data?.data || [] : []);
@@ -361,6 +393,7 @@ getHolidays({ organizationId: orgId }),
       setNotices(noticesRes.status === 'fulfilled' ? noticesRes.value.data || [] : []);
       setPolls(pollsRes.status === 'fulfilled' ? pollsRes.value.data || [] : []);
       setDailyStats(dailyStatsRes.status === 'fulfilled' ? dailyStatsRes.value.data : null);
+      setLiveBreakData(liveBreakRes.status === 'fulfilled' ? liveBreakRes.value.data : null);
       setCurrentUser(profileRes?.data || null);
 // Handle holidays data
       if (holidaysRes.status === 'fulfilled') {
@@ -416,14 +449,16 @@ getHolidays({ organizationId: orgId }),
     if (dailyStats) {
       const presentCount = dailyStats.presentSummary?.total_present || 0;
       const absentCount = dailyStats.notPresentSummary?.absent || 0;
+      const onBreakCount = liveBreakData?.totalOnBreak || 0;
       return [
         { name: 'Present', value: presentCount, color: '#10b981' },
-        { name: 'Half Day', value: 0, color: '#f59e0b' },
+        { name: 'On Break', value: onBreakCount, color: '#f59e0b' },
+        { name: 'Half Day', value: 0, color: '#3b82f6' },
         { name: 'Absent', value: absentCount, color: '#ef4444' },
       ].filter(item => item.value > 0);
     }
     return [];
-  }, [dailyStats]);
+  }, [dailyStats, liveBreakData]);
 
   const widgetsByCategory = useMemo(() => {
     return widgets.reduce((acc, widget) => {
@@ -519,7 +554,12 @@ getHolidays({ organizationId: orgId }),
 
       {/* Charts & Widgets (Combined to enable auto-fill space when disabled) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
-        {isWidgetEnabled('attendance-today') && <AttendanceChart attendanceChartData={attendanceChartData} />}
+        {isWidgetEnabled('attendance-today') && (
+          <AttendanceChart
+            attendanceChartData={attendanceChartData}
+            breakEmployees={liveBreakData?.employees || []}
+          />
+        )}
         {isWidgetEnabled('department-breakdown') && <DepartmentChart departmentData={departmentData} />}
         {isWidgetEnabled('user-activities') && <UserActivitiesWidget activities={activities} />}
         {isWidgetEnabled('active-polls') && <PollWidget polls={polls} currentUser={currentUser} onPollUpdate={handlePollUpdate} />}
