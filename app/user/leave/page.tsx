@@ -11,6 +11,7 @@ import {
   FileText,
   Send,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ import {
   getLeaveRequests,
   getLeaveTypes,
   applyLeave,
+  deleteLeaveRequest,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -197,6 +199,41 @@ export default function UserLeavePage() {
     return map;
   }, [balances]);
 
+  const canDeleteLeaveRequest = useCallback((request: LeaveRequest) => {
+    if ((request.status || "").toUpperCase() !== "PENDING") return false;
+    if (!request.startDate) return false;
+    const todayDate = format(new Date(), "yyyy-MM-dd");
+    return request.startDate.slice(0, 10) > todayDate;
+  }, []);
+
+  const handleDeleteLeaveRequest = useCallback(
+    async (request: LeaveRequest) => {
+      if (!userId) {
+        toast.error("User not found. Please log in again.");
+        return;
+      }
+      if (!canDeleteLeaveRequest(request)) {
+        toast.error("You can only delete pending leave requests before the start date.");
+        return;
+      }
+      const confirmed = window.confirm(
+        "Delete this leave request? This cannot be undone.",
+      );
+      if (!confirmed) return;
+
+      try {
+        await deleteLeaveRequest(request.id, userId);
+        toast.success("Leave request deleted.");
+        setLeaveRequests((prev) => prev.filter((item) => item.id !== request.id));
+      } catch (error: any) {
+        toast.error(
+          error?.response?.data?.message || "Failed to delete leave request.",
+        );
+      }
+    },
+    [userId, canDeleteLeaveRequest],
+  );
+
   // Column definitions
   const columns = useMemo<ColumnDef<LeaveRequest>[]>(
     () => [
@@ -299,8 +336,24 @@ export default function UserLeavePage() {
         enableSorting: false,
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
       },
+      {
+        id: "Actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleDeleteLeaveRequest(row.original)}
+            disabled={!canDeleteLeaveRequest(row.original)}
+            title="Delete request"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        ),
+      },
     ],
-    [leaveTypeBalanceMap]
+    [leaveTypeBalanceMap, canDeleteLeaveRequest, handleDeleteLeaveRequest]
   );
 
 // Fetch profile

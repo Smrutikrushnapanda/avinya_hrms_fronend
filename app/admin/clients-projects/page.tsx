@@ -650,7 +650,7 @@ export default function ClientsProjectsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {managers.length === 0 ? (
-                        <SelectItem value="" disabled>
+                        <SelectItem value="no-managers" disabled>
                           No managers available
                         </SelectItem>
                       ) : (

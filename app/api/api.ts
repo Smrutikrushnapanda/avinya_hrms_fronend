@@ -296,6 +296,8 @@ export const approveLeave = (requestId: string, approverId: string, data: any) =
 export const getPendingLeaves = (approverId: string) => api.get(`/leave/pending/${approverId}`);
 export const getAllLeaveApprovals = (approverId: string) => api.get(`/leave/my-approvals/${approverId}`);
 export const getLeaveRequests = (userId: string) => api.get(`/leave/requests/${userId}`);
+export const deleteLeaveRequest = (requestId: string, userId: string) =>
+  api.delete(`/leave/requests/${requestId}/${userId}`);
 export const getAllLeaveRequests = (orgId: string) => api.get(`/leave/all/${orgId}`);
 export const createApprovalAssignment = (data: any) => api.post('/leave/approval-assignments', data);
 export const getApprovalAssignments = (userId: string) => api.get(`/leave/approval-assignments/${userId}`);
@@ -311,6 +313,8 @@ export const applyWfh = (userId: string, data: any) => api.post(`/wfh/apply/${us
 export const approveWfh = (requestId: string, approverId: string, data: any) => api.post(`/wfh/approve/${requestId}/${approverId}`, data);
 export const getPendingWfh = (approverId: string) => api.get(`/wfh/pending/${approverId}`);
 export const getWfhRequests = (userId: string) => api.get(`/wfh/requests/${userId}`);
+export const deleteWfhRequest = (requestId: string, userId: string) =>
+  api.delete(`/wfh/requests/${requestId}/${userId}`);
 export const getAllWfhRequests = (orgId: string) => api.get(`/wfh/all/${orgId}`);
 export const getAllWfhApprovals = (approverId: string) => api.get(`/wfh/my-approvals/${approverId}`);
 export const createWfhAssignment = (data: any) => api.post('/wfh/approval-assignments', data);

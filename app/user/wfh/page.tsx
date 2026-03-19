@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Send,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,7 @@ import {
   getWfhRequests,
   getPendingWfh,
   applyWfh,
+  deleteWfhRequest,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -233,6 +235,39 @@ export default function UserWfhPage() {
   });
   const [applySubmitting, setApplySubmitting] = useState(false);
 
+  const canDeleteWfhRequest = useCallback((request: WfhRequest) => {
+    if ((request.status || "").toUpperCase() !== "PENDING") return false;
+    if (!request.date) return false;
+    const todayDate = format(new Date(), "yyyy-MM-dd");
+    return request.date.slice(0, 10) > todayDate;
+  }, []);
+
+  const handleDeleteWfhRequest = useCallback(
+    async (request: WfhRequest) => {
+      if (!userId) {
+        toast.error("User not found. Please log in again.");
+        return;
+      }
+      if (!canDeleteWfhRequest(request)) {
+        toast.error("You can only delete pending WFH requests before the start date.");
+        return;
+      }
+      const confirmed = window.confirm(
+        "Delete this WFH request? This cannot be undone.",
+      );
+      if (!confirmed) return;
+
+      try {
+        await deleteWfhRequest(request.id, userId);
+        toast.success("WFH request deleted.");
+        setWfhRequests((prev) => prev.filter((item) => item.id !== request.id));
+      } catch (error: unknown) {
+        toast.error(getErrorMessage(error, "Failed to delete WFH request."));
+      }
+    },
+    [userId, canDeleteWfhRequest],
+  );
+
   const columns = useMemo<ColumnDef<WfhRequest>[]>(
     () => [
       {
@@ -278,8 +313,24 @@ export default function UserWfhPage() {
         enableSorting: false,
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
       },
+      {
+        id: "Actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleDeleteWfhRequest(row.original)}
+            disabled={!canDeleteWfhRequest(row.original)}
+            title="Delete request"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        ),
+      },
     ],
-    []
+    [canDeleteWfhRequest, handleDeleteWfhRequest]
   );
 
   useEffect(() => {
