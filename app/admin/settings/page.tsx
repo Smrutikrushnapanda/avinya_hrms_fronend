@@ -190,8 +190,30 @@ const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
 
   const loadHolidays = async () => {
     try {
-      const res = await getHolidays({ organizationId });
-      setHolidays(res.data || []);
+      const now = new Date();
+      const currentFromYear = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
+
+      // Fetch current + next financial year so newly added upcoming holidays are visible immediately.
+      const [currentFyRes, nextFyRes] = await Promise.all([
+        getHolidays({ organizationId, fromYear: currentFromYear }),
+        getHolidays({ organizationId, fromYear: currentFromYear + 1 }),
+      ]);
+
+      const normalize = (payload: any): Holiday[] => {
+        if (Array.isArray(payload)) return payload;
+        if (Array.isArray(payload?.holidays)) return payload.holidays;
+        return [];
+      };
+
+      const merged = [...normalize(currentFyRes.data), ...normalize(nextFyRes.data)];
+      const unique = Array.from(
+        new Map(merged.map((holiday) => [holiday.id, holiday])).values(),
+      );
+      unique.sort(
+        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+      );
+
+      setHolidays(unique);
     } catch (error) {
       console.error(error);
     }
