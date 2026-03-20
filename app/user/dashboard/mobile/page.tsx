@@ -705,6 +705,10 @@ export default function MobileDashboardPage() {
 
     try {
       let activeCoords = coordsRef.current;
+      if (settings.enableWifiValidation && !wifiConnected) {
+        toast.error("Internet/WiFi is required because admin WiFi validation is enabled.");
+        return;
+      }
       if (settings.enableGpsValidation && !activeCoords) {
         activeCoords = await requestGeolocation();
         if (!activeCoords) {
@@ -804,6 +808,15 @@ export default function MobileDashboardPage() {
       : clockTime.getHours() < 17
       ? "Good Afternoon"
       : "Good Evening";
+  const isPunchDisabled =
+    isLoading ||
+    (settings.enableWifiValidation && !wifiConnected) ||
+    (settings.enableGpsValidation && locationStatus !== "available");
+  const punchButtonClass = isPunchDisabled
+    ? "bg-gray-400 cursor-not-allowed hover:bg-gray-400"
+    : hasPunchedInToday
+    ? "bg-red-500 hover:bg-red-600"
+    : "bg-green-500 hover:bg-green-600";
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -891,14 +904,8 @@ export default function MobileDashboardPage() {
           {/* Punch button */}
           <Button
             onClick={() => setOpen(true)}
-            disabled={isLoading}
-            className={`w-full mt-4 ${
-              isLoading
-                ? "bg-gray-400 cursor-not-allowed"
-                : hasPunchedInToday
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-green-500 hover:bg-green-600"
-            } text-white flex items-center justify-center gap-2`}
+            disabled={isPunchDisabled}
+            className={`w-full mt-4 ${punchButtonClass} text-white flex items-center justify-center gap-2`}
           >
             {isLoading ? (
               <>
@@ -1244,6 +1251,20 @@ export default function MobileDashboardPage() {
                   : cameraStatus === "denied"
                   ? "Allow Camera (Denied)"
                   : "Allow Camera"}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
+                onClick={() => {
+                  void requestGeolocation();
+                }}
+              >
+                <MapPin className="w-5 h-5 mr-3" />
+                {locationStatus === "available"
+                  ? "Location: Allowed"
+                  : locationStatus === "denied"
+                  ? "Allow Location (Denied)"
+                  : "Allow Location"}
               </Button>
               <Button
                 variant="ghost"
