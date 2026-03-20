@@ -99,6 +99,10 @@ function formatTime12h(isoStr: string): string {
   }
 }
 
+function formatCoordinateLocation(latitude: number, longitude: number): string {
+  return `Lat ${latitude.toFixed(6)}, Lng ${longitude.toFixed(6)}`;
+}
+
 function mapApiStatus(status: string): AttendanceStatus["status"] {
   switch (status?.toLowerCase()) {
     case "present": return "present";
@@ -185,6 +189,7 @@ export default function MobileDashboardPage() {
   // ── Device signals
   const [wifiConnected, setWifiConnected] = useState(true);
   const [locationStatus, setLocationStatus] = useState<"pending" | "available" | "denied">("pending");
+  const [cameraStatus, setCameraStatus] = useState<"pending" | "available" | "denied">("pending");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
 
   // ── Clock
@@ -194,6 +199,11 @@ export default function MobileDashboardPage() {
   const [statusByDate, setStatusByDate] = useState<Record<string, AttendanceStatus>>({});
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+
+  const currentGpsLocation = useMemo(
+    () => (coords ? formatCoordinateLocation(coords.latitude, coords.longitude) : ""),
+    [coords]
+  );
 
   // Store user refs for use in callbacks
   const userRef = useRef({ organizationId: "", userId: "" });
@@ -357,20 +367,55 @@ export default function MobileDashboardPage() {
   }, []);
 
   // ── Request GPS location
-  const requestGeolocation = useCallback(() => {
-    if (!navigator.geolocation) {
+  const requestGeolocation = useCallback((): Promise<{ latitude: number; longitude: number } | null> => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
       setLocationStatus("denied");
-      return;
+      return Promise.resolve(null);
     }
+
     setLocationStatus("pending");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-        setLocationStatus("available");
-      },
-      () => setLocationStatus("denied"),
-      { timeout: 10000, maximumAge: 300000 }
-    );
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const nextCoords = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          };
+          setCoords(nextCoords);
+          setLocationStatus("available");
+          resolve(nextCoords);
+        },
+        () => {
+          setLocationStatus("denied");
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    });
+  }, []);
+
+  const requestCameraAccess = useCallback(async (showErrorToast = true): Promise<boolean> => {
+    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setCameraStatus("denied");
+      if (showErrorToast) {
+        toast.error("Camera is not supported in this browser.");
+      }
+      return false;
+    }
+
+    setCameraStatus("pending");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      stream.getTracks().forEach((track) => track.stop());
+      setCameraStatus("available");
+      return true;
+    } catch {
+      setCameraStatus("denied");
+      if (showErrorToast) {
+        toast.error("Camera access denied. Please allow camera permission.");
+      }
+      return false;
+    }
   }, []);
 
   // ── Initial data fetch
@@ -553,13 +598,23 @@ export default function MobileDashboardPage() {
   // ── Camera: start stream; cleanup stops it when dialog closes or photo is captured
   useEffect(() => {
     if (open && !capturedImage) {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraStatus("denied");
+        toast.error("Camera is not supported in this browser.");
+        return;
+      }
+
       navigator.mediaDevices
         .getUserMedia({ video: { facingMode: "user", aspectRatio: 3 / 4 } })
         .then((stream) => {
           streamRef.current = stream;
           if (videoRef.current) videoRef.current.srcObject = stream;
+          setCameraStatus("available");
         })
-        .catch(() => toast.error("Camera access denied. Please allow camera in browser settings."));
+        .catch(() => {
+          setCameraStatus("denied");
+          toast.error("Camera access denied. Please allow camera in browser settings.");
+        });
     }
     return () => {
       if (streamRef.current) {
@@ -592,6 +647,15 @@ export default function MobileDashboardPage() {
     setIsSubmitting(true);
 
     try {
+      let activeCoords = coordsRef.current;
+      if (settings.enableGpsValidation && !activeCoords) {
+        activeCoords = await requestGeolocation();
+        if (!activeCoords) {
+          toast.error("Location permission is required because admin GPS validation is enabled.");
+          return;
+        }
+      }
+
       // Get server timestamp
       let timestamp = new Date().toISOString();
       try {
@@ -613,10 +677,18 @@ export default function MobileDashboardPage() {
       formData.append("enableFaceValidation", String(settings.enableFaceValidation));
       formData.append("enableWifiValidation", String(settings.enableWifiValidation));
       formData.append("enableGPSValidation", String(settings.enableGpsValidation));
+      formData.append(
+        "deviceInfo",
+        typeof navigator !== "undefined" ? navigator.userAgent : "web"
+      );
 
-      if (coords) {
-        formData.append("latitude", coords.latitude.toString());
-        formData.append("longitude", coords.longitude.toString());
+      if (activeCoords) {
+        formData.append("latitude", activeCoords.latitude.toString());
+        formData.append("longitude", activeCoords.longitude.toString());
+        formData.append(
+          "locationAddress",
+          formatCoordinateLocation(activeCoords.latitude, activeCoords.longitude)
+        );
       }
 
       // Convert base64 data URL → Blob
@@ -1040,12 +1112,12 @@ export default function MobileDashboardPage() {
                   </div>
                 )}
 
-                {user.location && (
+                {(user.location || currentGpsLocation) && (
                   <div className="flex items-center gap-3">
                     <MapPin className="w-5 h-5 text-gray-400 shrink-0" />
                     <div>
                       <p className="text-xs text-gray-400">Location</p>
-                      <p className="text-sm text-gray-700">{user.location}</p>
+                      <p className="text-sm text-gray-700">{user.location || currentGpsLocation}</p>
                     </div>
                   </div>
                 )}
@@ -1054,6 +1126,38 @@ export default function MobileDashboardPage() {
 
             {/* Sidebar Footer */}
             <div className="p-4 border-t border-gray-100">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
+                onClick={() => {
+                  void requestGeolocation().then((granted) => {
+                    if (!granted) {
+                      toast.error("Location access denied. Enable it in browser settings.");
+                    }
+                  });
+                }}
+              >
+                <MapPin className="w-5 h-5 mr-3" />
+                {locationStatus === "available"
+                  ? "Location: Allowed"
+                  : locationStatus === "denied"
+                  ? "Allow Location (Denied)"
+                  : "Allow Location"}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
+                onClick={() => {
+                  void requestCameraAccess();
+                }}
+              >
+                <Camera className="w-5 h-5 mr-3" />
+                {cameraStatus === "available"
+                  ? "Camera: Allowed"
+                  : cameraStatus === "denied"
+                  ? "Allow Camera (Denied)"
+                  : "Allow Camera"}
+              </Button>
               <Button
                 variant="ghost"
                 className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"

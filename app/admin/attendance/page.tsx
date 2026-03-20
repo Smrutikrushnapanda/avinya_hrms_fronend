@@ -44,6 +44,10 @@ type Attendance = {
   outPhotoUrlSigned?: string;
   inLocationAddress?: string;
   outLocationAddress?: string;
+  inLatitude?: number | string;
+  inLongitude?: number | string;
+  outLatitude?: number | string;
+  outLongitude?: number | string;
   inDeviceInfo?: string;
   outDeviceInfo?: string;
   inWifiSsid?: string;
@@ -55,6 +59,8 @@ type Attendance = {
 const statusGradientMap: Record<string, string> = {
   present: "bg-gradient-to-r from-green-200 to-green-100 text-green-800",
   absent: "bg-gradient-to-r from-red-200 to-red-100 text-red-800",
+  "incomplete-hours":
+    "bg-gradient-to-r from-amber-200 to-amber-100 text-amber-900",
   "half-day": "bg-gradient-to-r from-yellow-200 to-yellow-100 text-yellow-800",
   late: "bg-gradient-to-r from-orange-200 to-orange-100 text-orange-800",
   "on-leave": "bg-gradient-to-r from-blue-200 to-blue-100 text-blue-800",
@@ -66,6 +72,7 @@ const statusGradientMap: Record<string, string> = {
 const statusLabelMap: Record<string, string> = {
   present: "Present",
   absent: "Absent",
+  "incomplete-hours": "Incomplete Hours",
   "half-day": "Half Day",
   late: "Late",
   "on-leave": "On Leave",
@@ -76,6 +83,27 @@ const statusLabelMap: Record<string, string> = {
 
 const parseTime = (timeStr: string) =>
   parse(timeStr, "hh:mm a", new Date());
+
+const formatCoordinate = (value?: number | string): string | null => {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return numeric.toFixed(6);
+};
+
+const resolveLocationText = (
+  locationAddress?: string,
+  latitude?: number | string,
+  longitude?: number | string
+): string | null => {
+  const trimmedAddress = locationAddress?.trim();
+  if (trimmedAddress) return trimmedAddress;
+
+  const lat = formatCoordinate(latitude);
+  const lng = formatCoordinate(longitude);
+  if (!lat || !lng) return null;
+  return `Lat ${lat}, Lng ${lng}`;
+};
 
 function PhotoDialog({
   imageUrl,
@@ -251,17 +279,37 @@ const columns: ColumnDef<Attendance>[] = [
         <span>Location</span>
       </div>
     ),
-    cell: ({ row }) => (
-      <div className="flex flex-col text-blue-600 text-sm">
-        {row.original.inLocationAddress && (
-          <div className="flex items-center">
-            <span className="whitespace-normal break-words">
-              {row.original.inLocationAddress}
-            </span>
-          </div>
-        )}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const inLocation = resolveLocationText(
+        row.original.inLocationAddress,
+        row.original.inLatitude,
+        row.original.inLongitude
+      );
+      const outLocation = resolveLocationText(
+        row.original.outLocationAddress,
+        row.original.outLatitude,
+        row.original.outLongitude
+      );
+
+      if (!inLocation && !outLocation) {
+        return <div className="text-sm text-muted-foreground">-</div>;
+      }
+
+      return (
+        <div className="flex flex-col text-blue-600 text-sm gap-1">
+          {inLocation && (
+            <div className="flex items-center">
+              <span className="whitespace-normal break-words">{inLocation}</span>
+            </div>
+          )}
+          {!inLocation && outLocation && (
+            <div className="flex items-center">
+              <span className="whitespace-normal break-words">{outLocation}</span>
+            </div>
+          )}
+        </div>
+      );
+    },
   },
   {
     accessorKey: "inDeviceInfo",
@@ -538,8 +586,8 @@ export default function AttendancePage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="grid grid-cols-4 divide-x text-center mt-4">
-                {[...Array(4)].map((_, i) => (
+              <div className="grid grid-cols-5 divide-x text-center mt-4">
+                {[...Array(5)].map((_, i) => (
                   <div key={i} className="animate-pulse">
                     <div className="h-6 bg-gray-200 rounded mb-2"></div>
                     <div className="h-3 bg-gray-100 rounded mb-1"></div>
@@ -548,12 +596,21 @@ export default function AttendancePage() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-4 divide-x text-center mt-4">
+              <div className="grid grid-cols-5 divide-x text-center mt-4">
+                <div>
+                  <p className="text-xl font-bold text-amber-600">
+                    {stats?.notPresentSummary?.incompleteHours ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Incomplete hours</p>
+                  <p className="text-xs text-amber-600">
+                    {formatDiff(stats?.notPresentSummary?.incompleteHoursDiff ?? 0)}
+                  </p>
+                </div>
                 <div>
                   <p className="text-xl font-bold text-red-600">
                     {stats?.notPresentSummary?.absent ?? "-"}
                   </p>
-                  <p className="text-xs text-muted-foreground">Absent</p>
+                  <p className="text-xs text-muted-foreground">Absent (no punch)</p>
                   <p className="text-xs text-green-600">
                     {formatDiff(stats?.notPresentSummary?.absentDiff ?? 0)}
                   </p>
