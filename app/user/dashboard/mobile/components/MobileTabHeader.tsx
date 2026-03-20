@@ -12,6 +12,7 @@ export default function MobileTabHeader({
   showBackLabel = false,
   backLabel = "Back",
   showBell = true,
+  compact = false,
   className = "bg-[#005F90]",
 }: {
   title: string;
@@ -20,13 +21,15 @@ export default function MobileTabHeader({
   showBackLabel?: boolean;
   backLabel?: string;
   showBell?: boolean;
+  compact?: boolean;
   className?: string;
 }) {
   const router = useRouter();
   const unreadCount = useUnreadMessages();
+  const containerPaddingClass = compact ? "py-4" : "pt-5 pb-16";
 
   return (
-    <div className={`${className} text-white px-4 pt-5 pb-16 flex items-center justify-between`}>
+    <div className={`${className} text-white px-4 ${containerPaddingClass} flex items-center justify-between`}>
       {backHref ? (
         <div className="flex items-center space-x-2">
           <Button

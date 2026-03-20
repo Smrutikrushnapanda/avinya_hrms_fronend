@@ -44,7 +44,7 @@ export default function MobileTimesheetPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
-      <MobileTabHeader title="Timesheet" backHref="/user/dashboard/mobile" className="bg-[#0077b6]" />
+      <MobileTabHeader title="Timesheet" backHref="/user/dashboard/mobile" className="bg-[#0077b6]" compact />
 
       {/* Content */}
       <div className="p-4 pb-20">

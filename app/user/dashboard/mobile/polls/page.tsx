@@ -227,7 +227,7 @@ export default function MobilePollsPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <MobileTabHeader title="Polls" backHref="/user/dashboard/mobile" className="bg-[#0077b6]" />
+      <MobileTabHeader title="Polls" backHref="/user/dashboard/mobile" className="bg-[#0077b6]" compact />
 
       <div className="p-4 pb-20">
         <Card>

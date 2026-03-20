@@ -939,7 +939,7 @@ export default function MobileDashboardPage() {
                 autoPlay
                 playsInline
                 muted
-                className="absolute inset-0 h-full w-full object-cover bg-black"
+                className="absolute inset-0 h-full w-full object-contain bg-black"
               />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/70" />
 
@@ -956,11 +956,9 @@ export default function MobileDashboardPage() {
                 </button>
               </div>
 
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[52vh] w-[72vw] max-w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-[42%] border-2 border-white/65 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
-
               <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-3 px-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-6">
                 <p className="text-center text-xs font-medium tracking-wide text-white/85">
-                  Align your face inside the frame
+                  Tap capture
                 </p>
                 <button
                   type="button"
@@ -976,7 +974,7 @@ export default function MobileDashboardPage() {
               <img
                 src={capturedImage}
                 alt="Captured"
-                className="absolute inset-0 h-full w-full object-cover"
+                className="absolute inset-0 h-full w-full object-contain bg-black"
               />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/70" />
 
@@ -1080,37 +1078,26 @@ export default function MobileDashboardPage() {
           </Card>
 
           <Card>
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`${isOnBreak ? "bg-amber-100" : "bg-emerald-100"} rounded-full p-1`}>
-                    <Coffee className={`w-5 h-5 ${isOnBreak ? "text-amber-600" : "text-emerald-600"}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Break</p>
-                    <p className="text-xs text-gray-500">
-                      {isOnBreak && activeBreakSince
-                        ? `Since ${formatTime12h(activeBreakSince)}`
-                        : isCheckedIn
-                        ? "Not on break"
-                        : "Punch in required"}
-                    </p>
-                  </div>
+            <CardContent className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className={`${isOnBreak ? "bg-amber-100" : "bg-emerald-100"} rounded-full p-1`}>
+                  <Coffee className={`w-5 h-5 ${isOnBreak ? "text-amber-600" : "text-emerald-600"}`} />
                 </div>
-                <Button
-                  onClick={handleBreakToggle}
-                  disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
-                  className={`${
-                    !isCheckedIn && !isOnBreak
-                      ? "bg-gray-400 hover:bg-gray-400"
-                      : isOnBreak
-                      ? "bg-amber-500 hover:bg-amber-600"
-                      : "bg-emerald-500 hover:bg-emerald-600"
-                  } text-white`}
-                >
-                  {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
-                </Button>
+                <p className="text-sm">Break</p>
               </div>
+              <Button
+                onClick={handleBreakToggle}
+                disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
+                className={`h-9 px-3 ${
+                  !isCheckedIn && !isOnBreak
+                    ? "bg-gray-400 hover:bg-gray-400"
+                    : isOnBreak
+                    ? "bg-amber-500 hover:bg-amber-600"
+                    : "bg-emerald-500 hover:bg-emerald-600"
+                } text-white`}
+              >
+                {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
+              </Button>
             </CardContent>
           </Card>
         </div>
