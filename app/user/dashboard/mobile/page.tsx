@@ -103,6 +103,42 @@ function formatCoordinateLocation(latitude: number, longitude: number): string {
   return `Lat ${latitude.toFixed(6)}, Lng ${longitude.toFixed(6)}`;
 }
 
+async function reverseGeocodeCoordinates(
+  latitude: number,
+  longitude: number
+): Promise<string | null> {
+  try {
+    const bdcRes = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+    );
+    if (bdcRes.ok) {
+      const bdcData = await bdcRes.json();
+      const parts = [
+        bdcData?.locality || bdcData?.city,
+        bdcData?.principalSubdivision,
+        bdcData?.countryName,
+      ].filter(Boolean);
+      if (parts.length > 0) {
+        return parts.join(", ");
+      }
+    }
+  } catch {
+    // Fallback below
+  }
+
+  try {
+    const osmRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+    );
+    if (!osmRes.ok) return null;
+    const osmData = await osmRes.json();
+    const displayName = typeof osmData?.display_name === "string" ? osmData.display_name.trim() : "";
+    return displayName || null;
+  } catch {
+    return null;
+  }
+}
+
 function mapApiStatus(status: string): AttendanceStatus["status"] {
   switch (status?.toLowerCase()) {
     case "present": return "present";
@@ -191,6 +227,7 @@ export default function MobileDashboardPage() {
   const [locationStatus, setLocationStatus] = useState<"pending" | "available" | "denied">("pending");
   const [cameraStatus, setCameraStatus] = useState<"pending" | "available" | "denied">("pending");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [gpsLocationName, setGpsLocationName] = useState("");
 
   // ── Clock
   const [clockTime, setClockTime] = useState(new Date());
@@ -199,11 +236,6 @@ export default function MobileDashboardPage() {
   const [statusByDate, setStatusByDate] = useState<Record<string, AttendanceStatus>>({});
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-
-  const currentGpsLocation = useMemo(
-    () => (coords ? formatCoordinateLocation(coords.latitude, coords.longitude) : ""),
-    [coords]
-  );
 
   // Store user refs for use in callbacks
   const userRef = useRef({ organizationId: "", userId: "" });
@@ -315,7 +347,11 @@ export default function MobileDashboardPage() {
   }, [parseTodayLogs]);
 
   const handleBreakToggle = async () => {
-    if (!user.organizationId || !user.userId || !hasPunchedInToday || breakLoading) return;
+    if (!user.organizationId || !user.userId || breakLoading) return;
+    if (!isCheckedIn && !isOnBreak) {
+      toast.error("Please punch in before using break.");
+      return;
+    }
     try {
       setBreakLoading(true);
       const res = await toggleBreakStatus({
@@ -382,6 +418,15 @@ export default function MobileDashboardPage() {
             longitude: pos.coords.longitude,
           };
           setCoords(nextCoords);
+          setGpsLocationName("");
+          void reverseGeocodeCoordinates(
+            nextCoords.latitude,
+            nextCoords.longitude
+          ).then((placeName) => {
+            if (placeName) {
+              setGpsLocationName(placeName);
+            }
+          });
           setLocationStatus("available");
           resolve(nextCoords);
         },
@@ -405,7 +450,13 @@ export default function MobileDashboardPage() {
 
     setCameraStatus("pending");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "user" },
+          width: { ideal: 1080 },
+          height: { ideal: 1920 },
+        },
+      });
       stream.getTracks().forEach((track) => track.stop());
       setCameraStatus("available");
       return true;
@@ -605,7 +656,13 @@ export default function MobileDashboardPage() {
       }
 
       navigator.mediaDevices
-        .getUserMedia({ video: { facingMode: "user", aspectRatio: 3 / 4 } })
+        .getUserMedia({
+          video: {
+            facingMode: { ideal: "user" },
+            width: { ideal: 1080 },
+            height: { ideal: 1920 },
+          },
+        })
         .then((stream) => {
           streamRef.current = stream;
           if (videoRef.current) videoRef.current.srcObject = stream;
@@ -683,12 +740,17 @@ export default function MobileDashboardPage() {
       );
 
       if (activeCoords) {
+        const resolvedLocationAddress =
+          gpsLocationName ||
+          (await reverseGeocodeCoordinates(
+            activeCoords.latitude,
+            activeCoords.longitude
+          )) ||
+          formatCoordinateLocation(activeCoords.latitude, activeCoords.longitude);
+
         formData.append("latitude", activeCoords.latitude.toString());
         formData.append("longitude", activeCoords.longitude.toString());
-        formData.append(
-          "locationAddress",
-          formatCoordinateLocation(activeCoords.latitude, activeCoords.longitude)
-        );
+        formData.append("locationAddress", resolvedLocationAddress);
       }
 
       // Convert base64 data URL → Blob
@@ -855,36 +917,88 @@ export default function MobileDashboardPage() {
 
       {/* ── Punch Dialog ── */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setCapturedImage(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent
+          showCloseButton={false}
+          className="!fixed !inset-0 !translate-x-0 !translate-y-0 !w-screen !h-[100svh] !min-h-[100dvh] !max-w-none !rounded-none !border-0 !p-0 !gap-0 bg-black overflow-hidden"
+        >
+          <DialogHeader className="sr-only">
             <DialogTitle>{hasPunchedInToday ? "Last Punch" : "Punch In"}</DialogTitle>
           </DialogHeader>
 
           {!capturedImage ? (
-            <div className="flex flex-col items-center gap-4">
+            <div className="relative h-full w-full overflow-hidden bg-black touch-none">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="w-full aspect-[3/4] rounded-lg bg-black"
+                className="absolute inset-0 h-full w-full object-cover bg-black"
               />
-              <Button onClick={capturePhoto} className="w-full bg-blue-600 text-white">
-                Capture Photo
-              </Button>
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/70" />
+
+              <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),1rem)]">
+                <div className="rounded-full bg-black/45 px-3 py-1 text-xs font-semibold tracking-wide text-white/90 backdrop-blur-sm">
+                  {hasPunchedInToday ? "Last Punch" : "Punch In"}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-black/55 text-white hover:bg-black/75"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[52vh] w-[72vw] max-w-[320px] -translate-x-1/2 -translate-y-1/2 rounded-[42%] border-2 border-white/65 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+
+              <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-3 px-6 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-6">
+                <p className="text-center text-xs font-medium tracking-wide text-white/85">
+                  Align your face inside the frame
+                </p>
+                <button
+                  type="button"
+                  onClick={capturePhoto}
+                  className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-white/20 backdrop-blur-sm transition active:scale-95"
+                >
+                  <span className="h-14 w-14 rounded-full bg-white" />
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-4">
+            <div className="relative h-full w-full overflow-hidden bg-black">
               <img
                 src={capturedImage}
                 alt="Captured"
-                className="w-full aspect-[3/4] rounded-lg border object-cover"
+                className="absolute inset-0 h-full w-full object-cover"
               />
-              <div className="flex gap-2 w-full">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/70" />
+
+              <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),1rem)]">
+                <div className="rounded-full bg-black/45 px-3 py-1 text-xs font-semibold tracking-wide text-white/90 backdrop-blur-sm">
+                  Preview
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-black/55 text-white hover:bg-black/75"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="absolute inset-x-0 bottom-0 z-10 grid grid-cols-2 gap-3 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-6">
+                <Button
+                  onClick={() => setCapturedImage(null)}
+                  disabled={isSubmitting}
+                  variant="outline"
+                  className="h-12 border-white/50 bg-black/35 text-white hover:bg-black/55"
+                >
+                  Retake
+                </Button>
                 <Button
                   onClick={submitPhoto}
                   disabled={isSubmitting}
-                  className={`flex-1 ${
+                  className={`h-12 ${
                     hasPunchedInToday ? "bg-red-500 hover:bg-red-600" : "bg-green-600 hover:bg-green-700"
                   } text-white`}
                 >
@@ -898,14 +1012,6 @@ export default function MobileDashboardPage() {
                   ) : (
                     "Confirm Punch In"
                   )}
-                </Button>
-                <Button
-                  onClick={() => setCapturedImage(null)}
-                  disabled={isSubmitting}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Retake
                 </Button>
               </div>
             </div>
@@ -978,14 +1084,22 @@ export default function MobileDashboardPage() {
                     <p className="text-xs text-gray-500">
                       {isOnBreak && activeBreakSince
                         ? `Since ${formatTime12h(activeBreakSince)}`
-                        : "Not on break"}
+                        : isCheckedIn
+                        ? "Not on break"
+                        : "Punch in required"}
                     </p>
                   </div>
                 </div>
                 <Button
                   onClick={handleBreakToggle}
-                  disabled={!hasPunchedInToday || breakLoading}
-                  className={`${isOnBreak ? "bg-amber-500 hover:bg-amber-600" : "bg-emerald-500 hover:bg-emerald-600"} text-white`}
+                  disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
+                  className={`${
+                    !isCheckedIn && !isOnBreak
+                      ? "bg-gray-400 hover:bg-gray-400"
+                      : isOnBreak
+                      ? "bg-amber-500 hover:bg-amber-600"
+                      : "bg-emerald-500 hover:bg-emerald-600"
+                  } text-white`}
                 >
                   {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
                 </Button>
@@ -1112,38 +1226,11 @@ export default function MobileDashboardPage() {
                   </div>
                 )}
 
-                {(user.location || currentGpsLocation) && (
-                  <div className="flex items-center gap-3">
-                    <MapPin className="w-5 h-5 text-gray-400 shrink-0" />
-                    <div>
-                      <p className="text-xs text-gray-400">Location</p>
-                      <p className="text-sm text-gray-700">{user.location || currentGpsLocation}</p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
             {/* Sidebar Footer */}
             <div className="p-4 border-t border-gray-100">
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
-                onClick={() => {
-                  void requestGeolocation().then((granted) => {
-                    if (!granted) {
-                      toast.error("Location access denied. Enable it in browser settings.");
-                    }
-                  });
-                }}
-              >
-                <MapPin className="w-5 h-5 mr-3" />
-                {locationStatus === "available"
-                  ? "Location: Allowed"
-                  : locationStatus === "denied"
-                  ? "Allow Location (Denied)"
-                  : "Allow Location"}
-              </Button>
               <Button
                 variant="ghost"
                 className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"

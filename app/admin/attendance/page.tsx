@@ -105,6 +105,105 @@ const resolveLocationText = (
   return `Lat ${lat}, Lng ${lng}`;
 };
 
+const coordinateLabelPattern = /^Lat\s*-?\d+(\.\d+)?,\s*Lng\s*-?\d+(\.\d+)?$/i;
+const reverseGeocodeCache = new Map<string, string>();
+
+const isCoordinateLabel = (value?: string): boolean =>
+  coordinateLabelPattern.test((value || "").trim());
+
+async function reverseGeocodeCoordinates(
+  latitude: number,
+  longitude: number
+): Promise<string | null> {
+  try {
+    const bdcRes = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+    );
+    if (bdcRes.ok) {
+      const bdcData = await bdcRes.json();
+      const parts = [
+        bdcData?.locality || bdcData?.city,
+        bdcData?.principalSubdivision,
+        bdcData?.countryName,
+      ].filter(Boolean);
+      if (parts.length > 0) {
+        return parts.join(", ");
+      }
+    }
+  } catch {
+    // Fallback below
+  }
+
+  try {
+    const osmRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+    );
+    if (!osmRes.ok) return null;
+    const osmData = await osmRes.json();
+    const displayName = typeof osmData?.display_name === "string" ? osmData.display_name.trim() : "";
+    return displayName || null;
+  } catch {
+    return null;
+  }
+}
+
+function ResolvedLocationText({
+  locationAddress,
+  latitude,
+  longitude,
+}: {
+  locationAddress?: string;
+  latitude?: number | string;
+  longitude?: number | string;
+}) {
+  const [resolvedLocation, setResolvedLocation] = useState<string | null>(null);
+
+  const trimmedAddress = locationAddress?.trim() || "";
+  const latitudeText = formatCoordinate(latitude);
+  const longitudeText = formatCoordinate(longitude);
+  const coordinateText =
+    latitudeText && longitudeText ? `Lat ${latitudeText}, Lng ${longitudeText}` : null;
+  const coordinateKey =
+    latitudeText && longitudeText ? `${latitudeText},${longitudeText}` : null;
+
+  const hasReadableAddress =
+    Boolean(trimmedAddress) && !isCoordinateLabel(trimmedAddress);
+
+  useEffect(() => {
+    if (!coordinateKey || hasReadableAddress) return;
+
+    const cached = reverseGeocodeCache.get(coordinateKey);
+    if (cached) {
+      setResolvedLocation(cached);
+      return;
+    }
+
+    let cancelled = false;
+    const latNum = Number(latitudeText);
+    const lngNum = Number(longitudeText);
+
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return;
+
+    void reverseGeocodeCoordinates(latNum, lngNum).then((placeName) => {
+      if (cancelled || !placeName) return;
+      reverseGeocodeCache.set(coordinateKey, placeName);
+      setResolvedLocation(placeName);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [coordinateKey, hasReadableAddress, latitudeText, longitudeText]);
+
+  const displayText =
+    (hasReadableAddress ? trimmedAddress : resolvedLocation) ||
+    coordinateText ||
+    trimmedAddress ||
+    "-";
+
+  return <span className="whitespace-normal break-words">{displayText}</span>;
+}
+
 function PhotoDialog({
   imageUrl,
   label,
@@ -299,12 +398,20 @@ const columns: ColumnDef<Attendance>[] = [
         <div className="flex flex-col text-blue-600 text-sm gap-1">
           {inLocation && (
             <div className="flex items-center">
-              <span className="whitespace-normal break-words">{inLocation}</span>
+              <ResolvedLocationText
+                locationAddress={row.original.inLocationAddress}
+                latitude={row.original.inLatitude}
+                longitude={row.original.inLongitude}
+              />
             </div>
           )}
           {!inLocation && outLocation && (
             <div className="flex items-center">
-              <span className="whitespace-normal break-words">{outLocation}</span>
+              <ResolvedLocationText
+                locationAddress={row.original.outLocationAddress}
+                latitude={row.original.outLatitude}
+                longitude={row.original.outLongitude}
+              />
             </div>
           )}
         </div>

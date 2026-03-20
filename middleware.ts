@@ -5,10 +5,39 @@ export function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const userCookie = req.cookies.get("user")?.value;
   const userRoleCookie = req.cookies.get("user_role")?.value;
+  const isSigninRoute = pathname === "/signin";
 
   // Protected routes
   const isUserRoute = pathname.startsWith("/user");
   const isAdminRoute = pathname.startsWith("/admin");
+
+  // If already authenticated and visiting signin, redirect to the appropriate dashboard.
+  if (isSigninRoute && userCookie && userRoleCookie) {
+    const role = userRoleCookie.toUpperCase();
+    const isAdminSideRole = role === "ADMIN" || role === "HR";
+    const isEmployeeRole = role === "EMPLOYEE";
+
+    if (isAdminSideRole || isEmployeeRole) {
+      const ua = req.headers.get("user-agent") || "";
+      const isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile|WPDesktop|Mobile/i.test(
+          ua
+        );
+      const url = req.nextUrl.clone();
+      url.pathname = isAdminSideRole
+        ? "/admin/dashboard"
+        : isMobile
+          ? "/user/dashboard/mobile"
+          : "/user/dashboard";
+      const response = NextResponse.redirect(url);
+      if (isEmployeeRole) {
+        response.cookies.set("dashboard-view", isMobile ? "mobile" : "desktop", {
+          path: "/",
+        });
+      }
+      return response;
+    }
+  }
 
   // If not authenticated and trying to access protected routes, redirect to signin
   if (!userCookie || !userRoleCookie) {
@@ -68,5 +97,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/user/:path*", "/admin/:path*"],
+  matcher: ["/signin", "/user/:path*", "/admin/:path*"],
 };

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { login } from "../api/api";
 import { Eye, EyeOff, ArrowRight, Shield, Zap, Users, BarChart3, CheckCircle, Lock } from "lucide-react";
@@ -19,16 +19,61 @@ export default function LoginPage() {
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [pendingAuthData, setPendingAuthData] = useState<{ user: any; access_token: string; cookieMaxAge: number } | null>(null);
 
+  const isLikelyMobileDevice = () => {
+    if (typeof window === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    const mobileUa = /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile|WPDesktop|Mobile/i.test(
+      ua
+    );
+    const narrowViewport = window.matchMedia("(max-width: 1024px)").matches;
+    return mobileUa || narrowViewport;
+  };
+
+  const getPostLoginRoute = (role: "ADMIN" | "EMPLOYEE") => {
+    if (role === "ADMIN") return "/admin/dashboard";
+    return isLikelyMobileDevice() ? "/user/dashboard/mobile" : "/user/dashboard";
+  };
+
+  const writeAuthCookies = (
+    userParams: any,
+    chosenRole: "ADMIN" | "EMPLOYEE",
+    cookieMaxAge: number
+  ) => {
+    document.cookie = `user=${encodeURIComponent(JSON.stringify(userParams))}; path=/; max-age=${cookieMaxAge}`;
+    document.cookie = `user_role=${chosenRole}; path=/; max-age=${cookieMaxAge}`;
+    if (chosenRole === "EMPLOYEE") {
+      document.cookie = `dashboard-view=${isLikelyMobileDevice() ? "mobile" : "desktop"}; path=/; max-age=${cookieMaxAge}`;
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const token = localStorage.getItem("access_token");
+      const rawUser = localStorage.getItem("user");
+      const rawRole = localStorage.getItem("user_role");
+      if (!token || !rawUser || !rawRole) return;
+
+      const normalizedRole = rawRole.toUpperCase();
+      if (normalizedRole !== "ADMIN" && normalizedRole !== "EMPLOYEE") return;
+
+      const parsedUser = JSON.parse(rawUser);
+      writeAuthCookies(parsedUser, normalizedRole, 2592000);
+      router.replace(getPostLoginRoute(normalizedRole));
+    } catch {
+      // ignore malformed local storage and stay on login
+    }
+  }, [router]);
+
   const finalizeLogin = (userParams: any, token: string, cookieMaxAge: number, chosenRole: "ADMIN" | "EMPLOYEE") => {
     localStorage.setItem("access_token", token);
     localStorage.setItem("user", JSON.stringify(userParams));
     localStorage.setItem("user_role", chosenRole);
-    document.cookie = `user=${encodeURIComponent(JSON.stringify(userParams))}; path=/; max-age=${cookieMaxAge}`;
-    document.cookie = `user_role=${chosenRole}; path=/; max-age=${cookieMaxAge}`;
+    writeAuthCookies(userParams, chosenRole, cookieMaxAge);
 
     toast.success("Welcome back! 🎉");
     setTimeout(() => {
-      router.push(chosenRole === "ADMIN" ? "/admin/dashboard" : "/user/dashboard");
+      router.push(getPostLoginRoute(chosenRole));
     }, 100);
   };
 
