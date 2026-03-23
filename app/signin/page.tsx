@@ -507,29 +507,16 @@ export default function LoginPage() {
 
         @media (max-width: 1024px) {
           .left-panel { display: none !important; }
-          .mobile-bar { display: flex !important; }
           .right-panel { padding: 48px 28px; }
           .login-main { flex-direction: column; }
         }
 
         @media (max-width: 768px) {
           .right-panel { padding: 40px 24px; }
-          .bottom-footer { flex-direction: column; text-align: center; padding: 16px 24px; }
         }
       `}</style>
 
       <div className="login-root">
-
-        {/* ── Mobile topbar ── */}
-        <div className="mobile-bar">
-          <div className="logo-mark">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-              <path d="M12 2v15M4 7l8 5 8-5" stroke="white" strokeWidth="2"/>
-            </svg>
-          </div>
-          <span style={{ fontSize: 18, fontWeight: 700 }} className="gradient-text">Avinya HRMS</span>
-        </div>
 
         {/* ── Main split ── */}
         <div className="login-main" style={{ flex: 1, display: "flex" }}>
@@ -546,7 +533,7 @@ export default function LoginPage() {
               style={{ position: "relative", zIndex: 1, maxWidth: 440 }}
             >
               {/* Logo */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 48 }}>
+              <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 48, textDecoration: "none" }}>
                 <div className="logo-mark">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                     <path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
@@ -554,7 +541,7 @@ export default function LoginPage() {
                   </svg>
                 </div>
                 <span style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Avinya HRMS</span>
-              </div>
+              </Link>
 
               <h1 style={{ fontSize: "clamp(28px, 3.5vw, 46px)", fontWeight: 800, color: "#fff", lineHeight: 1.1, letterSpacing: "-1.2px", marginBottom: 16 }}>
                 Welcome back to<br />
@@ -722,15 +709,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* ── Footer ── */}
-        <div className="bottom-footer">
-          <span className="footer-text">© 2026 Avinya HRMS. All rights reserved.</span>
-          <div style={{ display: "flex", gap: 20 }}>
-            {[["Privacy", "/privacy"], ["Terms", "/terms"], ["Support", "/support"]].map(([label, href]) => (
-              <Link key={label} href={href} className="footer-link">{label}</Link>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Role Selection Modal */}

@@ -6,7 +6,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft,
   ArrowRight,
   Mail,
   Phone,
@@ -171,40 +170,8 @@ export default function ContactSalesPage() {
         }
       `}</style>
 
-      {/* ══════════════════ NAV ══════════════════ */}
-      <nav className="nav-glass" style={{ position: "sticky", top: 0, zIndex: 50, width: "100%" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 68 }}>
-            
-            <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
-              style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div className="logo-mark">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-                  <path d="M12 2v15M4 7l8 5 8-5" stroke="white" strokeWidth="2"/>
-                </svg>
-              </div>
-              <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.3px" }} className="gradient-text">
-                Avinya HRMS
-              </span>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }}>
-              <button
-                onClick={() => router.push("/")}
-                style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 500, color: "#475569", fontFamily: "inherit", padding: "8px 14px", borderRadius: 8, transition: "all .2s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#184a8c"; (e.currentTarget as HTMLElement).style.background = "rgba(24,74,140,0.06)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#475569"; (e.currentTarget as HTMLElement).style.background = "none"; }}
-              >
-                <ArrowLeft size={15} /> Back to Home
-              </button>
-            </motion.div>
-          </div>
-        </div>
-      </nav>
-
       {/* ══════════════════ MAIN SPLIT ══════════════════ */}
-      <main style={{ flex: 1, display: "flex", minHeight: "calc(100vh - 68px)" }}>
+      <main style={{ flex: 1, display: "flex" }}>
 
         {/* ── LEFT PANEL ── */}
         <div style={{ flex: "0 0 48%", background: "linear-gradient(150deg, #0f2d5c 0%, #184a8c 45%, #1a6db5 75%, #00b4db 100%)", padding: "72px 60px", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -384,51 +351,6 @@ export default function ContactSalesPage() {
         </div>
       </main>
 
-      {/* ══════════════════ FOOTER ══════════════════ */}
-      <footer style={{ background: "#0a0f1a", padding: "48px 24px 28px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          
-          {/* Top row */}
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 48, marginBottom: 40, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <div className="logo-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round"/><path d="M12 2v15M4 7l8 5 8-5" stroke="white" strokeWidth="2"/></svg></div>
-                <span style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>Avinya HRMS</span>
-              </div>
-              <p style={{ fontSize: 14, color: "#64748b", lineHeight: 1.75, maxWidth: 260, margin: "0 0 20px" }}>
-                Modern HR infrastructure for forward-thinking businesses. Trusted by 500+ companies globally.
-              </p>
-              <div style={{ display: "flex", gap: 10 }}>
-                {["Twitter", "LinkedIn", "Facebook"].map(s => (
-                  <a key={s} href="#" className="footer-link" style={{ padding: "5px 10px", border: "1px solid #1e293b", borderRadius: 7, fontSize: 12, fontWeight: 600 }}>{s}</a>
-                ))}
-              </div>
-            </div>
-
-            {[
-              { heading: "Product",  links: ["Features", "Pricing", "Changelog", "Demo"] },
-              { heading: "Company",  links: ["About", "Blog", "Careers", "Press"] },
-              { heading: "Support",  links: ["Help Center", "Privacy", "Terms", "Contact"] },
-            ].map(col => (
-              <div key={col.heading}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#fff", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 18 }}>{col.heading}</div>
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {col.links.map(l => <li key={l} style={{ marginBottom: 10 }}><a href="#" className="footer-link">{l}</a></li>)}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ borderTop: "1px solid #1e293b", paddingTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14 }}>
-            <span style={{ fontSize: 13, color: "#475569" }}>© 2026 Avinya HRMS. All rights reserved.</span>
-            <div style={{ display: "flex", gap: 20 }}>
-              {["Privacy Policy", "Terms of Service", "Security"].map(l => (
-                <a key={l} href="#" className="footer-link">{l}</a>
-              ))}
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

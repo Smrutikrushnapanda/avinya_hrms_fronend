@@ -411,44 +411,6 @@ export default function Home() {
         }
       `}</style>
 
-      {/* ══════════════════ NAV ══════════════════ */}
-      <nav className="nav-glass sticky top-0 z-50 w-full">
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 68 }}>
-            
-            {/* Logo */}
-            <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
-              style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div className="logo-mark">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-                  <path d="M12 2v15M4 7l8 5 8-5" stroke="white" strokeWidth="2"/>
-                </svg>
-              </div>
-              <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.3px" }} className="gradient-text">
-                Avinya HRMS
-              </span>
-            </motion.div>
-
-            {/* Nav links — desktop */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { delay: 0.1 } }}
-              style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                onClick={() => router.push("/contact-sales")}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "8px 16px", borderRadius: 8, fontSize: 14, fontWeight: 500, color: "#475569", fontFamily: "inherit", transition: "color .2s" }}
-                onMouseEnter={e => (e.currentTarget.style.color = "#184a8c")}
-                onMouseLeave={e => (e.currentTarget.style.color = "#475569")}
-              >
-                Contact Sales
-              </button>
-              <button className="btn-primary" onClick={() => router.push("/signin")} style={{ padding: "10px 22px", fontSize: 14 }}>
-                Get Started <ArrowRight size={14} />
-              </button>
-            </motion.div>
-          </div>
-        </div>
-      </nav>
-
       {/* ══════════════════ HERO ══════════════════ */}
       <motion.section
         style={{ y: heroY }}
@@ -496,7 +458,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0, transition: { delay: 0.45 } }}
               style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}
             >
-              <button className="btn-primary" onClick={() => router.push("/signup")}>
+              <button className="btn-primary" onClick={() => router.push("/pricing")}>
                 Start Free Trial <ArrowRight size={16} />
               </button>
               <button className="btn-outline" onClick={() => {}}>
@@ -775,7 +737,7 @@ export default function Home() {
           </p>
 
           <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", marginBottom: 36 }}>
-            <button className="btn-white" onClick={() => router.push("/signup")}>
+            <button className="btn-white" onClick={() => router.push("/pricing")}>
               Start Free Trial <ArrowRight size={16} />
             </button>
             <button
@@ -798,66 +760,6 @@ export default function Home() {
         </motion.div>
       </section>
 
-      {/* ══════════════════ FOOTER ══════════════════ */}
-      <footer style={{ background: "#0a0f1a", padding: "72px 24px 32px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          
-          {/* Top row */}
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 48, marginBottom: 56, flexWrap: "wrap" }}>
-            
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <div className="logo-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round"/><path d="M12 2v15M4 7l8 5 8-5" stroke="white" strokeWidth="2"/></svg></div>
-                <span style={{ fontSize: 17, fontWeight: 700, color: "#fff" }}>Avinya HRMS</span>
-              </div>
-              <p style={{ fontSize: 14, color: "#64748b", lineHeight: 1.75, maxWidth: 260, margin: "0 0 24px" }}>
-                Modern HR infrastructure for forward-thinking businesses. Trusted by 500+ companies globally.
-              </p>
-              <div style={{ display: "flex", gap: 10 }}>
-                {["Twitter", "LinkedIn", "Facebook"].map(s => (
-                  <a key={s} href="#" style={{ fontSize: 12, fontWeight: 600, color: "#64748b", textDecoration: "none", padding: "6px 12px", border: "1px solid #1e293b", borderRadius: 8, transition: "all .2s" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#fff"; (e.currentTarget as HTMLElement).style.borderColor = "#334155"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "#64748b"; (e.currentTarget as HTMLElement).style.borderColor = "#1e293b"; }}
-                  >{s}</a>
-                ))}
-              </div>
-            </div>
-
-            {[
-              { heading: "Product",  links: ["Features", "Pricing", "Changelog", "Demo"] },
-              { heading: "Company",  links: ["About", "Blog", "Careers", "Press"] },
-              { heading: "Support",  links: ["Help Center", "Privacy", "Terms", "Contact"] },
-            ].map(col => (
-              <div key={col.heading}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 20 }}>{col.heading}</div>
-                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                  {col.links.map(l => (
-                    <li key={l} style={{ marginBottom: 12 }}>
-                      <a href="#" style={{ fontSize: 14, color: "#64748b", textDecoration: "none", transition: "color .2s" }}
-                        onMouseEnter={e => (e.currentTarget.style.color = "#94a3b8")}
-                        onMouseLeave={e => (e.currentTarget.style.color = "#64748b")}
-                      >{l}</a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          {/* Bottom bar */}
-          <div style={{ borderTop: "1px solid #1e293b", paddingTop: 28, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-            <span style={{ fontSize: 13, color: "#475569" }}>© 2026 Avinya HRMS. All rights reserved.</span>
-            <div style={{ display: "flex", gap: 24 }}>
-              {["Privacy Policy", "Terms of Service", "Security"].map(l => (
-                <a key={l} href="#" style={{ fontSize: 13, color: "#475569", textDecoration: "none" }}
-                  onMouseEnter={e => (e.currentTarget.style.color = "#94a3b8")}
-                  onMouseLeave={e => (e.currentTarget.style.color = "#475569")}
-                >{l}</a>
-              ))}
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
