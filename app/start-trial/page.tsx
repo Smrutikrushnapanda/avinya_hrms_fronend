@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle, Shield, Users, Zap } from "lucide-react";
+import { startTrialSignup } from "@/app/api/api";
 
 type TrialFormData = {
   name: string;
@@ -23,10 +23,10 @@ const initialFormData: TrialFormData = {
 };
 
 export default function StartTrialPage() {
-  const router = useRouter();
   const [formData, setFormData] = useState<TrialFormData>(initialFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -38,6 +38,7 @@ export default function StartTrialPage() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
+    setSuccessMessage("");
 
     if (!formData.name || !formData.email || !formData.company || !formData.teamSize) {
       setError("Please fill all required fields.");
@@ -58,16 +59,28 @@ export default function StartTrialPage() {
         submittedAt: new Date().toISOString(),
       };
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem("trial_signup_request", JSON.stringify(payload));
-      }
+      const response = await startTrialSignup(payload);
+      const messageFromApi = response?.data?.message;
+      const message =
+        typeof messageFromApi === "string" && messageFromApi.trim().length > 0
+          ? messageFromApi
+          : "Username and password have been sent to your mail.";
 
-      toast.success("Trial started successfully. Continue to sign in.");
+      toast.success(message);
+      setSuccessMessage("Username and password have been sent to your mail.");
       setFormData(initialFormData);
-      router.push("/signin");
     } catch (submitError) {
       console.error("Trial form submission failed:", submitError);
-      setError("Unable to start trial right now. Please try again.");
+      const apiMessage = (
+        submitError as { response?: { data?: { message?: string | string[] } } }
+      )?.response?.data?.message;
+      if (Array.isArray(apiMessage) && apiMessage.length > 0) {
+        setError(String(apiMessage[0]));
+      } else if (typeof apiMessage === "string" && apiMessage.trim().length > 0) {
+        setError(apiMessage);
+      } else {
+        setError("Unable to start trial right now. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -375,6 +388,13 @@ export default function StartTrialPage() {
           margin-top: 4px;
         }
 
+        .success-text {
+          font-size: 13px;
+          color: #15803d;
+          font-weight: 500;
+          margin-top: 4px;
+        }
+
         @media (max-width: 1024px) {
           .trial-main {
             grid-template-columns: 1fr;
@@ -533,6 +553,7 @@ export default function StartTrialPage() {
               </div>
 
               {error ? <p className="error-text">{error}</p> : null}
+              {successMessage ? <p className="success-text">{successMessage}</p> : null}
 
               <button type="submit" className="submit-btn" disabled={isSubmitting}>
                 {isSubmitting ? "Starting Trial..." : "Start Free Trial"} <ArrowRight size={16} />

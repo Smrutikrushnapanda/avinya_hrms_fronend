@@ -1228,34 +1228,6 @@ export default function MobileDashboardPage() {
               <Button
                 variant="ghost"
                 className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
-                onClick={() => {
-                  void requestCameraAccess();
-                }}
-              >
-                <Camera className="w-5 h-5 mr-3" />
-                {cameraStatus === "available"
-                  ? "Camera: Allowed"
-                  : cameraStatus === "denied"
-                  ? "Allow Camera (Denied)"
-                  : "Allow Camera"}
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
-                onClick={() => {
-                  void requestGeolocation();
-                }}
-              >
-                <MapPin className="w-5 h-5 mr-3" />
-                {locationStatus === "available"
-                  ? "Location: Allowed"
-                  : locationStatus === "denied"
-                  ? "Allow Location (Denied)"
-                  : "Allow Location"}
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
                 onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
               >
                 {isDarkTheme ? <Sun className="w-5 h-5 mr-3" /> : <Moon className="w-5 h-5 mr-3" />}

@@ -53,6 +53,15 @@ api.interceptors.response.use(
 // 🏢 Organization APIs
 export const getOrganizations = () => api.get("/organizations");
 export const createOrganization = (data: any) => api.post("/organizations", data);
+export const startTrialSignup = (data: {
+  name: string;
+  email: string;
+  company: string;
+  teamSize: string;
+  phone?: string;
+  source?: string;
+  submittedAt?: string;
+}) => api.post("/organizations/start-trial", data);
 export const updateOrganization = (id: string, data: any) => api.put(`/organizations/${id}`, data);
 export const getOrganization = (id: string) => api.get(`/organizations/${id}`);
 export const deleteOrganization = (id: string) => api.delete(`/organizations/${id}`);

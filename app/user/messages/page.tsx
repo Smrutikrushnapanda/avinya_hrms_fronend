@@ -31,6 +31,7 @@ import {
   Video,
   Clipboard,
   Info,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
@@ -902,6 +903,25 @@ export default function MessagesPage() {
     }
   };
 
+  const downloadFile = async (url: string, fileName?: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const urlBlob = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = urlBlob;
+      link.download = fileName || "download";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(urlBlob);
+      toast.success("Download started");
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast.error("Download failed");
+    }
+  };
+
   const loadJitsiScript = () =>
     new Promise<void>((resolve, reject) => {
       if (typeof window === "undefined") return reject(new Error("window unavailable"));
@@ -1395,34 +1415,54 @@ export default function MessagesPage() {
                                   const isImage = attachment.type === "image";
                                   const url = resolveAttachmentUrl(attachment.url);
                                   return isImage ? (
-                                    <a
-                                      key={attachment.id}
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
-                                    >
-                                      <img
-                                        src={url}
-                                        alt={attachment.fileName || "Image"}
-                                        className="max-h-60 w-full object-cover"
-                                      />
-                                    </a>
+                                    <div key={attachment.id} className="relative group overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block"
+                                      >
+                                        <img
+                                          src={url}
+                                          alt={attachment.fileName || "Image"}
+                                          className="max-h-60 w-full object-cover"
+                                        />
+                                      </a>
+                                      <button
+                                        onClick={() => downloadFile(url, attachment.fileName || "image")}
+                                        className="absolute top-2 right-2 p-2 rounded-full bg-black/40 hover:bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        title="Download image"
+                                      >
+                                        <Download className="w-4 h-4 text-white" />
+                                      </button>
+                                    </div>
                                   ) : (
-                                    <a
-                                      key={attachment.id}
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs ${
-                                        isMine
-                                          ? "bg-white/20 text-white"
-                                          : "bg-slate-100 text-slate-700"
-                                      }`}
-                                    >
-                                      <Paperclip className="h-3.5 w-3.5" />
-                                      <span className="truncate">{attachment.fileName || "File"}</span>
-                                    </a>
+                                    <div key={attachment.id} className="flex items-center justify-between group">
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs flex-1 ${
+                                          isMine
+                                            ? "bg-white/20 text-white"
+                                            : "bg-slate-100 text-slate-700"
+                                        }`}
+                                      >
+                                        <Paperclip className="h-3.5 w-3.5 flex-shrink-0" />
+                                        <span className="truncate">{attachment.fileName || "File"}</span>
+                                      </a>
+                                      <button
+                                        onClick={() => downloadFile(url, attachment.fileName || "file")}
+                                        className={`ml-2 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
+                                          isMine
+                                            ? "hover:bg-white/20 text-white"
+                                            : "hover:bg-slate-200 text-slate-700"
+                                        }`}
+                                        title="Download file"
+                                      >
+                                        <Download className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   );
                                 })}
                               </div>

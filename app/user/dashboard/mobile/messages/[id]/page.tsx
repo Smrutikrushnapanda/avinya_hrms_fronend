@@ -20,6 +20,7 @@ import {
   Clipboard,
   Info,
   Users,
+  Download,
 } from "lucide-react";
 import { getChatMessages, getProfile, sendChatMessage } from "@/app/api/api";
 import { createMessageSocket } from "@/lib/socket";
@@ -294,6 +295,24 @@ export default function MobileChatPage() {
       await navigator.clipboard.writeText(text);
     } catch {
       /* ignore */
+    }
+  };
+
+  const downloadFile = async (url: string, fileName?: string) => {
+    try {
+      const resolvedUrl = resolveAttachmentUrl(url);
+      const response = await fetch(resolvedUrl);
+      const blob = await response.blob();
+      const urlBlob = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = urlBlob;
+      link.download = fileName || "download";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(urlBlob);
+    } catch (error) {
+      console.error("Download failed:", error);
     }
   };
 
@@ -634,7 +653,7 @@ export default function MobileChatPage() {
 
       {/* ── STICKY HEADER (never scrolls) ── */}
       <div
-        className="sticky top-0 z-20 shrink-0 cursor-pointer bg-[#005F90] px-4 pb-2.5 pt-[max(32px,env(safe-area-inset-top))] flex items-center gap-2.5"
+        className="sticky top-0 z-20 shrink-0 cursor-pointer bg-[#005F90] px-4 pb-3 pt-[max(32px,env(safe-area-inset-top))] flex items-center gap-2.5"
         onClick={() => setShowChatDetails(true)}
       >
         <button
@@ -648,22 +667,22 @@ export default function MobileChatPage() {
           <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <div className="w-9 h-9 rounded-full bg-white/20 overflow-hidden flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-white/20 overflow-hidden flex items-center justify-center flex-shrink-0">
           {avatar ? (
             <Image
               src={resolveAttachmentUrl(avatar)}
               alt={title}
-              width={36}
-              height={36}
+              width={40}
+              height={40}
               className="w-full h-full object-cover"
               unoptimized
             />
           ) : (
-            <span className="font-bold text-white">{title.charAt(0).toUpperCase()}</span>
+            <span className="font-bold text-white text-base">{title.charAt(0).toUpperCase()}</span>
           )}
         </div>
 
-        <div className="ml-2.5 min-w-0">
+        <div className="ml-2.5 min-w-0 flex-1">
           <p className="text-[15px] font-bold text-white truncate">{title}</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             {chatType === "GROUP" ? (
@@ -747,7 +766,7 @@ export default function MobileChatPage() {
       ) : null}
 
       {/* ── SCROLLABLE MESSAGE LIST (only this zone scrolls) ── */}
-      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-4 bg-background">
+      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-3 bg-background space-y-2.5">
         {loading ? (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Loading messages...</div>
         ) : messages.length === 0 ? (
@@ -777,7 +796,7 @@ export default function MobileChatPage() {
                   ) : (
                   <div className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-[78%] px-2.5 py-2 rounded-xl ${
+                      className={`max-w-[80%] px-3 py-2 rounded-xl text-[13px] ${
                         isMine
                           ? "bg-[#005F90] text-white rounded-tr-none"
                           : "bg-card border border-border text-foreground rounded-tl-none"
@@ -811,37 +830,59 @@ export default function MobileChatPage() {
                         <div className="mt-1.5 space-y-1.5">
                           {message.attachments.map((attachment) =>
                             attachment.type === "image" ? (
-                              <a
-                                key={attachment.id}
-                                href={resolveAttachmentUrl(attachment.url)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block"
-                              >
-                                <Image
-                                  src={resolveAttachmentUrl(attachment.url)}
-                                  alt={attachment.fileName || "Image"}
-                                  width={220}
-                                  height={160}
-                                  unoptimized
-                                  className="rounded-lg object-cover"
-                                />
-                              </a>
+                              <div key={attachment.id} className="relative group">
+                                <a
+                                  href={resolveAttachmentUrl(attachment.url)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block"
+                                >
+                                  <Image
+                                    src={resolveAttachmentUrl(attachment.url)}
+                                    alt={attachment.fileName || "Image"}
+                                    width={220}
+                                    height={160}
+                                    unoptimized
+                                    className="rounded-lg object-cover"
+                                  />
+                                </a>
+                                <button
+                                  onClick={() => downloadFile(attachment.url, attachment.fileName || "image")}
+                                  className={`absolute top-2 right-2 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
+                                    isMine ? "bg-black/40 hover:bg-black/60" : "bg-white/40 hover:bg-white/60"
+                                  }`}
+                                  title="Download image"
+                                  aria-label="Download image"
+                                >
+                                  <Download className={`w-4 h-4 ${isMine ? "text-white" : "text-slate-700"}`} />
+                                </button>
+                              </div>
                             ) : (
-                              <a
-                                key={attachment.id}
-                                href={resolveAttachmentUrl(attachment.url)}
-                                target="_blank"
-                                rel="noreferrer"
-                                className={`flex items-center gap-1.5 rounded-md px-2 py-1 ${
-                                  isMine ? "bg-white/20" : "bg-muted"
-                                }`}
-                              >
-                                <File className={`w-3.5 h-3.5 ${isMine ? "text-white" : "text-muted-foreground"}`} />
-                                <span className={`text-[11px] truncate ${isMine ? "text-white" : "text-foreground/90"}`}>
-                                  {attachment.fileName || "File"}
-                                </span>
-                              </a>
+                              <div key={attachment.id} className="flex items-center justify-between group">
+                                <a
+                                  href={resolveAttachmentUrl(attachment.url)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`flex items-center gap-1.5 rounded-md px-2 py-1 flex-1 ${
+                                    isMine ? "bg-white/20" : "bg-muted"
+                                  }`}
+                                >
+                                  <File className={`w-3.5 h-3.5 flex-shrink-0 ${isMine ? "text-white" : "text-muted-foreground"}`} />
+                                  <span className={`text-[11px] truncate ${isMine ? "text-white" : "text-foreground/90"}`}>
+                                    {attachment.fileName || "File"}
+                                  </span>
+                                </a>
+                                <button
+                                  onClick={() => downloadFile(attachment.url, attachment.fileName || "file")}
+                                  className={`ml-2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
+                                    isMine ? "hover:bg-white/20 text-white" : "hover:bg-muted text-muted-foreground"
+                                  }`}
+                                  title="Download file"
+                                  aria-label="Download file"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             ),
                           )}
                         </div>
@@ -885,16 +926,16 @@ export default function MobileChatPage() {
        * column shrinks → this bar naturally sits right above the keyboard.
        * `pb-[env(safe-area-inset-bottom)]` handles iPhone home-indicator notch.
        */}
-      <div className="shrink-0 border-t border-border bg-card px-3 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]">
+      <div className="shrink-0 border-t border-border bg-card px-3 py-2.5 pb-[max(8px,env(safe-area-inset-bottom))]">
         {selectedFiles.length > 0 ? (
           <div className="mb-2 flex flex-wrap gap-2">
             {selectedFiles.map((file, index) => (
               <div
                 key={`${file.name}-${index}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 text-xs text-foreground/90"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted px-2.5 py-1.5 text-xs text-foreground/90"
               >
-                <span className="max-w-[120px] truncate">{file.name}</span>
-                <button onClick={() => removeFile(index)}>
+                <span className="max-w-[100px] truncate">{file.name}</span>
+                <button onClick={() => removeFile(index)} className="text-muted-foreground hover:text-foreground">
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -903,11 +944,11 @@ export default function MobileChatPage() {
         ) : null}
 
         {showEmojiMenu ? (
-          <div className="mb-2 rounded-lg overflow-hidden border border-border">
+          <div className="mb-2.5 rounded-lg overflow-hidden border border-border bg-muted/30">
             <EmojiPicker
               lazyLoadEmojis
               width="100%"
-              height={260}
+              height={240}
               onEmojiClick={(emoji: EmojiClickData) => {
                 setComposerText((prev) => `${prev}${emoji.emoji}`);
               }}
@@ -915,29 +956,29 @@ export default function MobileChatPage() {
           </div>
         ) : null}
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2 bg-muted/50 rounded-full px-2 py-1.5">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-8 h-8 flex items-center justify-center text-muted-foreground"
+            className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Attachment"
           >
-            <Paperclip className="w-5 h-5" />
+            <Paperclip className="w-4.5 h-4.5" />
           </button>
 
           <button
             onClick={() => imageInputRef.current?.click()}
-            className="w-8 h-8 flex items-center justify-center text-muted-foreground"
+            className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Photo"
           >
-            <ImageIcon className="w-5 h-5" />
+            <ImageIcon className="w-4.5 h-4.5" />
           </button>
 
           <button
             onClick={() => setShowEmojiMenu((prev) => !prev)}
-            className="w-8 h-8 flex items-center justify-center text-muted-foreground"
+            className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Emoji"
           >
-            <Smile className="w-5 h-5" />
+            <Smile className="w-4.5 h-4.5" />
           </button>
 
           <input
@@ -950,14 +991,14 @@ export default function MobileChatPage() {
                 void sendMessage();
               }
             }}
-            placeholder="Type a message"
-            className="flex-1 h-10 px-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="Type a message..."
+            className="flex-1 h-9 px-3 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
           />
 
           <button
             onClick={() => void sendMessage()}
             disabled={sending || (!composerText.trim() && selectedFiles.length === 0)}
-            className="w-9 h-9 rounded-full bg-[#005F90] text-white flex items-center justify-center disabled:bg-muted"
+            className="w-9 h-9 rounded-full bg-[#005F90] text-white flex items-center justify-center disabled:bg-muted/60 disabled:text-muted-foreground transition-colors"
             aria-label="Send"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
