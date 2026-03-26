@@ -366,6 +366,21 @@ const [holidays, setHolidays] = useState<any[]>([]);
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!organizationId) return;
+    const refreshLiveBreak = async () => {
+      try {
+        const res = await getLiveBreakOverview(organizationId);
+        setLiveBreakData(res.data);
+      } catch {
+        // keep previous live break state on transient failures
+      }
+    };
+    refreshLiveBreak();
+    const interval = setInterval(refreshLiveBreak, 20 * 1000);
+    return () => clearInterval(interval);
+  }, [organizationId]);
+
   const loadDashboardData = async () => {
     setLoading(true);
     try {

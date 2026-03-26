@@ -15,6 +15,10 @@ import api, {
   createBranch,
   updateBranch,
   deleteBranch,
+  getShifts,
+  createShift,
+  updateShift,
+  deleteShift,
 } from "@/app/api/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -81,6 +85,22 @@ interface Branch {
   createdAt: string;
 }
 
+interface Shift {
+  id: string;
+  name: string;
+  description?: string | null;
+  workStartTime: string;
+  workEndTime: string;
+  graceMinutes: number;
+  lateThresholdMinutes: number;
+  halfDayCutoffTime?: string;
+  workingDays?: number[];
+  weekdayOffRules?: Record<string, number[]>;
+  isActive: boolean;
+  organizationId: string;
+  createdAt: string;
+}
+
 const defaultSettings: AttendanceSettings = {
   workStartTime: "09:00:00",
   workEndTime: "18:00:00",
@@ -126,6 +146,35 @@ const defaultBranchForm = {
   isActive: true,
 };
 
+type ShiftFormState = {
+  name: string;
+  description: string;
+  workStartTime: string;
+  workEndTime: string;
+  graceMinutes: string;
+  lateThresholdMinutes: string;
+  halfDayCutoffTime: string;
+  workingDays: number[];
+  weekdayOffRules: Record<string, number[]>;
+  isActive: boolean;
+};
+
+const createDefaultShiftForm = (base: AttendanceSettings = defaultSettings): ShiftFormState => ({
+  name: "",
+  description: "",
+  workStartTime: (base.workStartTime || "09:00:00").slice(0, 5),
+  workEndTime: (base.workEndTime || "18:00:00").slice(0, 5),
+  graceMinutes: String(base.graceMinutes ?? 15),
+  lateThresholdMinutes: String(base.lateThresholdMinutes ?? 30),
+  halfDayCutoffTime: (base.halfDayCutoffTime || "14:00:00").slice(0, 5),
+  workingDays:
+    Array.isArray(base.workingDays) && base.workingDays.length
+      ? base.workingDays
+      : [1, 2, 3, 4, 5, 6],
+  weekdayOffRules: base.weekdayOffRules || {},
+  isActive: true,
+});
+
 const sanitizeIntInput = (value: string) => value.replace(/[^0-9]/g, "");
 const sanitizeFloatInput = (value: string) => value.replace(/[^0-9.-]/g, "");
 const normalizeBranchName = (value: string) => value.trim().replace(/\s+/g, " ");
@@ -166,6 +215,15 @@ export default function AttendanceSettingsPage() {
     workingDays: defaultBranchForm.workingDays,
     weekdayOffRules: defaultBranchForm.weekdayOffRules,
   });
+
+  // Shift state
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [shiftLoading, setShiftLoading] = useState(false);
+  const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
+  const [shiftSaving, setShiftSaving] = useState(false);
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [shiftForm, setShiftForm] = useState<ShiftFormState>(() => createDefaultShiftForm(defaultSettings));
+  const [shiftDeleteId, setShiftDeleteId] = useState<string | null>(null);
 
   const handleBranchSave = async () => {
     if (!organizationId) {
@@ -250,6 +308,7 @@ export default function AttendanceSettingsPage() {
           fetchSettings(orgId).then(() => fetchOrgValidationSettings(orgId));
           fetchWifiNetworks(orgId);
           fetchBranches(orgId);
+          fetchShifts(orgId);
         } else {
           setLoading(false);
           toast.error("Organization not found. Please login again.");
@@ -318,6 +377,18 @@ export default function AttendanceSettingsPage() {
       console.error("Error fetching branches:", error);
     } finally {
       setBranchLoading(false);
+    }
+  };
+
+  const fetchShifts = async (orgId: string) => {
+    setShiftLoading(true);
+    try {
+      const response = await getShifts(orgId);
+      setShifts(response.data || []);
+    } catch (error) {
+      console.error("Error fetching shifts:", error);
+    } finally {
+      setShiftLoading(false);
     }
   };
 
@@ -574,6 +645,38 @@ export default function AttendanceSettingsPage() {
     });
   };
 
+  const toggleShiftWorkingDay = (day: number) => {
+    setShiftForm((prev) => {
+      const set = new Set(prev.workingDays || []);
+      if (set.has(day)) {
+        if (set.size === 1) {
+          toast.error("At least one working day is required.");
+          return prev;
+        }
+        set.delete(day);
+      } else {
+        set.add(day);
+      }
+      const ordered = Array.from(set).sort((a, b) => {
+        const aa = a === 0 ? 7 : a;
+        const bb = b === 0 ? 7 : b;
+        return aa - bb;
+      });
+      return { ...prev, workingDays: ordered };
+    });
+  };
+
+  const toggleShiftWeekdayOffRule = (day: number, week: number) => {
+    setShiftForm((prev) => {
+      const rules = { ...(prev.weekdayOffRules || {}) };
+      const set = new Set(rules[String(day)] || []);
+      if (set.has(week)) set.delete(week);
+      else set.add(week);
+      rules[String(day)] = Array.from(set).sort((a, b) => a - b);
+      return { ...prev, weekdayOffRules: rules };
+    });
+  };
+
   // WiFi CRUD handlers
   const openAddWifi = () => {
     setEditingWifi(null);
@@ -648,6 +751,114 @@ export default function AttendanceSettingsPage() {
     }
   };
 
+  const openAddShift = () => {
+    setEditingShift(null);
+    setShiftForm(createDefaultShiftForm(settings));
+    setShiftDialogOpen(true);
+  };
+
+  const openEditShift = (shift: Shift) => {
+    setEditingShift(shift);
+    setShiftForm({
+      name: shift.name,
+      description: shift.description || "",
+      workStartTime: (shift.workStartTime || "09:00:00").slice(0, 5),
+      workEndTime: (shift.workEndTime || "18:00:00").slice(0, 5),
+      graceMinutes: String(shift.graceMinutes ?? 15),
+      lateThresholdMinutes: String(shift.lateThresholdMinutes ?? 30),
+      halfDayCutoffTime: (shift.halfDayCutoffTime || "14:00:00").slice(0, 5),
+      workingDays:
+        Array.isArray(shift.workingDays) && shift.workingDays.length
+          ? shift.workingDays
+          : [1, 2, 3, 4, 5, 6],
+      weekdayOffRules: shift.weekdayOffRules || {},
+      isActive: shift.isActive,
+    });
+    setShiftDialogOpen(true);
+  };
+
+  const handleSaveShift = async () => {
+    if (!organizationId) {
+      toast.error("Organization not found. Please login again.");
+      return;
+    }
+
+    const normalizedName = normalizeBranchName(shiftForm.name);
+    if (!normalizedName) {
+      toast.error("Shift name is required");
+      return;
+    }
+    if (!shiftForm.workStartTime || !shiftForm.workEndTime || !shiftForm.halfDayCutoffTime) {
+      toast.error("Shift timing is required");
+      return;
+    }
+    if (!shiftForm.workingDays.length) {
+      toast.error("Select at least one working day");
+      return;
+    }
+
+    const duplicateShift = shifts.find(
+      (shift) =>
+        canonicalBranchName(shift.name) === canonicalBranchName(normalizedName) &&
+        shift.id !== editingShift?.id,
+    );
+    if (duplicateShift) {
+      toast.error("Shift name already exists");
+      return;
+    }
+
+    setShiftSaving(true);
+    try {
+      const payload = {
+        organizationId,
+        name: normalizedName,
+        description: shiftForm.description.trim() || undefined,
+        workStartTime: `${shiftForm.workStartTime}:00`,
+        workEndTime: `${shiftForm.workEndTime}:00`,
+        graceMinutes: Number(shiftForm.graceMinutes || 0),
+        lateThresholdMinutes: Number(shiftForm.lateThresholdMinutes || 0),
+        halfDayCutoffTime: `${shiftForm.halfDayCutoffTime}:00`,
+        workingDays: shiftForm.workingDays,
+        weekdayOffRules: shiftForm.weekdayOffRules,
+        isActive: shiftForm.isActive,
+      };
+
+      if (editingShift) {
+        await updateShift(editingShift.id, payload);
+        toast.success("Shift updated");
+      } else {
+        await createShift(payload);
+        toast.success("Shift created");
+      }
+
+      setShiftDialogOpen(false);
+      setEditingShift(null);
+      setShiftForm(createDefaultShiftForm(settings));
+      fetchShifts(organizationId);
+    } catch (error: any) {
+      console.error("Error saving shift:", error);
+      const message =
+        (error as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+      toast.error(Array.isArray(message) ? message[0] : message || "Failed to save shift");
+    } finally {
+      setShiftSaving(false);
+    }
+  };
+
+  const handleDeleteShift = async () => {
+    if (!shiftDeleteId) return;
+    try {
+      await deleteShift(shiftDeleteId);
+      toast.success("Shift deleted");
+      fetchShifts(organizationId);
+    } catch (error) {
+      console.error("Error deleting shift:", error);
+      toast.error("Failed to delete shift");
+    } finally {
+      setShiftDeleteId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -664,10 +875,12 @@ export default function AttendanceSettingsPage() {
           <h1 className="text-2xl font-bold">Attendance Configuration</h1>
           <p className="text-muted-foreground">Configure office timing, location, and validation settings</p>
         </div>
-        <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {activeTab === "timing" && selectedTimingBranch ? "Save Branch Timing" : "Save Changes"}
-        </Button>
+        {["timing", "location", "validation"].includes(activeTab) ? (
+          <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {activeTab === "timing" && selectedTimingBranch ? "Save Branch Timing" : "Save Changes"}
+          </Button>
+        ) : null}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -692,6 +905,10 @@ export default function AttendanceSettingsPage() {
             <Building2 className="h-4 w-4" />
             Branches
           </TabsTrigger>
+          <TabsTrigger value="shifts" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Shifts
+          </TabsTrigger>
         </TabsList>
 
         {/* Office Timing Tab */}
@@ -709,7 +926,7 @@ export default function AttendanceSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-[2fr_auto] gap-4 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-[2fr_auto_auto] gap-4 items-end">
                 <div className="space-y-2">
                   <Label>Configure For</Label>
                   <Select
@@ -731,6 +948,9 @@ export default function AttendanceSettingsPage() {
                 </div>
                 <Button variant="outline" onClick={() => setActiveTab("branches")}>
                   Manage Branches
+                </Button>
+                <Button variant="outline" onClick={() => setActiveTab("shifts")}>
+                  Manage Shifts
                 </Button>
               </div>
 
@@ -1304,6 +1524,73 @@ export default function AttendanceSettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Shifts Tab */}
+        <TabsContent value="shifts">
+          <Card>
+            <CardHeader className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Shifts
+                </CardTitle>
+                <CardDescription>
+                  Create reusable shifts like morning, general, or night shift and assign them to employees.
+                </CardDescription>
+              </div>
+              <Button onClick={openAddShift} className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Add Shift
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {shiftLoading ? (
+                <div className="flex items-center justify-center py-10 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Loading shifts...
+                </div>
+              ) : shifts.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <Clock className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                  <p className="font-medium">No shifts yet</p>
+                  <p className="text-sm">Create shifts here, then assign them to employees from Employee Management.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {shifts.map((shift) => (
+                    <div key={shift.id} className="flex items-center justify-between border rounded-lg p-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{shift.name}</span>
+                          <Badge variant={shift.isActive ? "default" : "secondary"}>
+                            {shift.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {shift.workStartTime.slice(0, 5)} - {shift.workEndTime.slice(0, 5)} | Grace {shift.graceMinutes}m | Late {shift.lateThresholdMinutes}m
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Half-day cutoff {(shift.halfDayCutoffTime || "14:00:00").slice(0, 5)} | Working days {(shift.workingDays || [1, 2, 3, 4, 5, 6]).map((d) => workingDayOptions.find((w) => w.value === d)?.label).filter(Boolean).join(", ")} | Off rules {formatWeekdayOffRules(shift.weekdayOffRules)}
+                        </p>
+                        {shift.description ? (
+                          <p className="text-xs text-muted-foreground mt-1">{shift.description}</p>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" onClick={() => openEditShift(shift)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setShiftDeleteId(shift.id)}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Add/Edit WiFi Dialog */}
@@ -1475,6 +1762,165 @@ export default function AttendanceSettingsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Shift Dialog */}
+      <Dialog open={shiftDialogOpen} onOpenChange={setShiftDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingShift ? "Edit Shift" : "Add Shift"}</DialogTitle>
+            <DialogDescription>
+              Define the timeline employees should follow for punch in and punch out.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="shift-name">Shift Name *</Label>
+                <Input
+                  id="shift-name"
+                  value={shiftForm.name}
+                  onChange={(e) => setShiftForm({ ...shiftForm, name: e.target.value })}
+                  placeholder="e.g., Morning Shift"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="shift-description">Description</Label>
+                <Input
+                  id="shift-description"
+                  value={shiftForm.description}
+                  onChange={(e) => setShiftForm({ ...shiftForm, description: e.target.value })}
+                  placeholder="Optional note for HR/admin"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="shift-work-start-time">Work Start Time</Label>
+                <Input
+                  id="shift-work-start-time"
+                  type="time"
+                  value={shiftForm.workStartTime}
+                  onChange={(e) => setShiftForm({ ...shiftForm, workStartTime: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="shift-work-end-time">Work End Time</Label>
+                <Input
+                  id="shift-work-end-time"
+                  type="time"
+                  value={shiftForm.workEndTime}
+                  onChange={(e) => setShiftForm({ ...shiftForm, workEndTime: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="shift-grace-minutes">Grace Minutes</Label>
+                <Input
+                  id="shift-grace-minutes"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={shiftForm.graceMinutes}
+                  onChange={(e) =>
+                    setShiftForm({
+                      ...shiftForm,
+                      graceMinutes: sanitizeIntInput(e.target.value),
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="shift-late-threshold-minutes">Late Threshold (minutes)</Label>
+                <Input
+                  id="shift-late-threshold-minutes"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={shiftForm.lateThresholdMinutes}
+                  onChange={(e) =>
+                    setShiftForm({
+                      ...shiftForm,
+                      lateThresholdMinutes: sanitizeIntInput(e.target.value),
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="shift-half-day-cutoff-time">Half Day Cutoff Time</Label>
+                <Input
+                  id="shift-half-day-cutoff-time"
+                  type="time"
+                  value={shiftForm.halfDayCutoffTime}
+                  onChange={(e) =>
+                    setShiftForm({
+                      ...shiftForm,
+                      halfDayCutoffTime: e.target.value,
+                    })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Working Days</Label>
+              <div className="flex flex-wrap gap-4">
+                {workingDayOptions.map((day) => (
+                  <label key={`shift-day-${day.value}`} className="flex items-center gap-2">
+                    <Checkbox
+                      checked={shiftForm.workingDays.includes(day.value)}
+                      onCheckedChange={() => toggleShiftWorkingDay(day.value)}
+                    />
+                    <span className="text-sm">{day.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Weekday Off Rules (Mon–Sat)</Label>
+              <div className="space-y-3">
+                {weekdayRuleOptions.map((day) => (
+                  <div key={`shift-rule-${day.value}`} className="flex flex-wrap items-center gap-3">
+                    <div className="w-12 text-sm font-medium text-muted-foreground">
+                      {day.label}
+                    </div>
+                    {saturdayWeekOptions.map((week) => (
+                      <label key={`shift-rule-${day.value}-${week.value}`} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={
+                            shiftForm.weekdayOffRules?.[String(day.value)]?.includes(week.value) || false
+                          }
+                          onCheckedChange={() => toggleShiftWeekdayOffRule(day.value, week.value)}
+                          disabled={!shiftForm.workingDays?.includes(day.value)}
+                        />
+                        <span className="text-sm">{week.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 border rounded-lg">
+              <div>
+                <p className="font-medium">Active</p>
+                <p className="text-sm text-muted-foreground">Inactive shifts stay in history but cannot be newly assigned.</p>
+              </div>
+              <Switch
+                checked={shiftForm.isActive}
+                onCheckedChange={(checked) => setShiftForm({ ...shiftForm, isActive: checked })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShiftDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveShift} disabled={shiftSaving}>
+              {shiftSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {editingShift ? "Update Shift" : "Add Shift"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Branch Delete Confirmation */}
       <Dialog open={!!branchDeleteId} onOpenChange={() => setBranchDeleteId(null)}>
         <DialogContent className="max-w-sm">
@@ -1487,6 +1933,22 @@ export default function AttendanceSettingsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setBranchDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleBranchDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shift Delete Confirmation */}
+      <Dialog open={!!shiftDeleteId} onOpenChange={() => setShiftDeleteId(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Shift</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this shift? Employees assigned to it will fall back to branch or organization default timing.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShiftDeleteId(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDeleteShift}>Delete</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

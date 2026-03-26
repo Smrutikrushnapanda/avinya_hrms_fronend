@@ -6,6 +6,7 @@ export interface Employee {
   departmentId?: string;
   designationId?: string;
   branchId?: string;
+  shiftId?: string;
   reportingTo?: string;
   employeeCode: string;
   firstName: string;
@@ -30,6 +31,7 @@ export interface Employee {
   department?: { id: string; name: string };
   designation?: { id: string; name: string };
   branch?: { id: string; name: string };
+  shift?: { id: string; name: string };
   manager?: { id: string; firstName: string; lastName: string };
   user?: { id: string; lastLogin?: string; isActive: boolean };
   roles?: { id: string; roleName: string }[];
@@ -43,6 +45,7 @@ export interface EmployeeFormData {
   departmentId?: string;
   designationId?: string;
   branchId?: string;
+  shiftId?: string;
   reportingTo?: string;
   employeeCode: string;
   loginUserName: string;

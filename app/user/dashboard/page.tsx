@@ -25,6 +25,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import AttendanceDonutChart from "@/components/charts/AttendanceDonutChart";
 import AttendanceStatus from "@/components/AttendanceStatus";
+import { toast } from "sonner";
 import {
   getProfile,
   getDashboardStats,
@@ -89,7 +90,35 @@ function parseTimeToMinutes(timeStr?: string): number | null {
   } catch { return null; }
 }
 
-function computeScore(row: any): ScoredEmployee {
+function normalizeAttendanceStatus(status: unknown): string {
+  return String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+}
+
+function parseShiftTimeToMinutes(timeStr?: string | null): number | null {
+  if (!timeStr || typeof timeStr !== "string") return null;
+  const [hRaw, mRaw] = timeStr.trim().split(":");
+  const h = Number(hRaw);
+  const m = Number(mRaw ?? 0);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function getOnTimeCutoffMinutes(settings?: {
+  workStartTime?: string;
+  graceMinutes?: number;
+  lateThresholdMinutes?: number;
+} | null): number | null {
+  const startMinutes = parseShiftTimeToMinutes(settings?.workStartTime);
+  if (startMinutes === null) return null;
+  const allowanceRaw = Number(settings?.graceMinutes ?? settings?.lateThresholdMinutes ?? 0);
+  const allowance = Number.isFinite(allowanceRaw) ? Math.max(0, Math.floor(allowanceRaw)) : 0;
+  return startMinutes + allowance;
+}
+
+function computeScore(row: any, onTimeCutoffMinutes: number | null): ScoredEmployee {
   const attendancePct = Math.min(row.attendancePercentage ?? 0, 100);
   const avgHours = row.averageWorkingHours ?? 0;
   const hoursScore = Math.min((avgHours / 9) * 100, 100);
@@ -97,10 +126,20 @@ function computeScore(row: any): ScoredEmployee {
   if (Array.isArray(row.dailyRecords)) {
     for (const rec of row.dailyRecords) {
       if (rec.isHoliday || rec.isSunday) continue;
-      if (rec.status !== "PRESENT" && rec.status !== "HALF_DAY") continue;
+      const normalizedStatus = normalizeAttendanceStatus(rec.status);
+      const isCountable =
+        normalizedStatus === "present" ||
+        normalizedStatus === "half-day" ||
+        normalizedStatus === "late";
+      if (!isCountable) continue;
       checkedDays++;
+      if (normalizedStatus === "late") continue;
+      if (onTimeCutoffMinutes === null) {
+        onTimeDays++;
+        continue;
+      }
       const mins = parseTimeToMinutes(rec.inTime);
-      if (mins !== null && mins <= 9 * 60 + 30) onTimeDays++;
+      if (mins === null || mins <= onTimeCutoffMinutes) onTimeDays++;
     }
   }
   const onTimePct = checkedDays > 0 ? (onTimeDays / checkedDays) * 100 : 0;
@@ -464,11 +503,13 @@ export default function UserDashboardPage() {
   // Leaderboard state
   const [leaderboard, setLeaderboard] = useState<ScoredEmployee[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardOnTimeCutoffMinutes, setLeaderboardOnTimeCutoffMinutes] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showSalaryAmount, setShowSalaryAmount] = useState(false);
   const [salaryMonthAmount, setSalaryMonthAmount] = useState<number>(0);
   const [salaryMonthLabel, setSalaryMonthLabel] = useState<string>("");
   const [isOnBreak, setIsOnBreak] = useState(false);
+  const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [activeBreakSince, setActiveBreakSince] = useState<string | null>(null);
   const [breakLoading, setBreakLoading] = useState(false);
 
@@ -593,6 +634,25 @@ export default function UserDashboardPage() {
               (todayLogsRes.data?.logs?.length ?? todayLogsRes.data?.data?.logs?.length ?? 0) > 0;
             setHasPunchedInToday(Boolean(punchInTime || hasLogs));
             const logs = todayLogsRes.data?.logs ?? todayLogsRes.data?.data?.logs ?? [];
+            const sortedLogs = [...logs].sort(
+              (a: any, b: any) =>
+                new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+            );
+            const latestCheckIn = [...sortedLogs].reverse().find((log: any) => log.type === "check-in");
+            const latestCheckOut = [...sortedLogs].reverse().find((log: any) => log.type === "check-out");
+            let currentlyCheckedIn =
+              Boolean(latestCheckIn) &&
+              (!latestCheckOut ||
+                new Date(latestCheckIn.timestamp).getTime() >
+                  new Date(latestCheckOut.timestamp).getTime());
+            const lastPunch =
+              todayLogsRes.data?.lastPunch ?? todayLogsRes.data?.data?.lastPunch ?? null;
+            if (!latestCheckIn && punchInTime) {
+              const punchInMs = new Date(punchInTime).getTime();
+              const lastPunchMs = lastPunch ? new Date(lastPunch).getTime() : NaN;
+              currentlyCheckedIn = !lastPunch || punchInMs > lastPunchMs;
+            }
+            setIsCheckedIn(currentlyCheckedIn);
             const apiIsOnBreak = todayLogsRes.data?.isOnBreak ?? todayLogsRes.data?.data?.isOnBreak;
             const apiActiveBreakSince =
               todayLogsRes.data?.activeBreakSince ?? todayLogsRes.data?.data?.activeBreakSince;
@@ -607,6 +667,7 @@ export default function UserDashboardPage() {
           } catch (todayLogError) {
             console.log("Today's attendance logs not available:", todayLogError);
             setHasPunchedInToday(false);
+            setIsCheckedIn(false);
             setIsOnBreak(false);
             setActiveBreakSince(null);
           }
@@ -651,9 +712,10 @@ export default function UserDashboardPage() {
           // Fetch attendance settings for weekend/off-day rules
           try {
             const settingsRes = await getAttendanceSettings(profile.organizationId);
-            const s = settingsRes.data;
+            const s = settingsRes.data || {};
             setWorkingDays(s?.workingDays);
             setWeekdayOffRules(s?.weekdayOffRules);
+            setLeaderboardOnTimeCutoffMinutes(getOnTimeCutoffMinutes(s));
           } catch (settingsError) {
             console.log("Attendance settings not available:", settingsError);
           }
@@ -703,7 +765,7 @@ export default function UserDashboardPage() {
           if (employeeUserIds.size > 0 && !employeeUserIds.has(r.userId)) return false;
           return true;
         })
-        .map(computeScore)
+        .map((r) => computeScore(r, leaderboardOnTimeCutoffMinutes))
         .sort((a, b) => b.score - a.score)
         .slice(0, 4)
         .map((emp, i) => ({ ...emp, rank: i + 1 }));
@@ -726,7 +788,7 @@ export default function UserDashboardPage() {
     } finally {
       setLeaderboardLoading(false);
     }
-  }, []);
+  }, [leaderboardOnTimeCutoffMinutes]);
 
   useEffect(() => {
     if (userData?.organizationId && userData?.id) {
@@ -816,6 +878,10 @@ export default function UserDashboardPage() {
 
   const handleBreakToggle = async () => {
     if (!userData?.organizationId || !userData?.id || breakLoading) return;
+    if (!isCheckedIn && !isOnBreak) {
+      toast.error("Please punch in before using break.");
+      return;
+    }
     setBreakLoading(true);
     try {
       const res = await toggleBreakStatus({
@@ -1081,10 +1147,10 @@ export default function UserDashboardPage() {
           </div>
           <button
             type="button"
-            disabled={breakLoading || !hasPunchedInToday}
+            disabled={breakLoading || (!isCheckedIn && !isOnBreak)}
             onClick={handleBreakToggle}
             className={`w-full rounded-xl py-2 text-sm font-semibold transition-colors ${
-              !hasPunchedInToday
+              !isCheckedIn && !isOnBreak
                 ? "bg-muted text-muted-foreground cursor-not-allowed"
                 : isOnBreak
                 ? "bg-amber-500 hover:bg-amber-600 text-white"
@@ -1093,7 +1159,7 @@ export default function UserDashboardPage() {
           >
             {breakLoading ? "Updating..." : isOnBreak ? "End Break" : "Start Break"}
           </button>
-          {!hasPunchedInToday && (
+          {!isCheckedIn && !isOnBreak && (
             <p className="text-[11px] text-muted-foreground mt-2">Punch in first to use break toggle.</p>
           )}
         </Card>

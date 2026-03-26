@@ -168,6 +168,10 @@ export const getBranches = (organizationId: string) => api.get("/attendance/bran
 export const createBranch = (data: any) => api.post("/attendance/branches", data);
 export const updateBranch = (id: string, data: any) => api.put(`/attendance/branches/${id}`, data);
 export const deleteBranch = (id: string) => api.delete(`/attendance/branches/${id}`);
+export const getShifts = (organizationId: string) => api.get("/attendance/shifts", { params: { organizationId } });
+export const createShift = (data: any) => api.post("/attendance/shifts", data);
+export const updateShift = (id: string, data: any) => api.put(`/attendance/shifts/${id}`, data);
+export const deleteShift = (id: string) => api.delete(`/attendance/shifts/${id}`);
 export const registerDevice = (data: any) => api.post("/attendance/devices", data);
 export const logAttendance = (data: any) => api.post("/attendance/log", data);
 export const getTodayLogs = (params: any) => api.get("/attendance/today-logs", { params });

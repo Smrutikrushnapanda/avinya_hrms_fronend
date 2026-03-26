@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Clock, UserCheck, TrendingUp, Star, RefreshCw } from "lucide-react";
-import { getAttendanceReport2, getEmployees } from "@/app/api/api";
+import { getAttendanceReport2, getAttendanceSettings, getEmployees } from "@/app/api/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,9 +48,33 @@ export interface ScoredEmployee {
 }
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
+function normalizeAttendanceStatus(status: unknown): string {
+  return String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+}
 
-const ON_TIME_CUTOFF_HOUR = 9;
-const ON_TIME_CUTOFF_MIN = 30; // 09:30
+function parseShiftTimeToMinutes(timeStr?: string | null): number | null {
+  if (!timeStr || typeof timeStr !== "string") return null;
+  const [hRaw, mRaw] = timeStr.trim().split(":");
+  const h = Number(hRaw);
+  const m = Number(mRaw ?? 0);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function getOnTimeCutoffMinutes(settings?: {
+  workStartTime?: string;
+  graceMinutes?: number;
+  lateThresholdMinutes?: number;
+} | null): number | null {
+  const startMinutes = parseShiftTimeToMinutes(settings?.workStartTime);
+  if (startMinutes === null) return null;
+  const allowanceRaw = Number(settings?.graceMinutes ?? settings?.lateThresholdMinutes ?? 0);
+  const allowance = Number.isFinite(allowanceRaw) ? Math.max(0, Math.floor(allowanceRaw)) : 0;
+  return startMinutes + allowance;
+}
 
 function parseTimeToMinutes(timeStr?: string): number | null {
   if (!timeStr) return null;
@@ -77,7 +101,7 @@ function parseTimeToMinutes(timeStr?: string): number | null {
   }
 }
 
-function computeScore(row: EmployeeReportRow): ScoredEmployee {
+function computeScore(row: EmployeeReportRow, onTimeCutoffMinutes: number | null): ScoredEmployee {
   const attendancePct = Math.min(row.attendancePercentage ?? 0, 100);
 
   // Normalise avg hours: assume 9h = 100%, cap at 12h
@@ -90,13 +114,20 @@ function computeScore(row: EmployeeReportRow): ScoredEmployee {
   if (Array.isArray(row.dailyRecords)) {
     for (const rec of row.dailyRecords) {
       if (rec.isHoliday || rec.isSunday) continue;
-      if (rec.status !== "PRESENT" && rec.status !== "HALF_DAY") continue;
+      const normalizedStatus = normalizeAttendanceStatus(rec.status);
+      const isCountable =
+        normalizedStatus === "present" ||
+        normalizedStatus === "half-day" ||
+        normalizedStatus === "late";
+      if (!isCountable) continue;
       checkedDays++;
-      const mins = parseTimeToMinutes(rec.inTime);
-      if (mins !== null) {
-        const cutoff = ON_TIME_CUTOFF_HOUR * 60 + ON_TIME_CUTOFF_MIN;
-        if (mins <= cutoff) onTimeDays++;
+      if (normalizedStatus === "late") continue;
+      if (onTimeCutoffMinutes === null) {
+        onTimeDays++;
+        continue;
       }
+      const mins = parseTimeToMinutes(rec.inTime);
+      if (mins === null || mins <= onTimeCutoffMinutes) onTimeDays++;
     }
   }
   const onTimePct = checkedDays > 0 ? (onTimeDays / checkedDays) * 100 : 0;
@@ -304,15 +335,20 @@ export default function EmployeeAwardWidget({ organizationId }: EmployeeAwardWid
     if (!organizationId) return;
     try {
       // Fetch employees list to filter out admin-only users
-      const [reportRes, empRes] = await Promise.allSettled([
+      const [reportRes, empRes, settingsRes] = await Promise.allSettled([
         getAttendanceReport2({ organizationId, year, month, userIds: "ALL" }),
         getEmployees(organizationId),
+        getAttendanceSettings(organizationId),
       ]);
 
       const rawData: EmployeeReportRow[] =
         reportRes.status === "fulfilled"
           ? (reportRes.value.data?.reportData ?? reportRes.value.data ?? [])
           : [];
+      const onTimeCutoffMinutes =
+        settingsRes.status === "fulfilled"
+          ? getOnTimeCutoffMinutes(settingsRes.value.data)
+          : null;
 
       if (!Array.isArray(rawData) || rawData.length === 0) {
         setLeaderboard([]);
@@ -335,7 +371,7 @@ export default function EmployeeAwardWidget({ organizationId }: EmployeeAwardWid
           if (employeeUserIds.size > 0 && !employeeUserIds.has(row.userId)) return false;
           return true;
         })
-        .map(computeScore)
+        .map((row) => computeScore(row, onTimeCutoffMinutes))
         .sort((a, b) => b.score - a.score)
         .slice(0, 4)
         .map((emp, i) => ({ ...emp, rank: i + 1 }));

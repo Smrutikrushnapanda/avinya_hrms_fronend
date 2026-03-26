@@ -280,13 +280,27 @@ export default function MobileDashboardPage() {
       payload?.logs ??
       payload?.data?.logs ??
       (Array.isArray(payload) ? payload : []);
+    const punchInTime: string | null =
+      payload?.punchInTime ?? payload?.data?.punchInTime ?? null;
+    const lastPunch: string | null =
+      payload?.lastPunch ?? payload?.data?.lastPunch ?? null;
     const sorted = [...logs].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
     const checkIns = sorted.filter((l) => l.type === "check-in");
     const checkOuts = sorted.filter((l) => l.type === "check-out");
-    const lastEvent = sorted[sorted.length - 1];
-    const checkedIn = !!lastEvent && lastEvent.type === "check-in";
+    const latestCheckIn = [...sorted].reverse().find((l) => l.type === "check-in");
+    const latestCheckOut = [...sorted].reverse().find((l) => l.type === "check-out");
+    let checkedIn =
+      Boolean(latestCheckIn) &&
+      (!latestCheckOut ||
+        new Date(latestCheckIn.timestamp).getTime() >
+          new Date(latestCheckOut.timestamp).getTime());
+    if (!latestCheckIn && punchInTime) {
+      const punchInMs = new Date(punchInTime).getTime();
+      const lastPunchMs = lastPunch ? new Date(lastPunch).getTime() : NaN;
+      checkedIn = !lastPunch || punchInMs > lastPunchMs;
+    }
 
     setIsCheckedIn(checkedIn);
 

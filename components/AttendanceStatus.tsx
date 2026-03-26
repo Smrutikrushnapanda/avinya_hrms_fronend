@@ -12,7 +12,30 @@ interface AttendanceStatusProps {
   organizationId?: string;
 }
 
-const WORK_START_TIME = "09:00:00";
+const parsePositiveMinutes = (value: unknown): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+};
+
+const getLateFromStatus = (status: unknown): boolean | null => {
+  if (typeof status !== "string" || !status.trim()) return null;
+  const normalized = status.trim().toLowerCase();
+  return normalized === "late";
+};
+
+const getLateCutoffTime = (checkInTime: Date, workStartTime: unknown, lateAllowanceMinutes: number): Date | null => {
+  if (typeof workStartTime !== "string" || !workStartTime.trim()) return null;
+  const parts = workStartTime.trim().split(":");
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1] ?? 0);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+
+  const cutoff = new Date(checkInTime);
+  cutoff.setHours(hours, minutes, 0, 0);
+  cutoff.setMinutes(cutoff.getMinutes() + Math.max(0, lateAllowanceMinutes));
+  return cutoff;
+};
 
 export default function AttendanceStatus({ userId, organizationId }: AttendanceStatusProps) {
   const [attendanceState, setAttendanceState] = useState<AttendanceState>("loading");
@@ -44,9 +67,17 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
           organizationId: orgId,
         });
 
+        const payload = response.data || {};
+
         // API returns { logs: [...], punchInTime: Date|null, lastPunch: Date|null }
-        const punchInTime: string | null = response.data?.punchInTime ?? null;
-        const logs: any[] = response.data?.logs || response.data?.data || response.data?.results || [];
+        const punchInTime: string | null = payload.punchInTime ?? payload?.data?.punchInTime ?? null;
+        const logs: any[] = payload.logs ?? payload?.data?.logs ?? payload?.results ?? [];
+        const attendanceStatus: string | null =
+          payload.attendanceStatus ?? payload?.data?.attendanceStatus ?? null;
+        const lateAllowanceMinutes = parsePositiveMinutes(
+          payload.graceMinutes ?? payload?.data?.graceMinutes ?? payload.lateThresholdMinutes ?? payload?.data?.lateThresholdMinutes
+        );
+        const workStartTime = payload.workStartTime ?? payload?.data?.workStartTime ?? null;
 
         // Prefer punchInTime (may be timeslip-corrected); fall back to first check-in log
         let firstCheckIn: Date | null = null;
@@ -64,14 +95,14 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
             hour12: true,
           });
 
-          const [hours, minutes] = firstCheckIn.toTimeString().split(":").slice(0, 2);
-          const [workHours, workMins] = WORK_START_TIME.split(":");
-          const loginMins = parseInt(hours) * 60 + parseInt(minutes);
-          const workMinsNum = parseInt(workHours) * 60 + parseInt(workMins);
-
           setLoginTime(timeStr);
 
-          if (loginMins > workMinsNum) {
+          const lateFromStatus = getLateFromStatus(attendanceStatus);
+          const lateCutoff = getLateCutoffTime(firstCheckIn, workStartTime, lateAllowanceMinutes);
+          const isLate =
+            lateFromStatus ?? (lateCutoff ? firstCheckIn.getTime() > lateCutoff.getTime() : false);
+
+          if (isLate) {
             setAttendanceState("late");
           } else {
             setAttendanceState("on-time");
@@ -224,4 +255,3 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
     </div>
   );
 }
-

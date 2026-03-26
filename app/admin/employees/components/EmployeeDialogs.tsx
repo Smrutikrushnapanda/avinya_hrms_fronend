@@ -160,6 +160,7 @@ export default function EmployeeDialogs({
   const designations = employeeData?.filters?.designations || [];
   const managers = employeeData?.filters?.managers || [];
   const branches = employeeData?.filters?.branches || [];
+  const shifts = employeeData?.filters?.shifts || [];
   const roles = employeeData?.filters?.roles || [];
   const employees: Employee[] = employeeData?.employees || [];
 
@@ -512,7 +513,7 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="departmentId">Department</Label>
                     <Select
@@ -557,6 +558,28 @@ export default function EmployeeDialogs({
                       <SelectContent>
                         {branches.map((b: any) => (
                           <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="shiftId">Shift</Label>
+                    <Select
+                      value={newEmployee.shiftId || "no-shift"}
+                      onValueChange={(value) =>
+                        setNewEmployee({
+                          ...newEmployee,
+                          shiftId: value === "no-shift" ? "" : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select shift" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no-shift">Organization default</SelectItem>
+                        {shifts.map((shift: any) => (
+                          <SelectItem key={shift.id} value={shift.id}>{shift.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -1025,7 +1048,7 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="editDepartmentId">Department</Label>
                     <Select
@@ -1075,6 +1098,30 @@ export default function EmployeeDialogs({
                         {branches.map((b: any) => (
                           <SelectItem key={b.id} value={b.id}>
                             {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editShiftId">Shift</Label>
+                    <Select
+                      value={editEmployee.shiftId || "no-shift"}
+                      onValueChange={(value) =>
+                        setEditEmployee({
+                          ...editEmployee,
+                          shiftId: value === "no-shift" ? "" : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select shift" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no-shift">Organization default</SelectItem>
+                        {shifts.map((shift: any) => (
+                          <SelectItem key={shift.id} value={shift.id}>
+                            {shift.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1422,6 +1469,12 @@ export default function EmployeeDialogs({
                       </p>
                     </div>
                     <div>
+                      <Label className="text-sm font-medium">Shift</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedEmployee.shift?.name || "Organization default"}
+                      </p>
+                    </div>
+                    <div>
                       <Label className="text-sm font-medium">Employment Type</Label>
                       <p className="text-sm text-muted-foreground">
                         {selectedEmployee.employmentType || 'Not specified'}
@@ -1597,6 +1650,26 @@ export default function EmployeeDialogs({
                   {designations.map((desig: any) => (
                     <SelectItem key={desig.id} value={desig.id}>
                       {desig.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Shift</Label>
+              <Select
+                value={bulkAssignData.shiftId || undefined}
+                onValueChange={(value) => setBulkAssignData({ ...bulkAssignData, shiftId: value || "" })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select shift" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no-change">No change</SelectItem>
+                  <SelectItem value="clear">Use organization default</SelectItem>
+                  {shifts.map((shift: any) => (
+                    <SelectItem key={shift.id} value={shift.id}>
+                      {shift.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

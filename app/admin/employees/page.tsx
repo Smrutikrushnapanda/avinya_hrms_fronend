@@ -268,6 +268,7 @@ export default function EmployeesPage() {
     employmentType: "",
     status: "active",
     branchId: "",
+    shiftId: "",
     bloodGroup: "",
     emergencyContactName: "",
     emergencyContactRelationship: "",
@@ -279,6 +280,7 @@ export default function EmployeesPage() {
   const [bulkAssignData, setBulkAssignData] = useState({
     departmentId: "",
     designationId: "",
+    shiftId: "",
     managerId: "",
     employmentType: "",
   });
@@ -600,6 +602,7 @@ export default function EmployeesPage() {
       cleanData.emergencyContactRelationship = data.emergencyContactRelationship.trim();
     if (data.emergencyContactPhone?.trim()) cleanData.emergencyContactPhone = data.emergencyContactPhone.trim();
     if (data.branchId) cleanData.branchId = data.branchId;
+    cleanData.shiftId = data.shiftId || null;
     if (data.roleId) cleanData.roleId = data.roleId;
 
     // Handle credentials properly
@@ -758,6 +761,13 @@ export default function EmployeesPage() {
       ) {
         updateData.designationId = bulkAssignData.designationId;
       }
+      if (
+        bulkAssignData.shiftId &&
+        bulkAssignData.shiftId !== "" &&
+        bulkAssignData.shiftId !== "no-change"
+      ) {
+        updateData.shiftId = bulkAssignData.shiftId === "clear" ? null : bulkAssignData.shiftId;
+      }
       if (bulkAssignData.managerId && bulkAssignData.managerId !== "" && bulkAssignData.managerId !== "no-change") {
         updateData.reportingTo = bulkAssignData.managerId;
       }
@@ -800,7 +810,7 @@ export default function EmployeesPage() {
       }
 
       setIsBulkAssignOpen(false);
-      setBulkAssignData({ departmentId: "", designationId: "", managerId: "", employmentType: "" });
+      setBulkAssignData({ departmentId: "", designationId: "", shiftId: "", managerId: "", employmentType: "" });
       setSelectedEmployees([]);
       await refreshData();
     } catch (error: any) {
@@ -877,6 +887,7 @@ export default function EmployeesPage() {
     setBulkAssignData({
       departmentId: employee.departmentId || "",
       designationId: employee.designationId || "",
+      shiftId: employee.shiftId || "clear",
       managerId: employee.reportingTo || "",
       employmentType: employee.employmentType || "",
     });
@@ -980,6 +991,8 @@ export default function EmployeesPage() {
       organizationId: employee.organizationId,
       departmentId: employee.departmentId || "",
       designationId: employee.designationId || "",
+      branchId: employee.branchId || "",
+      shiftId: employee.shiftId || "",
       reportingTo: employee.reportingTo || "",
       employeeCode: employee.employeeCode,
       loginUserName: employee.userName || "",

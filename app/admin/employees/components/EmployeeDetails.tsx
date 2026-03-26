@@ -29,6 +29,7 @@ import {
   getAttendanceSummary,
   getLeaveBalance,
   getAttendanceReport2,
+  getAttendanceSettings,
   getProfile,
   getMonthlyAttendance,
   updateEmployee,
@@ -51,6 +52,35 @@ interface AttendanceStats {
   absent: number;
 }
 
+function normalizeAttendanceStatus(status: unknown): string {
+  return String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+}
+
+function parseClockTimeToMinutes(timeStr?: string | null): number | null {
+  if (!timeStr || typeof timeStr !== "string") return null;
+  try {
+    if (timeStr.includes("T")) {
+      const d = new Date(timeStr);
+      return d.getHours() * 60 + d.getMinutes();
+    }
+    const clean = timeStr.trim();
+    const isPM = clean.toUpperCase().includes("PM");
+    const isAM = clean.toUpperCase().includes("AM");
+    const parts = clean.replace(/AM|PM/gi, "").trim().split(":");
+    let h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1] || "0", 10);
+    if (isPM && h !== 12) h += 12;
+    if (isAM && h === 12) h = 0;
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+  } catch {
+    return null;
+  }
+}
+
 export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsProps) {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStats>({
@@ -71,8 +101,13 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
 
   useEffect(() => {
     fetchEmployeeDetails();
-    fetchAttendanceStats();
   }, [employeeId]);
+
+  useEffect(() => {
+    if (employee?.userId) {
+      fetchAttendanceStats();
+    }
+  }, [employee?.userId]);
 
   const fetchEmployeeDetails = async () => {
     try {
@@ -109,47 +144,52 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
       const currentMonth = currentDate.getMonth() + 1; // getMonth() returns 0-11
       const currentYear = currentDate.getFullYear();
 
-      // Fetch monthly attendance data for the selected employee
-      const attendanceResponse = await getMonthlyAttendance({
-        userId: employee.userId, // Use employee's userId instead of current user
-        month: currentMonth,
-        year: currentYear,
-        organizationId: organizationId,
-      });
+      const [attendanceResponse, settingsResponse] = await Promise.allSettled([
+        getMonthlyAttendance({
+          userId: employee.userId, // Use employee's userId instead of current user
+          month: currentMonth,
+          year: currentYear,
+          organizationId: organizationId,
+        }),
+        getAttendanceSettings(organizationId),
+      ]);
 
-      if (attendanceResponse.data && Array.isArray(attendanceResponse.data)) {
-        const attendanceData = attendanceResponse.data;
+      const configuredEndMinutes =
+        settingsResponse.status === "fulfilled"
+          ? parseClockTimeToMinutes(settingsResponse.value?.data?.workEndTime)
+          : null;
+      const workEndMinutes = configuredEndMinutes ?? 18 * 60;
+
+      if (
+        attendanceResponse.status === "fulfilled" &&
+        attendanceResponse.value?.data &&
+        Array.isArray(attendanceResponse.value.data)
+      ) {
+        const attendanceData = attendanceResponse.value.data;
         
         // Calculate stats from the attendance data
         const stats = {
-          dayOff: attendanceData.filter(day => day.isSunday || day.isHoliday).length,
-          lateClockIn: attendanceData.filter(day => {
-            // Assuming late is after 9:30 AM
-            if (day.inTime && day.status !== 'absent') {
-              const [time, period] = day.inTime.split(' ');
-              const [hours, minutes] = time.split(':');
-              const hour24 = period === 'PM' && hours !== '12' ? parseInt(hours) + 12 : 
-                            period === 'AM' && hours === '12' ? 0 : parseInt(hours);
-              return hour24 > 9 || (hour24 === 9 && parseInt(minutes) > 30);
-            }
-            return false;
+          dayOff: attendanceData.filter((day) => {
+            const status = normalizeAttendanceStatus(day.status);
+            return day.isSunday || day.isHoliday || status === "holiday" || status === "weekend";
           }).length,
+          lateClockIn: attendanceData.filter((day) => normalizeAttendanceStatus(day.status) === "late").length,
           lateClockOut: attendanceData.filter(day => {
-            // Assuming early clock-out is before 6:00 PM
-            if (day.outTime && day.status !== 'absent') {
-              const [time, period] = day.outTime.split(' ');
-              const [hours, minutes] = time.split(':');
-              const hour24 = period === 'PM' && hours !== '12' ? parseInt(hours) + 12 : 
-                            period === 'AM' && hours === '12' ? 0 : parseInt(hours);
-              return hour24 < 18;
-            }
-            return false;
+            const status = normalizeAttendanceStatus(day.status);
+            const isWorkedStatus =
+              status === "present" || status === "late" || status === "half-day";
+            if (!isWorkedStatus || !day.outTime) return false;
+            const outMinutes = parseClockTimeToMinutes(day.outTime);
+            return outMinutes !== null && outMinutes < workEndMinutes;
           }).length,
-          noClockOut: attendanceData.filter(day => 
-            day.status !== 'absent' && day.inTime && !day.outTime
-          ).length,
+          noClockOut: attendanceData.filter((day) => {
+            const status = normalizeAttendanceStatus(day.status);
+            const isWorkedStatus =
+              status === "present" || status === "late" || status === "half-day";
+            return isWorkedStatus && day.inTime && !day.outTime;
+          }).length,
           offTimeQuota: attendanceData.filter(day => day.isSunday).length,
-          absent: attendanceData.filter(day => day.status === 'absent').length,
+          absent: attendanceData.filter(day => normalizeAttendanceStatus(day.status) === "absent").length,
         };
 
         setAttendanceStats(stats);

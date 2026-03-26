@@ -9,7 +9,8 @@ export const metadata = {
   title: "Avinya HRMS – Reinventing the Way You Work",
   description: "Streamline your workforce with Avinya HRMS – your all-in-one solution for modern human resource management.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/App-logo.ico",
+    shortcut: "/App-logo.ico",
   },
 };
 
