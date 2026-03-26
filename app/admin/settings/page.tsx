@@ -635,7 +635,7 @@ const loadOrganization = async () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Home Header Media</CardTitle>
+                <CardTitle>Home Header Media (For Mobile Only)</CardTitle>
                 <CardDescription>Home header media and color settings</CardDescription>
               </div>
               <Button onClick={() => setIsOrgDialogOpen(true)}>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { wfhHeartbeat } from "@/app/api/api";
 
 const HEARTBEAT_INTERVAL_MS = 30_000; // send every 30s
-const INACTIVITY_THRESHOLD_MS = 5 * 60_000; // alert after 5 min of no activity
+const INACTIVITY_THRESHOLD_MS = 15 * 60_000; // alert after 15 min of no activity
 
 interface UseWfhMonitorOptions {
   enabled: boolean;
@@ -75,7 +75,7 @@ export function useWfhMonitor({ enabled, onInactive }: UseWfhMonitorOptions) {
         // Browser push notification
         if ("Notification" in window && Notification.permission === "granted") {
           new Notification("Are you still there?", {
-            body: "No activity detected for 5 minutes. Please interact to confirm you're working.",
+            body: "No activity detected for 15 minutes. Please interact to confirm you're working.",
             icon: "/favicon.ico",
           });
         }
