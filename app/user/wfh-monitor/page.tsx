@@ -347,7 +347,7 @@ export default function WfhMonitorPage() {
               Are you still there?
             </DialogTitle>
             <DialogDescription>
-              No activity has been detected for the past 5 minutes. Please
+              No activity has been detected for the past 15 minutes. Please
               interact with your screen to confirm you are still working.
             </DialogDescription>
           </DialogHeader>

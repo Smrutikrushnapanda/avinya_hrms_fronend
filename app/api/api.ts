@@ -321,6 +321,13 @@ export const initializeLeaveBalance = (data: any) => api.post('/leave/balance/in
 export const setLeaveBalanceTemplates = (data: any) => api.post('/leave/balance-templates', data);
 export const getLeaveBalanceTemplates = (orgId: string, employmentType?: string) =>
   api.get(`/leave/balance-templates/${orgId}`, { params: { employmentType } });
+export const setEmployeeLeaveLimit = (data: any) => api.post('/leave/employee-limits', data);
+export const getEmployeeLeaveLimits = (userId: string, orgId: string) =>
+  api.get(`/leave/employee-limits/${userId}/${orgId}`);
+export const updateEmployeeLeaveLimit = (userId: string, leaveTypeId: string, data: any) =>
+  api.put(`/leave/employee-limits/${userId}/${leaveTypeId}`, data);
+export const deleteEmployeeLeaveLimit = (userId: string, leaveTypeId: string) =>
+  api.delete(`/leave/employee-limits/${userId}/${leaveTypeId}`);
 
 // 🏠 WFH Management APIs
 export const applyWfh = (userId: string, data: any) => api.post(`/wfh/apply/${userId}`, data);
@@ -340,6 +347,13 @@ export const initializeWfhBalance = (data: any) => api.post('/wfh/balance/initia
 export const setWfhBalanceTemplates = (data: any) => api.post('/wfh/balance-templates', data);
 export const getWfhBalanceTemplates = (orgId: string, employmentType?: string) =>
   api.get(`/wfh/balance-templates/${orgId}`, { params: { employmentType } });
+export const setEmployeeWfhLimit = (data: any) => api.post('/wfh/employee-limits', data);
+export const getEmployeeWfhLimit = (userId: string, orgId: string) =>
+  api.get(`/wfh/employee-limits/${userId}/${orgId}`);
+export const updateEmployeeWfhLimit = (userId: string, data: any) =>
+  api.put(`/wfh/employee-limits/${userId}`, data);
+export const deleteEmployeeWfhLimit = (userId: string) =>
+  api.delete(`/wfh/employee-limits/${userId}`);
 
 // ✈️ Enhanced leave report fetcher
 export const getLeaveReport = async (params: {

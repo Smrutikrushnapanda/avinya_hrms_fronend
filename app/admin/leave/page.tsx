@@ -67,6 +67,7 @@ import {
   initializeLeaveBalance,
   setLeaveBalanceTemplates,
   getLeaveBalanceTemplates,
+  setEmployeeLeaveLimit,
   createLeaveType,
   updateLeaveType,
   deleteLeaveType,
@@ -90,6 +91,8 @@ interface LeaveRequest {
   leaveType?: string | { name?: string };
   status?: string;
   remarks?: string;
+  paidDays?: number;
+  unpaidDays?: number;
   createdAt?: string;
   user?: {
     firstName: string;
@@ -231,6 +234,9 @@ export default function LeaveManagementPage() {
   const [allTemplates, setAllTemplates] = useState<any[]>([]);
   const [leaveCarryForwardEnabled, setLeaveCarryForwardEnabled] = useState(false);
   const [savingCarryForward, setSavingCarryForward] = useState(false);
+  const [selectedLimitLeaveTypeId, setSelectedLimitLeaveTypeId] = useState("");
+  const [monthlyPaidLeaveLimitInput, setMonthlyPaidLeaveLimitInput] = useState(2);
+  const [applyingMonthlyLeaveLimit, setApplyingMonthlyLeaveLimit] = useState(false);
 
   // Add assignment dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -416,6 +422,12 @@ export default function LeaveManagementPage() {
     loadAllTemplates();
   }, [profile?.organizationId]);
 
+  useEffect(() => {
+    if (!selectedLimitLeaveTypeId && leaveTypes.length > 0) {
+      setSelectedLimitLeaveTypeId(leaveTypes[0].id);
+    }
+  }, [leaveTypes, selectedLimitLeaveTypeId]);
+
   // ------- Approve / Reject -------
   const handleApprove = async (req: LeaveRequest) => {
     if (!profile?.userId) return;
@@ -580,6 +592,59 @@ export default function LeaveManagementPage() {
       toast.error("Failed to apply leave balances");
     } finally {
       setApplyingBalances(false);
+    }
+  };
+
+  const handleApplyMonthlyLeaveLimit = async () => {
+    if (!selectedEmploymentType) {
+      toast.error("Select an employment type first");
+      return;
+    }
+    if (!selectedLimitLeaveTypeId) {
+      toast.error("Select a leave type");
+      return;
+    }
+    if (monthlyPaidLeaveLimitInput < 0) {
+      toast.error("Monthly leave limit cannot be negative");
+      return;
+    }
+
+    const targetEmployees = employees.filter(
+      (e) => e.employmentType === selectedEmploymentType,
+    );
+    if (!targetEmployees.length) {
+      toast.error("No employees found for selected employment type");
+      return;
+    }
+
+    setApplyingMonthlyLeaveLimit(true);
+    let successCount = 0;
+    try {
+      for (const emp of targetEmployees) {
+        try {
+          await setEmployeeLeaveLimit({
+            userId: emp.userId,
+            leaveTypeId: selectedLimitLeaveTypeId,
+            maxDaysPerMonth: Number(monthlyPaidLeaveLimitInput),
+            isEnabled: true,
+          });
+          successCount += 1;
+        } catch (error) {
+          console.error("Failed to set monthly leave limit for", emp.userId, error);
+        }
+      }
+
+      if (successCount === 0) {
+        toast.error("Failed to apply monthly leave limit");
+      } else if (successCount < targetEmployees.length) {
+        toast.success(
+          `Applied monthly leave limit to ${successCount}/${targetEmployees.length} employees`,
+        );
+      } else {
+        toast.success("Monthly leave limit applied successfully");
+      }
+    } finally {
+      setApplyingMonthlyLeaveLimit(false);
     }
   };
 
@@ -775,6 +840,7 @@ export default function LeaveManagementPage() {
                       const start = req.startDate || req.fromDate;
                       const end = req.endDate || req.toDate;
                       const days = req.totalDays ?? req.days ?? req.duration ?? "-";
+                      const unpaidDays = Number(req.unpaidDays ?? 0);
                       const type =
                         typeof req.leaveType === "string"
                           ? req.leaveType
@@ -788,7 +854,16 @@ export default function LeaveManagementPage() {
                             {start ? format(new Date(start), "dd MMM yyyy") : "-"}{" "}
                             {end ? `- ${format(new Date(end), "dd MMM yyyy")}` : ""}
                           </TableCell>
-                          <TableCell>{days}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span>{days}</span>
+                              {unpaidDays > 0 && (
+                                <Badge className="bg-red-100 text-red-700 border-red-300 hover:bg-red-100">
+                                  Unpaid {unpaidDays}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <StatusBadge status={req.status} />
                           </TableCell>
@@ -1010,6 +1085,74 @@ export default function LeaveManagementPage() {
                   disabled={applyingBalances || !selectedEmploymentType || loadingTemplates}
                 >
                   {applyingBalances ? "Applying..." : "Apply to Employees"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Monthly Paid Leave Limit</CardTitle>
+              <CardDescription>
+                Apply per-employee paid leave cap for the selected employment type.
+                Additional leave will be marked as unpaid automatically.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Leave Type</Label>
+                  <Select
+                    value={selectedLimitLeaveTypeId}
+                    onValueChange={setSelectedLimitLeaveTypeId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select leave type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {leaveTypes.map((lt) => (
+                        <SelectItem key={lt.id} value={lt.id}>
+                          {lt.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Paid Leave Days Per Month</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={String(monthlyPaidLeaveLimitInput)}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                      setMonthlyPaidLeaveLimitInput(
+                        digitsOnly === "" ? 0 : Number(digitsOnly),
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Applies to employees in{" "}
+                  <span className="font-medium">
+                    {EMPLOYMENT_TYPE_OPTIONS.find(
+                      (et) => et.value === selectedEmploymentType,
+                    )?.label || selectedEmploymentType || "selected employment type"}
+                  </span>
+                  .
+                </p>
+                <Button
+                  onClick={handleApplyMonthlyLeaveLimit}
+                  disabled={
+                    applyingMonthlyLeaveLimit ||
+                    !selectedEmploymentType ||
+                    !selectedLimitLeaveTypeId
+                  }
+                >
+                  {applyingMonthlyLeaveLimit ? "Applying..." : "Apply Monthly Limit"}
                 </Button>
               </div>
             </CardContent>

@@ -65,6 +65,7 @@ import {
   setWfhBalanceTemplates,
   getWfhBalanceTemplates,
   initializeWfhBalance,
+  setEmployeeWfhLimit,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -230,6 +231,8 @@ export default function WfhManagementPage() {
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [applyingBalance, setApplyingBalance] = useState(false);
   const [applyProgress, setApplyProgress] = useState({ done: 0, total: 0 });
+  const [monthlyWfhLimitInput, setMonthlyWfhLimitInput] = useState(0);
+  const [applyingMonthlyWfhLimit, setApplyingMonthlyWfhLimit] = useState(false);
 
   // ------- Fetch profile on mount -------
   useEffect(() => {
@@ -393,6 +396,54 @@ export default function WfhManagementPage() {
       toast.error("Failed to save WFH balance");
     } finally {
       setApplyingBalance(false);
+    }
+  };
+
+  const handleApplyMonthlyWfhLimit = async () => {
+    if (!selectedEmploymentType) {
+      toast.error("Select an employment type");
+      return;
+    }
+    if (monthlyWfhLimitInput < 0) {
+      toast.error("Monthly WFH limit cannot be negative");
+      return;
+    }
+
+    const targetEmployees = employees.filter(
+      (e) => e.employmentType === selectedEmploymentType,
+    );
+    if (!targetEmployees.length) {
+      toast.error("No employees found for selected employment type");
+      return;
+    }
+
+    setApplyingMonthlyWfhLimit(true);
+    let successCount = 0;
+    try {
+      for (const emp of targetEmployees) {
+        try {
+          await setEmployeeWfhLimit({
+            userId: emp.userId,
+            maxDaysPerMonth: Number(monthlyWfhLimitInput),
+            isEnabled: true,
+          });
+          successCount += 1;
+        } catch (error) {
+          console.error("Failed to set monthly WFH limit for", emp.userId, error);
+        }
+      }
+
+      if (successCount === 0) {
+        toast.error("Failed to apply monthly WFH limit");
+      } else if (successCount < targetEmployees.length) {
+        toast.success(
+          `Applied monthly WFH limit to ${successCount}/${targetEmployees.length} employees`,
+        );
+      } else {
+        toast.success("Monthly WFH limit applied successfully");
+      }
+    } finally {
+      setApplyingMonthlyWfhLimit(false);
     }
   };
 
@@ -1010,6 +1061,61 @@ export default function WfhManagementPage() {
                   disabled={applyingBalance || !selectedEmploymentType}
                 >
                   {applyingBalance ? "Applying..." : "Apply to Employees"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-lg">Monthly WFH Limit</CardTitle>
+              <CardDescription>
+                Set per-employee monthly WFH days for the selected employment type.
+                By default, employees can only use what admin configures.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Employment Type</Label>
+                  <Select
+                    value={selectedEmploymentType}
+                    onValueChange={handleEmploymentTypeChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employment type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EMPLOYMENT_TYPE_OPTIONS.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>WFH Days Per Month</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={String(monthlyWfhLimitInput)}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                      setMonthlyWfhLimitInput(
+                        digitsOnly === "" ? 0 : Number(digitsOnly),
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleApplyMonthlyWfhLimit}
+                  disabled={applyingMonthlyWfhLimit || !selectedEmploymentType}
+                >
+                  {applyingMonthlyWfhLimit ? "Applying..." : "Apply Monthly Limit"}
                 </Button>
               </div>
             </CardContent>

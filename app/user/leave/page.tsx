@@ -60,6 +60,8 @@ interface LeaveRequest {
   startDate?: string;
   endDate?: string;
   numberOfDays?: number;
+  paidDays?: number;
+  unpaidDays?: number;
   reason?: string;
   status?: string;
   leaveType?: string | { name?: string; id?: string };
@@ -250,13 +252,16 @@ export default function UserLeavePage() {
           const remaining = leaveTypeId
             ? leaveTypeBalanceMap.get(leaveTypeId)
             : undefined;
-          const isUnpaid = typeof remaining === "number" && remaining < 0;
+          const unpaidDays = Number(row.original.unpaidDays ?? 0);
+          const isUnpaidFromBalance =
+            typeof remaining === "number" && remaining < 0;
+          const isUnpaid = unpaidDays > 0 || isUnpaidFromBalance;
           return (
             <div className="flex items-center gap-2">
               <span className="font-medium">{name}</span>
               {isUnpaid && (
                 <Badge className="bg-red-100 text-red-700 border-red-300 hover:bg-red-100">
-                  Unpaid
+                  {unpaidDays > 0 ? `Unpaid ${unpaidDays}` : "Unpaid"}
                 </Badge>
               )}
             </div>
@@ -298,7 +303,16 @@ export default function UserLeavePage() {
         accessorKey: "numberOfDays",
         header: "Days",
         enableSorting: false,
-        cell: ({ row }) => row.original.numberOfDays ?? "-",
+        cell: ({ row }) => {
+          const total = Number(row.original.numberOfDays ?? 0);
+          const paid = Number(row.original.paidDays ?? 0);
+          const unpaid = Number(row.original.unpaidDays ?? 0);
+          if (!total) return "-";
+          if (unpaid > 0) {
+            return `${total} (Paid ${paid}, Unpaid ${unpaid})`;
+          }
+          return total;
+        },
       },
       {
         id: "Reason",
@@ -475,13 +489,20 @@ export default function UserLeavePage() {
     }
     setApplySubmitting(true);
     try {
-      await applyLeave(userId, {
+      const res = await applyLeave(userId, {
         leaveTypeId: applyForm.leaveTypeId,
         startDate: applyForm.startDate,
         endDate: applyForm.endDate,
         reason: applyForm.reason.trim(),
       });
-      toast.success("Leave request submitted successfully.");
+      const unpaidDays = Number(res?.data?.unpaidDays ?? 0);
+      if (unpaidDays > 0) {
+        toast.success(
+          `Leave submitted. ${unpaidDays} day(s) will be treated as unpaid due to monthly limit.`,
+        );
+      } else {
+        toast.success("Leave request submitted successfully.");
+      }
       setApplyDialogOpen(false);
       setApplyForm({
         leaveTypeId: "",
