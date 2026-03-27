@@ -3,6 +3,7 @@
 import { ArrowLeft, Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { usePlanAccess } from "@/components/plan-access-provider";
 import useUnreadMessages from "./useUnreadMessages";
 
 export default function MobileTabHeader({
@@ -25,6 +26,7 @@ export default function MobileTabHeader({
   className?: string;
 }) {
   const router = useRouter();
+  const { isBasicPlan } = usePlanAccess();
   const unreadCount = useUnreadMessages();
   const containerPaddingClass = compact ? "py-4" : "pt-5 pb-16";
 
@@ -61,7 +63,7 @@ export default function MobileTabHeader({
           </div>
         </div>
       )}
-      {showBell && (
+      {showBell && !isBasicPlan && (
         <button
           className="relative rounded-md p-1 hover:bg-white/10 transition-colors"
           onClick={() => router.push("/user/dashboard/mobile/notifications")}

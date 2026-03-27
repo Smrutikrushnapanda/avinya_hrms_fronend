@@ -21,7 +21,7 @@ export function ThemeSwitcher() {
   };
 
   return (
-    <div className="fixed top-5 right-5 z-[70]">
+    <div className="fixed bottom-4 right-4 z-[70] sm:top-5 sm:right-5 sm:bottom-auto">
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>

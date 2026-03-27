@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle, Shield, Users, Zap } from "lucide-react";
@@ -22,11 +23,66 @@ const initialFormData: TrialFormData = {
   phone: "",
 };
 
+const SALES_EMAIL = "sales@avinya-hrms.com";
+const SALES_MAILTO = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(
+  "Enterprise HRMS Inquiry"
+)}&body=${encodeURIComponent(
+  "Hi Avinya team,\n\nWe want to discuss the Enterprise plan for our organization.\n\nOrganization name:\nTeam size:\nRequirements:\n\nThanks."
+)}`;
+
+const TRIAL_PLANS = [
+  {
+    pricingTypeId: 1,
+    name: "Basic",
+    priceLabel: "₹299 / month",
+    shortNote: "Attendance, leave, WFH, timeslips, and no service tab on mobile.",
+    heroCopy:
+      "Start with the attendance-focused setup for teams that only need the daily essentials.",
+    setupPoints: [
+      "Attendance-first workspace setup",
+      "Mobile without service tab",
+      "Employee web + admin web essentials",
+      "Fast rollout for lean teams",
+    ],
+  },
+  {
+    pricingTypeId: 2,
+    name: "Pro Launch",
+    priceLabel: "₹499 / month",
+    shortNote: "Full HRMS access across mobile, employee web, and admin web.",
+    heroCopy:
+      "Launch the full Avinya HRMS for organizations that want every major module from day one.",
+    setupPoints: [
+      "Full HRMS workspace setup",
+      "All employee and admin modules",
+      "Best fit for growing teams",
+      "Ready for broader rollout",
+    ],
+  },
+] as const;
+
+const DEFAULT_TRIAL_PLAN_ID = 2;
+
 export default function StartTrialPage() {
+  const searchParams = useSearchParams();
   const [formData, setFormData] = useState<TrialFormData>(initialFormData);
+  const [selectedPricingTypeId, setSelectedPricingTypeId] = useState<number>(
+    DEFAULT_TRIAL_PLAN_ID
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  useEffect(() => {
+    const pricingTypeFromQuery = Number(searchParams.get("pricingTypeId") || "");
+    if (TRIAL_PLANS.some((plan) => plan.pricingTypeId === pricingTypeFromQuery)) {
+      setSelectedPricingTypeId(pricingTypeFromQuery);
+    }
+  }, [searchParams]);
+
+  const selectedPlan =
+    TRIAL_PLANS.find((plan) => plan.pricingTypeId === selectedPricingTypeId) ??
+    TRIAL_PLANS.find((plan) => plan.pricingTypeId === DEFAULT_TRIAL_PLAN_ID)!;
 
   const handleChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -55,6 +111,7 @@ export default function StartTrialPage() {
     try {
       const payload = {
         ...formData,
+        pricingTypeId: selectedPlan.pricingTypeId,
         source: "pricing-start-trial",
         submittedAt: new Date().toISOString(),
       };
@@ -256,6 +313,110 @@ export default function StartTrialPage() {
           gap: 16px;
         }
 
+        .plan-picker {
+          display: grid;
+          gap: 12px;
+        }
+
+        .plan-picker-label {
+          font-size: 13px;
+          font-weight: 700;
+          color: #334155;
+        }
+
+        .dark .trial-root .plan-picker-label {
+          color: #cbd5e1;
+        }
+
+        .plan-option-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .plan-option {
+          border: 1.5px solid #e2e8f0;
+          border-radius: 14px;
+          background: #f8fafc;
+          padding: 14px;
+          text-align: left;
+          cursor: pointer;
+          transition: border-color .2s, box-shadow .2s, transform .2s;
+        }
+
+        .plan-option:hover {
+          transform: translateY(-1px);
+        }
+
+        .plan-option.active {
+          border-color: #184a8c;
+          background: #eef6ff;
+          box-shadow: 0 0 0 3px rgba(24,74,140,0.08);
+        }
+
+        .dark .trial-root .plan-option {
+          border-color: rgba(148,163,184,0.24);
+          background: #111827;
+        }
+
+        .dark .trial-root .plan-option.active {
+          border-color: #60a5fa;
+          background: rgba(15, 23, 42, 0.95);
+          box-shadow: 0 0 0 3px rgba(96,165,250,0.16);
+        }
+
+        .plan-option-name {
+          font-size: 15px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+
+        .dark .trial-root .plan-option-name {
+          color: #e2e8f0;
+        }
+
+        .plan-option-price {
+          margin-top: 4px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #184a8c;
+        }
+
+        .dark .trial-root .plan-option-price {
+          color: #93c5fd;
+        }
+
+        .plan-option-note {
+          margin-top: 8px;
+          font-size: 12px;
+          line-height: 1.5;
+          color: #64748b;
+        }
+
+        .dark .trial-root .plan-option-note {
+          color: #94a3b8;
+        }
+
+        .enterprise-note {
+          font-size: 12px;
+          color: #64748b;
+          line-height: 1.6;
+        }
+
+        .enterprise-note a {
+          color: #184a8c;
+          font-weight: 700;
+          text-decoration: none;
+        }
+
+        .dark .trial-root .enterprise-note {
+          color: #94a3b8;
+        }
+
+        .dark .trial-root .enterprise-note a {
+          color: #93c5fd;
+        }
+
         .form-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -417,6 +578,10 @@ export default function StartTrialPage() {
           .form-grid {
             grid-template-columns: 1fr;
           }
+
+          .plan-option-grid {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
 
@@ -429,7 +594,7 @@ export default function StartTrialPage() {
               transition={{ duration: 0.5 }}
               className="trial-hero-title"
             >
-              Start Your Free Trial
+              Start Your {selectedPlan.name} Trial
             </motion.h1>
 
             <motion.p
@@ -438,22 +603,26 @@ export default function StartTrialPage() {
               transition={{ delay: 0.1, duration: 0.5 }}
               className="trial-hero-copy"
             >
-              Fill this quick form and we will get your trial workspace ready.
+              {selectedPlan.heroCopy}
             </motion.p>
 
             <div className="feature-list">
-              <div className="feature-row">
-                <CheckCircle size={16} /> Instant trial request confirmation
-              </div>
-              <div className="feature-row">
-                <Shield size={16} /> Secure setup with enterprise-grade data protection
-              </div>
-              <div className="feature-row">
-                <Users size={16} /> Built for teams of all sizes
-              </div>
-              <div className="feature-row">
-                <Zap size={16} /> Quick onboarding and fast go-live
-              </div>
+              {selectedPlan.setupPoints.map((point, index) => {
+                const Icon =
+                  index === 0
+                    ? CheckCircle
+                    : index === 1
+                      ? Shield
+                      : index === 2
+                        ? Users
+                        : Zap;
+
+                return (
+                  <div className="feature-row" key={point}>
+                    <Icon size={16} /> {point}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -469,10 +638,32 @@ export default function StartTrialPage() {
               Trial Details
             </h2>
             <p className="trial-form-subtitle">
-              Complete the required details and start your free trial.
+              Complete the required details and start your {selectedPlan.name} trial.
             </p>
 
             <form onSubmit={handleSubmit} className="trial-form-grid">
+              <div className="plan-picker">
+                <div className="plan-picker-label">Choose your plan</div>
+                <div className="plan-option-grid">
+                  {TRIAL_PLANS.map((plan) => (
+                    <button
+                      key={plan.pricingTypeId}
+                      type="button"
+                      className={`plan-option ${selectedPricingTypeId === plan.pricingTypeId ? "active" : ""}`}
+                      onClick={() => setSelectedPricingTypeId(plan.pricingTypeId)}
+                    >
+                      <div className="plan-option-name">{plan.name}</div>
+                      <div className="plan-option-price">{plan.priceLabel}</div>
+                      <div className="plan-option-note">{plan.shortNote}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="enterprise-note">
+                  Need Enterprise with a dedicated database and custom rollout?{" "}
+                  <a href={SALES_MAILTO}>Email {SALES_EMAIL}</a>.
+                </div>
+              </div>
+
               <div className="form-grid">
                 <div>
                   <label className="form-label" htmlFor="name">
@@ -556,7 +747,7 @@ export default function StartTrialPage() {
               {successMessage ? <p className="success-text">{successMessage}</p> : null}
 
               <button type="submit" className="submit-btn" disabled={isSubmitting}>
-                {isSubmitting ? "Starting Trial..." : "Start Free Trial"} <ArrowRight size={16} />
+                {isSubmitting ? "Starting Trial..." : `Start ${selectedPlan.name} Trial`} <ArrowRight size={16} />
               </button>
             </form>
           </motion.div>

@@ -1,12 +1,14 @@
 "use client";
 import { ReactNode, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { usePlanAccess } from "@/components/plan-access-provider";
 import {
   Home,
   CalendarDays,
   Umbrella,
   Clock,
   LayoutGrid,
+  Monitor,
   X,
   FileText,
   DollarSign,
@@ -18,11 +20,19 @@ import {
   Newspaper,
 } from "lucide-react";
 
-const tabs = [
+const defaultTabs = [
   { name: "Home", href: "/user/dashboard/mobile", icon: Home },
   { name: "Attendance", href: "/user/dashboard/mobile/attendance", icon: CalendarDays },
   { name: "Services", href: null, icon: LayoutGrid }, // center floating
   { name: "Leave", href: "/user/dashboard/mobile/leave", icon: Umbrella },
+  { name: "Time Slip", href: "/user/dashboard/mobile/timeslip", icon: Clock },
+];
+
+const basicTabs = [
+  { name: "Home", href: "/user/dashboard/mobile", icon: Home },
+  { name: "Attendance", href: "/user/dashboard/mobile/attendance", icon: CalendarDays },
+  { name: "Leave", href: "/user/dashboard/mobile/leave", icon: Umbrella },
+  { name: "WFH", href: "/user/dashboard/mobile/wfh", icon: Monitor },
   { name: "Time Slip", href: "/user/dashboard/mobile/timeslip", icon: Clock },
 ];
 
@@ -40,14 +50,19 @@ const serviceItems = [
 export default function MobileLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { isBasicPlan } = usePlanAccess();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const tabs = isBasicPlan ? basicTabs : defaultTabs;
+  const hasServicesCenter = !isBasicPlan;
 
   const getActiveTab = () => {
     if (pathname === "/user/dashboard/mobile") return 0;
     if (pathname.includes("/attendance")) return 1;
-    if (pathname.includes("/leave")) return 3;
+    if (pathname.includes("/leave")) return 2;
+    if (isBasicPlan && pathname.includes("/wfh")) return 3;
     if (pathname.includes("/timeslip")) return 4;
     if (
+      !isBasicPlan &&
       pathname.includes("/services") ||
       pathname.includes("/timesheet") ||
       pathname.includes("/payroll") ||
@@ -71,7 +86,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
       {children}
 
       {/* Bottom Sheet Overlay */}
-      {sheetOpen && (
+      {hasServicesCenter && sheetOpen && (
         <div
           className="fixed inset-0 bg-black/45 dark:bg-black/70 z-40 transition-opacity duration-300"
           onClick={() => setSheetOpen(false)}
@@ -79,6 +94,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* Bottom Sheet */}
+      {hasServicesCenter && (
       <div
         className={`fixed left-0 w-full bg-card border-t border-border z-50 rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
           sheetOpen ? "translate-y-0" : "translate-y-full"
@@ -123,12 +139,13 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
           })}
         </div>
       </div>
+      )}
 
       {/* Bottom Navigation Bar */}
       <div className="fixed bottom-0 left-0 w-full bg-card border-t border-border shadow-lg z-50" style={{ height: "64px" }}>
         <div className="flex items-end h-full relative">
           {tabs.map((tab, index) => {
-            const isCenter = index === 2;
+            const isCenter = hasServicesCenter && index === 2;
             const isActive = activeTab === index;
             const Icon = tab.icon;
 

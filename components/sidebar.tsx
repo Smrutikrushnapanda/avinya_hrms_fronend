@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { usePlanAccess } from "@/components/plan-access-provider";
 import { getProfile, getChatConversations, getPerformanceSettings, getWfhToday } from "@/app/api/api";
 import {
   Boxes,
@@ -162,9 +163,32 @@ const getPrimaryRoleFromPathAndRoles = (pathname: string, roles: string[] = []):
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { isPathAllowed } = usePlanAccess();
   const [mode, setMode] = useState<SidebarMode>("expanded");
   const initialRole = useMemo(() => getPrimaryRoleFromPathAndRoles(pathname || "/"), [pathname]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => [...(menuByRole[initialRole] || [])]);
+  const filterMenuItemsByPlan = (items: MenuItem[]): MenuItem[] =>
+    items.flatMap((item) => {
+      if (item.children?.length) {
+        const allowedChildren = item.children.filter((child) =>
+          isPathAllowed(child.href)
+        );
+
+        if (!allowedChildren.length) {
+          return [];
+        }
+
+        return [{ ...item, children: allowedChildren }];
+      }
+
+      if (item.href && !isPathAllowed(item.href)) {
+        return [];
+      }
+
+      return [item];
+    });
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() =>
+    filterMenuItemsByPlan([...(menuByRole[initialRole] || [])])
+  );
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const sidebarIconGradientClass =
@@ -173,8 +197,8 @@ export default function Sidebar() {
 
   useEffect(() => {
     const roleFromPath = getPrimaryRoleFromPathAndRoles(pathname || "/");
-    setMenuItems([...(menuByRole[roleFromPath] || [])]);
-  }, [pathname]);
+    setMenuItems(filterMenuItemsByPlan([...(menuByRole[roleFromPath] || [])]));
+  }, [isPathAllowed, pathname]);
 
   useEffect(() => {
 const fetchProfile = async () => {
@@ -222,7 +246,7 @@ const fetchProfile = async () => {
           ];
         }
 
-        setMenuItems(items);
+        setMenuItems(filterMenuItemsByPlan(items));
 
       } catch {
         // Keep fallback menu rendered from path; avoid blocking interaction.
@@ -230,7 +254,7 @@ const fetchProfile = async () => {
     };
 
     fetchProfile();
-  }, [pathname]);
+  }, [isPathAllowed, pathname]);
 
   useEffect(() => {
     const activeGroups: Record<string, boolean> = {};

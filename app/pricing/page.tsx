@@ -6,56 +6,234 @@ import {
   ArrowRight,
   Check,
   Clock3,
+  Database,
+  Globe,
   Mail,
-  Phone,
   Shield,
+  Smartphone,
   Sparkles,
   Users,
 } from "lucide-react";
 
-type CompareValue = boolean | string;
+const SALES_EMAIL = "sales@avinya-hrms.com";
+const SALES_MAILTO = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(
+  "Enterprise HRMS Inquiry"
+)}&body=${encodeURIComponent(
+  "Hi Avinya team,\n\nWe want to discuss the Enterprise plan for our organization.\n\nOrganization name:\nTeam size:\nRequirements:\n\nThanks."
+)}`;
 
-const starterFeatures = [
-  "Employee directory and profiles",
-  "Leave and attendance tracking",
-  "Payroll exports and reports",
-  "Email support",
+type PlanSection = {
+  title: string;
+  icon: "mobile" | "web" | "admin" | "infra";
+  items: string[];
+};
+
+type PlanCard = {
+  badge: string;
+  name: string;
+  description: string;
+  value: string;
+  cycle?: string;
+  note: string;
+  accent: "basic" | "pro" | "enterprise";
+  ctaLabel: string;
+  pricingTypeId?: number;
+  ctaMode: "trial" | "mailto";
+  featured?: boolean;
+  highlights: string[];
+  sections: PlanSection[];
+};
+
+const sectionIcons = {
+  mobile: Smartphone,
+  web: Globe,
+  admin: Users,
+  infra: Database,
+} as const;
+
+const plans: PlanCard[] = [
+  {
+    badge: "Attendance Core",
+    name: "Basic",
+    description:
+      "Attendance-first pricing for teams that only need the daily essentials across mobile, employee web, and admin web.",
+    value: "₹299",
+    cycle: "/ month",
+    note:
+      "Built for attendance, leave, WFH, and timeslips only. No services area on mobile.",
+    accent: "basic",
+    ctaLabel: "Start Basic",
+    pricingTypeId: 1,
+    ctaMode: "trial",
+    highlights: [
+      "Attendance-first rollout",
+      "Mobile without services area",
+      "Best for lean teams",
+    ],
+    sections: [
+      {
+        title: "Mobile App",
+        icon: "mobile",
+        items: [
+          "Attendance",
+          "Leave",
+          "WFH",
+          "Timeslips",
+          "No services area",
+        ],
+      },
+      {
+        title: "Employee Web",
+        icon: "web",
+        items: [
+          "Attendance history",
+          "Leave requests",
+          "WFH requests",
+          "Timeslip updates",
+          "Basic profile access",
+        ],
+      },
+      {
+        title: "Admin Web",
+        icon: "admin",
+        items: [
+          "Attendance dashboard",
+          "Leave approvals",
+          "WFH approvals",
+          "Timeslip review",
+          "Basic employee reports",
+        ],
+      },
+    ],
+  },
+  {
+    badge: "Most Popular",
+    name: "Pro Launch",
+    description:
+      "Complete HRMS coverage for growing organizations that want every Avinya feature available across all product surfaces.",
+    value: "₹499",
+    cycle: "/ month",
+    note:
+      "Full product access across mobile, employee web, and admin web with no feature restrictions.",
+    accent: "pro",
+    ctaLabel: "Start Pro Launch",
+    pricingTypeId: 2,
+    ctaMode: "trial",
+    featured: true,
+    highlights: [
+      "All HRMS features",
+      "Admin + employee + mobile",
+      "Best for scaling teams",
+    ],
+    sections: [
+      {
+        title: "Mobile App",
+        icon: "mobile",
+        items: [
+          "All employee sections",
+          "Attendance, leave, WFH, timeslips",
+          "Service and self-service tools",
+          "Notices, chat, updates",
+          "Expanded employee experience",
+        ],
+      },
+      {
+        title: "Employee Web",
+        icon: "web",
+        items: [
+          "Full employee portal",
+          "Payroll and documents",
+          "Projects and expenses",
+          "Meetings and notices",
+          "End-to-end self-service",
+        ],
+      },
+      {
+        title: "Admin Web",
+        icon: "admin",
+        items: [
+          "Attendance and leave operations",
+          "Payroll and performance",
+          "Projects, expenses, meetings",
+          "Policies, notices, chat",
+          "Dashboards and analytics",
+        ],
+      },
+    ],
+  },
+  {
+    badge: "Dedicated Setup",
+    name: "Enterprise",
+    description:
+      "Dedicated enterprise rollout for organizations that need their own database, custom scope, and the highest priority support.",
+    value: "Contact us",
+    note:
+      "Own database, isolated data environment, tailored customizations, and priority support for your rollout.",
+    accent: "enterprise",
+    ctaLabel: "Email Sales",
+    ctaMode: "mailto",
+    highlights: [
+      "Own dedicated database",
+      "Priority support",
+      "Custom rollout and integrations",
+    ],
+    sections: [
+      {
+        title: "Product Scope",
+        icon: "web",
+        items: [
+          "Everything in Pro Launch",
+          "Custom workflows",
+          "Custom modules on request",
+          "Tailored employee experience",
+          "Flexible rollout planning",
+        ],
+      },
+      {
+        title: "Data & Security",
+        icon: "infra",
+        items: [
+          "Your own dedicated database",
+          "Isolated enterprise data",
+          "Custom hosting discussions",
+          "Security review support",
+          "Enterprise rollout governance",
+        ],
+      },
+      {
+        title: "Support & Delivery",
+        icon: "admin",
+        items: [
+          "Priority support lane",
+          "Customization according to your org",
+          "Integration planning",
+          "Dedicated onboarding",
+          "Direct sales coordination",
+        ],
+      },
+    ],
+  },
 ];
-
-const proFeatures = [
-  "Everything in Starter",
-  "Automated payroll workflows",
-  "Advanced analytics dashboard",
-  "Mobile app access",
-  "Priority support + onboarding",
-  "Custom role permissions and API access",
-];
-
-const compareRows: Array<{ label: string; starter: CompareValue; pro: CompareValue }> = [
-  { label: "Employee Directory", starter: true, pro: true },
-  { label: "Leave & Attendance", starter: true, pro: true },
-  { label: "Payroll Processing", starter: "Standard", pro: "Automated" },
-  { label: "Analytics", starter: "Basic", pro: "Advanced" },
-  { label: "Mobile App", starter: false, pro: true },
-  { label: "Workflow Automation", starter: false, pro: true },
-  { label: "API Access", starter: false, pro: true },
-  { label: "Support", starter: "Email", pro: "Priority" },
-];
-
-function renderCompareValue(value: CompareValue) {
-  if (typeof value === "boolean") {
-    return value ? (
-      <Check size={17} color="#22c55e" strokeWidth={2.4} />
-    ) : (
-      <span className="compare-no">-</span>
-    );
-  }
-
-  return <span className="compare-text">{value}</span>;
-}
 
 export default function PricingPage() {
   const router = useRouter();
+
+  const goToTrial = (pricingTypeId: number) => {
+    router.push(`/start-trial?pricingTypeId=${pricingTypeId}`);
+  };
+
+  const openSalesMail = () => {
+    window.location.href = SALES_MAILTO;
+  };
+
+  const handlePlanClick = (plan: PlanCard) => {
+    if (plan.ctaMode === "mailto") {
+      openSalesMail();
+      return;
+    }
+
+    goToTrial(plan.pricingTypeId ?? 2);
+  };
 
   return (
     <div className="pricing-root">
@@ -74,7 +252,7 @@ export default function PricingPage() {
           --hero-points: #334155;
           --compare-text: #0f172a;
           --compare-muted: #94a3b8;
-          --setup-chip-bg: rgba(15,79,147,.09);
+          --setup-chip-bg: rgba(15, 79, 147, 0.09);
           --setup-chip-text: #0f4f93;
         }
 
@@ -100,7 +278,7 @@ export default function PricingPage() {
           --hero-points: #cbd5e1;
           --compare-text: #e2e8f0;
           --compare-muted: #64748b;
-          --setup-chip-bg: rgba(96,165,250,.16);
+          --setup-chip-bg: rgba(96, 165, 250, 0.16);
           --setup-chip-text: #93c5fd;
           background:
             radial-gradient(1200px 600px at 90% -20%, rgba(34, 211, 238, 0.12), transparent 55%),
@@ -113,35 +291,9 @@ export default function PricingPage() {
         }
 
         .shell {
-          max-width: 1180px;
+          max-width: 1240px;
           margin: 0 auto;
           padding: 0 24px;
-        }
-
-        .nav {
-          position: sticky;
-          top: 0;
-          z-index: 40;
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          background: rgba(248, 251, 255, 0.82);
-          border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-        }
-
-        .dark .pricing-root .nav {
-          background: rgba(2, 6, 23, 0.82);
-          border-bottom-color: rgba(148, 163, 184, 0.2);
-        }
-
-        .logo-mark {
-          width: 36px;
-          height: 36px;
-          border-radius: 10px;
-          background: linear-gradient(135deg, var(--brand), var(--brand-2));
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 6px 18px rgba(15, 79, 147, 0.35);
         }
 
         .btn {
@@ -156,7 +308,7 @@ export default function PricingPage() {
           align-items: center;
           justify-content: center;
           gap: 8px;
-          transition: transform .22s ease, box-shadow .22s ease, background .22s ease;
+          transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
         }
 
         .btn-primary {
@@ -191,7 +343,7 @@ export default function PricingPage() {
         }
 
         .hero {
-          padding: 96px 0 54px;
+          padding: 96px 0 48px;
         }
 
         .hero-badge {
@@ -205,13 +357,13 @@ export default function PricingPage() {
           font-size: 12px;
           font-weight: 700;
           color: var(--brand);
-          letter-spacing: .01em;
+          letter-spacing: 0.01em;
         }
 
         .hero-grid {
           margin-top: 28px;
           display: grid;
-          grid-template-columns: 1.08fr 0.92fr;
+          grid-template-columns: 1.02fr 0.98fr;
           gap: 28px;
           align-items: stretch;
         }
@@ -233,7 +385,7 @@ export default function PricingPage() {
 
         .hero-copy p {
           margin: 18px 0 0;
-          max-width: 580px;
+          max-width: 620px;
           font-size: 18px;
           line-height: 1.72;
           color: var(--muted);
@@ -280,7 +432,26 @@ export default function PricingPage() {
           width: 260px;
           height: 260px;
           border-radius: 50%;
-          background: radial-gradient(circle, rgba(18,150,219,.24) 0%, rgba(18,150,219,0) 70%);
+          background: radial-gradient(circle, rgba(18, 150, 219, 0.24) 0%, rgba(18, 150, 219, 0) 70%);
+        }
+
+        .setup-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          border-radius: 999px;
+          padding: 7px 12px;
+          font-size: 12px;
+          font-weight: 700;
+          background: var(--setup-chip-bg);
+          color: var(--setup-chip-text);
+        }
+
+        .hero-surface-copy {
+          margin: 0;
+          font-size: 14px;
+          line-height: 1.65;
+          color: var(--muted);
         }
 
         .metric-grid {
@@ -316,12 +487,12 @@ export default function PricingPage() {
         }
 
         .plans {
-          padding: 22px 0 80px;
+          padding: 20px 0 76px;
         }
 
         .plans-head {
           text-align: center;
-          max-width: 720px;
+          max-width: 760px;
           margin: 0 auto 34px;
         }
 
@@ -341,17 +512,20 @@ export default function PricingPage() {
 
         .plans-grid {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 18px;
+          align-items: stretch;
         }
 
         .plan-card {
           border-radius: 24px;
           border: 1px solid rgba(15, 23, 42, 0.1);
           background: var(--surface);
-          padding: 30px 26px;
+          padding: 30px 24px;
           box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
           position: relative;
+          display: flex;
+          flex-direction: column;
         }
 
         .dark .pricing-root .plan-card {
@@ -359,16 +533,26 @@ export default function PricingPage() {
           box-shadow: 0 18px 48px rgba(2, 6, 23, 0.28);
         }
 
-        .plan-card.highlight {
-          border: 1px solid rgba(15, 79, 147, 0.33);
+        .plan-card.pro {
+          border-color: rgba(15, 79, 147, 0.33);
           background: linear-gradient(180deg, #f9fcff 0%, #edf6ff 100%);
           box-shadow: 0 24px 56px rgba(15, 79, 147, 0.18);
         }
 
-        .dark .pricing-root .plan-card.highlight {
+        .dark .pricing-root .plan-card.pro {
           border-color: rgba(96, 165, 250, 0.45);
           background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
           box-shadow: 0 24px 56px rgba(2, 6, 23, 0.34);
+        }
+
+        .plan-card.enterprise {
+          border-color: rgba(14, 116, 144, 0.24);
+          background: linear-gradient(180deg, #f8fcff 0%, #f1f8ff 100%);
+        }
+
+        .dark .pricing-root .plan-card.enterprise {
+          background: linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+          border-color: rgba(34, 211, 238, 0.24);
         }
 
         .pill {
@@ -381,30 +565,43 @@ export default function PricingPage() {
           font-weight: 700;
           text-transform: uppercase;
           padding: 7px 11px;
+          width: fit-content;
         }
 
-        .pill-starter {
+        .pill.basic {
           color: #334155;
           background: #f1f5f9;
           border: 1px solid #e2e8f0;
         }
 
-        .dark .pricing-root .pill-starter {
-          color: #cbd5e1;
-          background: rgba(148, 163, 184, 0.16);
-          border-color: rgba(148, 163, 184, 0.26);
-        }
-
-        .pill-pro {
+        .pill.pro {
           color: #0f4f93;
           background: rgba(15, 79, 147, 0.13);
           border: 1px solid rgba(15, 79, 147, 0.25);
         }
 
-        .dark .pricing-root .pill-pro {
+        .pill.enterprise {
+          color: #0f766e;
+          background: rgba(15, 118, 110, 0.1);
+          border: 1px solid rgba(15, 118, 110, 0.2);
+        }
+
+        .dark .pricing-root .pill.basic {
+          color: #cbd5e1;
+          background: rgba(148, 163, 184, 0.16);
+          border-color: rgba(148, 163, 184, 0.26);
+        }
+
+        .dark .pricing-root .pill.pro {
           color: #bfdbfe;
           background: rgba(96, 165, 250, 0.16);
           border-color: rgba(96, 165, 250, 0.34);
+        }
+
+        .dark .pricing-root .pill.enterprise {
+          color: #99f6e4;
+          background: rgba(45, 212, 191, 0.12);
+          border-color: rgba(45, 212, 191, 0.24);
         }
 
         .plan-title {
@@ -427,6 +624,7 @@ export default function PricingPage() {
           display: flex;
           align-items: flex-end;
           gap: 8px;
+          flex-wrap: wrap;
         }
 
         .plan-price {
@@ -452,131 +650,122 @@ export default function PricingPage() {
           margin-bottom: 16px;
         }
 
-        .plan-note-starter {
+        .plan-note.basic {
           background: #f8fafc;
           color: var(--soft-text);
           border: 1px solid #e2e8f0;
         }
 
-        .dark .pricing-root .plan-note-starter {
-          background: rgba(148, 163, 184, 0.1);
-          border-color: rgba(148, 163, 184, 0.24);
-          color: #cbd5e1;
-        }
-
-        .plan-note-pro {
+        .plan-note.pro {
           background: rgba(15, 79, 147, 0.1);
           color: #0f4f93;
           border: 1px solid rgba(15, 79, 147, 0.18);
         }
 
-        .dark .pricing-root .plan-note-pro {
+        .plan-note.enterprise {
+          background: rgba(15, 118, 110, 0.08);
+          color: #0f766e;
+          border: 1px solid rgba(15, 118, 110, 0.14);
+        }
+
+        .dark .pricing-root .plan-note.basic {
+          background: rgba(148, 163, 184, 0.1);
+          border-color: rgba(148, 163, 184, 0.24);
+          color: #cbd5e1;
+        }
+
+        .dark .pricing-root .plan-note.pro {
           background: rgba(96, 165, 250, 0.12);
           border-color: rgba(96, 165, 250, 0.32);
           color: #bfdbfe;
         }
 
-        .plan-list {
-          margin: 0 0 22px;
+        .dark .pricing-root .plan-note.enterprise {
+          background: rgba(45, 212, 191, 0.12);
+          border-color: rgba(45, 212, 191, 0.24);
+          color: #99f6e4;
+        }
+
+        .plan-highlights {
+          margin: 0 0 18px;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .plan-highlights li {
+          border-radius: 999px;
+          padding: 8px 12px;
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--brand);
+          background: rgba(15, 79, 147, 0.08);
+        }
+
+        .dark .pricing-root .plan-highlights li {
+          color: #bfdbfe;
+          background: rgba(96, 165, 250, 0.12);
+        }
+
+        .platform-grid {
+          display: grid;
+          gap: 10px;
+          margin-bottom: 22px;
+        }
+
+        .platform-card {
+          border-radius: 16px;
+          border: 1px solid rgba(15, 23, 42, 0.08);
+          background: rgba(255, 255, 255, 0.72);
+          padding: 14px;
+        }
+
+        .dark .pricing-root .platform-card {
+          background: rgba(15, 23, 42, 0.72);
+          border-color: rgba(148, 163, 184, 0.2);
+        }
+
+        .platform-head {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          color: var(--ink);
+        }
+
+        .platform-list {
+          margin: 0;
           padding: 0;
           list-style: none;
           display: grid;
-          gap: 10px;
+          gap: 8px;
         }
 
-        .plan-list li {
+        .platform-list li {
           display: flex;
           align-items: flex-start;
-          gap: 9px;
+          gap: 8px;
           font-size: 14px;
-          line-height: 1.6;
+          line-height: 1.55;
           color: #1e293b;
           font-weight: 500;
         }
 
-        .dark .pricing-root .plan-list li {
+        .dark .pricing-root .platform-list li {
           color: #e2e8f0;
         }
 
-        .compare-section {
-          padding: 8px 0 72px;
-        }
-
-        .compare-card {
-          border-radius: 24px;
-          background: #fff;
-          border: 1px solid rgba(15, 23, 42, 0.1);
-          box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
-          overflow: hidden;
-        }
-
-        .dark .pricing-root .compare-card {
-          background: #0f172a;
-          border-color: rgba(148, 163, 184, 0.22);
-          box-shadow: 0 18px 46px rgba(2, 6, 23, 0.28);
-        }
-
-        .compare-head {
-          padding: 20px 24px;
-          background: linear-gradient(135deg, #f1f7ff, #eef5fb);
-          border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .dark .pricing-root .compare-head {
-          background: linear-gradient(135deg, #0f172a, #111827);
-          border-bottom-color: rgba(148, 163, 184, 0.2);
-        }
-
-        .compare-table-wrap {
-          overflow-x: auto;
-        }
-
-        table {
+        .plan-card .btn {
           width: 100%;
-          border-collapse: collapse;
-          min-width: 640px;
+          margin-top: auto;
         }
 
-        th {
-          text-align: left;
-          font-size: 12px;
-          color: var(--muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          padding: 14px 24px;
-          border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-          white-space: nowrap;
-        }
-
-        th:nth-child(2),
-        th:nth-child(3),
-        td:nth-child(2),
-        td:nth-child(3) {
-          text-align: center;
-        }
-
-        td {
-          padding: 16px 24px;
-          font-size: 14px;
-          color: var(--compare-text);
-          border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-        }
-
-        .dark .pricing-root th {
-          border-bottom-color: rgba(148, 163, 184, 0.2);
-        }
-
-        .dark .pricing-root td {
-          border-bottom-color: rgba(148, 163, 184, 0.14);
-        }
-
-        tr:last-child td {
-          border-bottom: none;
+        .details-section {
+          padding: 6px 0 72px;
         }
 
         .assurance {
@@ -589,7 +778,7 @@ export default function PricingPage() {
         .assurance-card {
           background: #fff;
           border-radius: 16px;
-          padding: 14px 14px;
+          padding: 14px;
           border: 1px solid rgba(15, 23, 42, 0.08);
           display: flex;
           gap: 10px;
@@ -623,9 +812,9 @@ export default function PricingPage() {
           content: "";
           position: absolute;
           inset: 0;
-          background-image: radial-gradient(rgba(255,255,255,.11) 1px, transparent 1px);
+          background-image: radial-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1px);
           background-size: 28px 28px;
-          opacity: .5;
+          opacity: 0.5;
           pointer-events: none;
         }
 
@@ -645,6 +834,14 @@ export default function PricingPage() {
           line-height: 1.08;
           letter-spacing: -0.03em;
           font-weight: 700;
+        }
+
+        .cta-copy {
+          margin: 10px 0 0;
+          color: rgba(255, 255, 255, 0.84);
+          font-size: 16px;
+          line-height: 1.65;
+          max-width: 640px;
         }
 
         .contact-row {
@@ -667,52 +864,11 @@ export default function PricingPage() {
           border: 1px solid rgba(255, 255, 255, 0.24);
         }
 
-        .footer {
-          padding: 34px 24px 30px;
-          text-align: center;
-          color: var(--soft-text);
-          font-size: 13px;
-          line-height: 1.5;
-        }
-
-        .setup-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          border-radius: 999px;
-          padding: 7px 12px;
-          font-size: 12px;
-          font-weight: 700;
-          background: var(--setup-chip-bg);
-          color: var(--setup-chip-text);
-        }
-
-        .hero-surface-copy {
-          margin: 0;
-          font-size: 14px;
-          line-height: 1.65;
-          color: var(--muted);
-        }
-
-        .compare-head-note {
-          color: var(--soft-text);
-          font-size: 13px;
-          font-weight: 600;
-        }
-
-        .cta-copy {
-          margin: 10px 0 0;
-          color: rgba(255,255,255,0.84);
-          font-size: 16px;
-          line-height: 1.65;
-          max-width: 640px;
-        }
-
         .cta-button {
           background: #fff;
           color: #0f4f93;
           min-width: 220px;
-          box-shadow: 0 10px 30px rgba(0,0,0,.18);
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
         }
 
         .dark .pricing-root .cta-button {
@@ -720,6 +876,14 @@ export default function PricingPage() {
           color: #bfdbfe;
           border: 1px solid rgba(191, 219, 254, 0.32);
           box-shadow: 0 10px 30px rgba(2, 6, 23, 0.38);
+        }
+
+        .footer {
+          padding: 34px 24px 30px;
+          text-align: center;
+          color: var(--soft-text);
+          font-size: 13px;
+          line-height: 1.5;
         }
 
         .footer-link {
@@ -733,31 +897,7 @@ export default function PricingPage() {
           font-family: inherit;
         }
 
-        .footer-trial-link {
-          border: none;
-          background: none;
-          color: var(--brand);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 700;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 0;
-          font-family: inherit;
-        }
-
-        .compare-no {
-          color: var(--compare-muted);
-          font-weight: 700;
-        }
-
-        .compare-text {
-          color: var(--compare-text);
-          font-weight: 600;
-        }
-
-        @media (max-width: 1024px) {
+        @media (max-width: 1100px) {
           .hero {
             padding-top: 76px;
           }
@@ -813,7 +953,7 @@ export default function PricingPage() {
             transition={{ duration: 0.45 }}
             className="hero-badge"
           >
-            <Sparkles size={13} /> Launch Offer: Pro Free for 6 Months
+            <Sparkles size={13} /> 3 pricing types: Basic, Pro Launch, Enterprise
           </motion.span>
 
           <div className="hero-grid">
@@ -824,25 +964,33 @@ export default function PricingPage() {
               transition={{ duration: 0.55 }}
             >
               <h1 className="display-font">
-                Pricing that <span className="gradient-word">moves with</span> your team.
+                Pricing built for <span className="gradient-word">real HR needs</span>.
               </h1>
               <p>
-                Start with a risk-free trial, then scale into a full HR platform with payroll, attendance, and analytics in one place.
+                Start with an attendance-first Basic plan, move into full-suite Pro
+                Launch, or choose Enterprise when you need your own database and a
+                tailored rollout.
               </p>
 
               <div className="hero-actions">
-                <button className="btn btn-primary" onClick={() => router.push("/start-trial")}>
-                  Start Free Trial <ArrowRight size={16} />
+                <button
+                  className="btn btn-primary"
+                  onClick={() => goToTrial(2)}
+                >
+                  Start Trial <ArrowRight size={16} />
                 </button>
-                <button className="btn btn-ghost" onClick={() => router.push("/contact-sales")}>
+                <button
+                  className="btn btn-ghost"
+                  onClick={openSalesMail}
+                >
                   Contact Sales
                 </button>
               </div>
 
               <div className="hero-points">
-                <span>No credit card required</span>
-                <span>Cancel anytime</span>
-                <span>Fast onboarding support</span>
+                <span>Transparent monthly pricing</span>
+                <span>Mobile + employee web + admin web coverage</span>
+                <span>Enterprise option with own dedicated DB</span>
               </div>
             </motion.div>
 
@@ -853,31 +1001,39 @@ export default function PricingPage() {
               transition={{ duration: 0.6, delay: 0.08 }}
             >
               <div className="setup-chip">
-                <Clock3 size={13} /> 14-day quick setup promise
+                <Clock3 size={13} /> Flexible onboarding by plan size
               </div>
-              <h3 className="display-font" style={{ margin: "14px 0 6px", fontSize: 26, letterSpacing: "-0.02em" }}>
-                Built for growing teams
+              <h3
+                className="display-font"
+                style={{
+                  margin: "14px 0 6px",
+                  fontSize: 26,
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                One platform, three lanes
               </h3>
               <p className="hero-surface-copy">
-                Whether you run a 15-person startup or a 500-person company, Avinya adapts to your HR process.
+                Choose the entry point that matches your team today without paying
+                for the wrong level of HR complexity.
               </p>
 
               <div className="metric-grid">
                 <div className="metric">
-                  <div className="num">500+</div>
-                  <div className="label">Companies trust Avinya</div>
+                  <div className="num">₹299</div>
+                  <div className="label">Basic monthly plan</div>
                 </div>
                 <div className="metric">
-                  <div className="num">99.9%</div>
-                  <div className="label">Platform uptime</div>
+                  <div className="num">₹499</div>
+                  <div className="label">Pro Launch monthly plan</div>
                 </div>
                 <div className="metric">
-                  <div className="num">24 / 7</div>
-                  <div className="label">Support availability</div>
+                  <div className="num">3</div>
+                  <div className="label">Clear pricing types</div>
                 </div>
                 <div className="metric">
-                  <div className="num">6 mo</div>
-                  <div className="label">Free Pro launch window</div>
+                  <div className="num">Own DB</div>
+                  <div className="label">Enterprise isolation option</div>
                 </div>
               </div>
             </motion.aside>
@@ -886,163 +1042,131 @@ export default function PricingPage() {
 
         <section className="plans">
           <div className="plans-head">
-            <h2 className="display-font">Choose your growth lane</h2>
+            <h2 className="display-font">Choose the right rollout level</h2>
             <p>
-              Start with Starter or jump straight to Pro. Both include full onboarding assistance.
+              Basic is focused on attendance-related operations, Pro Launch opens
+              the full HRMS, and Enterprise is tailored for organizations that need
+              isolated data and custom implementation.
             </p>
           </div>
 
           <div className="plans-grid">
-            <motion.article
-              className="plan-card"
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45 }}
-            >
-              <span className="pill pill-starter">Starter</span>
-              <h3 className="plan-title display-font">Start Smart</h3>
-              <p className="plan-subtitle">
-                Perfect for small teams looking to organize HR operations quickly.
-              </p>
+            {plans.map((plan, index) => (
+              <motion.article
+                key={plan.name}
+                className={`plan-card ${plan.accent}`}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45, delay: index * 0.05 }}
+              >
+                <span className={`pill ${plan.accent}`}>
+                  {plan.featured ? <Sparkles size={12} /> : null}
+                  {plan.badge}
+                </span>
 
-              <div className="plan-price-row">
-                <div className="plan-price">₹1,499</div>
-                <div className="plan-cycle">/ month</div>
-              </div>
+                <h3 className="plan-title display-font">{plan.name}</h3>
+                <p className="plan-subtitle">{plan.description}</p>
 
-              <div className="plan-note plan-note-starter">
-                Includes 14-day free trial before billing starts.
-              </div>
+                <div className="plan-price-row">
+                  <div className="plan-price">{plan.value}</div>
+                  {plan.cycle ? <div className="plan-cycle">{plan.cycle}</div> : null}
+                </div>
 
-              <ul className="plan-list">
-                {starterFeatures.map((feature) => (
-                  <li key={feature}>
-                    <Check size={16} color="#22c55e" /> {feature}
-                  </li>
-                ))}
-              </ul>
+                <div className={`plan-note ${plan.accent}`}>{plan.note}</div>
 
-              <button className="btn btn-ghost" onClick={() => router.push("/start-trial")} style={{ width: "100%" }}>
-                Start Starter Trial <ArrowRight size={15} />
-              </button>
-            </motion.article>
+                <ul className="plan-highlights">
+                  {plan.highlights.map((highlight) => (
+                    <li key={highlight}>{highlight}</li>
+                  ))}
+                </ul>
 
-            <motion.article
-              className="plan-card highlight"
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.45, delay: 0.06 }}
-            >
-              <span className="pill pill-pro">
-                <Sparkles size={12} /> Most Popular
-              </span>
-              <h3 className="plan-title display-font">Pro Launch</h3>
-              <p className="plan-subtitle">
-                Advanced HR automation and analytics for scaling organizations.
-              </p>
+                <div className="platform-grid">
+                  {plan.sections.map((section) => {
+                    const SectionIcon = sectionIcons[section.icon];
 
-              <div className="plan-price-row">
-                <div className="plan-price">₹0</div>
-                <div className="plan-cycle">for 6 months</div>
-              </div>
+                    return (
+                      <div className="platform-card" key={section.title}>
+                        <div className="platform-head">
+                          <SectionIcon size={15} />
+                          <span>{section.title}</span>
+                        </div>
+                        <ul className="platform-list">
+                          {section.items.map((item) => (
+                            <li key={item}>
+                              <Check size={15} color="#22c55e" /> {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
 
-              <div className="plan-note plan-note-pro">
-                Then ₹2,999/month. Save ₹17,994 during launch period.
-              </div>
-
-              <ul className="plan-list">
-                {proFeatures.map((feature) => (
-                  <li key={feature}>
-                    <Check size={16} color="#22c55e" /> {feature}
-                  </li>
-                ))}
-              </ul>
-
-              <button className="btn btn-primary" onClick={() => router.push("/start-trial")} style={{ width: "100%" }}>
-                Claim Pro Offer <ArrowRight size={15} />
-              </button>
-            </motion.article>
+                <button
+                  className={`btn ${plan.featured ? "btn-primary" : "btn-ghost"}`}
+                  onClick={() => handlePlanClick(plan)}
+                >
+                  {plan.ctaLabel} <ArrowRight size={15} />
+                </button>
+              </motion.article>
+            ))}
           </div>
         </section>
 
-        <section className="compare-section">
-          <div className="compare-card">
-            <div className="compare-head">
-              <h3 className="display-font" style={{ margin: 0, fontSize: 24, letterSpacing: "-0.02em" }}>
-                Plan Comparison
-              </h3>
-              <span className="compare-head-note">
-                Straightforward features, no hidden limits.
-              </span>
-            </div>
-
-            <div className="compare-table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Feature</th>
-                    <th>Starter</th>
-                    <th>Pro Launch</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {compareRows.map((row) => (
-                    <tr key={row.label}>
-                      <td style={{ fontWeight: 600 }}>{row.label}</td>
-                      <td>{renderCompareValue(row.starter)}</td>
-                      <td>{renderCompareValue(row.pro)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
+        <section className="details-section">
           <div className="assurance">
             <div className="assurance-card">
               <Shield size={18} color="#0f4f93" />
-              <p>SOC style controls with role-based data permissions.</p>
+              <p>Basic keeps the product focused on attendance-related workflows.</p>
             </div>
             <div className="assurance-card">
-              <Users size={18} color="#0f4f93" />
-              <p>Onboarding help for admins, HR managers, and employees.</p>
+              <Sparkles size={18} color="#0f4f93" />
+              <p>Pro Launch unlocks the complete HRMS across mobile, employee web, and admin web.</p>
             </div>
             <div className="assurance-card">
-              <Clock3 size={18} color="#0f4f93" />
-              <p>Migration support so your team can move fast without downtime.</p>
+              <Database size={18} color="#0f4f93" />
+              <p>Enterprise is for organizations that need their own database and custom rollout scope.</p>
             </div>
           </div>
 
           <div className="cta-block">
             <div className="cta-inner">
               <div>
-                <h3 className="display-font">Ready to start your trial?</h3>
+                <h3 className="display-font">
+                  Need a dedicated enterprise setup?
+                </h3>
                 <p className="cta-copy">
-                  Launch your workspace today and let your HR team run everything from one dashboard.
+                  We can scope Enterprise for your organization with an isolated
+                  database, customization, and a higher-priority support lane.
                 </p>
+                <div className="contact-row">
+                  <a className="contact-chip" href={SALES_MAILTO}>
+                    <Mail size={14} /> sales@avinya-hrms.com
+                  </a>
+                </div>
               </div>
+
               <button
                 className="btn cta-button"
-                onClick={() => router.push("/start-trial")}
+                onClick={openSalesMail}
               >
-                Start Free Trial <ArrowRight size={16} />
+                Talk to Sales <ArrowRight size={16} />
               </button>
-            </div>
-
-            <div className="contact-row">
-              <span className="contact-chip">
-                <Mail size={13} /> sales@avinya-hrms.com
-              </span>
-              <span className="contact-chip">
-                <Phone size={13} /> +91 98765 43210
-              </span>
             </div>
           </div>
         </section>
       </main>
 
+      <footer className="footer">
+        Need help choosing a plan?{" "}
+        <button
+          className="footer-link"
+          onClick={openSalesMail}
+        >
+          Contact the sales team
+        </button>
+      </footer>
     </div>
   );
 }

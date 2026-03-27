@@ -1,8 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useState, useEffect, useRef } from "react";
 import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import {
@@ -18,7 +16,6 @@ import {
   CheckCircle,
   Award,
   ChevronDown,
-  Play,
   TrendingUp,
   Clock,
   Globe,
@@ -418,13 +415,13 @@ export default function Home() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 24px 80px", position: "relative" }}>
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 pt-20 sm:pt-24 lg:pt-[100px] pb-16 sm:pb-20 relative">
           
           {/* Ambient orbs */}
           <div className="orb" style={{ width: 500, height: 500, top: -100, right: -100, background: "radial-gradient(circle, rgba(0,180,219,0.12) 0%, transparent 70%)" }} />
           <div className="orb" style={{ width: 400, height: 400, bottom: 0, left: -60, background: "radial-gradient(circle, rgba(24,74,140,0.1) 0%, transparent 70%)" }} />
 
-          <div style={{ maxWidth: 780, margin: "0 auto", textAlign: "center", position: "relative" }}>
+          <div className="max-w-[780px] mx-auto text-center relative">
             
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { delay: 0.1 } }}>
               <span className="badge-pill">
@@ -456,13 +453,13 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0, transition: { delay: 0.45 } }}
-              style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}
+              className="flex flex-col sm:flex-row gap-3 justify-center"
             >
-              <button className="btn-primary" onClick={() => router.push("/pricing")}>
+              <button className="btn-primary w-full sm:w-auto justify-center" onClick={() => router.push("/pricing")}>
                 Start Free Trial <ArrowRight size={16} />
               </button>
-              <button className="btn-outline" onClick={() => {}}>
-                <Play size={14} fill="#184a8c" /> Watch Demo
+              <button className="btn-outline w-full sm:w-auto justify-center" onClick={() => router.push("/signin")}>
+                Sign In
               </button>
             </motion.div>
 
@@ -484,27 +481,27 @@ export default function Home() {
           <motion.div
             initial={{ opacity: 0, y: 40, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1, transition: { delay: 0.55, duration: 0.8 } }}
-            style={{ marginTop: 72, position: "relative" }}
+            className="mt-14 sm:mt-[72px] relative"
           >
             {/* Glow */}
             <div style={{ position: "absolute", inset: "20px 10%", background: "linear-gradient(135deg, rgba(24,74,140,0.15), rgba(0,180,219,0.15))", filter: "blur(40px)", borderRadius: 24, zIndex: 0 }} />
 
             <div className="dashboard-mockup" style={{ background: "#fff", borderRadius: 24, border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,0.12)", position: "relative", zIndex: 1 }}>
               {/* Browser chrome */}
-              <div className="dashboard-browser" style={{ padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div className="dashboard-browser flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
                 <div style={{ display: "flex", gap: 6 }}>
                   {["#f87171","#fbbf24","#34d399"].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />)}
                 </div>
-                <div className="dashboard-address" style={{ flex: 1, borderRadius: 6, padding: "4px 12px", fontSize: 12, maxWidth: 320, margin: "0 auto" }}>
+                <div className="dashboard-address w-full flex-1 rounded-md px-3 py-1 text-xs max-w-[320px] mx-auto">
                   app.avinya-hrms.com/dashboard
                 </div>
               </div>
 
               {/* Dashboard body */}
-              <div className="dashboard-body" style={{ padding: 28 }}>
+              <div className="dashboard-body p-4 sm:p-7">
                 
                 {/* Top stats row */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
                   {[
                     { label: "Total Employees", value: "1,284", icon: Users, delta: "+12%", color: "#2563eb" },
                     { label: "On Leave Today",  value: "47",    icon: Calendar, delta: "-3%",  color: "#7c3aed" },
@@ -525,7 +522,7 @@ export default function Home() {
                 </div>
 
                 {/* Bottom two columns */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {/* Activity feed */}
                   <div className="dashboard-panel" style={{ padding: 20 }}>
                     <div className="dashboard-text-primary" style={{ fontSize: 13, fontWeight: 600, marginBottom: 16 }}>Recent Activity</div>
@@ -575,8 +572,8 @@ export default function Home() {
       </motion.section>
 
       {/* ══════════════════ STATS BAND ══════════════════ */}
-      <section style={{ background: "#fff", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9", padding: "48px 24px" }} className="stats-section">
-        <div style={{ maxWidth: 1000, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 32, textAlign: "center" }}>
+      <section style={{ background: "#fff", borderTop: "1px solid #f1f5f9", borderBottom: "1px solid #f1f5f9" }} className="stats-section px-4 sm:px-6 py-12">
+        <div className="max-w-[1000px] mx-auto grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
           {[
             { value: 500, suffix: "+", label: "Companies Trust Us" },
             { value: 50000, suffix: "+", label: "Active Users" },
@@ -594,8 +591,8 @@ export default function Home() {
       </section>
 
       {/* ══════════════════ FEATURES ══════════════════ */}
-      <section style={{ padding: "96px 24px", background: "#f8fafc" }} className="features-section">
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+      <section style={{ background: "#f8fafc" }} className="features-section px-4 sm:px-6 py-20 sm:py-24">
+        <div className="max-w-[1200px] mx-auto">
           
           <div style={{ textAlign: "center", marginBottom: 64 }}>
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
@@ -609,7 +606,7 @@ export default function Home() {
             </motion.div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 24 }}>
+          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))]">
             {features.map((f, i) => (
               <motion.div
                 key={f.title}
@@ -630,8 +627,8 @@ export default function Home() {
       </section>
 
       {/* ══════════════════ HOW IT WORKS ══════════════════ */}
-      <section style={{ padding: "96px 24px", background: "#fff" }} className="how-it-works-section">
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <section style={{ background: "#fff" }} className="how-it-works-section px-4 sm:px-6 py-20 sm:py-24">
+        <div className="max-w-[1100px] mx-auto">
           
           <div style={{ textAlign: "center", marginBottom: 72 }}>
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
@@ -642,7 +639,7 @@ export default function Home() {
             </motion.div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 32, position: "relative" }}>
+          <div className="grid gap-8 relative [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))]">
             {[
               { step: "01", icon: Globe,     title: "Create your account",  desc: "Sign up in 30 seconds—no credit card, no commitment." },
               { step: "02", icon: Users,     title: "Import your team",     desc: "Upload a CSV or connect your existing HRIS in one click." },
@@ -668,8 +665,8 @@ export default function Home() {
       </section>
 
       {/* ══════════════════ TESTIMONIALS ══════════════════ */}
-      <section style={{ padding: "96px 24px", background: "#f8fafc" }} className="testimonials-section">
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+      <section style={{ background: "#f8fafc" }} className="testimonials-section px-4 sm:px-6 py-20 sm:py-24">
+        <div className="max-w-[1100px] mx-auto">
           
           <div style={{ textAlign: "center", marginBottom: 64 }}>
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
@@ -680,7 +677,7 @@ export default function Home() {
             </motion.div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
+          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))]">
             {testimonials.map((t, i) => (
               <motion.div key={t.name}
                 initial={{ opacity: 0, y: 24 }}
@@ -710,7 +707,7 @@ export default function Home() {
       </section>
 
       {/* ══════════════════ CTA ══════════════════ */}
-      <section className="cta-section" style={{ padding: "96px 24px" }}>
+      <section className="cta-section px-4 sm:px-6 py-20 sm:py-24">
         {/* Dot pattern */}
         <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)", backgroundSize: "40px 40px", pointerEvents: "none" }} />
         {/* Orbs */}
@@ -721,7 +718,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          style={{ maxWidth: 700, margin: "0 auto", textAlign: "center", position: "relative", zIndex: 1 }}
+          className="max-w-[700px] mx-auto text-center relative z-[1]"
         >
           <div className="stat-pill" style={{ marginBottom: 24, display: "inline-flex" }}>
             <Award size={13} /> Join 500+ companies already transforming HR
@@ -736,11 +733,12 @@ export default function Home() {
             Start your free 14-day trial and see why leading companies choose Avinya to manage their most important asset — their people.
           </p>
 
-          <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", marginBottom: 36 }}>
-            <button className="btn-white" onClick={() => router.push("/pricing")}>
+          <div className="flex flex-col sm:flex-row gap-3.5 justify-center mb-9">
+            <button className="btn-white w-full sm:w-auto justify-center" onClick={() => router.push("/pricing")}>
               Start Free Trial <ArrowRight size={16} />
             </button>
             <button
+              className="w-full sm:w-auto"
               style={{ background: "rgba(255,255,255,0.1)", border: "1.5px solid rgba(255,255,255,0.3)", borderRadius: 12, padding: "13px 28px", color: "#fff", fontWeight: 600, fontSize: 15, cursor: "pointer", fontFamily: "inherit", backdropFilter: "blur(8px)", transition: "all .25s" }}
               onClick={() => router.push("/contact-sales")}
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.18)")}

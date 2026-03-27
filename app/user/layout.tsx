@@ -1,12 +1,23 @@
 "use client";
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import Sidebar from "@/components/sidebar";
 import Topbar from "@/components/topbar";
-import { usePathname } from "next/navigation";
+import { PlanAccessProvider, usePlanAccess } from "@/components/plan-access-provider";
+import { usePathname, useRouter } from "next/navigation";
 import "../globals.css";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <PlanAccessProvider>
+      <UserLayoutContent>{children}</UserLayoutContent>
+    </PlanAccessProvider>
+  );
+}
+
+function UserLayoutContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { loading, isPathAllowed, getFallbackPath } = usePlanAccess();
   const isMobileDashboard = pathname.startsWith("/user/dashboard/mobile");
   const isMessages = pathname.startsWith("/user/messages");
   const mainBaseClass = "flex-1 min-h-0 min-w-0";
@@ -16,6 +27,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     "employee-mobile-shell overflow-y-auto scrollbar-hide bg-background";
   const messagesClasses =
     "employee-messages-shell overflow-hidden bg-background flex flex-col";
+  const isAllowedPath = isPathAllowed(pathname);
+
+  useEffect(() => {
+    if (!loading && !isAllowedPath) {
+      router.replace(getFallbackPath(pathname));
+    }
+  }, [getFallbackPath, isAllowedPath, loading, pathname, router]);
+
+  if (loading || !isAllowedPath) {
+    return (
+      <div className="employee-shell flex h-dvh min-h-screen items-center justify-center bg-background text-foreground">
+        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="employee-shell flex h-dvh min-h-screen flex-col bg-background text-foreground">

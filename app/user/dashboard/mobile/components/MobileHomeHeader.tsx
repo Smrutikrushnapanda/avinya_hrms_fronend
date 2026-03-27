@@ -3,6 +3,7 @@
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { usePlanAccess } from "@/components/plan-access-provider";
 import useUnreadMessages from "./useUnreadMessages";
 
 type UserInfo = {
@@ -19,6 +20,7 @@ export default function MobileHomeHeader({
   onOpenSidebar: () => void;
 }) {
   const router = useRouter();
+  const { isBasicPlan } = usePlanAccess();
   const unreadCount = useUnreadMessages();
 
   return (
@@ -33,18 +35,20 @@ export default function MobileHomeHeader({
           <p className="text-sm opacity-90">{user.role}</p>
         </div>
       </div>
-      <button
-        className="relative"
-        onClick={() => router.push("/user/dashboard/mobile/notifications")}
-        aria-label="Notifications"
-      >
-        <Bell className="w-6 h-6" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
-      </button>
+      {!isBasicPlan && (
+        <button
+          className="relative"
+          onClick={() => router.push("/user/dashboard/mobile/notifications")}
+          aria-label="Notifications"
+        >
+          <Bell className="w-6 h-6" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
     </div>
   );
 }

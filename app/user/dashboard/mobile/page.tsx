@@ -43,6 +43,7 @@ import AttendanceCalendar from "@/components/AttendanceCalendar";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
 import { useTheme } from "next-themes";
 import { motion, useMotionValue, useTransform } from "framer-motion";
+import { usePlanAccess } from "@/components/plan-access-provider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,6 +157,7 @@ function mapApiStatus(status: string): AttendanceStatus["status"] {
 
 export default function MobileDashboardPage() {
   const router = useRouter();
+  const { isBasicPlan } = usePlanAccess();
   const { theme, setTheme } = useTheme();
   const isDarkTheme = theme === "dark";
 
@@ -171,7 +173,10 @@ export default function MobileDashboardPage() {
     const swipeThreshold = 100;
     const velocityThreshold = 500;
 
-    if (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold) {
+    if (
+      !isBasicPlan &&
+      (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold)
+    ) {
       // Swiped left - go to Posts
       router.push("/user/dashboard/mobile/posts");
     }

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import styles from "./public-shell.module.css";
 
 const navLinks = [
@@ -19,6 +20,11 @@ function isLinkActive(pathname: string, href: string) {
 
 export function PublicHeader() {
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   return (
     <header className={styles.header}>
@@ -48,7 +54,51 @@ export function PublicHeader() {
               Start Trial <ArrowRight size={14} />
             </Link>
           </div>
+
+          <div className={styles.mobileHeaderActions}>
+            <Link
+              href="/signin"
+              className={`${styles.mobileSignIn} ${
+                isLinkActive(pathname, "/signin") ? styles.mobileSignInActive : ""
+              }`}
+            >
+              Sign In
+            </Link>
+            <button
+              type="button"
+              className={styles.menuButton}
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+              onClick={() => setMobileMenuOpen((open) => !open)}
+            >
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
+
+        {mobileMenuOpen && (
+          <div className={styles.mobileMenu}>
+            <nav className={styles.mobileNav} aria-label="Mobile navigation">
+              {navLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`${styles.mobileLink} ${
+                    isLinkActive(pathname, item.href) ? styles.mobileLinkActive : ""
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+
+            <div className={styles.mobileActions}>
+              <Link href="/start-trial" className={styles.mobileCta}>
+                Start Trial <ArrowRight size={14} />
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

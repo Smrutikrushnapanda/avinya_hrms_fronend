@@ -61,9 +61,12 @@ export const startTrialSignup = (data: {
   phone?: string;
   source?: string;
   submittedAt?: string;
+  pricingTypeId?: number;
 }) => api.post("/organizations/start-trial", data);
 export const updateOrganization = (id: string, data: any) => api.put(`/organizations/${id}`, data);
 export const getOrganization = (id: string) => api.get(`/organizations/${id}`);
+export const getOrganizationPlan = (organizationId: string) =>
+  api.get(`/api/pricing/organizations/${organizationId}/plan`);
 export const deleteOrganization = (id: string) => api.delete(`/organizations/${id}`);
 export const changeOrgAdminCredentials = (id: string, data: { newUserName?: string; newPassword?: string }) =>
   api.put(`/organizations/${id}/credentials`, data);

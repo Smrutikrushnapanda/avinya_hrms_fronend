@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { ThemeSwitcherUser } from "./theme-switcher-user";
+import { usePlanAccess } from "@/components/plan-access-provider";
 import { getInboxMessages, getOrganization, getProfile, markMessageRead } from "@/app/api/api";
 import { Bell, Search, X, UtensilsCrossed } from "lucide-react";
 import { createMessageSocket } from "@/lib/socket";
@@ -38,6 +39,7 @@ export default function Topbar() {
   const router = useRouter();
   const pathname = usePathname();
   const isEmployee = pathname.startsWith("/user");
+  const { isPathAllowed } = usePlanAccess();
 
   const [user, setUser] = useState({ name: "", role: "", avatar: "" });
   const [organizationName, setOrganizationName] = useState<string>("");
@@ -99,12 +101,18 @@ export default function Topbar() {
     const timeout = setTimeout(() => {
       axios
         .get("/api/search", { params: { q: query, role: isEmployee ? "EMPLOYEE" : "ADMIN" }, signal: controller.signal })
-        .then((res) => setSearchResults(res.data?.results || []))
+        .then((res) =>
+          setSearchResults(
+            (res.data?.results || []).filter((item: SearchTarget) =>
+              isPathAllowed(item.href)
+            )
+          )
+        )
         .catch((err) => { if (!axios.isCancel(err)) console.error("Search failed", err); })
         .finally(() => setSearchLoading(false));
     }, 180);
     return () => { clearTimeout(timeout); controller.abort(); };
-  }, [searchQuery, isEmployee]);
+  }, [searchQuery, isEmployee, isPathAllowed]);
 
   const normalizeMessage = (msg: any): InboxMessage => ({
     id: msg?.id,

@@ -31,6 +31,7 @@ import {
 import { DEFAULT_WIDGETS, Widget } from "./components/types";
 import { DashboardLoadingSkeleton } from "./components/DashboardSkeleton";
 import { StatCard, WidgetCard } from "./components/StatCard";
+import { usePlanAccess } from "@/components/plan-access-provider";
 import {
   PollWidget, NoticeWidget, BirthdayWidget, UserActivitiesWidget, HolidayWidget
 } from "./components/DashboardWidgets";
@@ -345,6 +346,7 @@ function LiveClock() {
 }
 
 export default function HRDashboardPage() {
+  const { isBasicPlan } = usePlanAccess();
   const [widgets, setWidgets] = useState<Widget[]>(DEFAULT_WIDGETS);
   const [showWidgetSettings, setShowWidgetSettings] = useState(false);
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -577,7 +579,7 @@ getHolidays({ organizationId: orgId }),
         )}
         {isWidgetEnabled('department-breakdown') && <DepartmentChart departmentData={departmentData} />}
         {isWidgetEnabled('user-activities') && <UserActivitiesWidget activities={activities} />}
-        {isWidgetEnabled('active-polls') && <PollWidget polls={polls} currentUser={currentUser} onPollUpdate={handlePollUpdate} />}
+        {!isBasicPlan && isWidgetEnabled('active-polls') && <PollWidget polls={polls} currentUser={currentUser} onPollUpdate={handlePollUpdate} />}
         {isWidgetEnabled('company-notices') && <NoticeWidget notices={notices} />}
         {isWidgetEnabled('birthday-tracker') && <BirthdayWidget upcomingBirthdays={upcomingBirthdays} />}
         {isWidgetEnabled('holiday-tracker') && <HolidayWidget holidays={holidays} />}
@@ -585,72 +587,73 @@ getHolidays({ organizationId: orgId }),
         {isWidgetEnabled('attendance-anomalies') && <AttendanceAnomaliesWidget anomalies={anomalies} />}
       </div>
 
-{/* Latest Posts Widget - Full Width */}
-      <div className="grid grid-cols-1 gap-6 mb-6">
-        <Card className="border-2 border-indigo-500/20 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 dark:from-indigo-900/10 dark:to-purple-900/10">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Latest Posts
-            </CardTitle>
-            <CardDescription>Corporate community updates and announcements</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {latestPosts.length > 0 ? (
-              <div className="space-y-4">
-                {latestPosts.slice(0, 3).map((post: any) => (
-                  <div key={post.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-r from-[#184a8c] to-[#00b4db] rounded-full flex items-center justify-center text-white font-semibold">
-                          {post.author?.firstName?.[0] || 'A'}
+      {!isBasicPlan && (
+        <div className="grid grid-cols-1 gap-6 mb-6">
+          <Card className="border-2 border-indigo-500/20 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 dark:from-indigo-900/10 dark:to-purple-900/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Latest Posts
+              </CardTitle>
+              <CardDescription>Corporate community updates and announcements</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {latestPosts.length > 0 ? (
+                <div className="space-y-4">
+                  {latestPosts.slice(0, 3).map((post: any) => (
+                    <div key={post.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-r from-[#184a8c] to-[#00b4db] rounded-full flex items-center justify-center text-white font-semibold">
+                            {post.author?.firstName?.[0] || 'A'}
+                          </div>
+                          <div>
+                            <div className="font-medium">{post.author?.firstName} {post.author?.lastName}</div>
+                            <div className="text-xs text-gray-500">{format(new Date(post.createdAt), 'MMM dd, yyyy HH:mm')}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-medium">{post.author?.firstName} {post.author?.lastName}</div>
-                          <div className="text-xs text-gray-500">{format(new Date(post.createdAt), 'MMM dd, yyyy HH:mm')}</div>
+                        <Link href={`/admin/posts/${post.id}`}>
+                          <Button variant="ghost" size="sm">View →</Button>
+                        </Link>
+                      </div>
+                      <p className="mt-3 text-gray-700 dark:text-gray-300 line-clamp-2">{post.content}</p>
+                      {post.imageUrl && (
+                        <div className="mt-3">
+                          <img src={post.imageUrl} alt="Post" className="h-32 w-auto rounded-lg object-cover" />
+                        </div>
+                      )}
+                      <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Heart className="h-4 w-4" />
+                          <span>{post.likeCount || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <MessageCircle className="h-4 w-4" />
+                          <span>{post.commentCount || 0}</span>
                         </div>
                       </div>
-                      <Link href={`/admin/posts/${post.id}`}>
-                        <Button variant="ghost" size="sm">View →</Button>
-                      </Link>
                     </div>
-                    <p className="mt-3 text-gray-700 dark:text-gray-300 line-clamp-2">{post.content}</p>
-                    {post.imageUrl && (
-                      <div className="mt-3">
-                        <img src={post.imageUrl} alt="Post" className="h-32 w-auto rounded-lg object-cover" />
-                      </div>
-                    )}
-                    <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
-                      <div className="flex items-center gap-1">
-                        <Heart className="h-4 w-4" />
-                        <span>{post.likeCount || 0}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MessageCircle className="h-4 w-4" />
-                        <span>{post.commentCount || 0}</span>
-                      </div>
-                    </div>
+                  ))}
+                  <div className="flex justify-center pt-2">
+                    <Link href="/admin/posts">
+                      <Button variant="outline">View All Posts →</Button>
+                    </Link>
                   </div>
-                ))}
-                <div className="flex justify-center pt-2">
-                  <Link href="/admin/posts">
-                    <Button variant="outline">View All Posts →</Button>
-                  </Link>
                 </div>
-              </div>
-            ) : (
-              <div className="min-h-[200px] flex items-center justify-center text-gray-500 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-lg p-6">
-                <div className="text-center">
-                  <p className="text-lg font-medium opacity-50">No posts yet</p>
-                  <p className="text-sm opacity-70 mt-1">Create your first post to get started!</p>
-                  <Link href="/admin/posts">
-                    <Button className="mt-4 bg-[#184a8c] hover:bg-[#184a8c]/90">Go to Posts →</Button>
-                  </Link>
+              ) : (
+                <div className="min-h-[200px] flex items-center justify-center text-gray-500 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-lg p-6">
+                  <div className="text-center">
+                    <p className="text-lg font-medium opacity-50">No posts yet</p>
+                    <p className="text-sm opacity-70 mt-1">Create your first post to get started!</p>
+                    <Link href="/admin/posts">
+                      <Button className="mt-4 bg-[#184a8c] hover:bg-[#184a8c]/90">Go to Posts →</Button>
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

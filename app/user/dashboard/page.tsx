@@ -25,6 +25,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import AttendanceDonutChart from "@/components/charts/AttendanceDonutChart";
 import AttendanceStatus from "@/components/AttendanceStatus";
+import { usePlanAccess } from "@/components/plan-access-provider";
 import { toast } from "sonner";
 import {
   getProfile,
@@ -490,6 +491,7 @@ interface Holiday {
 }
 
 export default function UserDashboardPage() {
+  const { isBasicPlan } = usePlanAccess();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalanceData[]>([]);
@@ -860,6 +862,9 @@ export default function UserDashboardPage() {
       sensitive: true,
     },
   ];
+  const visibleStatCards = isBasicPlan
+    ? statCards.filter((card) => !card.sensitive)
+    : statCards;
 
   // Attendance breakdown from stats
   const attendanceBreakdownBase = stats?.attendanceBreakdown || {
@@ -935,7 +940,7 @@ export default function UserDashboardPage() {
 
       {/* ── STAT CARDS ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-        {statCards.map((card) => {
+        {visibleStatCards.map((card) => {
           const Icon = card.icon;
           return (
             <Card
@@ -1026,82 +1031,84 @@ export default function UserDashboardPage() {
           />
         </Card>
 
-        {/* UPCOMING MEETINGS */}
-        <Card className="p-5 min-w-0 md:col-span-2 xl:col-span-1 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <h2 className="text-sm font-bold text-foreground">
-                Upcoming Meetings
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Your scheduled meetings
-              </p>
+        {!isBasicPlan && (
+          <Card className="p-5 min-w-0 md:col-span-2 xl:col-span-1 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-bold text-foreground">
+                  Upcoming Meetings
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Your scheduled meetings
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="space-y-3">
-            {meetings.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No upcoming meetings
-              </p>
-            ) : (
-              meetings.slice(0, 5).map((m) => {
-                const meetingDate = new Date(m.scheduledAt);
-                const timeStr = meetingDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                const dateStr = meetingDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                
-                return (
-                  <div
-                    key={m.id}
-                    className="flex gap-3 p-3 rounded-xl bg-gradient-to-r from-[#184a8c]/5 to-[#00b4db]/5 border border-[#184a8c]/20 hover:border-[#00b4db] hover:shadow-md transition-all cursor-pointer"
-                  >
-                    <div className="flex flex-col items-center gap-1 min-w-[48px]">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#184a8c] to-[#00b4db] flex items-center justify-center shadow-sm">
-                        <Clock className="w-4 h-4 text-white" />
-                      </div>
-                      <span className="text-[10px] font-bold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent whitespace-nowrap">
-                        {timeStr}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-foreground truncate">
-                        {m.title}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {m.description || `${m.durationMinutes} minutes`}
-                      </p>
-                      {m.participants && m.participants.length > 0 && (
-                        <div className="flex mt-1.5">
-                          {m.participants.slice(0, 4).map((p, j) => (
-                            <div
-                              key={p.id}
-                              className="w-5 h-5 rounded-full border-2 border-card flex items-center justify-center text-[8px] font-bold text-white -ml-1 first:ml-0"
-                              style={{ background: ['#7c6cff', '#e87e8e', '#5cc8a8', '#e8b86c'][j % 4] }}
-                            >
-                              {p.firstName?.[0] || '?'}{p.lastName?.[0] || ''}
-                            </div>
-                          ))}
-                          {m.participants.length > 4 && (
-                            <div className="w-5 h-5 rounded-full border-2 border-card flex items-center justify-center text-[8px] font-bold text-foreground -ml-1 bg-muted">
-                              +{m.participants.length - 4}
-                            </div>
-                          )}
+            <div className="space-y-3">
+              {meetings.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No upcoming meetings
+                </p>
+              ) : (
+                meetings.slice(0, 5).map((m) => {
+                  const meetingDate = new Date(m.scheduledAt);
+                  const timeStr = meetingDate.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+                  const dateStr = meetingDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+                  return (
+                    <div
+                      key={m.id}
+                      className="flex gap-3 p-3 rounded-xl bg-gradient-to-r from-[#184a8c]/5 to-[#00b4db]/5 border border-[#184a8c]/20 hover:border-[#00b4db] hover:shadow-md transition-all cursor-pointer"
+                    >
+                      <div className="flex flex-col items-center gap-1 min-w-[48px]">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#184a8c] to-[#00b4db] flex items-center justify-center shadow-sm">
+                          <Clock className="w-4 h-4 text-white" />
                         </div>
-                      )}
+                        <span className="text-[10px] font-bold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent whitespace-nowrap">
+                          {timeStr}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">
+                          {m.title}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {m.description || `${m.durationMinutes} minutes`}
+                        </p>
+                        {m.participants && m.participants.length > 0 && (
+                          <div className="flex mt-1.5">
+                            {m.participants.slice(0, 4).map((p, j) => (
+                              <div
+                                key={p.id}
+                                className="w-5 h-5 rounded-full border-2 border-card flex items-center justify-center text-[8px] font-bold text-white -ml-1 first:ml-0"
+                                style={{ background: ["#7c6cff", "#e87e8e", "#5cc8a8", "#e8b86c"][j % 4] }}
+                              >
+                                {p.firstName?.[0] || "?"}
+                                {p.lastName?.[0] || ""}
+                              </div>
+                            ))}
+                            {m.participants.length > 4 && (
+                              <div className="w-5 h-5 rounded-full border-2 border-card flex items-center justify-center text-[8px] font-bold text-foreground -ml-1 bg-muted">
+                                +{m.participants.length - 4}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="bg-primary/10 dark:bg-primary/20 rounded-xl px-2.5 py-1.5 text-center flex-shrink-0 self-start">
+                        <p className="text-base font-extrabold text-primary leading-tight">
+                          {meetingDate.getDate()}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground font-medium">
+                          {dateStr.split(" ")[0]}
+                        </p>
+                      </div>
                     </div>
-                    <div className="bg-primary/10 dark:bg-primary/20 rounded-xl px-2.5 py-1.5 text-center flex-shrink-0 self-start">
-                      <p className="text-base font-extrabold text-primary leading-tight">
-                        {meetingDate.getDate()}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground font-medium">
-                        {dateStr.split(' ')[0]}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </Card>
+                  );
+                })
+              )}
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* ── ROW 2: ATTENDANCE + LEAVE BALANCE + AWARD TABLE ── */}
