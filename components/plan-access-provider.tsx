@@ -91,7 +91,7 @@ function getStoredPlanHint(): {
     }
 
     const parsedUser = JSON.parse(rawUser);
-    const planTypeHint =
+    const planTypeHintRaw =
       parsedUser?.planType ??
       parsedUser?.pricingTypeId ??
       parsedUser?.pricingType?.typeId ??
@@ -99,6 +99,8 @@ function getStoredPlanHint(): {
       parsedUser?.organization?.pricingTypeId ??
       parsedUser?.organization?.pricingType?.typeId ??
       null;
+    const planTypeHint =
+      planTypeHintRaw == null ? null : String(planTypeHintRaw);
 
     const planNameHint =
       parsedUser?.planName ??
@@ -153,14 +155,16 @@ export function PlanAccessProvider({
               null;
 
             if (!resolvedPlanType) {
-              resolvedPlanType = normalizeOrganizationPlanType(
+              const profilePlanTypeRaw =
                 profileData?.planType ??
-                  profileData?.pricingTypeId ??
-                  profileData?.pricingType?.typeId ??
-                  profileData?.organization?.planType ??
-                  profileData?.organization?.pricingTypeId ??
-                  profileData?.organization?.pricingType?.typeId ??
-                  null,
+                profileData?.pricingTypeId ??
+                profileData?.pricingType?.typeId ??
+                profileData?.organization?.planType ??
+                profileData?.organization?.pricingTypeId ??
+                profileData?.organization?.pricingType?.typeId ??
+                null;
+              resolvedPlanType = normalizeOrganizationPlanType(
+                profilePlanTypeRaw == null ? null : String(profilePlanTypeRaw),
                 profileData?.planName ??
                   profileData?.pricingTypeName ??
                   profileData?.pricingType?.typeName ??
