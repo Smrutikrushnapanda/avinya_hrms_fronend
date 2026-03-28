@@ -1,9 +1,13 @@
 export type OrganizationPlanType = "BASIC" | "PRO" | "ENTERPRISE" | null;
 
 const PLAN_RESTRICTIONS_ENABLED =
-  process.env.NEXT_PUBLIC_ENABLE_PLAN_RESTRICTIONS === "true";
+  process.env.NEXT_PUBLIC_ENABLE_PLAN_RESTRICTIONS !== "false";
 
 const BASIC_BLOCKED_PREFIXES = [
+  "/admin/dashboard",
+  "/admin/employees",
+  "/admin/timesheets",
+  "/admin/wfh-monitor",
   "/admin/meetings",
   "/admin/payroll",
   "/admin/polls",
@@ -16,6 +20,7 @@ const BASIC_BLOCKED_PREFIXES = [
   "/admin/reports",
   "/admin/logreport",
   "/admin/messages",
+  "/admin/settings",
   "/user/employees",
   "/user/payroll",
   "/user/expenses",
@@ -83,7 +88,7 @@ export function getRestrictedRouteFallback(
   }
 
   if (pathname.startsWith("/admin")) {
-    return "/admin/dashboard";
+    return "/admin/attendance";
   }
 
   if (pathname.startsWith("/user/dashboard/mobile")) {
