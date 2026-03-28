@@ -469,7 +469,7 @@ export default function Home() {
               animate={{ opacity: 1, transition: { delay: 0.6 } }}
               style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap", marginTop: 40 }}
             >
-              {["No credit card required", "14-day free trial", "Cancel anytime"].map(t => (
+              {["No credit card required", "6 month free trial", "Cancel anytime"].map(t => (
                 <span key={t} className="hero-trust-text" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500 }}>
                   <CheckCircle size={14} color="#10b981" strokeWidth={2.5} /> {t}
                 </span>
@@ -749,7 +749,7 @@ export default function Home() {
           </div>
 
           <div style={{ display: "flex", gap: 28, justifyContent: "center", flexWrap: "wrap" }}>
-            {["No credit card required", "14-day free trial", "Cancel anytime"].map(t => (
+            {["No credit card required", "6 month free trial", "Cancel anytime"].map(t => (
               <span key={t} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "rgba(255,255,255,0.55)", fontWeight: 500 }}>
                 <CheckCircle size={14} color="rgba(255,255,255,0.55)" strokeWidth={2.5} /> {t}
               </span>

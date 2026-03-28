@@ -1,9 +1,10 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { BadgeDollarSign, MessageSquare, Vote, FileText } from "lucide-react";
+import { BadgeDollarSign, MessageSquare, Vote, FileText, Home } from "lucide-react";
 import { useRouter } from "next/navigation";
 import MobileTabHeader from "../components/MobileTabHeader";
+import { usePlanAccess } from "@/components/plan-access-provider";
 
 interface ServiceItem {
   name: string;
@@ -12,7 +13,7 @@ interface ServiceItem {
   description: string;
 }
 
-const services: ServiceItem[] = [
+const baseServices: ServiceItem[] = [
   { name: "Timesheet", icon: FileText, href: "/user/dashboard/mobile/timesheet", description: "View your timesheet" },
   { name: "Salary Slip", icon: BadgeDollarSign, href: "/user/dashboard/mobile/payroll", description: "View salary slips" },
   { name: "Messages", icon: MessageSquare, href: "/user/dashboard/mobile/messages", description: "Check your messages" },
@@ -21,6 +22,14 @@ const services: ServiceItem[] = [
 
 export default function MobileServicesPage() {
   const router = useRouter();
+  const { isBasicPlan } = usePlanAccess();
+  const services: ServiceItem[] = isBasicPlan
+    ? baseServices
+    : [
+        ...baseServices.slice(0, 1),
+        { name: "WFH", icon: Home, href: "/user/dashboard/mobile/wfh", description: "Work from home requests" },
+        ...baseServices.slice(1),
+      ];
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">

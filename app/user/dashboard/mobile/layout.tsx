@@ -39,6 +39,7 @@ const basicTabs = [
 const serviceItems = [
   { name: "Profile", href: "/user/dashboard/mobile/profile", icon: Users, color: "#026D94" },
   { name: "Timesheet", href: "/user/dashboard/mobile/timesheet", icon: FileText, color: "#026D94" },
+  { name: "WFH", href: "/user/dashboard/mobile/wfh", icon: Monitor, color: "#026D94" },
   { name: "Payroll", href: "/user/dashboard/mobile/payroll", icon: DollarSign, color: "#026D94" },
   { name: "Messages", href: "/user/dashboard/mobile/messages", icon: MessageSquare, color: "#026D94" },
   { name: "Polls", href: "/user/dashboard/mobile/polls", icon: BarChart2, color: "#026D94" },
@@ -63,12 +64,18 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
     if (pathname.includes("/timeslip")) return 4;
     if (
       !isBasicPlan &&
-      pathname.includes("/services") ||
-      pathname.includes("/timesheet") ||
-      pathname.includes("/payroll") ||
-      pathname.includes("/messages") ||
-      pathname.includes("/polls") ||
-      pathname.includes("/posts")
+      (
+        pathname.includes("/services") ||
+        pathname.includes("/timesheet") ||
+        pathname.includes("/payroll") ||
+        pathname.includes("/messages") ||
+        pathname.includes("/polls") ||
+        pathname.includes("/posts") ||
+        pathname.includes("/settings") ||
+        pathname.includes("/notifications") ||
+        pathname.includes("/profile") ||
+        pathname.includes("/wfh")
+      )
     )
       return 2;
     return 0;
