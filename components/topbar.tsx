@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeSwitcherUser } from "./theme-switcher-user";
 import { usePlanAccess } from "@/components/plan-access-provider";
-import { getInboxMessages, getOrganization, getProfile, markMessageRead } from "@/app/api/api";
+import { getEmployeeByUserId, getInboxMessages, getOrganization, getProfile, markMessageRead } from "@/app/api/api";
 import { Bell, Search, X, UtensilsCrossed } from "lucide-react";
 import { createMessageSocket } from "@/lib/socket";
 import { toast } from "sonner";
@@ -34,6 +34,63 @@ type SearchTarget = {
   href: string;
   keywords?: string[];
 };
+
+type ProfileLike = {
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  userName?: string;
+  employee?: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+  };
+  roles?: Array<{ roleName?: string }>;
+  avatar?: string;
+  organizationId?: string;
+};
+
+function resolveDisplayName(data: ProfileLike, employeeData?: { firstName?: string; middleName?: string; lastName?: string } | null): string {
+  const employeeRecordName = [employeeData?.firstName, employeeData?.middleName, employeeData?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (employeeRecordName) return employeeRecordName;
+
+  const profileName = [data?.firstName, data?.middleName, data?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (profileName) return profileName;
+
+  const employeeName = [data?.employee?.firstName, data?.employee?.middleName, data?.employee?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (employeeName) return employeeName;
+
+  return data?.userName || "User";
+}
+
+function resolveDisplayRole(
+  roles: Array<{ roleName?: string }> | undefined,
+  isEmployeeRoute: boolean
+): string {
+  const normalizedRoles = Array.isArray(roles)
+    ? roles.map((r) => String(r?.roleName || "").toUpperCase()).filter(Boolean)
+    : [];
+
+  if (isEmployeeRoute) return "Employee";
+  if (
+    normalizedRoles.includes("ADMIN") ||
+    normalizedRoles.includes("SUPER_ADMIN") ||
+    normalizedRoles.includes("ORG_ADMIN")
+  ) {
+    return "Admin";
+  }
+  if (normalizedRoles.includes("HR")) return "HR";
+  return "Role";
+}
 
 export default function Topbar() {
   const router = useRouter();
@@ -77,10 +134,27 @@ export default function Topbar() {
     const fetchUser = async () => {
       try {
         const res = await getProfile();
-        const data = res.data;
+        const data = (res.data || {}) as ProfileLike;
+        let employeeNameData: { firstName?: string; middleName?: string; lastName?: string } | null = null;
+        const resolvedUserId = (res.data?.id ?? res.data?.userId ?? "").toString();
+
+        if (isEmployee && resolvedUserId) {
+          try {
+            const empRes = await getEmployeeByUserId(resolvedUserId);
+            const emp = empRes.data || {};
+            employeeNameData = {
+              firstName: emp?.firstName,
+              middleName: emp?.middleName,
+              lastName: emp?.lastName,
+            };
+          } catch {
+            employeeNameData = null;
+          }
+        }
+
         setUser({
-          name: [data?.firstName, data?.middleName, data?.lastName].filter(Boolean).join(" ") || "User",
-          role: data?.roles?.[0]?.roleName || "Role",
+          name: resolveDisplayName(data, employeeNameData),
+          role: resolveDisplayRole(data?.roles, isEmployee),
           avatar: data?.avatar || "/avatar.jpg",
         });
         if (data?.organizationId) {
@@ -91,11 +165,11 @@ export default function Topbar() {
       } catch { /* ignore */ }
     };
     fetchUser();
-  }, []);
+  }, [isEmployee]);
 
   useEffect(() => {
     const query = searchQuery.trim();
-    if (!query) { setSearchResults([]); return; }
+    if (!query) { setSearchResults([]); setSearchLoading(false); return; }
     const controller = new AbortController();
     setSearchLoading(true);
     const timeout = setTimeout(() => {
@@ -192,7 +266,12 @@ export default function Topbar() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) { toast.info("Type something to search"); return; }
+    if (!searchQuery.trim()) {
+      setSearchLoading(false);
+      setSearchResults([]);
+      toast.info("Type something to search");
+      return;
+    }
     const match = searchResults[0];
     if (match) { router.push(match.href); setSearchQuery(""); setSearchFocused(false); }
     else toast.error("No matching page found");

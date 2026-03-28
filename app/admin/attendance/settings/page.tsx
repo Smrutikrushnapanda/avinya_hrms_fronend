@@ -162,11 +162,11 @@ type ShiftFormState = {
 const createDefaultShiftForm = (base: AttendanceSettings = defaultSettings): ShiftFormState => ({
   name: "",
   description: "",
-  workStartTime: (base.workStartTime || "09:00:00").slice(0, 5),
-  workEndTime: (base.workEndTime || "18:00:00").slice(0, 5),
-  graceMinutes: String(base.graceMinutes ?? 15),
-  lateThresholdMinutes: String(base.lateThresholdMinutes ?? 30),
-  halfDayCutoffTime: (base.halfDayCutoffTime || "14:00:00").slice(0, 5),
+  workStartTime: (base.workStartTime || defaultSettings.workStartTime).slice(0, 5),
+  workEndTime: (base.workEndTime || defaultSettings.workEndTime).slice(0, 5),
+  graceMinutes: String(base.graceMinutes ?? defaultSettings.graceMinutes),
+  lateThresholdMinutes: String(base.lateThresholdMinutes ?? defaultSettings.lateThresholdMinutes),
+  halfDayCutoffTime: (base.halfDayCutoffTime || defaultSettings.halfDayCutoffTime).slice(0, 5),
   workingDays:
     Array.isArray(base.workingDays) && base.workingDays.length
       ? base.workingDays
@@ -408,22 +408,31 @@ export default function AttendanceSettingsPage() {
   const syncTimingDraftFromBranch = (branch: Branch | null) => {
     if (!branch) {
       setBranchTimingDraft({
-        workStartTime: defaultBranchForm.workStartTime,
-        workEndTime: defaultBranchForm.workEndTime,
-        graceMinutes: defaultBranchForm.graceMinutes,
-        lateThresholdMinutes: defaultBranchForm.lateThresholdMinutes,
-        halfDayCutoffTime: defaultBranchForm.halfDayCutoffTime,
-        workingDays: defaultBranchForm.workingDays,
-        weekdayOffRules: defaultBranchForm.weekdayOffRules,
+        workStartTime: (settings.workStartTime || defaultSettings.workStartTime).slice(0, 5),
+        workEndTime: (settings.workEndTime || defaultSettings.workEndTime).slice(0, 5),
+        graceMinutes: String(settings.graceMinutes ?? defaultSettings.graceMinutes),
+        lateThresholdMinutes: String(
+          settings.lateThresholdMinutes ?? defaultSettings.lateThresholdMinutes
+        ),
+        halfDayCutoffTime: (settings.halfDayCutoffTime || defaultSettings.halfDayCutoffTime).slice(0, 5),
+        workingDays:
+          Array.isArray(settings.workingDays) && settings.workingDays.length
+            ? settings.workingDays
+            : defaultSettings.workingDays,
+        weekdayOffRules: settings.weekdayOffRules || defaultSettings.weekdayOffRules,
       });
       return;
     }
     setBranchTimingDraft({
-      workStartTime: (branch.workStartTime || "09:00:00").slice(0, 5),
-      workEndTime: (branch.workEndTime || "18:00:00").slice(0, 5),
-      graceMinutes: String(branch.graceMinutes ?? 15),
-      lateThresholdMinutes: String(branch.lateThresholdMinutes ?? 30),
-      halfDayCutoffTime: (branch.halfDayCutoffTime || "14:00:00").slice(0, 5),
+      workStartTime: (branch.workStartTime || settings.workStartTime || defaultSettings.workStartTime).slice(0, 5),
+      workEndTime: (branch.workEndTime || settings.workEndTime || defaultSettings.workEndTime).slice(0, 5),
+      graceMinutes: String(branch.graceMinutes ?? settings.graceMinutes ?? defaultSettings.graceMinutes),
+      lateThresholdMinutes: String(
+        branch.lateThresholdMinutes ??
+          settings.lateThresholdMinutes ??
+          defaultSettings.lateThresholdMinutes
+      ),
+      halfDayCutoffTime: (branch.halfDayCutoffTime || settings.halfDayCutoffTime || defaultSettings.halfDayCutoffTime).slice(0, 5),
       workingDays:
         Array.isArray(branch.workingDays) && branch.workingDays.length
           ? branch.workingDays
@@ -434,7 +443,7 @@ export default function AttendanceSettingsPage() {
 
   useEffect(() => {
     syncTimingDraftFromBranch(selectedTimingBranch);
-  }, [selectedTimingBranchId, branches]);
+  }, [selectedTimingBranchId, branches, settings]);
 
   const saveBranchTimingFromOfficeTab = async (branch: Branch) => {
     const payload = {
@@ -762,11 +771,15 @@ export default function AttendanceSettingsPage() {
     setShiftForm({
       name: shift.name,
       description: shift.description || "",
-      workStartTime: (shift.workStartTime || "09:00:00").slice(0, 5),
-      workEndTime: (shift.workEndTime || "18:00:00").slice(0, 5),
-      graceMinutes: String(shift.graceMinutes ?? 15),
-      lateThresholdMinutes: String(shift.lateThresholdMinutes ?? 30),
-      halfDayCutoffTime: (shift.halfDayCutoffTime || "14:00:00").slice(0, 5),
+      workStartTime: (shift.workStartTime || settings.workStartTime || defaultSettings.workStartTime).slice(0, 5),
+      workEndTime: (shift.workEndTime || settings.workEndTime || defaultSettings.workEndTime).slice(0, 5),
+      graceMinutes: String(shift.graceMinutes ?? settings.graceMinutes ?? defaultSettings.graceMinutes),
+      lateThresholdMinutes: String(
+        shift.lateThresholdMinutes ??
+          settings.lateThresholdMinutes ??
+          defaultSettings.lateThresholdMinutes
+      ),
+      halfDayCutoffTime: (shift.halfDayCutoffTime || settings.halfDayCutoffTime || defaultSettings.halfDayCutoffTime).slice(0, 5),
       workingDays:
         Array.isArray(shift.workingDays) && shift.workingDays.length
           ? shift.workingDays

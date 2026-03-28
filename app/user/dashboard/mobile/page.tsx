@@ -496,10 +496,18 @@ export default function MobileDashboardPage() {
         const data = profileRes.data;
         const orgId: string = data?.organizationId ?? "";
         const userId: string = data?.id ?? data?.userId ?? "";
+        const displayName =
+          [data?.firstName, data?.middleName, data?.lastName].filter(Boolean).join(" ").trim() ||
+          [data?.employee?.firstName, data?.employee?.middleName, data?.employee?.lastName]
+            .filter(Boolean)
+            .join(" ")
+            .trim() ||
+          data?.userName ||
+          "User";
 
         setUser({
-          name: [data?.firstName, data?.middleName, data?.lastName].filter(Boolean).join(" ") || "User",
-          role: data?.roles?.[0]?.roleName ?? "Employee",
+          name: displayName,
+          role: "Employee",
           avatar: data?.avatar ?? "/avatar.jpg",
           email: data?.email ?? "",
           workEmail: data?.workEmail ?? data?.employee?.workEmail ?? "",

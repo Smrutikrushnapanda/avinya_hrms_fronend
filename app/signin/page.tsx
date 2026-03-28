@@ -116,6 +116,7 @@ export default function LoginPage() {
       const adminSideRoles = new Set(["ADMIN", "HR", "SUPER_ADMIN", "ORG_ADMIN"]);
       const hasAdminSideRole = normalizedRoles.some((role) => adminSideRoles.has(role));
       const hasEmployeeRole = normalizedRoles.includes("EMPLOYEE");
+      const hasBothAdminAndEmployeeRole = hasAdminSideRole && hasEmployeeRole;
 
       if (!hasAdminSideRole && !hasEmployeeRole) {
         setError("Access denied. No valid role assigned to this account.");
@@ -125,7 +126,7 @@ export default function LoginPage() {
 
       const cookieMaxAge = rememberMe ? 2592000 : 86400;
 
-      if (normalizedRoles.includes("HR")) {
+      if (hasBothAdminAndEmployeeRole) {
         setPendingAuthData({ user: responseUser, access_token, cookieMaxAge });
         setShowRoleSelection(true);
         setLoading(false);
@@ -726,7 +727,7 @@ export default function LoginPage() {
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Select Login Role</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                You have an HR role. Please specify how you'd like to access the system for this session.
+                Your account has both admin-side and employee access. Choose how you want to login for this session.
               </p>
             </div>
             <div className="p-6 flex flex-col gap-3">
@@ -735,7 +736,7 @@ export default function LoginPage() {
                 className="w-full flex items-center justify-between p-4 rounded-xl text-white hover:shadow-lg hover:-translate-y-0.5 transition-all font-semibold"
                 style={{ background: "linear-gradient(135deg, #184a8c, #1e6fbf)" }}
               >
-                <div className="flex items-center gap-3"><Shield size={18} /> HR Login</div>
+                <div className="flex items-center gap-3"><Shield size={18} /> Admin Login</div>
                 <ArrowRight size={18} />
               </button>
               <button

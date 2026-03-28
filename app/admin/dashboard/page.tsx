@@ -361,12 +361,39 @@ const [holidays, setHolidays] = useState<any[]>([]);
   const [latestPosts, setLatestPosts] = useState<any[]>([]);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [liveBreakData, setLiveBreakData] = useState<any>(null);
+  const basicAllowedWidgetIds = useMemo(
+    () =>
+      new Set([
+        "dashboard-stats",
+        "attendance-today",
+        "department-breakdown",
+        "attendance-anomalies",
+      ]),
+    []
+  );
+
+  const isWidgetVisibleForPlan = (widgetId: string) =>
+    !isBasicPlan || basicAllowedWidgetIds.has(widgetId);
 
   useEffect(() => {
     loadDashboardData();
     const interval = setInterval(loadDashboardData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!isBasicPlan) {
+      return;
+    }
+
+    setWidgets((prev) =>
+      prev.map((widget) =>
+        basicAllowedWidgetIds.has(widget.id)
+          ? widget
+          : { ...widget, isEnabled: false }
+      )
+    );
+  }, [basicAllowedWidgetIds, isBasicPlan]);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -434,6 +461,10 @@ getHolidays({ organizationId: orgId }),
   };
 
   const toggleWidget = (widgetId: string) => {
+    if (!isWidgetVisibleForPlan(widgetId)) {
+      return;
+    }
+
     setWidgets(prev => prev.map(widget =>
       widget.id === widgetId ? { ...widget, isEnabled: !widget.isEnabled } : widget
     ));
@@ -478,12 +509,14 @@ getHolidays({ organizationId: orgId }),
   }, [dailyStats, liveBreakData]);
 
   const widgetsByCategory = useMemo(() => {
-    return widgets.reduce((acc, widget) => {
+    return widgets
+      .filter((widget) => isWidgetVisibleForPlan(widget.id))
+      .reduce((acc, widget) => {
       if (!acc[widget.category]) acc[widget.category] = [];
       acc[widget.category].push(widget);
       return acc;
     }, {} as Record<string, Widget[]>);
-  }, [widgets]);
+  }, [isBasicPlan, widgets]);
 
   if (loading) return <DashboardLoadingSkeleton />;
 
@@ -495,10 +528,12 @@ getHolidays({ organizationId: orgId }),
           <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent">Dashboard</h1>
           <LiveClock />
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowWidgetSettings(!showWidgetSettings)} className="flex items-center gap-2 rounded-md border-[#184a8c]/30 hover:bg-gradient-to-r hover:from-[#184a8c]/10 hover:to-[#00b4db]/10">
-          <Settings className="h-4 w-4" />
-          <span className="hidden sm:inline">Manage Widgets</span>
-        </Button>
+        {!isBasicPlan && (
+          <Button variant="outline" size="sm" onClick={() => setShowWidgetSettings(!showWidgetSettings)} className="flex items-center gap-2 rounded-md border-[#184a8c]/30 hover:bg-gradient-to-r hover:from-[#184a8c]/10 hover:to-[#00b4db]/10">
+            <Settings className="h-4 w-4" />
+            <span className="hidden sm:inline">Manage Widgets</span>
+          </Button>
+        )}
       </div>
 
       {/* Quick Actions */}
@@ -522,7 +557,7 @@ getHolidays({ organizationId: orgId }),
       </div> */}
 
       {/* Widget Settings */}
-      {showWidgetSettings && (
+      {showWidgetSettings && !isBasicPlan && (
         <Card className="mb-6 border-2 border-[#184a8c]/30 bg-gradient-to-r from-[#184a8c]/5 to-[#00b4db]/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -571,20 +606,20 @@ getHolidays({ organizationId: orgId }),
 
       {/* Charts & Widgets (Combined to enable auto-fill space when disabled) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
-        {isWidgetEnabled('attendance-today') && (
+        {isWidgetVisibleForPlan('attendance-today') && isWidgetEnabled('attendance-today') && (
           <AttendanceChart
             attendanceChartData={attendanceChartData}
             breakEmployees={liveBreakData?.employees || []}
           />
         )}
-        {isWidgetEnabled('department-breakdown') && <DepartmentChart departmentData={departmentData} />}
-        {isWidgetEnabled('user-activities') && <UserActivitiesWidget activities={activities} />}
+        {isWidgetVisibleForPlan('department-breakdown') && isWidgetEnabled('department-breakdown') && <DepartmentChart departmentData={departmentData} />}
+        {isWidgetVisibleForPlan('user-activities') && isWidgetEnabled('user-activities') && <UserActivitiesWidget activities={activities} />}
         {!isBasicPlan && isWidgetEnabled('active-polls') && <PollWidget polls={polls} currentUser={currentUser} onPollUpdate={handlePollUpdate} />}
-        {isWidgetEnabled('company-notices') && <NoticeWidget notices={notices} />}
-        {isWidgetEnabled('birthday-tracker') && <BirthdayWidget upcomingBirthdays={upcomingBirthdays} />}
-        {isWidgetEnabled('holiday-tracker') && <HolidayWidget holidays={holidays} />}
-        <EmployeeAwardWidget organizationId={organizationId} />
-        {isWidgetEnabled('attendance-anomalies') && <AttendanceAnomaliesWidget anomalies={anomalies} />}
+        {isWidgetVisibleForPlan('company-notices') && isWidgetEnabled('company-notices') && <NoticeWidget notices={notices} />}
+        {isWidgetVisibleForPlan('birthday-tracker') && isWidgetEnabled('birthday-tracker') && <BirthdayWidget upcomingBirthdays={upcomingBirthdays} />}
+        {isWidgetVisibleForPlan('holiday-tracker') && isWidgetEnabled('holiday-tracker') && <HolidayWidget holidays={holidays} />}
+        {!isBasicPlan && <EmployeeAwardWidget organizationId={organizationId} />}
+        {isWidgetVisibleForPlan('attendance-anomalies') && isWidgetEnabled('attendance-anomalies') && <AttendanceAnomaliesWidget anomalies={anomalies} />}
       </div>
 
       {!isBasicPlan && (

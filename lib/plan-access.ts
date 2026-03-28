@@ -4,8 +4,6 @@ const PLAN_RESTRICTIONS_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_PLAN_RESTRICTIONS !== "false";
 
 const BASIC_BLOCKED_PREFIXES = [
-  "/admin/dashboard",
-  "/admin/employees",
   "/admin/timesheets",
   "/admin/wfh-monitor",
   "/admin/meetings",
@@ -15,27 +13,21 @@ const BASIC_BLOCKED_PREFIXES = [
   "/admin/projects",
   "/admin/clients-projects",
   "/admin/performance",
-  "/admin/policy",
   "/admin/expenses",
   "/admin/reports",
-  "/admin/logreport",
   "/admin/messages",
-  "/admin/settings",
   "/user/employees",
-  "/user/payroll",
   "/user/expenses",
   "/user/messages",
   "/user/polls",
   "/user/notifications",
   "/user/meetings",
   "/user/performance",
-  "/user/policy",
   "/user/projects",
   "/user/posts",
   "/user/dashboard/mobile/services",
   "/user/dashboard/mobile/profile",
   "/user/dashboard/mobile/timesheet",
-  "/user/dashboard/mobile/payroll",
   "/user/dashboard/mobile/messages",
   "/user/dashboard/mobile/polls",
   "/user/dashboard/mobile/posts",
@@ -48,10 +40,32 @@ function matchesPathPrefix(pathname: string, prefix: string): boolean {
 }
 
 export function normalizeOrganizationPlanType(
-  planType?: string | null
+  planType?: string | null,
+  planName?: string | null
 ): OrganizationPlanType {
-  if (planType === "BASIC" || planType === "PRO" || planType === "ENTERPRISE") {
-    return planType;
+  const normalizedType = typeof planType === "string" ? planType.trim().toUpperCase() : "";
+  if (
+    normalizedType === "BASIC" ||
+    normalizedType === "PRO" ||
+    normalizedType === "ENTERPRISE"
+  ) {
+    return normalizedType as OrganizationPlanType;
+  }
+
+  const normalizedName = typeof planName === "string" ? planName.trim().toUpperCase() : "";
+  if (normalizedName.includes("BASIC")) return "BASIC";
+  if (normalizedName.includes("PRO")) return "PRO";
+  if (normalizedName.includes("ENTERPRISE")) return "ENTERPRISE";
+
+  if (planType === "1" || normalizedType === "1") return "BASIC";
+  if (planType === "2" || normalizedType === "2") return "PRO";
+  if (planType === "3" || normalizedType === "3") return "ENTERPRISE";
+
+  const numericPlanType = Number(planType);
+  if (Number.isFinite(numericPlanType)) {
+    if (numericPlanType === 1) return "BASIC";
+    if (numericPlanType === 2) return "PRO";
+    if (numericPlanType === 3) return "ENTERPRISE";
   }
 
   return null;

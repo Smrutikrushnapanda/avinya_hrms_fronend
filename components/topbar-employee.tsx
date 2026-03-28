@@ -93,7 +93,7 @@ export default function TopbarEmployee() {
 
   useEffect(() => {
     const query = searchQuery.trim();
-    if (!query) { setSearchResults([]); return; }
+    if (!query) { setSearchResults([]); setSearchLoading(false); return; }
     const controller = new AbortController();
     setSearchLoading(true);
     const timeout = setTimeout(() => {
@@ -185,7 +185,12 @@ export default function TopbarEmployee() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) { toast.info("Type something to search"); return; }
+    if (!searchQuery.trim()) {
+      setSearchLoading(false);
+      setSearchResults([]);
+      toast.info("Type something to search");
+      return;
+    }
     const match = searchResults[0];
     if (match) { router.push(match.href); setSearchQuery(""); setSearchFocused(false); }
     else toast.error("No matching page found");

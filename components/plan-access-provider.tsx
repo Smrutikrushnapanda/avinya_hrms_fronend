@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { getOrganizationPlan, getProfile } from "@/app/api/api";
+import { getOrganization, getOrganizationPlan, getProfile } from "@/app/api/api";
 import {
   getRestrictedRouteFallback,
   isBasicPlanType,
@@ -28,6 +28,30 @@ type PlanAccessContextValue = {
 };
 
 const PlanAccessContext = createContext<PlanAccessContextValue | null>(null);
+
+type PlanSource = {
+  organizationId?: string | null;
+  employee?: { organizationId?: string | null };
+  organization?: {
+    id?: string | null;
+    planType?: string | null;
+    pricingTypeId?: string | number | null;
+    planName?: string | null;
+    pricingTypeName?: string | null;
+    pricingType?: {
+      typeId?: string | number | null;
+      typeName?: string | null;
+    };
+  };
+  planType?: string | null;
+  pricingTypeId?: string | number | null;
+  planName?: string | null;
+  pricingTypeName?: string | null;
+  pricingType?: {
+    typeId?: string | number | null;
+    typeName?: string | null;
+  };
+};
 
 function getStoredOrganizationId(): string | null {
   if (typeof window === "undefined") {
@@ -52,6 +76,45 @@ function getStoredOrganizationId(): string | null {
   }
 }
 
+function getStoredPlanHint(): {
+  planTypeHint: string | null;
+  planNameHint: string | null;
+} {
+  if (typeof window === "undefined") {
+    return { planTypeHint: null, planNameHint: null };
+  }
+
+  try {
+    const rawUser = localStorage.getItem("user");
+    if (!rawUser) {
+      return { planTypeHint: null, planNameHint: null };
+    }
+
+    const parsedUser = JSON.parse(rawUser);
+    const planTypeHint =
+      parsedUser?.planType ??
+      parsedUser?.pricingTypeId ??
+      parsedUser?.pricingType?.typeId ??
+      parsedUser?.organization?.planType ??
+      parsedUser?.organization?.pricingTypeId ??
+      parsedUser?.organization?.pricingType?.typeId ??
+      null;
+
+    const planNameHint =
+      parsedUser?.planName ??
+      parsedUser?.pricingTypeName ??
+      parsedUser?.pricingType?.typeName ??
+      parsedUser?.organization?.planName ??
+      parsedUser?.organization?.pricingTypeName ??
+      parsedUser?.organization?.pricingType?.typeName ??
+      null;
+
+    return { planTypeHint, planNameHint };
+  } catch {
+    return { planTypeHint: null, planNameHint: null };
+  }
+}
+
 export function PlanAccessProvider({
   children,
 }: {
@@ -67,16 +130,54 @@ export function PlanAccessProvider({
 
     const loadPlanAccess = async () => {
       try {
+        let profileData: PlanSource | null = null;
         let resolvedOrgId = getStoredOrganizationId();
+        const storedPlanHint = getStoredPlanHint();
+        let resolvedPlanType = normalizeOrganizationPlanType(
+          storedPlanHint.planTypeHint,
+          storedPlanHint.planNameHint
+        );
+        let resolvedPlanName: string | null =
+          typeof storedPlanHint.planNameHint === "string"
+            ? storedPlanHint.planNameHint
+            : null;
 
         if (!resolvedOrgId) {
           try {
             const profileRes = await getProfile();
+            profileData = (profileRes.data || null) as PlanSource | null;
             resolvedOrgId =
-              profileRes.data?.organizationId ??
-              profileRes.data?.organization?.id ??
-              profileRes.data?.employee?.organizationId ??
+              profileData?.organizationId ??
+              profileData?.organization?.id ??
+              profileData?.employee?.organizationId ??
               null;
+
+            if (!resolvedPlanType) {
+              resolvedPlanType = normalizeOrganizationPlanType(
+                profileData?.planType ??
+                  profileData?.pricingTypeId ??
+                  profileData?.pricingType?.typeId ??
+                  profileData?.organization?.planType ??
+                  profileData?.organization?.pricingTypeId ??
+                  profileData?.organization?.pricingType?.typeId ??
+                  null,
+                profileData?.planName ??
+                  profileData?.pricingTypeName ??
+                  profileData?.pricingType?.typeName ??
+                  profileData?.organization?.planName ??
+                  profileData?.organization?.pricingTypeName ??
+                  profileData?.organization?.pricingType?.typeName ??
+                  null
+              );
+              resolvedPlanName =
+                profileData?.planName ??
+                profileData?.pricingTypeName ??
+                profileData?.pricingType?.typeName ??
+                profileData?.organization?.planName ??
+                profileData?.organization?.pricingTypeName ??
+                profileData?.organization?.pricingType?.typeName ??
+                null;
+            }
           } catch {
             resolvedOrgId = null;
           }
@@ -89,8 +190,8 @@ export function PlanAccessProvider({
         setOrganizationId(resolvedOrgId);
 
         if (!resolvedOrgId) {
-          setPlanType(null);
-          setPlanName(null);
+          setPlanType(resolvedPlanType);
+          setPlanName(resolvedPlanName);
           return;
         }
 
@@ -102,12 +203,50 @@ export function PlanAccessProvider({
             return;
           }
 
-          setPlanType(normalizeOrganizationPlanType(plan?.planType));
-          setPlanName(typeof plan?.name === "string" ? plan.name : null);
+          const apiPlanName =
+            typeof plan?.name === "string"
+              ? plan.name
+              : typeof plan?.planName === "string"
+                ? plan.planName
+                : null;
+
+          const apiPlanType = normalizeOrganizationPlanType(
+            plan?.planType ?? plan?.pricingTypeId ?? null,
+            apiPlanName
+          );
+
+          if (apiPlanType) {
+            setPlanType(apiPlanType);
+            setPlanName(apiPlanName);
+            return;
+          }
+        } catch {
+          // Continue with fallbacks below.
+        }
+
+        try {
+          const orgRes = await getOrganization(resolvedOrgId);
+          const org = orgRes.data;
+          const orgPlanName =
+            org?.planName ??
+            org?.pricingTypeName ??
+            org?.pricingType?.typeName ??
+            resolvedPlanName;
+          const orgPlanType = normalizeOrganizationPlanType(
+            org?.planType ??
+              org?.pricingTypeId ??
+              org?.pricingType?.typeId ??
+              resolvedPlanType,
+            orgPlanName
+          );
+          if (!cancelled) {
+            setPlanType(orgPlanType);
+            setPlanName(orgPlanName ?? null);
+          }
         } catch {
           if (!cancelled) {
-            setPlanType(null);
-            setPlanName(null);
+            setPlanType(resolvedPlanType);
+            setPlanName(resolvedPlanName);
           }
         }
       } finally {

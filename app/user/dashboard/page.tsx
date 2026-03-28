@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  Users,
   UserCheck,
   Coffee,
   Palmtree,
@@ -32,6 +31,7 @@ import {
   getDashboardStats,
   getLeaveBalance,
   getEmployeeByUserId,
+  getOrganization,
   getTodayLogs,
   getHolidays,
   getAttendanceSettings,
@@ -49,12 +49,6 @@ function getGreeting(): string {
   if (hour < 12) return "Good Morning";
   if (hour < 17) return "Good Afternoon";
   return "Good Evening";
-}
-
-function getNumericValue(value: any): number {
-  if (typeof value === 'number') return value;
-  if (value && typeof value === 'object' && 'value' in value) return value.value;
-  return 0;
 }
 
 // ─── LEADERBOARD SCORING ──────────────────────────────────────────────────────
@@ -442,7 +436,6 @@ interface DashboardStats {
   totalEmployees?: any;
   presentToday?: any;
   onLeaveToday?: any;
-  payrollDue?: any;
   attendanceBreakdown?: {
     present?: number;
     absent?: number;
@@ -492,6 +485,8 @@ interface Holiday {
 
 export default function UserDashboardPage() {
   const { isBasicPlan } = usePlanAccess();
+  const [isBasicPlanInferred, setIsBasicPlanInferred] = useState(false);
+  const effectiveBasicPlan = isBasicPlan || isBasicPlanInferred;
   const [userData, setUserData] = useState<UserData | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalanceData[]>([]);
@@ -534,6 +529,8 @@ export default function UserDashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const normalizePlanHint = (value?: string | number | null) =>
+          String(value ?? "").trim().toUpperCase();
         // First get the profile to get user ID
         const profileRes = await getProfile();
         const profile = profileRes.data;
@@ -543,18 +540,74 @@ export default function UserDashboardPage() {
         // Set user data from profile
         setUserData({
           id: resolvedUserId,
-          firstName: profile.firstName,
-          lastName: profile.lastName,
+          firstName: profile.employee?.firstName ?? profile.firstName,
+          lastName: profile.employee?.lastName ?? profile.lastName,
           userName: profile.userName,
           email: profile.email,
           organizationId: profile.organizationId,
         });
+
+        const profileTypeHints = [
+          normalizePlanHint(profile?.planType),
+          normalizePlanHint(profile?.pricingTypeId),
+          normalizePlanHint(profile?.organization?.planType),
+          normalizePlanHint(profile?.organization?.pricingTypeId),
+          normalizePlanHint(profile?.organization?.pricingType?.typeId),
+        ];
+        const profileNameHints = [
+          normalizePlanHint(profile?.planName),
+          normalizePlanHint(profile?.organization?.planName),
+          normalizePlanHint(profile?.organization?.pricingTypeName),
+          normalizePlanHint(profile?.organization?.pricingType?.typeName),
+        ];
+        let inferredBasicPlan =
+          profileTypeHints.includes("BASIC") ||
+          profileTypeHints.includes("1") ||
+          profileNameHints.some((name) => name.includes("BASIC"));
+
+        if (!inferredBasicPlan && profile.organizationId) {
+          try {
+            const orgRes = await getOrganization(profile.organizationId);
+            const org = orgRes.data || {};
+            const orgTypeHints = [
+              normalizePlanHint(org?.planType),
+              normalizePlanHint(org?.pricingTypeId),
+              normalizePlanHint(org?.pricingType?.typeId),
+            ];
+            const orgNameHints = [
+              normalizePlanHint(org?.planName),
+              normalizePlanHint(org?.pricingTypeName),
+              normalizePlanHint(org?.pricingType?.typeName),
+            ];
+            inferredBasicPlan =
+              orgTypeHints.includes("BASIC") ||
+              orgTypeHints.includes("1") ||
+              orgNameHints.some((name: string) => name.includes("BASIC"));
+          } catch {
+            // ignore org fallback failure
+          }
+        }
+
+        setIsBasicPlanInferred(inferredBasicPlan);
 
         // Get employee by user ID
         if (resolvedUserId) {
           try {
             const empResponse = await getEmployeeByUserId(resolvedUserId);
             if (empResponse.data) {
+              const employeeName = {
+                firstName: empResponse.data.firstName ?? profile.firstName,
+                lastName: empResponse.data.lastName ?? profile.lastName,
+              };
+              setUserData((prev) => ({
+                ...(prev || {}),
+                id: resolvedUserId,
+                firstName: employeeName.firstName,
+                lastName: employeeName.lastName,
+                userName: profile.userName,
+                email: profile.email,
+                organizationId: profile.organizationId,
+              }));
               setEmployeeId(empResponse.data.id);
               
               // Fetch leave balance using user ID from profile
@@ -730,7 +783,7 @@ export default function UserDashboardPage() {
     };
 
     fetchData();
-  }, []);
+  }, [isBasicPlan]);
 
   // ── Fetch Leaderboard ────────────────────────────────────────────────────
   const fetchLeaderboard = useCallback(async (orgId: string, userId: string) => {
@@ -805,11 +858,15 @@ export default function UserDashboardPage() {
     return userData?.userName || "User";
   };
 
-  // Get values from stats (handles both number and object formats)
-  const totalEmployees = getNumericValue(stats?.totalEmployees);
-  const presentToday = getNumericValue(stats?.presentToday);
-  const onLeave = getNumericValue(stats?.onLeaveToday);
-  const payrollDue = getNumericValue(stats?.payrollDue);
+  // Employee-specific summary values
+  const hasPersonalCheckIn = hasPunchedInToday;
+  const totalLeaveRemaining = leaveBalances.reduce((sum, leave) => {
+    const remaining = Number(
+      leave.closingBalance ?? leave.remaining ?? Math.max(Number(leave.openingBalance ?? 0) - Number(leave.consumed ?? leave.used ?? 0), 0)
+    );
+    return sum + Math.max(remaining, 0);
+  }, 0);
+  const upcomingMeetingsCount = meetings.length;
   const previousMonthShort = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleDateString("en-US", { month: "long" });
   const formatInrCompact = (value: number) =>
     new Intl.NumberFormat("en-IN", {
@@ -825,31 +882,33 @@ export default function UserDashboardPage() {
   // Stat cards
   const statCards = [
     {
-      label: "Total Employees",
-      value: totalEmployees.toString(),
-      badge: "+4.2%",
-      up: true,
-      icon: Users,
-      accent: "text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/20",
-      borderColor: "border-l-indigo-500",
-    },
-    {
-      label: "Present Today",
-      value: presentToday.toString(),
-      badge: "+2.1%",
-      up: true,
+      label: "My Attendance",
+      value: hasPersonalCheckIn ? "Checked In" : "Not Checked In",
+      badge: hasPersonalCheckIn ? "Today" : "Pending",
+      up: hasPersonalCheckIn,
       icon: UserCheck,
-      accent: "text-rose-400 bg-rose-400/10 dark:bg-rose-400/20",
-      borderColor: "border-l-rose-400",
+      accent: hasPersonalCheckIn
+        ? "text-emerald-500 bg-emerald-500/10 dark:bg-emerald-500/20"
+        : "text-rose-400 bg-rose-400/10 dark:bg-rose-400/20",
+      borderColor: hasPersonalCheckIn ? "border-l-emerald-500" : "border-l-rose-400",
     },
     {
-      label: "On Leave",
-      value: onLeave.toString(),
-      badge: "-1.5%",
-      up: false,
+      label: "Leave Remaining",
+      value: totalLeaveRemaining.toString(),
+      badge: "Days",
+      up: true,
       icon: Palmtree,
       accent: "text-teal-500 bg-teal-500/10 dark:bg-teal-500/20",
       borderColor: "border-l-teal-500",
+    },
+    {
+      label: "Upcoming Meetings",
+      value: upcomingMeetingsCount.toString(),
+      badge: "Scheduled",
+      up: upcomingMeetingsCount > 0,
+      icon: CalendarDays,
+      accent: "text-indigo-500 bg-indigo-500/10 dark:bg-indigo-500/20",
+      borderColor: "border-l-indigo-500",
     },
     {
       label: `Salary Month (${salaryMonthLabel || previousMonthShort})`,
@@ -862,8 +921,8 @@ export default function UserDashboardPage() {
       sensitive: true,
     },
   ];
-  const visibleStatCards = isBasicPlan
-    ? statCards.filter((card) => !card.sensitive)
+  const visibleStatCards = effectiveBasicPlan
+    ? statCards.filter((card) => card.label !== "Upcoming Meetings")
     : statCards;
 
   // Attendance breakdown from stats
@@ -939,7 +998,13 @@ export default function UserDashboardPage() {
       </div>
 
       {/* ── STAT CARDS ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+      <div
+        className={`grid gap-5 mb-6 ${
+          effectiveBasicPlan
+            ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3"
+            : "grid-cols-2 lg:grid-cols-4"
+        }`}
+      >
         {visibleStatCards.map((card) => {
           const Icon = card.icon;
           return (
@@ -1031,7 +1096,7 @@ export default function UserDashboardPage() {
           />
         </Card>
 
-        {!isBasicPlan && (
+        {!effectiveBasicPlan && (
           <Card className="p-5 min-w-0 md:col-span-2 xl:col-span-1 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
             <div className="flex items-start justify-between mb-3">
               <div>
@@ -1235,6 +1300,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* EMPLOYEE LEADERBOARD */}
+        {!effectiveBasicPlan && (
         <Card className="p-5 border-l-4 border-l-[#184a8c]/50 rounded-2xl">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -1314,6 +1380,7 @@ export default function UserDashboardPage() {
             </div>
           )}
         </Card>
+        )}
       </div>
 
       {/* ── CELEBRATION OVERLAY (Month-end #1) ── */}

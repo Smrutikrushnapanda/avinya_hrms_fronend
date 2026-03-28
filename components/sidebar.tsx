@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlanAccess } from "@/components/plan-access-provider";
-import { getProfile, getChatConversations, getPerformanceSettings, getWfhToday } from "@/app/api/api";
+import { getProfile, getChatConversations, getPerformanceSettings, getWfhToday, getOrganization } from "@/app/api/api";
 import {
   Boxes,
   Users,
@@ -62,6 +62,18 @@ interface Profile {
   lastName?: string;
   avatar?: string;
   organizationId?: string;
+  pricingTypeId?: number | string;
+  planType?: string;
+  planName?: string;
+  organization?: {
+    pricingTypeId?: number | string;
+    planType?: string;
+    planName?: string;
+    pricingType?: {
+      typeId?: number | string;
+      typeName?: string;
+    };
+  };
 }
 
 interface MenuItemChild {
@@ -78,6 +90,48 @@ interface MenuItem {
   animation: AnimationType;
   children?: MenuItemChild[];
 }
+
+const applyBasicPlanMenuScope = (
+  items: MenuItem[],
+  role: string,
+  isBasicPlan: boolean
+): MenuItem[] => {
+  if (!isBasicPlan) {
+    return items;
+  }
+
+  const basicEmployeeAllowlist = new Set([
+    "Dashboard",
+    "Attendance",
+    "Timesheet",
+    "Leave",
+    "WFH",
+    "Time Slips",
+    "Salary Slips",
+    "Policy",
+    "My Profile",
+  ]);
+
+  const basicAdminAllowlist = new Set([
+    "Dashboard",
+    "Employees",
+    "Attendance",
+    "Time Slips",
+    "Leave & WFH",
+    "Policy",
+    "Settings",
+  ]);
+
+  if (role === "EMPLOYEE") {
+    return items.filter((item) => basicEmployeeAllowlist.has(item.name));
+  }
+
+  if (role === "ADMIN" || role === "HR") {
+    return items.filter((item) => basicAdminAllowlist.has(item.name));
+  }
+
+  return items;
+};
 
 const menuByRole: Record<string, MenuItem[]> = {
   ADMIN: [
@@ -163,11 +217,15 @@ const getPrimaryRoleFromPathAndRoles = (pathname: string, roles: string[] = []):
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { isPathAllowed } = usePlanAccess();
+  const { isPathAllowed, isBasicPlan } = usePlanAccess();
+  const isEmployeeRoute = pathname?.startsWith("/user");
+  const [isBasicMenuInferred, setIsBasicMenuInferred] = useState<boolean>(false);
+  const effectiveBasicMenu = isBasicPlan || isBasicMenuInferred;
   const [mode, setMode] = useState<SidebarMode>("expanded");
   const initialRole = useMemo(() => getPrimaryRoleFromPathAndRoles(pathname || "/"), [pathname]);
-  const filterMenuItemsByPlan = (items: MenuItem[]): MenuItem[] =>
-    items.flatMap((item) => {
+  const filterMenuItemsByPlan = useMemo(
+    () => (items: MenuItem[]): MenuItem[] =>
+      items.flatMap((item) => {
       if (item.children?.length) {
         const allowedChildren = item.children.filter((child) =>
           isPathAllowed(child.href)
@@ -185,9 +243,13 @@ export default function Sidebar() {
       }
 
       return [item];
-    });
+      }),
+    [isPathAllowed]
+  );
   const [menuItems, setMenuItems] = useState<MenuItem[]>(() =>
-    filterMenuItemsByPlan([...(menuByRole[initialRole] || [])])
+    filterMenuItemsByPlan(
+      applyBasicPlanMenuScope([...(menuByRole[initialRole] || [])], initialRole, effectiveBasicMenu)
+    )
   );
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
@@ -197,19 +259,74 @@ export default function Sidebar() {
 
   useEffect(() => {
     const roleFromPath = getPrimaryRoleFromPathAndRoles(pathname || "/");
-    setMenuItems(filterMenuItemsByPlan([...(menuByRole[roleFromPath] || [])]));
-  }, [isPathAllowed, pathname]);
+    setMenuItems(
+      filterMenuItemsByPlan(
+        applyBasicPlanMenuScope(
+          [...(menuByRole[roleFromPath] || [])],
+          roleFromPath,
+          effectiveBasicMenu
+        )
+      )
+    );
+  }, [effectiveBasicMenu, filterMenuItemsByPlan, pathname]);
 
   useEffect(() => {
 const fetchProfile = async () => {
       try {
         const res = await getProfile();
         const user: Profile = res.data;
+        const normalizePlan = (value?: string | number | null): string => String(value ?? "").trim().toUpperCase();
+        const typeHints = [
+          normalizePlan(user.planType),
+          normalizePlan(user.pricingTypeId),
+          normalizePlan(user.organization?.planType),
+          normalizePlan(user.organization?.pricingTypeId),
+          normalizePlan(user.organization?.pricingType?.typeId),
+        ];
+        const nameHints = [
+          normalizePlan(user.planName),
+          normalizePlan(user.organization?.planName),
+          normalizePlan(user.organization?.pricingType?.typeName),
+        ];
+        let inferredBasic =
+          typeHints.includes("BASIC") ||
+          typeHints.includes("1") ||
+          nameHints.some((name) => name.includes("BASIC"));
+
+        if (!inferredBasic && user.organizationId) {
+          try {
+            const orgRes = await getOrganization(user.organizationId);
+            const org = orgRes.data || {};
+            const orgTypeHints = [
+              normalizePlan(org?.planType),
+              normalizePlan(org?.pricingTypeId),
+              normalizePlan(org?.pricingType?.typeId),
+            ];
+            const orgNameHints = [
+              normalizePlan(org?.planName),
+              normalizePlan(org?.pricingTypeName),
+              normalizePlan(org?.pricingType?.typeName),
+            ];
+            inferredBasic =
+              orgTypeHints.includes("BASIC") ||
+              orgTypeHints.includes("1") ||
+              orgNameHints.some((name: string) => name.includes("BASIC"));
+          } catch {
+            // ignore org fallback failures
+          }
+        }
+
+        // Failsafe: for employee routes, never show full company menu while plan cannot be resolved.
+        if (isEmployeeRoute && !isBasicPlan && !inferredBasic) {
+          inferredBasic = true;
+        }
+
+        setIsBasicMenuInferred(inferredBasic);
 
         const roles: string[] = user.roles?.map((r: Role) => r.roleName) || [];
         const primaryRole = getPrimaryRoleFromPathAndRoles(pathname || "/", roles);
         let items: MenuItem[] = [...(menuByRole[primaryRole] || [])];
-        setMenuItems(items);
+        setMenuItems(applyBasicPlanMenuScope(items, primaryRole, isBasicPlan || inferredBasic));
 
         // For employees: conditionally add Performance, WFH Monitor, Projects
         if (primaryRole === "EMPLOYEE") {
@@ -239,14 +356,17 @@ const fetchProfile = async () => {
             // ignore — don't block sidebar load
           }
 
-          // My Projects — always visible for employees
-          items = [
-            ...items,
-            { name: "My Projects", icon: FolderKanban, href: "/user/projects", animation: "float" as const },
-          ];
+          if (!(isBasicPlan || inferredBasic)) {
+            items = [
+              ...items,
+              { name: "My Projects", icon: FolderKanban, href: "/user/projects", animation: "float" as const },
+            ];
+          }
         }
 
-        setMenuItems(filterMenuItemsByPlan(items));
+        setMenuItems(
+          filterMenuItemsByPlan(applyBasicPlanMenuScope(items, primaryRole, isBasicPlan || inferredBasic))
+        );
 
       } catch {
         // Keep fallback menu rendered from path; avoid blocking interaction.
@@ -254,7 +374,7 @@ const fetchProfile = async () => {
     };
 
     fetchProfile();
-  }, [isPathAllowed, pathname]);
+  }, [filterMenuItemsByPlan, isBasicPlan, isEmployeeRoute, pathname]);
 
   useEffect(() => {
     const activeGroups: Record<string, boolean> = {};
