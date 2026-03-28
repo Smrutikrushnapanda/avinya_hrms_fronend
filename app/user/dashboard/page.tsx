@@ -1052,7 +1052,13 @@ export default function UserDashboardPage() {
       </div>
 
       {/* ── ROW 1: DONUT + HOLIDAY CALENDAR + MEETINGS ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-5">
+      <div
+        className={`grid gap-5 mb-5 ${
+          effectiveBasicPlan
+            ? "grid-cols-1 md:grid-cols-2"
+            : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+        }`}
+      >
         {/* ATTENDANCE DONUT */}
         <Card className="p-5 min-w-0 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
           <div className="flex items-start justify-between mb-2">
@@ -1177,7 +1183,13 @@ export default function UserDashboardPage() {
       </div>
 
       {/* ── ROW 2: ATTENDANCE + LEAVE BALANCE + AWARD TABLE ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
+      <div
+        className={`grid gap-5 ${
+          effectiveBasicPlan
+            ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+            : "grid-cols-1 lg:grid-cols-4"
+        }`}
+      >
         {/* TODAY'S ATTENDANCE STATUS */}
         <Card className="p-5 border-l-4 border-l-[#184a8c]/50 rounded-2xl">
           <div className="flex items-start justify-between mb-1">
