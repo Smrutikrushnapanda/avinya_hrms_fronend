@@ -231,6 +231,7 @@ export default function AdminProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [allUsers, setAllUsers] = useState<UserOption[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
   const [tableState, setTableState] = useState({
     page: 0,
     pageSize: 50,
@@ -270,6 +271,7 @@ export default function AdminProjectsPage() {
           if (stored) {
             const parsed = JSON.parse(stored);
             orgId = parsed?.organizationId || parsed?.organization?.id;
+            setCurrentUserId(parsed?.userId || parsed?.id || "");
           }
         } catch { /* ignore */ }
       }
@@ -458,6 +460,10 @@ export default function AdminProjectsPage() {
   };
 
   const handleRemoveMember = async (projectId: string, userId: string) => {
+    if (userId === currentUserId) {
+      toast.error("You cannot remove yourself from this project");
+      return;
+    }
     try {
       await removeProjectEmployee(projectId, userId);
       toast.success("Member removed");
@@ -582,8 +588,14 @@ export default function AdminProjectsPage() {
                       Open Workspace
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onSelect={() => { setActiveProject(project); setViewOpen(true); }}>
-                    View
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      isClient
+                        ? router.push("/admin/clients-projects")
+                        : router.push(`/admin/projects/${project.id}`)
+                    }
+                  >
+                    View Page
                   </DropdownMenuItem>
                   {isClient ? (
                     <DropdownMenuItem onSelect={() => router.push("/admin/clients-projects")}>
@@ -612,7 +624,7 @@ export default function AdminProjectsPage() {
         },
       },
     ],
-    [openAssign, setDeleteConfirmId, openEdit, setViewOpen, setActiveProject, statusConfig, priorityConfig]
+    [openAssign, setDeleteConfirmId, openEdit, statusConfig, priorityConfig, router]
   );
 
   return (
@@ -952,6 +964,8 @@ export default function AdminProjectsPage() {
                             </div>
                             <Badge variant="outline" className="text-[10px] px-1.5 capitalize flex-shrink-0">{m.role}</Badge>
                             <button className="text-muted-foreground hover:text-red-500 transition-colors flex-shrink-0"
+                              disabled={m.userId === currentUserId}
+                              title={m.userId === currentUserId ? "You cannot remove yourself" : "Remove member"}
                               onClick={() => handleRemoveMember(activeProject.id, m.userId)}>
                               <X className="w-3.5 h-3.5" />
                             </button>

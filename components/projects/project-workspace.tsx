@@ -292,6 +292,10 @@ export default function ProjectWorkspace({
 
   const handleRemoveMember = async (userId: string) => {
     if (!project) return;
+    if (userId === profileUserId) {
+      toast.error("You cannot remove yourself from this project");
+      return;
+    }
     try {
       await removeProjectEmployee(project.id, userId);
       setProjectEmployees((prev) => prev.filter((m) => m.userId !== userId));
@@ -602,6 +606,12 @@ export default function ProjectWorkspace({
                           variant="ghost"
                           size="sm"
                           className="text-red-500"
+                          disabled={emp.userId === profileUserId}
+                          title={
+                            emp.userId === profileUserId
+                              ? "You cannot remove yourself"
+                              : "Remove member"
+                          }
                           onClick={() => handleRemoveMember(emp.userId)}
                         >
                           <X className="w-4 h-4" />
