@@ -116,7 +116,7 @@ type ClientProjectApi = {
     workEmail?: string | null;
     firstName?: string | null;
     lastName?: string | null;
-    user?: { email?: string | null } | null;
+    user?: { id?: string | null; email?: string | null } | null;
   } | null;
 };
 
@@ -164,7 +164,7 @@ function ProgressBar({ value }: { value: number }) {
 
 // ─── Map client_projects → Project shape ──────────────────────────────────────
 
-function mapClientProject(cp: ClientProjectApi): Project {
+function mapClientProject(cp: ClientProjectApi, currentUserId: string): Project {
   const today = new Date().toISOString().split("T")[0];
   const endDate: string | null = cp.endDate ?? null;
   const startDate: string | null = cp.startDate ?? null;
@@ -176,6 +176,7 @@ function mapClientProject(cp: ClientProjectApi): Project {
     ACTIVE: "active", INACTIVE: "on_hold", COMPLETED: "completed",
   };
   const mgr = cp.manager ?? null;
+  const managerUserId = mgr?.userId ?? mgr?.user?.id ?? "";
   return {
     id: cp.id,
     name: cp.projectName || cp.projectCode || "Untitled",
@@ -203,7 +204,7 @@ function mapClientProject(cp: ClientProjectApi): Project {
     createdBy: null,
     createdAt: cp.createdAt,
     _source: "client",
-    _isManager: false, // overridden in loadAll based on actual team membership
+    _isManager: Boolean(currentUserId && managerUserId && currentUserId === managerUserId),
   };
 }
 
@@ -243,6 +244,19 @@ export default function UserProjectsPage() {
     const loadAll = async () => {
       setLoading(true);
       try {
+        let currentUserId = "";
+        if (typeof window !== "undefined") {
+          try {
+            const storedUser = localStorage.getItem("user");
+            if (storedUser) {
+              const parsed = JSON.parse(storedUser);
+              currentUserId = parsed?.userId || parsed?.id || "";
+            }
+          } catch {
+            // ignore malformed local storage
+          }
+        }
+
         // Load everything in parallel
         const [standaloneRes, clientRes, teamRes] = await Promise.allSettled([
           getMyProjects(),
@@ -273,8 +287,9 @@ export default function UserProjectsPage() {
           clientRes.status === "fulfilled" && Array.isArray(clientRes.value.data)
             ? (clientRes.value.data as ClientProjectApi[])
             : [];
-        const clientList: Project[] =
-          clientRows.map((cp) => ({ ...mapClientProject(cp), _isManager: true }));
+        const clientList: Project[] = clientRows.map((cp) =>
+          mapClientProject(cp, currentUserId),
+        );
 
         setProjects([...clientList, ...standalone]);
       } catch {
