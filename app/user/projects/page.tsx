@@ -15,6 +15,9 @@ import {
   getClientProjectEmployees,
   assignClientProjectEmployees,
   removeClientProjectEmployee,
+  createProjectTask,
+  getProjectTasks,
+  updateTaskStatus,
 } from "@/app/api/api";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +42,13 @@ import {
   Building2,
   UserPlus,
   X,
+  ListTodo,
+  CheckSquare,
+  Circle,
+  Clock3,
+  Trash2,
+  Edit3,
+  ArrowRight,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -133,6 +143,47 @@ type ClientProjectApi = {
 
 type StandaloneProjectApi = Project & {
   createdAt?: string;
+};
+
+// Task types
+type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+interface ProjectTask {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assignedToUserId: string | null;
+  assignedToUser?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  } | null;
+  assignedByUserId: string;
+  assignedByUser?: {
+    firstName?: string;
+    lastName?: string;
+  } | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+const taskStatusConfig: Record<TaskStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
+  pending:    { label: 'Pending',    color: 'text-slate-600',    bgColor: 'bg-slate-100',    icon: Circle },
+  in_progress: { label: 'In Progress', color: 'text-blue-600',    bgColor: 'bg-blue-100',    icon: Clock3 },
+  completed: { label: 'Completed', color: 'text-green-600', bgColor: 'bg-green-100',  icon: CheckCircle2 },
+  cancelled:  { label: 'Cancelled', color: 'text-red-600',   bgColor: 'bg-red-100',    icon: X },
+};
+
+const taskPriorityConfig: Record<TaskPriority, { label: string; color: string; bgColor: string }> = {
+  low:      { label: 'Low',      color: 'text-slate-600', bgColor: 'bg-slate-100' },
+  medium:   { label: 'Medium',   color: 'text-blue-600', bgColor: 'bg-blue-100' },
+  high:     { label: 'High',     color: 'text-orange-600', bgColor: 'bg-orange-100' },
+  urgent:   { label: 'Urgent',   color: 'text-red-600', bgColor: 'bg-red-100' },
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -249,7 +300,7 @@ export default function UserProjectsPage() {
 
   // Detail dialog
   const [selected, setSelected] = useState<Project | null>(null);
-  const [detailTab, setDetailTab] = useState<"overview" | "team">("overview");
+  const [detailTab, setDetailTab] = useState<"overview" | "tasks" | "team">("overview");
 
   // Team members in detail dialog
   const [projectEmployees, setProjectEmployees] = useState<ProjectEmployee[]>([]);
@@ -271,6 +322,20 @@ export default function UserProjectsPage() {
   const [progressProject, setProgressProject] = useState<Project | null>(null);
   const [progressValue, setProgressValue] = useState(0);
   const [progressSaving, setProgressSaving] = useState(false);
+
+  // Task management
+  const [tasks, setTasks] = useState<ProjectTask[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    description: "",
+    assignedToUserId: "",
+    dueDate: "",
+    priority: "medium" as TaskPriority,
+  });
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [taskTab, setTaskTab] = useState<"my-tasks" | "all-tasks">("my-tasks");
 
   useEffect(() => {
     const loadAll = async () => {
@@ -424,10 +489,13 @@ export default function UserProjectsPage() {
     router.push(`/user/projects/${project.id}?source=${project._source}`);
   };
 
-  const handleTabChange = (tab: "overview" | "team") => {
+  const handleTabChange = (tab: "overview" | "tasks" | "team") => {
     setDetailTab(tab);
     if (tab === "team" && selected && projectEmployees.length === 0 && !employeesLoading) {
       loadProjectEmployees(selected);
+    }
+    if (tab === "tasks" && selected && selected._source === "client" && tasks.length === 0 && !tasksLoading) {
+      loadTasks(selected.id);
     }
   };
 
@@ -461,6 +529,71 @@ export default function UserProjectsPage() {
       toast.error("Failed to update progress");
     } finally {
       setProgressSaving(false);
+    }
+  };
+
+  // ─── Task Handlers ─────────────────────────────────────────────────────────
+  const loadTasks = useCallback(async (projectId: string) => {
+    setTasksLoading(true);
+    try {
+      const res = await getProjectTasks(projectId);
+      setTasks(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      toast.error("Failed to load tasks");
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
+
+  const openTaskDialog = (project: Project) => {
+    setSelected(project);
+    setTaskForm({
+      title: "",
+      description: "",
+      assignedToUserId: "",
+      dueDate: "",
+      priority: "medium",
+    });
+    setTaskDialogOpen(true);
+    if (project._isManager && project._source === "client") {
+      loadTasks(project.id);
+    }
+  };
+
+  const handleCreateTask = async () => {
+    if (!selected || !taskForm.title.trim()) {
+      toast.error("Task title is required");
+      return;
+    }
+    setTaskSaving(true);
+    try {
+      await createProjectTask(selected.id, {
+        title: taskForm.title,
+        description: taskForm.description || undefined,
+        assignedToUserId: taskForm.assignedToUserId || undefined,
+        dueDate: taskForm.dueDate || undefined,
+        priority: taskForm.priority,
+      });
+      toast.success("Task created!");
+      setTaskDialogOpen(false);
+      loadTasks(selected.id);
+    } catch {
+      toast.error("Failed to create task");
+    } finally {
+      setTaskSaving(false);
+    }
+  };
+
+  const handleTaskStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+    if (!selected) return;
+    try {
+      await updateTaskStatus(selected.id, taskId, newStatus);
+      toast.success("Task status updated!");
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)),
+      );
+    } catch {
+      toast.error("Failed to update task status");
     }
   };
 
@@ -576,17 +709,30 @@ export default function UserProjectsPage() {
 
               <div className="flex items-center gap-2 pt-1">
                 {project._isManager && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 text-xs h-7"
-                    onClick={(e) => openProgress(project, e)}
-                  >
-                    <TrendingUp className="w-3 h-3 mr-1" />Update Progress
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-xs h-7"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openTaskDialog(project);
+                      }}
+                    >
+                      <ListTodo className="w-3 h-3 mr-1" />Assign Work
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-xs h-7"
+                      onClick={(e) => openProgress(project, e)}
+                    >
+                      <TrendingUp className="w-3 h-3 mr-1" />Progress
+                    </Button>
+                  </>
                 )}
                 <Button size="sm" variant="outline" className="flex-1 text-xs h-7">
-                  <ChevronRight className="w-3 h-3 mr-1" />View Details
+                  <ChevronRight className="w-3 h-3 mr-1" />Details
                 </Button>
               </div>
             </div>
@@ -645,6 +791,19 @@ export default function UserProjectsPage() {
                   >
                     Overview
                   </button>
+                  <button
+                    onClick={() => {
+                      handleTabChange("tasks");
+                      if (selected._source === "client") loadTasks(selected.id);
+                    }}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                      detailTab === "tasks"
+                        ? "bg-background border border-b-background border-border -mb-px text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Tasks
+                  </button>
                   {selected._isManager && (
                     <button
                       onClick={() => handleTabChange("team")}
@@ -654,7 +813,7 @@ export default function UserProjectsPage() {
                           : "text-muted-foreground hover:text-foreground"
                       }`}
                     >
-                      Team Members
+                      Team
                     </button>
                   )}
                 </div>
@@ -754,6 +913,109 @@ export default function UserProjectsPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Tasks Tab */}
+                {detailTab === "tasks" && selected._source === "client" && (
+                  <div className="pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        View and manage tasks assigned to team members.
+                      </p>
+                      {selected._isManager && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => {
+                            setTaskForm({
+                              title: "",
+                              description: "",
+                              assignedToUserId: "",
+                              dueDate: "",
+                              priority: "medium",
+                            });
+                            setTaskDialogOpen(true);
+                          }}
+                        >
+                          <ListTodo className="w-3 h-3 mr-1" />Add Task
+                        </Button>
+                      )}
+                    </div>
+
+                    {tasksLoading ? (
+                      <div className="flex items-center justify-center h-24 text-sm text-muted-foreground">
+                        Loading tasks...
+                      </div>
+                    ) : tasks.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-24 gap-2 text-center">
+                        <ListTodo className="w-8 h-8 text-muted-foreground opacity-40" />
+                        <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {tasks.map((task) => {
+                          const tsc = taskStatusConfig[task.status];
+                          const tpc = taskPriorityConfig[task.priority];
+                          const TaskIcon = tsc.icon;
+                          return (
+                            <div key={task.id} className="rounded-lg border border-border p-3 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium">{task.title}</p>
+                                  {task.description && (
+                                    <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Badge variant="outline" className={`text-[10px] px-1.5 ${tsc.color} ${tsc.bgColor}`}>
+                                    <TaskIcon className="w-2.5 h-2.5 mr-1" />
+                                    {tsc.label}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <Badge variant="outline" className={`text-[10px] px-1.5 ${tpc.color} ${tpc.bgColor}`}>
+                                  {tpc.label}
+                                </Badge>
+                                {task.dueDate && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />Due: {task.dueDate}
+                                  </span>
+                                )}
+                              </div>
+                              {task.assignedToUser && (
+                                <p className="text-xs text-muted-foreground">
+                                  Assigned to: {task.assignedToUser.firstName} {task.assignedToUser.lastName}
+                                </p>
+                              )}
+                              {/* Status update for task owner/manager */}
+                              {(task.assignedToUserId || selected._isManager) && task.status !== 'completed' && (
+                                <div className="flex items-center gap-2 pt-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-xs"
+                                    onClick={() => handleTaskStatusChange(task.id, 'in_progress')}
+                                  >
+                                    Start
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 text-xs"
+                                    onClick={() => handleTaskStatusChange(task.id, 'completed')}
+                                  >
+                                    Complete
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1074,6 +1336,87 @@ export default function UserProjectsPage() {
                 disabled={assigning || selectedEmployeeIds.length === 0}
               >
                 {assigning ? "Assigning..." : `Assign ${selectedEmployeeIds.length > 0 ? `(${selectedEmployeeIds.length})` : ""}`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Create Task Dialog ──────────────────────────────────────────────────────── */}
+      <Dialog open={taskDialogOpen} onOpenChange={(o) => { if (!o) setTaskDialogOpen(false); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Assign Work / Create Task</DialogTitle>
+            <DialogDescription>
+              Create a new task for &quot;{selected?.name}&quot;
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Task Title *</label>
+              <Input
+                value={taskForm.title}
+                onChange={(e) => setTaskForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="Enter task title"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <textarea
+                value={taskForm.description}
+                onChange={(e) => setTaskForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Enter task description (optional)"
+                className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Assign To</label>
+                <select
+                  value={taskForm.assignedToUserId}
+                  onChange={(e) => setTaskForm((f) => ({ ...f, assignedToUserId: e.target.value }))}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Select team member...</option>
+                  {projectEmployees.map((emp) => (
+                    <option key={emp.userId} value={emp.userId}>
+                      {emp.firstName} {emp.lastName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Priority</label>
+                <select
+                  value={taskForm.priority}
+                  onChange={(e) => setTaskForm((f) => ({ ...f, priority: e.target.value as TaskPriority }))}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Due Date</label>
+              <Input
+                type="date"
+                value={taskForm.dueDate}
+                onChange={(e) => setTaskForm((f) => ({ ...f, dueDate: e.target.value }))}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setTaskDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleCreateTask}
+                disabled={taskSaving || !taskForm.title.trim()}
+              >
+                {taskSaving ? "Creating..." : "Create Task"}
               </Button>
             </div>
           </div>

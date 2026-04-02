@@ -290,6 +290,25 @@ export const assignClientProjectEmployees = (id: string, userIds: string[]) =>
 export const removeClientProjectEmployee = (id: string, userId: string) =>
   api.delete(`/client-projects/${id}/employees/${userId}`);
 
+// Project Task APIs
+export const createProjectTask = (projectId: string, data: {
+  title: string;
+  description?: string;
+  assignedToUserId?: string;
+  dueDate?: string;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+}) => api.post(`/client-projects/${projectId}/tasks`, data);
+
+export const getProjectTasks = (projectId: string) => api.get(`/client-projects/${projectId}/tasks`);
+
+export const getMyAssignedTasks = () => api.get('/client-projects/tasks/my');
+
+export const updateTaskStatus = (projectId: string, taskId: string, status: 'pending' | 'in_progress' | 'completed' | 'cancelled') =>
+  api.put(`/client-projects/${projectId}/tasks/${taskId}/status`, { status });
+
+export const deleteProjectTask = (projectId: string, taskId: string) =>
+  api.delete(`/client-projects/${projectId}/tasks/${taskId}`);
+
 // 🕒 Enhanced attendance report fetcher
 export const getAttendanceReport = async (params: {
   organizationId: string;
