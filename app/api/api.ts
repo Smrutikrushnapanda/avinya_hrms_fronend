@@ -251,6 +251,7 @@ export const createProjectIssue = (
     description?: string;
     imageUrl?: string;
     status?: "pending" | "resolved";
+    assigneeUserId?: string | null;
   },
 ) => api.post(`/projects/${id}/issues`, data);
 export const updateProjectIssue = (
@@ -262,6 +263,7 @@ export const updateProjectIssue = (
     description: string | null;
     imageUrl: string | null;
     status: "pending" | "resolved";
+    assigneeUserId: string | null;
   }>,
 ) => api.patch(`/projects/${id}/issues/${issueId}`, data);
 export const getMyTeamEmployees = () => api.get('/projects/managers/team');

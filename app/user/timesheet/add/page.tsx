@@ -4,7 +4,13 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarCheck } from "lucide-react";
 
-import { createTimesheet, getClients, getEmployeeByUserId, getProfile, getProjects } from "@/app/api/api";
+import {
+  createTimesheet,
+  getEmployeeByUserId,
+  getMyClientProjects,
+  getMyProjects,
+  getProfile,
+} from "@/app/api/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +25,25 @@ export default function AddTimesheetPage() {
   );
 }
 
+type TimesheetProjectOption = {
+  id: string;
+  name: string;
+  source: "standalone" | "client";
+};
+
+type StandaloneProjectApi = {
+  id: string;
+  name?: string;
+  projectName?: string;
+};
+
+type ClientProjectApi = {
+  id: string;
+  projectName?: string;
+  projectCode?: string;
+  name?: string;
+};
+
 function AddTimesheetContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -27,9 +52,7 @@ function AddTimesheetContent() {
   const [employeeId, setEmployeeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [clients, setClients] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState("");
+  const [projects, setProjects] = useState<TimesheetProjectOption[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
 
   const [form, setForm] = useState({
@@ -37,7 +60,6 @@ function AddTimesheetContent() {
     startTime: "09:30",
     endTime: "18:30",
     projectName: "",
-    clientName: "",
     workDescription: "",
     employeeRemark: "",
   });
@@ -72,14 +94,33 @@ function AddTimesheetContent() {
           setEmployeeId(employeeRes.data?.id ?? "");
         }
 
-        if (orgId) {
-          const [clientsRes, projectsRes] = await Promise.all([
-            getClients({ organizationId: orgId }),
-            getProjects({ organizationId: orgId }),
-          ]);
-          setClients(Array.isArray(clientsRes.data) ? clientsRes.data : []);
-          setProjects(Array.isArray(projectsRes.data) ? projectsRes.data : []);
-        }
+        const [standaloneRes, clientRes] = await Promise.allSettled([
+          getMyProjects(),
+          getMyClientProjects(),
+        ]);
+        const standaloneRows =
+          standaloneRes.status === "fulfilled" && Array.isArray(standaloneRes.value.data)
+            ? standaloneRes.value.data
+            : [];
+        const clientRows =
+          clientRes.status === "fulfilled" && Array.isArray(clientRes.value.data)
+            ? clientRes.value.data
+            : [];
+
+        const standaloneProjects: TimesheetProjectOption[] = (
+          standaloneRows as StandaloneProjectApi[]
+        ).map((p) => ({
+          id: p.id,
+          name: p.name || p.projectName || "Untitled",
+          source: "standalone",
+        }));
+        const clientProjects: TimesheetProjectOption[] = (clientRows as ClientProjectApi[]).map((p) => ({
+          id: p.id,
+          name: p.projectName || p.projectCode || p.name || "Untitled",
+          source: "client",
+        }));
+
+        setProjects([...standaloneProjects, ...clientProjects]);
       } catch (error) {
         console.error("Failed to load profile:", error);
       } finally {
@@ -94,18 +135,16 @@ function AddTimesheetContent() {
     const startTime = searchParams.get("startTime");
     const endTime = searchParams.get("endTime");
     const projectName = searchParams.get("projectName");
-    const clientName = searchParams.get("clientName");
     const workDescription = searchParams.get("workDescription");
     const employeeRemark = searchParams.get("employeeRemark");
 
-    if (date || startTime || endTime || projectName || clientName || workDescription || employeeRemark) {
+    if (date || startTime || endTime || projectName || workDescription || employeeRemark) {
       setForm((prev) => ({
         ...prev,
         date: date || prev.date,
         startTime: startTime ? toTimeValue(startTime) || prev.startTime : prev.startTime,
         endTime: endTime ? toTimeValue(endTime) || prev.endTime : prev.endTime,
         projectName: projectName || prev.projectName,
-        clientName: clientName || prev.clientName,
         workDescription: workDescription || prev.workDescription,
         employeeRemark: employeeRemark || prev.employeeRemark,
       }));
@@ -113,19 +152,16 @@ function AddTimesheetContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (clients.length > 0 && form.clientName && !selectedClientId) {
-      const match = clients.find((c) => c.clientName === form.clientName);
-      if (match) setSelectedClientId(match.id);
-    }
     if (projects.length > 0 && form.projectName && !selectedProjectId) {
-      const match = projects.find((p) => p.projectName === form.projectName);
+      const match = projects.find((p) => p.name === form.projectName);
       if (match) setSelectedProjectId(match.id);
     }
-  }, [clients, projects, form.clientName, form.projectName, selectedClientId, selectedProjectId]);
+  }, [projects, form.projectName, selectedProjectId]);
 
   const validate = () => {
     if (!form.date) return "Please select a date";
     if (!form.startTime || !form.endTime) return "Please enter start and end time";
+    if (!form.projectName.trim()) return "Please select a project";
     if (!form.workDescription.trim()) return "Please add your work summary";
 
     const selectedDate = new Date(form.date);
@@ -168,15 +204,21 @@ function AddTimesheetContent() {
         startTime: start,
         endTime: end,
         projectName: form.projectName.trim() || undefined,
-        clientName: form.clientName.trim() || undefined,
         workDescription: form.workDescription.trim(),
         employeeRemark: form.employeeRemark.trim() || undefined,
       });
 
       toast.success("Daily work saved");
       router.push("/user/timesheet");
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || "Failed to save timesheet");
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : "Failed to save timesheet";
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -227,28 +269,6 @@ function AddTimesheetContent() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium">Client</label>
-              <select
-                className="w-full border rounded-md px-3 py-2 text-sm bg-background"
-                value={selectedClientId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setSelectedClientId(id);
-                  const client = clients.find((c) => c.id === id);
-                  setForm((prev) => ({ ...prev, clientName: client?.clientName || "" }));
-                  setSelectedProjectId("");
-                  setForm((prev) => ({ ...prev, projectName: "" }));
-                }}
-              >
-                <option value="">Select client</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.clientName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
               <label className="text-sm font-medium">Project</label>
               <select
                 className="w-full border rounded-md px-3 py-2 text-sm bg-background"
@@ -257,17 +277,15 @@ function AddTimesheetContent() {
                   const id = e.target.value;
                   setSelectedProjectId(id);
                   const project = projects.find((p) => p.id === id);
-                  setForm((prev) => ({ ...prev, projectName: project?.projectName || "" }));
+                  setForm((prev) => ({ ...prev, projectName: project?.name || "" }));
                 }}
               >
                 <option value="">Select project</option>
-                {projects
-                  .filter((project) => !selectedClientId || project.clientId === selectedClientId)
-                  .map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.projectName}
-                    </option>
-                  ))}
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="space-y-1">

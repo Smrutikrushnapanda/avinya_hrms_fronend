@@ -41,12 +41,29 @@ type TimesheetRow = {
   endTime: string;
   hours: string;
   projectName: string;
-  clientName: string;
   workDescription: string;
   employeeRemark: string;
   managerRemark: string;
   employeeName?: string;
   employeeCode?: string;
+};
+
+type TimesheetApiEntry = {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  workingMinutes?: number;
+  projectName?: string | null;
+  workDescription?: string | null;
+  employeeRemark?: string | null;
+  managerRemark?: string | null;
+  employee?: {
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    employeeCode?: string;
+  } | null;
 };
 
 type TimesheetSectionProps = {
@@ -58,6 +75,7 @@ type TimesheetSectionProps = {
   canRemark?: boolean;
   managerId?: string;
   allowEdit?: boolean;
+  projectFilterEnabled?: boolean;
 };
 
 function formatDisplayDate(dateStr?: string): string {
@@ -90,6 +108,7 @@ export default function TimesheetSection({
   canRemark = false,
   managerId,
   allowEdit = false,
+  projectFilterEnabled = false,
 }: TimesheetSectionProps) {
   const router = useRouter();
   const currentDate = new Date();
@@ -102,8 +121,9 @@ export default function TimesheetSection({
     page: 0,
     pageSize: 10,
     search: "",
-    sorting: [] as any,
+    sorting: [] as Array<{ id: string; desc: boolean }>,
   });
+  const [selectedProjectName, setSelectedProjectName] = useState("all");
 
   const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
   const [remarkTarget, setRemarkTarget] = useState<TimesheetRow | null>(null);
@@ -135,7 +155,7 @@ export default function TimesheetSection({
   };
 
   const fetchTimesheets = useCallback(async () => {
-    if (!organizationId || !employeeId) {
+    if (!organizationId) {
       setLoading(false);
       setRows([]);
       return;
@@ -145,18 +165,27 @@ export default function TimesheetSection({
     try {
       const fromDate = new Date(selectedYear, selectedMonth, 1);
       const toDate = new Date(selectedYear, selectedMonth + 1, 0);
-      const params = {
+      const params: {
+        organizationId: string;
+        fromDate: string;
+        toDate: string;
+        page: number;
+        limit: number;
+        employeeId?: string;
+      } = {
         organizationId,
-        employeeId,
         fromDate: fromDate.toISOString().split("T")[0],
         toDate: toDate.toISOString().split("T")[0],
         page: 1,
-        limit: 200,
+        limit: 500,
       };
+      if (employeeId) {
+        params.employeeId = employeeId;
+      }
       const res = await getTimesheets(params);
       const list = res.data?.results || [];
 
-      const mapped: TimesheetRow[] = list.map((entry: any) => {
+      const mapped: TimesheetRow[] = (list as TimesheetApiEntry[]).map((entry) => {
         const employee = entry.employee || {};
         const employeeName = [employee.firstName, employee.middleName, employee.lastName]
           .filter(Boolean)
@@ -168,7 +197,6 @@ export default function TimesheetSection({
           endTime: entry.endTime,
           hours: formatMinutes(entry.workingMinutes),
           projectName: entry.projectName || "--",
-          clientName: entry.clientName || "--",
           workDescription: entry.workDescription || "--",
           employeeRemark: entry.employeeRemark || "--",
           managerRemark: entry.managerRemark || "--",
@@ -193,28 +221,52 @@ export default function TimesheetSection({
     fetchTimesheets();
   }, [fetchTimesheets]);
 
+  const projectOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        rows
+          .map((row) => row.projectName)
+          .filter((name) => Boolean(name && name !== "--")),
+      ),
+    ).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
+  useEffect(() => {
+    if (selectedProjectName === "all") return;
+    if (!projectOptions.includes(selectedProjectName)) {
+      setSelectedProjectName("all");
+    }
+  }, [projectOptions, selectedProjectName]);
+
   const filteredRows = useMemo(() => {
     const q = tableState.search.toLowerCase().trim();
     if (!q) return rows;
     return rows.filter((row) => {
+      const projectMatches =
+        selectedProjectName === "all" || row.projectName === selectedProjectName;
+      if (!projectMatches) return false;
       return (
         row.date.toLowerCase().includes(q) ||
         row.projectName.toLowerCase().includes(q) ||
-        row.clientName.toLowerCase().includes(q) ||
         row.workDescription.toLowerCase().includes(q) ||
         row.employeeRemark.toLowerCase().includes(q) ||
         row.managerRemark.toLowerCase().includes(q) ||
         (row.employeeName || "").toLowerCase().includes(q)
       );
     });
-  }, [rows, tableState.search]);
+  }, [rows, tableState.search, selectedProjectName]);
+
+  const finalRows = useMemo(() => {
+    if (selectedProjectName === "all") return filteredRows;
+    return filteredRows.filter((row) => row.projectName === selectedProjectName);
+  }, [filteredRows, selectedProjectName]);
 
   const paginatedData = useMemo(() => {
     const start = tableState.page * tableState.pageSize;
-    return filteredRows.slice(start, start + tableState.pageSize);
-  }, [filteredRows, tableState.page, tableState.pageSize]);
+    return finalRows.slice(start, start + tableState.pageSize);
+  }, [finalRows, tableState.page, tableState.pageSize]);
 
-  const pageCount = Math.max(1, Math.ceil(filteredRows.length / tableState.pageSize));
+  const pageCount = Math.max(1, Math.ceil(finalRows.length / tableState.pageSize));
 
   const columns = useMemo<ColumnDef<TimesheetRow>[]>(() => {
     const base: ColumnDef<TimesheetRow>[] = [
@@ -242,11 +294,6 @@ export default function TimesheetSection({
         accessorKey: "projectName",
         header: "Project",
         cell: ({ row }) => <span className="text-sm">{row.original.projectName}</span>,
-      },
-      {
-        accessorKey: "clientName",
-        header: "Client",
-        cell: ({ row }) => <span className="text-sm">{row.original.clientName}</span>,
       },
       {
         accessorKey: "workDescription",
@@ -328,9 +375,6 @@ export default function TimesheetSection({
               params.set("date", row.original.date);
               params.set("startTime", row.original.startTime);
               params.set("endTime", row.original.endTime);
-              if (row.original.clientName && row.original.clientName !== "--") {
-                params.set("clientName", row.original.clientName);
-              }
               if (row.original.projectName && row.original.projectName !== "--") {
                 params.set("projectName", row.original.projectName);
               }
@@ -375,8 +419,15 @@ export default function TimesheetSection({
       setRemarkDialogOpen(false);
       setRemarkTarget(null);
       setRemarkText("");
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to save remark");
+    } catch (error: unknown) {
+      const message =
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : "Failed to save remark";
+      toast.error(message);
     } finally {
       setRemarkSaving(false);
     }
@@ -401,6 +452,20 @@ export default function TimesheetSection({
         </div>
 
         <div className="flex items-center gap-3">
+          {projectFilterEnabled && (
+            <select
+              value={selectedProjectName}
+              onChange={(e) => setSelectedProjectName(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="all">All Projects</option>
+              {projectOptions.map((projectName) => (
+                <option key={projectName} value={projectName}>
+                  {projectName}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={handlePrevMonth}>
               <ChevronLeft className="h-4 w-4" />
@@ -421,8 +486,8 @@ export default function TimesheetSection({
         <CardHeader>
           <CardTitle>Timesheet Entries</CardTitle>
           <CardDescription>
-            {filteredRows.length > 0
-              ? `Showing ${filteredRows.length} record${filteredRows.length !== 1 ? "s" : ""} for ${monthNames[selectedMonth]} ${selectedYear}`
+            {finalRows.length > 0
+              ? `Showing ${finalRows.length} record${finalRows.length !== 1 ? "s" : ""} for ${monthNames[selectedMonth]} ${selectedYear}`
               : `No timesheet records found for ${monthNames[selectedMonth]} ${selectedYear}`}
           </CardDescription>
         </CardHeader>

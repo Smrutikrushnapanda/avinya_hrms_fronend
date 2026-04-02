@@ -170,32 +170,53 @@ function mapClientProject(cp: any): Project {
     COMPLETED: "completed",
   };
   const mgr = cp.manager ?? null;
+  const managerUserId = mgr?.userId ?? mgr?.user?.id ?? "";
+  const mergedMembersByUserId = new Map<string, ProjectMemberItem>();
+
+  (cp.members ?? []).forEach((member: any) => {
+    const memberUserId = member?.userId ?? member?.user?.id ?? "";
+    if (!memberUserId) return;
+    mergedMembersByUserId.set(memberUserId, {
+      userId: memberUserId,
+      role: member?.role || "member",
+      assignedAt: member?.assignedAt ?? cp.createdAt,
+      user: {
+        id: member?.user?.id ?? memberUserId,
+        email: member?.user?.email ?? "",
+        firstName: member?.user?.firstName ?? "",
+        lastName: member?.user?.lastName ?? "",
+      },
+    });
+  });
+
+  if (managerUserId) {
+    const existing = mergedMembersByUserId.get(managerUserId);
+    mergedMembersByUserId.set(managerUserId, {
+      userId: managerUserId,
+      role: "manager",
+      assignedAt: cp.createdAt,
+      user: {
+        id: managerUserId,
+        email: mgr?.user?.email ?? mgr?.workEmail ?? existing?.user?.email ?? "",
+        firstName: mgr?.firstName ?? existing?.user?.firstName ?? "",
+        lastName: mgr?.lastName ?? existing?.user?.lastName ?? "",
+      },
+    });
+  }
+
+  const mergedMembers = Array.from(mergedMembersByUserId.values());
   return {
     id: cp.id,
     name: cp.projectName || cp.projectCode || "Untitled",
     description: cp.description || "",
     status: statusMap[cp.status] ?? "planning",
     priority: "medium",
-    completionPercent: 0,
+    completionPercent: cp.completionPercent ?? 0,
     estimatedEndDate: endDate,
     isOverdue,
     daysRemaining,
-    memberCount: mgr ? 1 : 0,
-    members: mgr
-      ? [
-          {
-            userId: mgr.userId ?? "",
-            role: "manager",
-            assignedAt: cp.createdAt,
-            user: {
-              id: mgr.userId ?? "",
-              email: mgr.user?.email ?? mgr.workEmail ?? "",
-              firstName: mgr.firstName ?? "",
-              lastName: mgr.lastName ?? "",
-            },
-          },
-        ]
-      : [],
+    memberCount: mergedMembers.length,
+    members: mergedMembers,
     createdBy: null,
     createdAt: cp.createdAt,
     updatedAt: cp.updatedAt,

@@ -86,6 +86,7 @@ type ProjectIssue = {
   description: string | null;
   imageUrl: string | null;
   status: IssueStatus;
+  assigneeUserId: string | null;
   createdByUserId: string;
   resolvedByUserId: string | null;
   createdAt: string;
@@ -135,6 +136,7 @@ export default function ProjectWorkspace({
     description: "",
     imageUrl: "",
     status: "pending" as IssueStatus,
+    assigneeUserId: "",
   });
   const [savingIssue, setSavingIssue] = useState(false);
   const [uploadingIssueImage, setUploadingIssueImage] = useState(false);
@@ -193,7 +195,9 @@ export default function ProjectWorkspace({
 
       const profile = profileRes.data || {};
       const normalizedRoles: string[] = Array.isArray(profile?.roles)
-        ? profile.roles.map((r: any) => String(r?.roleName || "").toUpperCase()).filter(Boolean)
+        ? profile.roles
+            .map((r: { roleName?: string }) => String(r?.roleName || "").toUpperCase())
+            .filter(Boolean)
         : [];
 
       setProfileUserId(profile.userId || profile.id || "");
@@ -205,8 +209,15 @@ export default function ProjectWorkspace({
       setProgressValue(Number(p?.completionPercent || 0));
       setProjectEmployees(Array.isArray(membersRes.data) ? membersRes.data : []);
       setIssues(Array.isArray(issuesRes.data) ? issuesRes.data : []);
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to load project workspace");
+    } catch (error: unknown) {
+      const message =
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : "Failed to load project workspace";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -324,6 +335,7 @@ export default function ProjectWorkspace({
         description: issueDraft.description.trim() || undefined,
         imageUrl: issueDraft.imageUrl.trim() || undefined,
         status: issueDraft.status,
+        assigneeUserId: issueDraft.assigneeUserId || undefined,
       });
       const issuesRes = await getProjectIssues(project.id);
       setIssues(Array.isArray(issuesRes.data) ? issuesRes.data : []);
@@ -333,6 +345,7 @@ export default function ProjectWorkspace({
         description: "",
         imageUrl: "",
         status: "pending",
+        assigneeUserId: "",
       });
       toast.success("Issue added");
     } catch {
@@ -356,7 +369,9 @@ export default function ProjectWorkspace({
 
   const handleIssueFieldSave = async (
     issueId: string,
-    patch: Partial<Pick<ProjectIssue, "pageName" | "issueTitle" | "description" | "imageUrl">>,
+    patch: Partial<
+      Pick<ProjectIssue, "pageName" | "issueTitle" | "description" | "imageUrl" | "assigneeUserId">
+    >,
   ) => {
     if (!project) return;
     try {
@@ -609,7 +624,7 @@ export default function ProjectWorkspace({
         </p>
 
         {canCreateIssue ? (
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 border border-border rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-2 p-3 border border-border rounded-lg">
             <Input
               className="md:col-span-1"
               placeholder="Page Name"
@@ -630,6 +645,20 @@ export default function ProjectWorkspace({
             />
             <select
               className="h-9 rounded-md border border-input bg-background px-2 text-sm md:col-span-1"
+              value={issueDraft.assigneeUserId}
+              onChange={(e) =>
+                setIssueDraft((s) => ({ ...s, assigneeUserId: e.target.value }))
+              }
+            >
+              <option value="">Unassigned</option>
+              {projectEmployees.map((member) => (
+                <option key={member.userId} value={member.userId}>
+                  {fullName(member)} ({(member.role || "member").toLowerCase()})
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm md:col-span-1"
               value={issueDraft.status}
               onChange={(e) =>
                 setIssueDraft((s) => ({ ...s, status: e.target.value as IssueStatus }))
@@ -639,7 +668,7 @@ export default function ProjectWorkspace({
               <option value="resolved">Resolved</option>
             </select>
 
-            <div className="md:col-span-4 flex gap-2 items-center">
+            <div className="md:col-span-5 flex gap-2 items-center">
               <Input
                 placeholder="Screenshot URL (or upload below)"
                 value={issueDraft.imageUrl}
@@ -686,6 +715,7 @@ export default function ProjectWorkspace({
                 <th className="text-left px-2 py-2 border-b border-border">Issue</th>
                 <th className="text-left px-2 py-2 border-b border-border">Description</th>
                 <th className="text-left px-2 py-2 border-b border-border">Image</th>
+                <th className="text-left px-2 py-2 border-b border-border">Assignee</th>
                 <th className="text-left px-2 py-2 border-b border-border">Status</th>
                 <th className="text-left px-2 py-2 border-b border-border">Reporter</th>
                 <th className="text-right px-2 py-2 border-b border-border">Save</th>
@@ -694,7 +724,7 @@ export default function ProjectWorkspace({
             <tbody>
               {issues.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-4 text-muted-foreground">
+                  <td colSpan={9} className="px-3 py-4 text-muted-foreground">
                     No issues logged yet.
                   </td>
                 </tr>
@@ -705,6 +735,12 @@ export default function ProjectWorkspace({
                     issue={issue}
                     projectName={project.name}
                     reporterName={memberNameByUserId.get(issue.createdByUserId) || shortId(issue.createdByUserId)}
+                    assigneeName={
+                      issue.assigneeUserId
+                        ? memberNameByUserId.get(issue.assigneeUserId) || shortId(issue.assigneeUserId)
+                        : "Unassigned"
+                    }
+                    assignableMembers={projectEmployees}
                     onStatusChange={handleIssueStatusChange}
                     onSave={handleIssueFieldSave}
                   />
@@ -722,16 +758,22 @@ function IssueRow({
   issue,
   projectName,
   reporterName,
+  assigneeName,
+  assignableMembers,
   onStatusChange,
   onSave,
 }: {
   issue: ProjectIssue;
   projectName: string;
   reporterName: string;
+  assigneeName: string;
+  assignableMembers: ProjectEmployee[];
   onStatusChange: (issueId: string, status: IssueStatus) => void;
   onSave: (
     issueId: string,
-    patch: Partial<Pick<ProjectIssue, "pageName" | "issueTitle" | "description" | "imageUrl">>,
+    patch: Partial<
+      Pick<ProjectIssue, "pageName" | "issueTitle" | "description" | "imageUrl" | "assigneeUserId">
+    >,
   ) => Promise<void>;
 }) {
   const [draft, setDraft] = useState({
@@ -739,6 +781,7 @@ function IssueRow({
     issueTitle: issue.issueTitle || "",
     description: issue.description || "",
     imageUrl: issue.imageUrl || "",
+    assigneeUserId: issue.assigneeUserId || "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -748,6 +791,7 @@ function IssueRow({
       issueTitle: issue.issueTitle || "",
       description: issue.description || "",
       imageUrl: issue.imageUrl || "",
+      assigneeUserId: issue.assigneeUserId || "",
     });
   }, [issue]);
 
@@ -790,6 +834,21 @@ function IssueRow({
           </a>
         ) : null}
       </td>
+      <td className="px-2 py-2 min-w-[190px]">
+        <select
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm w-full"
+          value={draft.assigneeUserId}
+          onChange={(e) => setDraft((s) => ({ ...s, assigneeUserId: e.target.value }))}
+        >
+          <option value="">Unassigned</option>
+          {assignableMembers.map((member) => (
+            <option key={member.userId} value={member.userId}>
+              {fullName(member)} ({(member.role || "member").toLowerCase()})
+            </option>
+          ))}
+        </select>
+        <div className="text-[11px] text-muted-foreground mt-1">{assigneeName}</div>
+      </td>
       <td className="px-2 py-2 min-w-[120px]">
         <select
           className="h-9 rounded-md border border-input bg-background px-2 text-sm"
@@ -814,6 +873,7 @@ function IssueRow({
                 issueTitle: draft.issueTitle,
                 description: draft.description,
                 imageUrl: draft.imageUrl,
+                assigneeUserId: draft.assigneeUserId || null,
               });
             } finally {
               setSaving(false);

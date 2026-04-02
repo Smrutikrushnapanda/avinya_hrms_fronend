@@ -101,6 +101,7 @@ export default function TimesheetPage() {
           <TabsList>
             <TabsTrigger value="my">My Timesheet</TabsTrigger>
             <TabsTrigger value="team">Team Timesheet</TabsTrigger>
+            <TabsTrigger value="project">Project Timesheet</TabsTrigger>
           </TabsList>
 
           <TabsContent value="my">
@@ -167,6 +168,18 @@ export default function TimesheetPage() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="project">
+            <TimesheetSection
+              title="Project Timesheet Board"
+              description="View timesheet entries project-wise across employees in your organization"
+              organizationId={organizationId}
+              showEmployee
+              canRemark
+              managerId={employeeId}
+              projectFilterEnabled
+            />
           </TabsContent>
         </Tabs>
       ) : (

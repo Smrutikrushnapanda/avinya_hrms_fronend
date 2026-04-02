@@ -118,6 +118,17 @@ type ClientProjectApi = {
     lastName?: string | null;
     user?: { id?: string | null; email?: string | null } | null;
   } | null;
+  members?: Array<{
+    userId?: string | null;
+    role?: string | null;
+    assignedAt?: string | null;
+    user?: {
+      id?: string | null;
+      email?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+    } | null;
+  }>;
 };
 
 type StandaloneProjectApi = Project & {
@@ -177,6 +188,38 @@ function mapClientProject(cp: ClientProjectApi, currentUserId: string): Project 
   };
   const mgr = cp.manager ?? null;
   const managerUserId = mgr?.userId ?? mgr?.user?.id ?? "";
+  const mergedMembersByUserId = new Map<string, ProjectMemberItem>();
+
+  (cp.members ?? []).forEach((member) => {
+    const memberUserId = member?.userId ?? member?.user?.id ?? "";
+    if (!memberUserId) return;
+    mergedMembersByUserId.set(memberUserId, {
+      userId: memberUserId,
+      role: member?.role || "member",
+      user: {
+        id: member?.user?.id ?? memberUserId,
+        email: member?.user?.email ?? "",
+        firstName: member?.user?.firstName ?? "",
+        lastName: member?.user?.lastName ?? "",
+      },
+    });
+  });
+
+  if (managerUserId) {
+    const existing = mergedMembersByUserId.get(managerUserId);
+    mergedMembersByUserId.set(managerUserId, {
+      userId: managerUserId,
+      role: "manager",
+      user: {
+        id: managerUserId,
+        email: mgr?.user?.email ?? mgr?.workEmail ?? existing?.user?.email ?? "",
+        firstName: mgr?.firstName ?? existing?.user?.firstName ?? "",
+        lastName: mgr?.lastName ?? existing?.user?.lastName ?? "",
+      },
+    });
+  }
+
+  const mergedMembers = Array.from(mergedMembersByUserId.values());
   return {
     id: cp.id,
     name: cp.projectName || cp.projectCode || "Untitled",
@@ -188,19 +231,8 @@ function mapClientProject(cp: ClientProjectApi, currentUserId: string): Project 
     startDate,
     isOverdue,
     daysRemaining,
-    memberCount: mgr ? 1 : 0,
-    members: mgr
-      ? [{
-          userId: mgr.userId ?? "",
-          role: "manager",
-          user: {
-            id: mgr.userId ?? "",
-            email: mgr.user?.email ?? mgr.workEmail ?? "",
-            firstName: mgr.firstName ?? "",
-            lastName: mgr.lastName ?? "",
-          },
-        }]
-      : [],
+    memberCount: mergedMembers.length,
+    members: mergedMembers,
     createdBy: null,
     createdAt: cp.createdAt,
     _source: "client",
