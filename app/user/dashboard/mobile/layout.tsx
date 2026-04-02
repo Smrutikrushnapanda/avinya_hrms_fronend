@@ -95,7 +95,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
       {/* Bottom Sheet Overlay */}
       {hasServicesCenter && sheetOpen && (
         <div
-          className="fixed inset-0 bg-black/45 dark:bg-black/70 z-40 transition-opacity duration-300"
+          className="fixed inset-0 bg-black/45 dark:bg-black/70 z-40"
           onClick={() => setSheetOpen(false)}
         />
       )}
@@ -103,7 +103,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
       {/* Bottom Sheet */}
       {hasServicesCenter && (
       <div
-        className={`fixed left-0 w-full bg-card border-t border-border z-50 rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
+        className={`fixed left-0 w-full bg-card border-t border-border z-50 rounded-t-2xl shadow-2xl ${
           sheetOpen ? "translate-y-0" : "translate-y-full"
         }`}
         style={{ bottom: "64px" }} // sits just above the nav bar
@@ -118,7 +118,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
           <span className="text-base font-semibold text-foreground">Services</span>
           <button
             onClick={() => setSheetOpen(false)}
-            className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
+            className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center"
           >
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
@@ -135,7 +135,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                   setSheetOpen(false);
                   router.push(item.href);
                 }}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-muted/70 hover:bg-[#026D94]/10 active:scale-95 transition-all duration-150"
+                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-muted/70 hover:bg-[#026D94]/10"
               >
                 <div className="w-12 h-12 rounded-full bg-background shadow-sm flex items-center justify-center border border-border">
                   <Icon className="w-5 h-5 text-[#026D94]" />
@@ -162,7 +162,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                   {/* Floating Services Button */}
                   <button
                     onClick={() => setSheetOpen((prev) => !prev)}
-                    className="absolute left-1/2 -translate-x-1/2 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 bg-[#026D94]"
+                    className="absolute left-1/2 -translate-x-1/2 w-14 h-14 rounded-full flex items-center justify-center shadow-lg bg-[#026D94]"
                     style={{
                       bottom: "22px",
                       boxShadow: "0 4px 16px rgba(2,109,148,0.4)",
@@ -185,7 +185,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
               <button
                 key={tab.name}
                 onClick={() => tab.href && router.push(tab.href)}
-                className={`flex-1 flex flex-col items-center pt-1 pb-3 relative transition-colors ${
+                className={`flex-1 flex flex-col items-center pt-1 pb-3 relative ${
                   isActive ? "text-[#026D94]" : "text-muted-foreground"
                 }`}
               >

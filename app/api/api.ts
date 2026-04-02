@@ -224,10 +224,46 @@ export const removeProjectMember = (id: string, userId: string) =>
 
 // Employee Assignment APIs (for managers to assign employees to projects)
 export const getProjectEmployees = (id: string) => api.get(`/projects/${id}/employees`);
-export const assignProjectEmployees = (id: string, userIds: string[]) =>
-  api.post(`/projects/${id}/employees`, { userIds });
+export const assignProjectEmployees = (
+  id: string,
+  userIdsOrAssignments: string[] | Array<{ userId: string; role?: string }>,
+) =>
+  api.post(
+    `/projects/${id}/employees`,
+    Array.isArray(userIdsOrAssignments) &&
+      typeof userIdsOrAssignments[0] === "object"
+      ? { assignments: userIdsOrAssignments }
+      : { userIds: userIdsOrAssignments as string[] },
+  );
 export const removeProjectEmployee = (id: string, userId: string) =>
   api.delete(`/projects/${id}/employees/${userId}`);
+export const updateProjectMemberRole = (
+  id: string,
+  userId: string,
+  role: string,
+) => api.patch(`/projects/${id}/members/${userId}/role`, { role });
+export const getProjectIssues = (id: string) => api.get(`/projects/${id}/issues`);
+export const createProjectIssue = (
+  id: string,
+  data: {
+    pageName: string;
+    issueTitle: string;
+    description?: string;
+    imageUrl?: string;
+    status?: "pending" | "resolved";
+  },
+) => api.post(`/projects/${id}/issues`, data);
+export const updateProjectIssue = (
+  id: string,
+  issueId: string,
+  data: Partial<{
+    pageName: string;
+    issueTitle: string;
+    description: string | null;
+    imageUrl: string | null;
+    status: "pending" | "resolved";
+  }>,
+) => api.patch(`/projects/${id}/issues/${issueId}`, data);
 export const getMyTeamEmployees = () => api.get('/projects/managers/team');
 export const getAllOrgEmployees = (params?: {
   search?: string;

@@ -531,6 +531,10 @@ export default function UserDashboardPage() {
       try {
         const normalizePlanHint = (value?: string | number | null) =>
           String(value ?? "").trim().toUpperCase();
+        const isBasicPlanHint = (value?: string | number | null) => {
+          const normalized = normalizePlanHint(value);
+          return normalized === "1" || normalized === "BASIC";
+        };
         // First get the profile to get user ID
         const profileRes = await getProfile();
         const profile = profileRes.data;
@@ -554,16 +558,9 @@ export default function UserDashboardPage() {
           normalizePlanHint(profile?.organization?.pricingTypeId),
           normalizePlanHint(profile?.organization?.pricingType?.typeId),
         ];
-        const profileNameHints = [
-          normalizePlanHint(profile?.planName),
-          normalizePlanHint(profile?.organization?.planName),
-          normalizePlanHint(profile?.organization?.pricingTypeName),
-          normalizePlanHint(profile?.organization?.pricingType?.typeName),
-        ];
-        let inferredBasicPlan =
-          profileTypeHints.includes("BASIC") ||
-          profileTypeHints.includes("1") ||
-          profileNameHints.some((name) => name.includes("BASIC"));
+        let inferredBasicPlan = profileTypeHints.some((hint) =>
+          isBasicPlanHint(hint)
+        );
 
         if (!inferredBasicPlan && profile.organizationId) {
           try {
@@ -574,15 +571,9 @@ export default function UserDashboardPage() {
               normalizePlanHint(org?.pricingTypeId),
               normalizePlanHint(org?.pricingType?.typeId),
             ];
-            const orgNameHints = [
-              normalizePlanHint(org?.planName),
-              normalizePlanHint(org?.pricingTypeName),
-              normalizePlanHint(org?.pricingType?.typeName),
-            ];
-            inferredBasicPlan =
-              orgTypeHints.includes("BASIC") ||
-              orgTypeHints.includes("1") ||
-              orgNameHints.some((name: string) => name.includes("BASIC"));
+            inferredBasicPlan = orgTypeHints.some((hint) =>
+              isBasicPlanHint(hint)
+            );
           } catch {
             // ignore org fallback failure
           }

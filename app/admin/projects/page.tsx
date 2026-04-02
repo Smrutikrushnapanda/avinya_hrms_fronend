@@ -9,8 +9,8 @@ import {
   createProject,
   updateProject,
   deleteProject,
-  assignProjectMembers,
-  removeProjectMember,
+  assignProjectEmployees,
+  removeProjectEmployee,
   getEmployees,
 } from "@/app/api/api";
 import { toast } from "sonner";
@@ -428,7 +428,7 @@ export default function AdminProjectsPage() {
     if (!activeProject || assignUserIds.length === 0) return;
     setSaving(true);
     try {
-      await assignProjectMembers(activeProject.id, assignUserIds);
+      await assignProjectEmployees(activeProject.id, assignUserIds);
       toast.success("Members assigned");
       setAssignOpen(false);
       load();
@@ -438,7 +438,7 @@ export default function AdminProjectsPage() {
 
   const handleRemoveMember = async (projectId: string, userId: string) => {
     try {
-      await removeProjectMember(projectId, userId);
+      await removeProjectEmployee(projectId, userId);
       toast.success("Member removed");
       // Refresh view dialog
       const res = await getProjects();
@@ -556,6 +556,11 @@ export default function AdminProjectsPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {!isClient && (
+                    <DropdownMenuItem onSelect={() => router.push(`/admin/projects/${project.id}`)}>
+                      Open Workspace
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onSelect={() => { setActiveProject(project); setViewOpen(true); }}>
                     View
                   </DropdownMenuItem>

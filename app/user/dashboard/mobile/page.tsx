@@ -24,6 +24,7 @@ import {
   Wifi,
   WifiOff,
   Newspaper,
+  Home,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -42,8 +43,6 @@ import { useRouter } from "next/navigation";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
 import { useTheme } from "next-themes";
-import { motion, useMotionValue, useTransform } from "framer-motion";
-import { usePlanAccess } from "@/components/plan-access-provider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -157,30 +156,8 @@ function mapApiStatus(status: string): AttendanceStatus["status"] {
 
 export default function MobileDashboardPage() {
   const router = useRouter();
-  const { isBasicPlan } = usePlanAccess();
   const { theme, setTheme } = useTheme();
   const isDarkTheme = theme === "dark";
-
-  // ── Swipe gesture handling
-  const x = useMotionValue(0);
-  const background = useTransform(
-    x,
-    [-150, 0, 150],
-    ["rgba(0,0,0,0.1)", "rgba(0,0,0,0)", "rgba(0,0,0,0.1)"]
-  );
-
-  const handleDragEnd = (_: any, info: { offset: { x: number }; velocity: { x: number } }) => {
-    const swipeThreshold = 100;
-    const velocityThreshold = 500;
-
-    if (
-      !isBasicPlan &&
-      (info.offset.x < -swipeThreshold || info.velocity.x < -velocityThreshold)
-    ) {
-      // Swiped left - go to Posts
-      router.push("/user/dashboard/mobile/posts");
-    }
-  };
 
   // ── User
   const [user, setUser] = useState({
@@ -848,13 +825,8 @@ export default function MobileDashboardPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <motion.div 
+    <div
       className="min-h-screen bg-white flex flex-col"
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.3}
-      onDragEnd={handleDragEnd}
-      style={{ x }}
     >
       {/* ── Header ── */}
       <MobileHomeHeader
@@ -1148,10 +1120,10 @@ export default function MobileDashboardPage() {
       {isSidebarOpen && (
         <div className="fixed inset-0 z-[60] flex">
           <div
-            className="fixed inset-0 bg-black/50 transition-opacity animate-in fade-in duration-200"
+            className="fixed inset-0 bg-black/50"
             onClick={() => setIsSidebarOpen(false)}
           />
-          <div className="relative bg-white w-72 h-full shadow-2xl flex flex-col transform transition-transform duration-300 ease-in-out animate-in slide-in-from-left">
+          <div className="relative bg-white w-72 h-full shadow-2xl flex flex-col">
             {/* Sidebar Header */}
             <div className="p-5 bg-[#0077b6] text-white">
               <div className="flex justify-between items-start mb-4">
@@ -1262,6 +1234,14 @@ export default function MobileDashboardPage() {
               </Button>
               <Button
                 variant="ghost"
+                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
+                onClick={() => router.push("/user/dashboard/mobile/wfh")}
+              >
+                <Home className="w-5 h-5 mr-3" />
+                WFH
+              </Button>
+              <Button
+                variant="ghost"
                 className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-12"
                 onClick={() => router.push("/logout")}
               >
@@ -1272,6 +1252,6 @@ export default function MobileDashboardPage() {
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

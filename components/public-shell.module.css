@@ -37,11 +37,9 @@
 .logoMark {
   width: 36px;
   height: 36px;
+  display: block;
+  object-fit: contain;
   border-radius: 10px;
-  background: linear-gradient(135deg, #184a8c, #00b4db);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   box-shadow: 0 4px 12px rgba(24, 74, 140, 0.3);
   flex-shrink: 0;
 }
@@ -276,11 +274,9 @@
 .footerLogo {
   width: 24px;
   height: 24px;
+  display: block;
+  object-fit: contain;
   border-radius: 7px;
-  background: linear-gradient(135deg, #184a8c, #00b4db);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .footerLinks {

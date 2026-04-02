@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -31,12 +32,14 @@ export function PublicHeader() {
       <div className={styles.shell}>
         <div className={styles.headerRow}>
           <Link href="/" className={styles.brand} aria-label="Go to home">
-            <span className={styles.logoMark}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                <path d="M12 2v15M4 7l8 5 8-5" stroke="white" strokeWidth="2" />
-              </svg>
-            </span>
+            <Image
+              src="/App-logo.png"
+              alt="Avinya HRMS logo"
+              width={36}
+              height={36}
+              className={styles.logoMark}
+              priority
+            />
             <span className={styles.brandText}>Avinya HRMS</span>
           </Link>
 
@@ -111,12 +114,13 @@ export function PublicFooter() {
         <div className={styles.footerRow}>
           <div className={styles.footerLeft}>
             <Link href="/" className={styles.brand} aria-label="Go to home">
-              <span className={styles.footerLogo}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="M12 2v15M4 7l8 5 8-5" stroke="white" strokeWidth="2" />
-                </svg>
-              </span>
+              <Image
+                src="/App-logo.png"
+                alt="Avinya HRMS logo"
+                width={24}
+                height={24}
+                className={styles.footerLogo}
+              />
             </Link>
             <span>© 2026 Avinya HRMS. All rights reserved.</span>
           </div>

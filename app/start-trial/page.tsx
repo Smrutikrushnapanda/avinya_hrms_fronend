@@ -62,6 +62,30 @@ const TRIAL_PLANS = [
 ] as const;
 
 const DEFAULT_TRIAL_PLAN_ID = 2;
+const MIN_PHONE_DIGITS = 10;
+const MAX_PHONE_DIGITS = 15;
+
+function isValidEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalized)) return false;
+  if (normalized.includes("..")) return false;
+
+  const domain = normalized.split("@")[1] || "";
+  if (!domain || domain.startsWith(".") || domain.endsWith(".")) return false;
+  return true;
+}
+
+function isValidPhone(phone: string): boolean {
+  const normalized = phone.trim();
+  if (!normalized) return true;
+  if (!/^\+?[\d\s()-]+$/.test(normalized)) return false;
+
+  const plusCount = (normalized.match(/\+/g) || []).length;
+  if (plusCount > 1 || (plusCount === 1 && !normalized.startsWith("+"))) return false;
+
+  const digitsOnly = normalized.replace(/\D/g, "");
+  return digitsOnly.length >= MIN_PHONE_DIGITS && digitsOnly.length <= MAX_PHONE_DIGITS;
+}
 
 export default function StartTrialPage() {
   const searchParams = useSearchParams();
@@ -88,6 +112,8 @@ export default function StartTrialPage() {
     event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = event.target;
+    if (error) setError("");
+    if (successMessage) setSuccessMessage("");
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -96,21 +122,37 @@ export default function StartTrialPage() {
     setError("");
     setSuccessMessage("");
 
-    if (!formData.name || !formData.email || !formData.company || !formData.teamSize) {
+    const normalizedName = formData.name.trim();
+    const normalizedEmail = formData.email.trim().toLowerCase();
+    const normalizedCompany = formData.company.trim();
+    const normalizedTeamSize = formData.teamSize.trim();
+    const normalizedPhone = formData.phone.trim();
+
+    if (!normalizedName || !normalizedEmail || !normalizedCompany || !normalizedTeamSize) {
       setError("Please fill all required fields.");
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setError("Please enter a valid email address.");
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Please enter a valid work email address.");
+      return;
+    }
+
+    if (!isValidPhone(normalizedPhone)) {
+      setError(
+        `Please enter a valid phone number with ${MIN_PHONE_DIGITS} to ${MAX_PHONE_DIGITS} digits (or leave it blank).`
+      );
       return;
     }
 
     setIsSubmitting(true);
     try {
       const payload = {
-        ...formData,
+        name: normalizedName,
+        email: normalizedEmail,
+        company: normalizedCompany,
+        teamSize: normalizedTeamSize,
+        phone: normalizedPhone,
         pricingTypeId: selectedPlan.pricingTypeId,
         source: "pricing-start-trial",
         submittedAt: new Date().toISOString(),
@@ -690,6 +732,7 @@ export default function StartTrialPage() {
                     placeholder="john@company.com"
                     value={formData.email}
                     onChange={handleChange}
+                    autoComplete="email"
                   />
                 </div>
               </div>
@@ -737,6 +780,10 @@ export default function StartTrialPage() {
                   className="form-input"
                   id="phone"
                   name="phone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  maxLength={20}
                   placeholder="+91 98765 43210"
                   value={formData.phone}
                   onChange={handleChange}

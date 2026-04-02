@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   getMyProjects,
   getMyClientProjects,
@@ -209,6 +210,7 @@ function mapClientProject(cp: ClientProjectApi): Project {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function UserProjectsPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -372,6 +374,10 @@ export default function UserProjectsPage() {
   }, [availableEmployees]);
 
   const openDetail = (project: Project) => {
+    if (project._source === "standalone") {
+      router.push(`/user/projects/${project.id}`);
+      return;
+    }
     setSelected(project);
     setDetailTab("overview");
     setProjectEmployees([]);

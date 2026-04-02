@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Building2, Calendar, Users, Mail, ClipboardList, CheckCircle2, XCircle, Clock3, Eye, EyeOff } from "lucide-react";
 import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest } from "@/app/api/api";
 import AttendanceSettingsPage from "../attendance/settings/page";
+import { TourProvider, useTour, type StepType } from "@reactour/tour";
 
 interface Department {
   id: string;
@@ -83,7 +85,31 @@ interface ResignationRequest {
 const EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Intern", "Consultant"];
 const DEFAULT_HOME_HEADER_COLOR = "#026D94";
 
+function CredentialsTourBootstrap({ enabled }: { enabled: boolean }) {
+  const hasStartedRef = useRef(false);
+  const { setIsOpen, setCurrentStep } = useTour();
+
+  useEffect(() => {
+    if (!enabled) {
+      hasStartedRef.current = false;
+      setCurrentStep(0);
+      setIsOpen(false);
+      return;
+    }
+
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
+    setCurrentStep(0);
+    setIsOpen(true);
+  }, [enabled, setCurrentStep, setIsOpen]);
+
+  return null;
+}
+
 export default function SettingsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const forceCredentialsFromQuery = searchParams.get("force_credentials") === "1";
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -133,6 +159,8 @@ const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
 
   const [showCredPassword, setShowCredPassword] = useState(false);
   const [showCredConfirmPassword, setShowCredConfirmPassword] = useState(false);
+  const [isCredentialsTourEnabled, setIsCredentialsTourEnabled] = useState(false);
+  const [hasCheckedCredentialsFlow, setHasCheckedCredentialsFlow] = useState(false);
   const [isResignationReviewDialogOpen, setIsResignationReviewDialogOpen] = useState(false);
   const [reviewingResignation, setReviewingResignation] = useState<ResignationRequest | null>(null);
   const [resignationReviewForm, setResignationReviewForm] = useState({
@@ -141,6 +169,27 @@ const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
     approvedLastWorkingDay: "",
     allowEarlyRelieving: false,
   });
+
+  const credentialsTourSteps = useMemo<StepType[]>(
+    () => [
+      {
+        selector: "[data-tour='change-admin-credentials-btn']",
+        content:
+          "First-time setup: start here and update the default admin credentials before using the rest of the admin panel.",
+        position: "bottom",
+        action: () => setIsCredentialsDialogOpen(false),
+      },
+      {
+        selector: "#change-admin-credentials-dialog",
+        content:
+          "Set a new admin username/password and save. This completes first-time organization setup.",
+        position: "left",
+        mutationObservables: ["#change-admin-credentials-dialog"],
+        action: () => setIsCredentialsDialogOpen(true),
+      },
+    ],
+    []
+  );
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -169,6 +218,29 @@ const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
     if (!organizationId) return;
     loadResignationRequests(resignationStatusFilter);
   }, [resignationStatusFilter, organizationId]);
+
+  useEffect(() => {
+    if (hasCheckedCredentialsFlow) return;
+
+    let mustChangeFromLocalStorage = false;
+    if (typeof window !== "undefined") {
+      try {
+        const rawUser = localStorage.getItem("user");
+        if (rawUser) {
+          const parsedUser = JSON.parse(rawUser);
+          mustChangeFromLocalStorage = Boolean(parsedUser?.mustChangePassword);
+        }
+      } catch {
+        mustChangeFromLocalStorage = false;
+      }
+    }
+
+    if (forceCredentialsFromQuery || mustChangeFromLocalStorage) {
+      setIsCredentialsTourEnabled(true);
+    }
+
+    setHasCheckedCredentialsFlow(true);
+  }, [forceCredentialsFromQuery, hasCheckedCredentialsFlow]);
 
   const loadDepartments = async () => {
     try {
@@ -353,13 +425,37 @@ const loadOrganization = async () => {
       return;
     }
     try {
-      await changeOrgAdminCredentials(organizationId, {
+      const response = await changeOrgAdminCredentials(organizationId, {
         newUserName: credentialsForm.newUserName || undefined,
         newPassword: credentialsForm.newPassword || undefined,
       });
+      const mustChangePassword = Boolean(response?.data?.mustChangePassword);
+
+      if (typeof window !== "undefined") {
+        try {
+          const rawUser = localStorage.getItem("user");
+          if (rawUser) {
+            const parsedUser = JSON.parse(rawUser);
+            parsedUser.mustChangePassword = mustChangePassword;
+            if (response?.data?.userName) {
+              parsedUser.userName = response.data.userName;
+            }
+            localStorage.setItem("user", JSON.stringify(parsedUser));
+          }
+        } catch {
+          // no-op: malformed local user payload should not block credentials update
+        }
+
+        document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; path=/; max-age=2592000`;
+      }
+
       toast.success("Admin credentials updated");
       setIsCredentialsDialogOpen(false);
+      setIsCredentialsTourEnabled(mustChangePassword);
       setCredentialsForm({ newUserName: "", newPassword: "", confirmPassword: "" });
+      if (!mustChangePassword) {
+        router.replace("/admin/settings");
+      }
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to update credentials");
     }
@@ -553,7 +649,16 @@ const loadOrganization = async () => {
   };
 
   return (
-    <div className="p-6">
+    <TourProvider
+      steps={credentialsTourSteps}
+      showDots={false}
+      showBadge
+      showNavigation
+      showCloseButton
+      scrollSmooth
+    >
+      <CredentialsTourBootstrap enabled={isCredentialsTourEnabled} />
+      <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
       
       <Tabs defaultValue="organization" className="w-full">
@@ -581,7 +686,11 @@ const loadOrganization = async () => {
                 <CardDescription>Manage core organization details</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => setIsCredentialsDialogOpen(true)}>
+                <Button
+                  variant="outline"
+                  data-tour="change-admin-credentials-btn"
+                  onClick={() => setIsCredentialsDialogOpen(true)}
+                >
                   <Pencil className="w-4 h-4 mr-2" /> Change Admin Credentials
                 </Button>
                 <Button onClick={() => setIsOrgDialogOpen(true)}>
@@ -1440,7 +1549,7 @@ const loadOrganization = async () => {
 
       {/* Change Admin Credentials Dialog */}
       <Dialog open={isCredentialsDialogOpen} onOpenChange={setIsCredentialsDialogOpen}>
-        <DialogContent>
+        <DialogContent id="change-admin-credentials-dialog">
           <DialogHeader>
             <DialogTitle>Change Admin Credentials</DialogTitle>
           </DialogHeader>
@@ -1514,6 +1623,7 @@ const loadOrganization = async () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </TourProvider>
   );
 }

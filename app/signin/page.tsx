@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -29,8 +30,13 @@ export default function LoginPage() {
     return mobileUa || narrowViewport;
   };
 
-  const getPostLoginRoute = (role: "ADMIN" | "EMPLOYEE") => {
-    if (role === "ADMIN") return "/admin/dashboard";
+  const getPostLoginRoute = (role: "ADMIN" | "EMPLOYEE", userParams?: any) => {
+    if (role === "ADMIN") {
+      if (Boolean(userParams?.mustChangePassword)) {
+        return "/admin/settings?force_credentials=1";
+      }
+      return "/admin/dashboard";
+    }
     return isLikelyMobileDevice() ? "/user/dashboard/mobile" : "/user/dashboard";
   };
 
@@ -39,8 +45,10 @@ export default function LoginPage() {
     chosenRole: "ADMIN" | "EMPLOYEE",
     cookieMaxAge: number
   ) => {
+    const mustChangePassword = Boolean(userParams?.mustChangePassword);
     document.cookie = `user=${encodeURIComponent(JSON.stringify(userParams))}; path=/; max-age=${cookieMaxAge}`;
     document.cookie = `user_role=${chosenRole}; path=/; max-age=${cookieMaxAge}`;
+    document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; path=/; max-age=${cookieMaxAge}`;
     if (chosenRole === "EMPLOYEE") {
       document.cookie = `dashboard-view=${isLikelyMobileDevice() ? "mobile" : "desktop"}; path=/; max-age=${cookieMaxAge}`;
     }
@@ -59,7 +67,7 @@ export default function LoginPage() {
 
       const parsedUser = JSON.parse(rawUser);
       writeAuthCookies(parsedUser, normalizedRole, 2592000);
-      router.replace(getPostLoginRoute(normalizedRole));
+      router.replace(getPostLoginRoute(normalizedRole, parsedUser));
     } catch {
       // ignore malformed local storage and stay on login
     }
@@ -73,7 +81,7 @@ export default function LoginPage() {
 
     toast.success("Welcome back! 🎉");
     setTimeout(() => {
-      router.push(getPostLoginRoute(chosenRole));
+      router.push(getPostLoginRoute(chosenRole, userParams));
     }, 100);
   };
 
@@ -182,10 +190,11 @@ export default function LoginPage() {
         }
 
         .logo-mark {
-          width: 36px; height: 36px;
-          background: linear-gradient(135deg, #184a8c, #00b4db);
+          width: 36px;
+          height: 36px;
+          display: block;
+          object-fit: contain;
           border-radius: 10px;
-          display: flex; align-items: center; justify-content: center;
           box-shadow: 0 4px 12px rgba(24,74,140,0.3);
           flex-shrink: 0;
         }
@@ -535,12 +544,14 @@ export default function LoginPage() {
             >
               {/* Logo */}
               <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: 10, marginBottom: 48, textDecoration: "none" }}>
-                <div className="logo-mark">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 2L4 7v10l8 5 8-5V7L12 2z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-                    <path d="M12 2v15M4 7l8 5 8-5" stroke="white" strokeWidth="2"/>
-                  </svg>
-                </div>
+                <Image
+                  src="/App-logo.png"
+                  alt="Avinya HRMS logo"
+                  width={36}
+                  height={36}
+                  className="logo-mark"
+                  priority
+                />
                 <span style={{ fontSize: 18, fontWeight: 700, color: "#fff" }}>Avinya HRMS</span>
               </Link>
 

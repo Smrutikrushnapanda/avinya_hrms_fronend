@@ -40,10 +40,10 @@ function matchesPathPrefix(pathname: string, prefix: string): boolean {
 }
 
 export function normalizeOrganizationPlanType(
-  planType?: string | null,
-  planName?: string | null
+  planType?: string | number | null
 ): OrganizationPlanType {
-  const normalizedType = typeof planType === "string" ? planType.trim().toUpperCase() : "";
+  const normalizedType =
+    planType == null ? "" : String(planType).trim().toUpperCase();
   if (
     normalizedType === "BASIC" ||
     normalizedType === "PRO" ||
@@ -52,14 +52,9 @@ export function normalizeOrganizationPlanType(
     return normalizedType as OrganizationPlanType;
   }
 
-  const normalizedName = typeof planName === "string" ? planName.trim().toUpperCase() : "";
-  if (normalizedName.includes("BASIC")) return "BASIC";
-  if (normalizedName.includes("PRO")) return "PRO";
-  if (normalizedName.includes("ENTERPRISE")) return "ENTERPRISE";
-
-  if (planType === "1" || normalizedType === "1") return "BASIC";
-  if (planType === "2" || normalizedType === "2") return "PRO";
-  if (planType === "3" || normalizedType === "3") return "ENTERPRISE";
+  if (normalizedType === "1") return "BASIC";
+  if (normalizedType === "2") return "PRO";
+  if (normalizedType === "3") return "ENTERPRISE";
 
   const numericPlanType = Number(planType);
   if (Number.isFinite(numericPlanType)) {

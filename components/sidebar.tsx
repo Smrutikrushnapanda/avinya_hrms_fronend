@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlanAccess } from "@/components/plan-access-provider";
 import { getProfile, getChatConversations, getPerformanceSettings, getWfhToday, getOrganization } from "@/app/api/api";
 import {
-  Boxes,
   Users,
   LayoutDashboard,
   BookMarked,
@@ -275,50 +275,34 @@ const fetchProfile = async () => {
       try {
         const res = await getProfile();
         const user: Profile = res.data;
-        const normalizePlan = (value?: string | number | null): string => String(value ?? "").trim().toUpperCase();
+        const normalizePlan = (value?: string | number | null): string =>
+          String(value ?? "").trim().toUpperCase();
+        const isBasicPlanHint = (value?: string | number | null): boolean => {
+          const normalized = normalizePlan(value);
+          return normalized === "1" || normalized === "BASIC";
+        };
         const typeHints = [
-          normalizePlan(user.planType),
-          normalizePlan(user.pricingTypeId),
-          normalizePlan(user.organization?.planType),
-          normalizePlan(user.organization?.pricingTypeId),
-          normalizePlan(user.organization?.pricingType?.typeId),
+          user.planType,
+          user.pricingTypeId,
+          user.organization?.planType,
+          user.organization?.pricingTypeId,
+          user.organization?.pricingType?.typeId,
         ];
-        const nameHints = [
-          normalizePlan(user.planName),
-          normalizePlan(user.organization?.planName),
-          normalizePlan(user.organization?.pricingType?.typeName),
-        ];
-        let inferredBasic =
-          typeHints.includes("BASIC") ||
-          typeHints.includes("1") ||
-          nameHints.some((name) => name.includes("BASIC"));
+        let inferredBasic = typeHints.some((hint) => isBasicPlanHint(hint));
 
         if (!inferredBasic && user.organizationId) {
           try {
             const orgRes = await getOrganization(user.organizationId);
             const org = orgRes.data || {};
             const orgTypeHints = [
-              normalizePlan(org?.planType),
-              normalizePlan(org?.pricingTypeId),
-              normalizePlan(org?.pricingType?.typeId),
+              org?.planType,
+              org?.pricingTypeId,
+              org?.pricingType?.typeId,
             ];
-            const orgNameHints = [
-              normalizePlan(org?.planName),
-              normalizePlan(org?.pricingTypeName),
-              normalizePlan(org?.pricingType?.typeName),
-            ];
-            inferredBasic =
-              orgTypeHints.includes("BASIC") ||
-              orgTypeHints.includes("1") ||
-              orgNameHints.some((name: string) => name.includes("BASIC"));
+            inferredBasic = orgTypeHints.some((hint) => isBasicPlanHint(hint));
           } catch {
             // ignore org fallback failures
           }
-        }
-
-        // Failsafe: for employee routes, never show full company menu while plan cannot be resolved.
-        if (isEmployeeRoute && !isBasicPlan && !inferredBasic) {
-          inferredBasic = true;
         }
 
         setIsBasicMenuInferred(inferredBasic);
@@ -423,12 +407,16 @@ const fetchProfile = async () => {
         <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-800">
           {isExpanded ? (
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-7 w-7 rounded-md bg-gradient-to-r from-[#184a8c] to-[#00b4db] flex items-center justify-center shrink-0">
-  <Boxes className="h-4 w-4 text-white" />
-</div>
+              <Image
+                src="/App-logo.png"
+                alt="Avinya HRMS logo"
+                width={28}
+                height={28}
+                className="h-7 w-7 rounded-md object-contain shrink-0"
+              />
               <span className="font-semibold text-sm bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent truncate">
-  Avinya HRMS
-</span>
+                Avinya HRMS
+              </span>
             </div>
           ) : (
             <span />

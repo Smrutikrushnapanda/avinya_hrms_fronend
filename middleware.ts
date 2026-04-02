@@ -5,6 +5,7 @@ export function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const userCookie = req.cookies.get("user")?.value;
   const userRoleCookie = req.cookies.get("user_role")?.value;
+  const mustChangePassword = req.cookies.get("must_change_password")?.value === "1";
   const isSigninRoute = pathname === "/signin";
 
   // Protected routes
@@ -22,13 +23,18 @@ export function middleware(req: NextRequest) {
       const isMobile =
         /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile|WPDesktop|Mobile/i.test(
           ua
-        );
+      );
       const url = req.nextUrl.clone();
-      url.pathname = isAdminSideRole
-        ? "/admin/dashboard"
-        : isMobile
-          ? "/user/dashboard/mobile"
-          : "/user/dashboard";
+      if (isAdminSideRole) {
+        url.pathname = mustChangePassword ? "/admin/settings" : "/admin/dashboard";
+        if (mustChangePassword) {
+          url.searchParams.set("force_credentials", "1");
+        } else {
+          url.searchParams.delete("force_credentials");
+        }
+      } else {
+        url.pathname = isMobile ? "/user/dashboard/mobile" : "/user/dashboard";
+      }
       const response = NextResponse.redirect(url);
       if (isEmployeeRole) {
         response.cookies.set("dashboard-view", isMobile ? "mobile" : "desktop", {

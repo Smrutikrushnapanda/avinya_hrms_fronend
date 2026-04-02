@@ -31,6 +31,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.7",
+    "@reactour/tour": "^3.8.0",
     "@tanstack/react-table": "^8.21.3",
     "axios": "^1.10.0",
     "bowser": "^2.12.0",
