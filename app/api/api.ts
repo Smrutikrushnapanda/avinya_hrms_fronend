@@ -217,6 +217,16 @@ export const updateProject = (id: string, data: any) => api.patch(`/projects/${i
 export const deleteProject = (id: string) => api.delete(`/projects/${id}`);
 export const getMyProjects = () => api.get('/projects/my');
 export const getProject = (id: string) => api.get(`/projects/${id}`);
+export const getProjectTimesheets = (
+  id: string,
+  params?: {
+    organizationId?: string;
+    fromDate?: string;
+    toDate?: string;
+    page?: number;
+    limit?: number;
+  },
+) => api.get(`/projects/${id}/timesheets`, { params });
 export const assignProjectMembers = (id: string, userIds: string[]) =>
   api.post(`/projects/${id}/members`, { userIds });
 export const removeProjectMember = (id: string, userId: string) =>

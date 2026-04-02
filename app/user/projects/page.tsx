@@ -421,13 +421,7 @@ export default function UserProjectsPage() {
   }, [availableEmployees]);
 
   const openDetail = (project: Project) => {
-    if (project._source === "standalone") {
-      router.push(`/user/projects/${project.id}`);
-      return;
-    }
-    setSelected(project);
-    setDetailTab("overview");
-    setProjectEmployees([]);
+    router.push(`/user/projects/${project.id}?source=${project._source}`);
   };
 
   const handleTabChange = (tab: "overview" | "team") => {

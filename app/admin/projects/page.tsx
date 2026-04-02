@@ -490,7 +490,17 @@ export default function AdminProjectsPage() {
           return (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{projectName(p)}</span>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-left hover:underline"
+                  onClick={() =>
+                    p._source === "client"
+                      ? router.push("/admin/clients-projects")
+                      : router.push(`/admin/projects/${p.id}`)
+                  }
+                >
+                  {projectName(p)}
+                </button>
                 {p._source === "client" && (
                   <Badge variant="outline" className="text-[10px] px-1.5 text-purple-600 border-purple-200 bg-purple-50">
                     Client
