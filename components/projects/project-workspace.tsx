@@ -1,22 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import { useRouter } from "next/navigation";
 import {
   assignClientProjectEmployees,
   assignProjectEmployees,
+  createProjectTask,
   createProjectIssue,
+  deleteProjectTask,
+  getClientProject,
   getClientProjectEmployees,
   getAllOrgEmployees,
-  getMyClientProjects,
   getProfile,
   getProject,
   getProjectEmployees,
   getProjectIssues,
+  getProjectTasks,
   getProjectTimesheets,
   getTimesheets,
   removeClientProjectEmployee,
   removeProjectEmployee,
+  updateTaskStatus,
   updateClientProjectCompletion,
   updateProject,
   updateProjectIssue,
@@ -38,6 +42,9 @@ import {
   Upload,
   Users,
   X,
+  Circle,
+  Clock3,
+  CheckCircle2,
 } from "lucide-react";
 
 type ProjectStatus = "planning" | "active" | "on_hold" | "completed";
@@ -45,6 +52,8 @@ type ProjectPriority = "low" | "medium" | "high" | "critical";
 type IssueStatus = "pending" | "resolved";
 type MemberRole = "member" | "tester" | "lead";
 type ProjectSource = "standalone" | "client";
+type ClientTaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+type ClientTaskPriority = "low" | "medium" | "high" | "urgent";
 
 type ProjectShape = {
   id: string;
@@ -132,6 +141,52 @@ type ClientProjectApi = {
   members?: Array<{ userId?: string | null; role?: string | null }>;
 };
 
+type ClientProjectTask = {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  status: ClientTaskStatus;
+  priority: ClientTaskPriority;
+  assignedToUserId: string | null;
+  assignedToUser?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  } | null;
+  assignedByUserId: string;
+  assignedByUser?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  } | null;
+  dueDate: string | null;
+  completedAt: string | null;
+  createdAt: string;
+};
+
+const clientTaskStatusConfig: Record<
+  ClientTaskStatus,
+  { label: string; color: string; bgColor: string; icon: ElementType }
+> = {
+  pending: { label: "Pending", color: "text-slate-600", bgColor: "bg-slate-100", icon: Circle },
+  in_progress: { label: "In Progress", color: "text-blue-600", bgColor: "bg-blue-100", icon: Clock3 },
+  completed: {
+    label: "Completed",
+    color: "text-green-600",
+    bgColor: "bg-green-100",
+    icon: CheckCircle2,
+  },
+  cancelled: { label: "Cancelled", color: "text-red-600", bgColor: "bg-red-100", icon: X },
+};
+
+const clientTaskPriorityOptions: Array<{ value: ClientTaskPriority; label: string }> = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "urgent", label: "Urgent" },
+];
+
 function fullName(data: { firstName?: string; lastName?: string; email?: string }) {
   const name = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
   return name || data.email || "Unknown";
@@ -173,6 +228,12 @@ function formatMinutes(minutes?: number) {
   const h = Math.floor(safeMinutes / 60);
   const m = safeMinutes % 60;
   return `${h}h ${m}m`;
+}
+
+function formatUserName(user?: { firstName?: string; lastName?: string; email?: string } | null) {
+  if (!user) return "--";
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+  return name || user.email || "--";
 }
 
 function mapClientProjectToWorkspace(cp: ClientProjectApi): ProjectShape {
@@ -234,6 +295,16 @@ export default function ProjectWorkspace({
   const [projectTimesheets, setProjectTimesheets] = useState<ProjectTimesheet[]>([]);
   const [timesheetsLoading, setTimesheetsLoading] = useState(false);
   const [timesheetsError, setTimesheetsError] = useState<string | null>(null);
+  const [clientTasks, setClientTasks] = useState<ClientProjectTask[]>([]);
+  const [clientTasksLoading, setClientTasksLoading] = useState(false);
+  const [clientTaskSaving, setClientTaskSaving] = useState(false);
+  const [clientTaskForm, setClientTaskForm] = useState({
+    title: "",
+    description: "",
+    assignedToUserId: "",
+    dueDate: "",
+    priority: "medium" as ClientTaskPriority,
+  });
   const [issues, setIssues] = useState<ProjectIssue[]>([]);
   const [orgEmployees, setOrgEmployees] = useState<TeamMember[]>([]);
   const [profileUserId, setProfileUserId] = useState<string>("");
@@ -346,6 +417,19 @@ export default function ProjectWorkspace({
     [projectId],
   );
 
+  const loadClientTaskBoard = useCallback(async (clientProjectId: string) => {
+    setClientTasksLoading(true);
+    try {
+      const res = await getProjectTasks(clientProjectId);
+      setClientTasks(Array.isArray(res.data) ? (res.data as ClientProjectTask[]) : []);
+    } catch {
+      setClientTasks([]);
+      toast.error("Failed to load project tasks");
+    } finally {
+      setClientTasksLoading(false);
+    }
+  }, []);
+
   const loadWorkspace = useCallback(async () => {
     try {
       setLoading(true);
@@ -380,15 +464,11 @@ export default function ProjectWorkspace({
       };
 
       const loadClientWorkspace = async () => {
-        const [projectsRes, membersRes] = await Promise.all([
-          getMyClientProjects(),
+        const [projectRes, membersRes] = await Promise.all([
+          getClientProject(projectId),
           getClientProjectEmployees(projectId),
         ]);
-        const list = Array.isArray(projectsRes.data) ? (projectsRes.data as ClientProjectApi[]) : [];
-        const clientProject = list.find((row) => row.id === projectId);
-        if (!clientProject) {
-          throw new Error("Client project not found");
-        }
+        const clientProject = projectRes.data as ClientProjectApi;
         return {
           source: "client" as const,
           project: mapClientProjectToWorkspace(clientProject),
@@ -426,6 +506,11 @@ export default function ProjectWorkspace({
         workspaceData.project.name,
         orgId,
       );
+      if (workspaceData.source === "client") {
+        await loadClientTaskBoard(workspaceData.project.id);
+      } else {
+        setClientTasks([]);
+      }
     } catch (error: unknown) {
       const message =
         typeof error === "object" &&
@@ -438,7 +523,7 @@ export default function ProjectWorkspace({
     } finally {
       setLoading(false);
     }
-  }, [loadProjectTimesheetBoard, projectId, source]);
+  }, [loadClientTaskBoard, loadProjectTimesheetBoard, projectId, source]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -541,6 +626,63 @@ export default function ProjectWorkspace({
     }
   };
 
+  const handleCreateClientTask = async () => {
+    if (!project || !isClientProject) return;
+    if (!clientTaskForm.title.trim()) {
+      toast.error("Task title is required");
+      return;
+    }
+    try {
+      setClientTaskSaving(true);
+      await createProjectTask(project.id, {
+        title: clientTaskForm.title.trim(),
+        description: clientTaskForm.description.trim() || undefined,
+        assignedToUserId: clientTaskForm.assignedToUserId || undefined,
+        dueDate: clientTaskForm.dueDate || undefined,
+        priority: clientTaskForm.priority,
+      });
+      toast.success("Task created");
+      setClientTaskForm({
+        title: "",
+        description: "",
+        assignedToUserId: "",
+        dueDate: "",
+        priority: "medium",
+      });
+      await loadClientTaskBoard(project.id);
+    } catch {
+      toast.error("Failed to create task");
+    } finally {
+      setClientTaskSaving(false);
+    }
+  };
+
+  const handleClientTaskStatusChange = async (
+    taskId: string,
+    status: ClientTaskStatus,
+  ) => {
+    if (!project || !isClientProject) return;
+    const previous = clientTasks;
+    setClientTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, status } : task)));
+    try {
+      await updateTaskStatus(project.id, taskId, status);
+    } catch {
+      setClientTasks(previous);
+      toast.error("Failed to update task status");
+    }
+  };
+
+  const handleDeleteClientTask = async (taskId: string) => {
+    if (!project || !isClientProject) return;
+    try {
+      await deleteProjectTask(project.id, taskId);
+      setClientTasks((prev) => prev.filter((task) => task.id !== taskId));
+      toast.success("Task removed");
+    } catch {
+      toast.error("Failed to delete task");
+    }
+  };
+
   const handleIssueImageUpload = async (file: File) => {
     try {
       setUploadingIssueImage(true);
@@ -634,7 +776,7 @@ export default function ProjectWorkspace({
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto max-w-[1440px] p-6 space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button
@@ -1091,12 +1233,178 @@ export default function ProjectWorkspace({
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h2 className="font-semibold">Work Assignment</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Team assignment and project-wise timesheet visibility are enabled for this client project.
-            Task assignment board is available for internal projects.
-          </p>
+        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="font-semibold">Assign Work / Create Task</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Create tasks for project members and track progress in one place.
+              </p>
+            </div>
+            <Badge variant="outline">{clientTasks.length} tasks</Badge>
+          </div>
+
+          {canManageTeam ? (
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 border border-border rounded-lg">
+              <Input
+                className="md:col-span-2"
+                placeholder="Task title"
+                value={clientTaskForm.title}
+                onChange={(e) => setClientTaskForm((prev) => ({ ...prev, title: e.target.value }))}
+              />
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm md:col-span-1"
+                value={clientTaskForm.assignedToUserId}
+                onChange={(e) =>
+                  setClientTaskForm((prev) => ({ ...prev, assignedToUserId: e.target.value }))
+                }
+              >
+                <option value="">Unassigned</option>
+                {projectEmployees.map((member) => (
+                  <option key={member.userId} value={member.userId}>
+                    {fullName(member)}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm md:col-span-1"
+                value={clientTaskForm.priority}
+                onChange={(e) =>
+                  setClientTaskForm((prev) => ({
+                    ...prev,
+                    priority: e.target.value as ClientTaskPriority,
+                  }))
+                }
+              >
+                {clientTaskPriorityOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <Input
+                type="date"
+                className="md:col-span-1"
+                value={clientTaskForm.dueDate}
+                onChange={(e) => setClientTaskForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+              />
+              <Button
+                className="md:col-span-1"
+                disabled={clientTaskSaving || !clientTaskForm.title.trim()}
+                onClick={handleCreateClientTask}
+              >
+                {clientTaskSaving ? "Creating..." : "Create Task"}
+              </Button>
+              <Textarea
+                className="md:col-span-6 min-h-[70px]"
+                placeholder="Task description (optional)"
+                value={clientTaskForm.description}
+                onChange={(e) =>
+                  setClientTaskForm((prev) => ({ ...prev, description: e.target.value }))
+                }
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Only manager/admin can create tasks. You can still update your assigned task status.
+            </p>
+          )}
+
+          {clientTasksLoading ? (
+            <div className="h-20 flex items-center text-sm text-muted-foreground">
+              Loading tasks...
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border border-border">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="text-left px-3 py-2 border-b border-border">Task</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Assigned To</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Priority</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Due Date</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Status</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Assigned By</th>
+                    <th className="text-right px-3 py-2 border-b border-border">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientTasks.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-4 text-muted-foreground" colSpan={7}>
+                        No tasks created for this project yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    clientTasks.map((task) => {
+                      const statusMeta = clientTaskStatusConfig[task.status];
+                      const StatusIcon = statusMeta.icon;
+                      const canUpdateStatus =
+                        canManageTeam || task.assignedToUserId === profileUserId;
+                      const canDeleteTask =
+                        canManageTeam ||
+                        task.assignedByUserId === profileUserId ||
+                        task.assignedToUserId === profileUserId;
+
+                      return (
+                        <tr key={task.id} className="border-b border-border last:border-b-0 align-top">
+                          <td className="px-3 py-2 min-w-[260px]">
+                            <p className="font-medium">{task.title}</p>
+                            {task.description ? (
+                              <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2">{formatUserName(task.assignedToUser) || "--"}</td>
+                          <td className="px-3 py-2 capitalize">{task.priority}</td>
+                          <td className="px-3 py-2">{task.dueDate ? formatDisplayDate(task.dueDate) : "--"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={`${statusMeta.color} ${statusMeta.bgColor}`}
+                              >
+                                <StatusIcon className="w-3 h-3 mr-1" />
+                                {statusMeta.label}
+                              </Badge>
+                              <select
+                                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                                value={task.status}
+                                disabled={!canUpdateStatus}
+                                onChange={(e) =>
+                                  handleClientTaskStatusChange(
+                                    task.id,
+                                    e.target.value as ClientTaskStatus,
+                                  )
+                                }
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">{formatUserName(task.assignedByUser)}</td>
+                          <td className="px-3 py-2 text-right">
+                            {canDeleteTask ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-500"
+                                onClick={() => handleDeleteClientTask(task.id)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

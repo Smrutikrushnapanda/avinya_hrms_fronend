@@ -494,9 +494,11 @@ export default function AdminProjectsPage() {
                   type="button"
                   className="text-sm font-medium text-left hover:underline"
                   onClick={() =>
-                    p._source === "client"
-                      ? router.push("/admin/clients-projects")
-                      : router.push(`/admin/projects/${p.id}`)
+                    router.push(
+                      p._source === "client"
+                        ? `/admin/projects/${p.id}?source=client`
+                        : `/admin/projects/${p.id}`,
+                    )
                   }
                 >
                   {projectName(p)}
@@ -593,19 +595,16 @@ export default function AdminProjectsPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {!isClient && (
-                    <DropdownMenuItem onSelect={() => router.push(`/admin/projects/${project.id}`)}>
-                      Open Workspace
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem
                     onSelect={() =>
-                      isClient
-                        ? router.push("/admin/clients-projects")
-                        : router.push(`/admin/projects/${project.id}`)
+                      router.push(
+                        isClient
+                          ? `/admin/projects/${project.id}?source=client`
+                          : `/admin/projects/${project.id}`,
+                      )
                     }
                   >
-                    View Page
+                    View Details
                   </DropdownMenuItem>
                   {isClient ? (
                     <DropdownMenuItem onSelect={() => router.push("/admin/clients-projects")}>
@@ -945,6 +944,16 @@ export default function AdminProjectsPage() {
                         <div className="flex items-center gap-2 text-muted-foreground text-xs">
                           <Users className="w-3.5 h-3.5" />
                           {activeProject.memberCount} member{activeProject.memberCount !== 1 ? "s" : ""}
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground text-xs pt-2 border-t border-border">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Created:</span>
+                          <span className="font-medium">{new Date(activeProject.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-muted-foreground text-xs">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          <span>Updated:</span>
+                          <span className="font-medium">{new Date(activeProject.updatedAt).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>

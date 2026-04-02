@@ -203,6 +203,7 @@ export const deleteClient = (id: string) => api.delete(`/clients/${id}`);
 
 // Client-linked projects (under /client-projects)
 export const getClientProjects = (params: any) => api.get("/client-projects", { params });
+export const getClientProject = (id: string) => api.get(`/client-projects/${id}`);
 export const createClientProject = (data: any) => api.post("/client-projects", data);
 export const updateClientProject = (id: string, data: any) => api.put(`/client-projects/${id}`, data);
 export const deleteClientProject = (id: string) => api.delete(`/client-projects/${id}`);
