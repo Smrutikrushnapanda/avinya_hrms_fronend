@@ -468,14 +468,6 @@ export default function ProjectWorkspace({
   const canEditProgress = canManageTeam;
   const canCreateIssue = canManageTeam && !isClientProject;
   const canAssignQa = canManageTeam;
-  const currentUserProjectRole = useMemo(
-    () =>
-      normalizeText(
-        projectEmployees.find((member) => member.userId === profileUserId)?.role || "",
-      ),
-    [profileUserId, projectEmployees],
-  );
-  const isCurrentUserTester = isQaTesterRole(currentUserProjectRole);
   const currentProjectQaMember = useMemo(
     () => projectEmployees.find((member) => isQaTesterRole(member.role)) || null,
     [projectEmployees],
@@ -483,13 +475,16 @@ export default function ProjectWorkspace({
 
   const buildTestSheetPath = useCallback(
     (userId?: string) => {
-      if (!project?.id || isClientProject) return "";
+      if (!project?.id) return "";
       const basePath =
         mode === "admin"
           ? `/admin/projects/${project.id}/test-sheet`
           : `/user/projects/${project.id}/test-sheet`;
-      if (!userId) return basePath;
-      return `${basePath}?userId=${encodeURIComponent(userId)}`;
+      const query = new URLSearchParams();
+      if (userId) query.set("userId", userId);
+      if (isClientProject) query.set("source", "client");
+      const queryString = query.toString();
+      return queryString ? `${basePath}?${queryString}` : basePath;
     },
     [isClientProject, mode, project?.id],
   );
@@ -1017,13 +1012,6 @@ export default function ProjectWorkspace({
     }
   };
 
-  const handleAssignWorkClick = () => {
-    if (isClientProject && canManageTeam) {
-      setShowClientTaskComposer(true);
-    }
-    assignWorkSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   const handleToggleQaPanel = () => {
     const nextValue = !showQaPanel;
     setShowQaPanel(nextValue);
@@ -1076,39 +1064,14 @@ export default function ProjectWorkspace({
             </p>
           </div>
         </div>
-        {canManageTeam ? (
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={handleAssignWorkClick}>
-              <ListTodo className="w-4 h-4 mr-1" />
-              Assign Work
-            </Button>
-            {!isClientProject ? (
-              <Button size="sm" variant="outline" onClick={() => handleOpenTestSheet()}>
-                <ClipboardList className="w-4 h-4 mr-1" />
-                View Test Case
-              </Button>
-            ) : null}
-          </div>
-        ) : isReadOnlyAdminView && !isClientProject ? (
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => handleOpenTestSheet()}>
-              <ClipboardList className="w-4 h-4 mr-1" />
-              View Test Case
-            </Button>
-            <Badge variant="outline" className="capitalize">
-              {projectSource}
-            </Badge>
-            <Badge variant="outline" className="capitalize">
-              {project.status.replace("_", " ")}
-            </Badge>
-            <Badge variant="outline" className="capitalize">
-              {project.priority}
-            </Badge>
-          </div>
-        ) : isCurrentUserTester && !isClientProject ? (
-          <Button size="sm" variant="outline" onClick={() => handleOpenTestSheet(profileUserId)}>
+        {currentProjectQaMember ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleOpenTestSheet()}
+          >
             <ClipboardList className="w-4 h-4 mr-1" />
-            Test Sheet
+            Test-Case
           </Button>
         ) : (
           <div className="flex items-center gap-2">
