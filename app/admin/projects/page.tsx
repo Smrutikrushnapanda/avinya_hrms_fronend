@@ -80,6 +80,7 @@ interface ProjectMemberItem {
   role: string;
   assignedAt: string;
   user: { id: string; email: string; firstName: string; lastName: string } | null;
+  designation?: string | null;
 }
 
 interface Project {

@@ -1340,6 +1340,7 @@ export default function ProjectWorkspace({
             <thead className="bg-muted/40">
               <tr>
                 <th className="text-left px-3 py-2 border-b border-border">Name</th>
+                <th className="text-left px-3 py-2 border-b border-border">Designation</th>
                 <th className="text-left px-3 py-2 border-b border-border">Email</th>
                 <th className="text-left px-3 py-2 border-b border-border">Role</th>
                 <th className="text-left px-3 py-2 border-b border-border">Manager</th>
@@ -1349,7 +1350,7 @@ export default function ProjectWorkspace({
             <tbody>
               {projectEmployees.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-4 text-muted-foreground" colSpan={5}>
+                  <td className="px-3 py-4 text-muted-foreground" colSpan={6}>
                     No members assigned yet.
                   </td>
                 </tr>
@@ -1357,6 +1358,7 @@ export default function ProjectWorkspace({
                 projectEmployees.map((emp) => (
                   <tr key={emp.userId} className="border-b border-border last:border-b-0">
                     <td className="px-3 py-2">{emp.firstName} {emp.lastName}</td>
+                    <td className="px-3 py-2">{emp.designation || "—"}</td>
                     <td className="px-3 py-2">{emp.workEmail || emp.email}</td>
                     <td className="px-3 py-2">
                       {canManageTeam && !isClientProject ? (
@@ -1688,10 +1690,7 @@ export default function ProjectWorkspace({
                         !isReadOnlyAdminView &&
                         (canManageTeam || task.assignedToUserId === profileUserId);
                       const canDeleteTask =
-                        !isReadOnlyAdminView &&
-                        (canManageTeam ||
-                          task.assignedByUserId === profileUserId ||
-                          task.assignedToUserId === profileUserId);
+                        !isReadOnlyAdminView && canManageTeam;
 
                       return (
                         <tr key={task.id} className="border-b border-border last:border-b-0 align-top">
