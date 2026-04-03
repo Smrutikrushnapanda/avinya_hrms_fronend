@@ -304,7 +304,11 @@ export const getProjectTasks = (projectId: string) => api.get(`/client-projects/
 
 export const getMyAssignedTasks = () => api.get('/client-projects/tasks/my');
 
-export const updateTaskStatus = (projectId: string, taskId: string, status: 'pending' | 'in_progress' | 'completed' | 'cancelled') =>
+export const updateTaskStatus = (
+  projectId: string,
+  taskId: string,
+  status: 'pending' | 'in_progress' | 'issue' | 'completed' | 'cancelled',
+) =>
   api.put(`/client-projects/${projectId}/tasks/${taskId}/status`, { status });
 
 export const deleteProjectTask = (projectId: string, taskId: string) =>

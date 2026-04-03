@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
+  AlertTriangle,
   Calendar,
   Clock,
   FolderKanban,
@@ -53,7 +54,7 @@ type ProjectPriority = "low" | "medium" | "high" | "critical";
 type IssueStatus = "pending" | "resolved";
 type MemberRole = "member" | "tester" | "lead";
 type ProjectSource = "standalone" | "client";
-type ClientTaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+type ClientTaskStatus = "pending" | "in_progress" | "issue" | "completed" | "cancelled";
 type ClientTaskPriority = "low" | "medium" | "high" | "urgent";
 
 type ProjectShape = {
@@ -171,7 +172,8 @@ const clientTaskStatusConfig: Record<
   { label: string; color: string; bgColor: string; icon: ElementType }
 > = {
   pending: { label: "Pending", color: "text-slate-600", bgColor: "bg-slate-100", icon: Circle },
-  in_progress: { label: "In Progress", color: "text-blue-600", bgColor: "bg-blue-100", icon: Clock3 },
+  in_progress: { label: "Working", color: "text-blue-600", bgColor: "bg-blue-100", icon: Clock3 },
+  issue: { label: "Issue", color: "text-amber-700", bgColor: "bg-amber-100", icon: AlertTriangle },
   completed: {
     label: "Completed",
     color: "text-green-600",
@@ -299,6 +301,7 @@ export default function ProjectWorkspace({
   const [clientTasks, setClientTasks] = useState<ClientProjectTask[]>([]);
   const [clientTasksLoading, setClientTasksLoading] = useState(false);
   const [clientTaskSaving, setClientTaskSaving] = useState(false);
+  const [showClientTaskComposer, setShowClientTaskComposer] = useState(false);
   const [clientTaskForm, setClientTaskForm] = useState({
     title: "",
     description: "",
@@ -503,6 +506,7 @@ export default function ProjectWorkspace({
 
       setProjectSource(workspaceData.source);
       setProject(workspaceData.project);
+      setShowClientTaskComposer(false);
       setProgressValue(Number(workspaceData.project?.completionPercent || 0));
       setProjectEmployees(workspaceData.members);
       setIssues(workspaceData.issues);
@@ -771,6 +775,9 @@ export default function ProjectWorkspace({
   };
 
   const handleAssignWorkClick = () => {
+    if (isClientProject && canManageTeam) {
+      setShowClientTaskComposer(true);
+    }
     assignWorkSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -1255,69 +1262,87 @@ export default function ProjectWorkspace({
                 Create tasks for project members and track progress in one place.
               </p>
             </div>
-            <Badge variant="outline">{clientTasks.length} tasks</Badge>
+            <div className="flex items-center gap-2">
+              {canManageTeam ? (
+                <Button
+                  size="sm"
+                  variant={showClientTaskComposer ? "outline" : "default"}
+                  onClick={() => setShowClientTaskComposer((prev) => !prev)}
+                >
+                  <ListTodo className="w-4 h-4 mr-1" />
+                  {showClientTaskComposer ? "Close Assign Work" : "Assign Work"}
+                </Button>
+              ) : null}
+              <Badge variant="outline">{clientTasks.length} tasks</Badge>
+            </div>
           </div>
 
           {canManageTeam ? (
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 border border-border rounded-lg">
-              <Input
-                className="md:col-span-2"
-                placeholder="Task title"
-                value={clientTaskForm.title}
-                onChange={(e) => setClientTaskForm((prev) => ({ ...prev, title: e.target.value }))}
-              />
-              <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm md:col-span-1"
-                value={clientTaskForm.assignedToUserId}
-                onChange={(e) =>
-                  setClientTaskForm((prev) => ({ ...prev, assignedToUserId: e.target.value }))
-                }
-              >
-                <option value="">Unassigned</option>
-                {projectEmployees.map((member) => (
-                  <option key={member.userId} value={member.userId}>
-                    {fullName(member)}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm md:col-span-1"
-                value={clientTaskForm.priority}
-                onChange={(e) =>
-                  setClientTaskForm((prev) => ({
-                    ...prev,
-                    priority: e.target.value as ClientTaskPriority,
-                  }))
-                }
-              >
-                {clientTaskPriorityOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <Input
-                type="date"
-                className="md:col-span-1"
-                value={clientTaskForm.dueDate}
-                onChange={(e) => setClientTaskForm((prev) => ({ ...prev, dueDate: e.target.value }))}
-              />
-              <Button
-                className="md:col-span-1"
-                disabled={clientTaskSaving || !clientTaskForm.title.trim()}
-                onClick={handleCreateClientTask}
-              >
-                {clientTaskSaving ? "Creating..." : "Create Task"}
-              </Button>
-              <Textarea
-                className="md:col-span-6 min-h-[70px]"
-                placeholder="Task description (optional)"
-                value={clientTaskForm.description}
-                onChange={(e) =>
-                  setClientTaskForm((prev) => ({ ...prev, description: e.target.value }))
-                }
-              />
-            </div>
+            showClientTaskComposer ? (
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 border border-border rounded-lg">
+                <Input
+                  className="md:col-span-2"
+                  placeholder="Task title"
+                  value={clientTaskForm.title}
+                  onChange={(e) => setClientTaskForm((prev) => ({ ...prev, title: e.target.value }))}
+                />
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm md:col-span-1"
+                  value={clientTaskForm.assignedToUserId}
+                  onChange={(e) =>
+                    setClientTaskForm((prev) => ({ ...prev, assignedToUserId: e.target.value }))
+                  }
+                >
+                  <option value="">Unassigned</option>
+                  {projectEmployees.map((member) => (
+                    <option key={member.userId} value={member.userId}>
+                      {fullName(member)}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm md:col-span-1"
+                  value={clientTaskForm.priority}
+                  onChange={(e) =>
+                    setClientTaskForm((prev) => ({
+                      ...prev,
+                      priority: e.target.value as ClientTaskPriority,
+                    }))
+                  }
+                >
+                  {clientTaskPriorityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  type="date"
+                  className="md:col-span-1"
+                  value={clientTaskForm.dueDate}
+                  onChange={(e) => setClientTaskForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+                />
+                <Button
+                  className="md:col-span-1"
+                  disabled={clientTaskSaving || !clientTaskForm.title.trim()}
+                  onClick={handleCreateClientTask}
+                >
+                  {clientTaskSaving ? "Creating..." : "Create Task"}
+                </Button>
+                <Textarea
+                  className="md:col-span-6 min-h-[70px]"
+                  placeholder="Task description (optional)"
+                  value={clientTaskForm.description}
+                  onChange={(e) =>
+                    setClientTaskForm((prev) => ({ ...prev, description: e.target.value }))
+                  }
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Click <span className="font-medium text-foreground">Assign Work</span> to create a task for employees in this project.
+              </p>
+            )
           ) : (
             <p className="text-xs text-muted-foreground">
               Only manager/admin can create tasks. You can still update your assigned task status.
@@ -1392,7 +1417,8 @@ export default function ProjectWorkspace({
                                 }
                               >
                                 <option value="pending">Pending</option>
-                                <option value="in_progress">In Progress</option>
+                                <option value="in_progress">Working</option>
+                                <option value="issue">Issue</option>
                                 <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
                               </select>
