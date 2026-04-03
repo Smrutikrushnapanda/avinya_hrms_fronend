@@ -49,6 +49,24 @@ type EditableField =
 type BaseColumnKey = EditableField | "updatedAt";
 type ColumnKey = BaseColumnKey | `custom_${number}`;
 type ColumnInputType = "text" | "dropdown" | "color" | "image";
+const columnInputTypeOptions: Array<{ value: ColumnInputType; label: string }> = [
+  { value: "text", label: "Text" },
+  { value: "dropdown", label: "Dropdown" },
+  { value: "color", label: "Color" },
+  { value: "image", label: "Image" },
+];
+
+function isColumnInputType(value: string): value is ColumnInputType {
+  return columnInputTypeOptions.some((option) => option.value === value);
+}
+
+function sanitizeSheetName(name: string, fallbackIndex: number) {
+  const base = String(name || "")
+    .replace(/[\\/?*[\]:]/g, " ")
+    .trim();
+  const finalName = base || `Sheet ${fallbackIndex + 1}`;
+  return finalName.slice(0, 31);
+}
 
 type ProjectMember = {
   userId: string;
@@ -291,14 +309,17 @@ export default function ProjectTestSheetPlaceholder({
   const [columnTitles, setColumnTitles] = useState<Record<string, string>>({});
   const [savingColumnHeaders, setSavingColumnHeaders] = useState(false);
   const [columnTypes, setColumnTypes] = useState<Record<string, ColumnInputType>>({});
+  const [rowTypeOverrides, setRowTypeOverrides] = useState<Record<string, ColumnInputType>>({});
   const [columnDropdownOptions, setColumnDropdownOptions] = useState<Record<string, string[]>>({});
   const [hiddenColumns, setHiddenColumns] = useState<Record<string, boolean>>({});
   const [customCellValues, setCustomCellValues] = useState<Record<string, string>>({});
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(() => [...allColumnKeys]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [draggedColumnKey, setDraggedColumnKey] = useState<ColumnKey | null>(null);
+  const [draggedType, setDraggedType] = useState<ColumnInputType | null>(null);
   const [uploadingImageCellKey, setUploadingImageCellKey] = useState<string | null>(null);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [columnSettingKey, setColumnSettingKey] = useState<ColumnKey>(() => {
     const firstCustom = columnConfig.find((column) => column.isCustom);
     return firstCustom?.key || "title";
@@ -394,6 +415,7 @@ export default function ProjectTestSheetPlaceholder({
 
       const parsed = JSON.parse(raw) as {
         columnTypes?: Record<string, ColumnInputType>;
+        rowTypeOverrides?: Record<string, ColumnInputType>;
         columnDropdownOptions?: Record<string, string[]>;
         hiddenColumns?: Record<string, boolean>;
         customCellValues?: Record<string, string>;
@@ -403,6 +425,15 @@ export default function ProjectTestSheetPlaceholder({
 
       if (parsed?.columnTypes && typeof parsed.columnTypes === "object") {
         setColumnTypes(parsed.columnTypes);
+      }
+      if (parsed?.rowTypeOverrides && typeof parsed.rowTypeOverrides === "object") {
+        const nextRowOverrides: Record<string, ColumnInputType> = {};
+        Object.entries(parsed.rowTypeOverrides).forEach(([rowId, type]) => {
+          if (isColumnInputType(String(type))) {
+            nextRowOverrides[rowId] = type;
+          }
+        });
+        setRowTypeOverrides(nextRowOverrides);
       }
       if (parsed?.columnDropdownOptions && typeof parsed.columnDropdownOptions === "object") {
         setColumnDropdownOptions(parsed.columnDropdownOptions);
@@ -428,6 +459,7 @@ export default function ProjectTestSheetPlaceholder({
     if (!customUiStorageKey) return;
     const payloadToStore = {
       columnTypes,
+      rowTypeOverrides,
       columnDropdownOptions,
       hiddenColumns,
       customCellValues,
@@ -443,6 +475,7 @@ export default function ProjectTestSheetPlaceholder({
     customCellValues,
     customUiStorageKey,
     hiddenColumns,
+    rowTypeOverrides,
   ]);
 
   const tabs = useMemo(() => payload?.tabs ?? [], [payload?.tabs]);
@@ -451,6 +484,19 @@ export default function ProjectTestSheetPlaceholder({
     if (!tabs.length) return null;
     return tabs.find((tab) => tab.id === activeTabId) || tabs[0];
   }, [activeTabId, tabs]);
+
+  useEffect(() => {
+    const validRowIds = new Set(
+      tabs.flatMap((tab) => (tab.cases || []).map((row) => row.id)),
+    );
+    setRowTypeOverrides((previous) => {
+      const next = Object.fromEntries(
+        Object.entries(previous).filter(([rowId]) => validRowIds.has(rowId)),
+      ) as Record<string, ColumnInputType>;
+      if (Object.keys(next).length === Object.keys(previous).length) return previous;
+      return next;
+    });
+  }, [tabs]);
 
   // Paginated cases for current page
   const paginatedCases = useMemo(() => {
@@ -510,6 +556,10 @@ export default function ProjectTestSheetPlaceholder({
     () => 74 + visibleColumns.reduce((sum, column) => sum + getColumnWidth(column), 0),
     [getColumnWidth, visibleColumns],
   );
+  const hiddenCustomColumns = useMemo(
+    () => columnConfig.filter((column) => column.isCustom && hiddenColumns[column.key]),
+    [hiddenColumns],
+  );
   const configurableColumns = useMemo(
     () => visibleColumns.filter((column) => column.isCustom),
     [visibleColumns],
@@ -520,6 +570,11 @@ export default function ProjectTestSheetPlaceholder({
     [columnTypes],
   );
   const selectedConfigType = getColumnInputType(columnSettingKey);
+  const getCustomCellInputType = useCallback(
+    (rowId: string, columnKey: ColumnKey): ColumnInputType =>
+      rowTypeOverrides[rowId] || getColumnInputType(columnKey),
+    [getColumnInputType, rowTypeOverrides],
+  );
 
   useEffect(() => {
     if (!selectedCell) return;
@@ -640,6 +695,116 @@ export default function ProjectTestSheetPlaceholder({
     setHiddenColumns({});
   }, []);
 
+  const handleAddColumn = useCallback(() => {
+    const nextHiddenColumn = hiddenCustomColumns[0];
+    if (!nextHiddenColumn) {
+      toast.info("All available custom columns are already shown.");
+      return;
+    }
+
+    setHiddenColumns((previous) => {
+      const next = { ...previous };
+      delete next[nextHiddenColumn.key];
+      return next;
+    });
+    setColumnSettingKey(nextHiddenColumn.key);
+    toast.success(`Added ${getColumnTitle(nextHiddenColumn)}.`);
+  }, [getColumnTitle, hiddenCustomColumns]);
+
+  const extractDraggedType = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      const customType = event.dataTransfer.getData("application/x-test-sheet-type");
+      if (isColumnInputType(customType)) return customType;
+      const plainText = event.dataTransfer.getData("text/plain");
+      if (isColumnInputType(plainText)) return plainText;
+      return null;
+    },
+    [],
+  );
+
+  const handleTypeChipDragStart = useCallback(
+    (event: DragEvent<HTMLButtonElement>, type: ColumnInputType) => {
+      if (!canEdit) return;
+      event.dataTransfer.effectAllowed = "copy";
+      event.dataTransfer.setData("application/x-test-sheet-type", type);
+      event.dataTransfer.setData("text/plain", type);
+      setDraggedType(type);
+    },
+    [canEdit],
+  );
+
+  const handleTypeChipDragEnd = useCallback(() => {
+    setDraggedType(null);
+  }, []);
+
+  const applyTypeToColumn = useCallback(
+    (columnKey: ColumnKey, type: ColumnInputType) => {
+      const targetColumns = columnConfig.filter((column) => column.isCustom).map((column) => column.key);
+      if (!targetColumns.length) {
+        toast.error("No custom columns found.");
+        return;
+      }
+
+      setColumnTypes((previous) => {
+        const next = { ...previous };
+        targetColumns.forEach((key) => {
+          next[key] = type;
+        });
+        return next;
+      });
+
+      if (String(columnKey).startsWith("custom_")) {
+        setColumnSettingKey(columnKey);
+      }
+      toast.success(`Applied ${type} type to all custom columns.`);
+    },
+    [],
+  );
+
+  const applyTypeToRow = useCallback((rowId: string, type: ColumnInputType) => {
+    setRowTypeOverrides((previous) => ({
+      ...previous,
+      [rowId]: type,
+    }));
+    toast.success(`Applied ${type} type to this row.`);
+  }, []);
+
+  const handleTypeDropForAllColumns = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      if (!canEdit) return;
+      const type = extractDraggedType(event);
+      if (!type) return;
+      event.preventDefault();
+
+      const targetColumns = columnConfig.filter((column) => column.isCustom).map((column) => column.key);
+      if (!targetColumns.length) {
+        toast.error("No custom columns found.");
+        return;
+      }
+
+      setColumnTypes((previous) => {
+        const next = { ...previous };
+        targetColumns.forEach((columnKey) => {
+          next[columnKey] = type;
+        });
+        return next;
+      });
+      toast.success(`Applied ${type} type to all custom columns.`);
+      setDraggedType(null);
+    },
+    [canEdit, extractDraggedType],
+  );
+
+  const handleTypeDragOver = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      const type = extractDraggedType(event);
+      if (!type) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    },
+    [extractDraggedType],
+  );
+
   const handleColumnDragStart = useCallback(
     (event: DragEvent<HTMLElement>, columnKey: ColumnKey) => {
       if (!canEdit) return;
@@ -652,11 +817,17 @@ export default function ProjectTestSheetPlaceholder({
 
   const handleColumnDragOver = useCallback(
     (event: DragEvent<HTMLElement>) => {
+      const droppedType = extractDraggedType(event);
+      if (droppedType) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        return;
+      }
       if (!canEdit || !draggedColumnKey) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
     },
-    [canEdit, draggedColumnKey],
+    [canEdit, draggedColumnKey, extractDraggedType],
   );
 
   const moveColumnTo = useCallback(
@@ -680,10 +851,17 @@ export default function ProjectTestSheetPlaceholder({
 
   const handleColumnDrop = useCallback(
     (event: DragEvent<HTMLElement>, targetKey: ColumnKey) => {
+      const droppedType = extractDraggedType(event);
+      if (droppedType) {
+        event.preventDefault();
+        applyTypeToColumn(targetKey, droppedType);
+        setDraggedType(null);
+        return;
+      }
       event.preventDefault();
       moveColumnTo(targetKey);
     },
-    [moveColumnTo],
+    [applyTypeToColumn, extractDraggedType, moveColumnTo],
   );
 
   const stopColumnResize = useCallback(() => {
@@ -930,6 +1108,80 @@ export default function ProjectTestSheetPlaceholder({
     [applyPayload, canEdit, isClientProject, projectId],
   );
 
+  const handleDownloadExcel = useCallback(async () => {
+    if (!payload?.tabs?.length) {
+      toast.error("No test sheet data available to download.");
+      return;
+    }
+
+    try {
+      setDownloadingExcel(true);
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.utils.book_new();
+
+      payload.tabs.forEach((tab, tabIndex) => {
+        const rows = (tab.cases || []).map((row, rowIndex) => {
+          const record: Record<string, string | number> = {
+            Row: rowIndex + 1,
+          };
+
+          visibleColumns.forEach((column) => {
+            const columnLabel = getColumnTitle(column);
+
+            if (column.isCustom) {
+              const key = customCellKey(tab.id, row.id, column.key);
+              record[columnLabel] = customCellValues[key] || "";
+              return;
+            }
+
+            if (column.key === "updatedAt") {
+              record[columnLabel] = formatDateTime(row.updatedAt);
+              return;
+            }
+
+            if (column.key === "qaUserId" || column.key === "developerUserId") {
+              const userId = String(readCaseFieldValue(row, column.key) || "");
+              record[columnLabel] = userId
+                ? personLabel(memberMap.get(userId) || { userId })
+                : "";
+              return;
+            }
+
+            if (column.key === "status") {
+              record[columnLabel] = row.status;
+              return;
+            }
+
+            record[columnLabel] = String(readCaseFieldValue(row, column.key as BaseColumnKey) || "");
+          });
+
+          return record;
+        });
+
+        const sheetRows = rows.length ? rows : [{ Row: "", Note: "No rows in this tab" }];
+        const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+        XLSX.utils.book_append_sheet(workbook, worksheet, sanitizeSheetName(tab.name, tabIndex));
+      });
+
+      const now = new Date();
+      const datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const safeProjectName = projectName
+        .trim()
+        .replace(/[^a-z0-9]+/gi, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "")
+        .toLowerCase();
+      const fileNameBase = safeProjectName || "project-test-sheet";
+      XLSX.writeFile(workbook, `${fileNameBase}-${datePart}.xlsx`);
+      toast.success("Excel downloaded.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to download excel.");
+    } finally {
+      setDownloadingExcel(false);
+    }
+  }, [customCellValues, getColumnTitle, memberMap, payload?.tabs, projectName, visibleColumns]);
+
   if (!projectId) {
     return <div className="p-6 text-sm text-red-500">Invalid project id.</div>;
   }
@@ -984,6 +1236,22 @@ export default function ProjectTestSheetPlaceholder({
                 {projectName} Test Sheet
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDownloadExcel}
+                  disabled={downloadingExcel || loading}
+                >
+                  {downloadingExcel ? "Downloading..." : "Download Excel"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleAddColumn}
+                  disabled={!canEdit}
+                >
+                  Add Column
+                </Button>
                 <Button size="sm" onClick={() => void handleAddRow()} disabled={!canEdit || addingRow || !activeTab}>
                   <Plus className="w-4 h-4 mr-1" />
                   {addingRow ? "Adding..." : "Add Row"}
@@ -997,7 +1265,7 @@ export default function ProjectTestSheetPlaceholder({
                   Columns
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  Drag headers or chips to reorder. Drag right edge of headers to resize.
+                  Drag column chips/headers to reorder. Drag type chips to column headers or row numbers.
                 </div>
                 <Button size="sm" variant="ghost" className="ml-auto" onClick={showAllColumns}>
                   Show Columns
@@ -1035,21 +1303,40 @@ export default function ProjectTestSheetPlaceholder({
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                     Type
                   </div>
-                  <select
-                    value={selectedConfigType}
-                    onChange={(event) =>
-                      setColumnTypes((previous) => ({
-                        ...previous,
-                        [columnSettingKey]: event.target.value as ColumnInputType,
-                      }))
-                    }
-                    className="h-8 min-w-[140px] rounded border border-[#d6dce6] bg-[#f8fafc] px-2 text-xs"
+                  <div className="flex flex-wrap items-center gap-2">
+                    {columnInputTypeOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        draggable={canEdit}
+                        onDragStart={(event) => handleTypeChipDragStart(event, option.value)}
+                        onDragEnd={handleTypeChipDragEnd}
+                        onClick={() =>
+                          setColumnTypes((previous) => ({
+                            ...previous,
+                            [columnSettingKey]: option.value,
+                          }))
+                        }
+                        className={`rounded border px-2 py-1 text-xs transition ${
+                          selectedConfigType === option.value
+                            ? "border-[#217346] bg-[#e8f4ed] text-[#1d5f39]"
+                            : "border-[#d6dce6] bg-[#f8fafc] text-[#334155] hover:bg-[#eef3fb]"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div
+                    className={`rounded border border-dashed px-2 py-1 text-xs ${
+                      draggedType ? "border-[#217346] bg-[#eff8f2] text-[#1d5f39]" : "border-[#d6dce6] text-muted-foreground"
+                    }`}
+                    onDragOver={handleTypeDragOver}
+                    onDrop={handleTypeDropForAllColumns}
                   >
-                    <option value="text">Text</option>
-                    <option value="dropdown">Dropdown</option>
-                    <option value="color">Color</option>
-                    <option value="image">Image</option>
-                  </select>
+                    Drop Type Here: Apply to all columns
+                  </div>
 
                   {selectedConfigType === "dropdown" ? (
                     <>
@@ -1161,11 +1448,28 @@ export default function ProjectTestSheetPlaceholder({
                   ) : (
                     paginatedCases.map((row, rowIndex) => (
                       <tr key={row.id} className="align-top">
-                        <td className="sticky left-0 z-[5] border border-[#d6dce6] bg-[#f0f4f9] px-2 py-1.5 text-[#31435b]">
+                        <td
+                          className={`sticky left-0 z-[5] border border-[#d6dce6] px-2 py-1.5 text-[#31435b] ${
+                            draggedType ? "bg-[#eaf5ee]" : "bg-[#f0f4f9]"
+                          }`}
+                          onDragOver={handleTypeDragOver}
+                          onDrop={(event) => {
+                            const droppedType = extractDraggedType(event);
+                            if (!droppedType) return;
+                            event.preventDefault();
+                            applyTypeToRow(row.id, droppedType);
+                            setDraggedType(null);
+                          }}
+                        >
                           <div className="flex items-center justify-between gap-1">
                             <span className="font-semibold">
                               {(currentPage - 1) * rowsPerPage + rowIndex + 1}
                             </span>
+                            {rowTypeOverrides[row.id] ? (
+                              <span className="rounded bg-[#dbeee3] px-1.5 py-0.5 text-[10px] uppercase text-[#1d5f39]">
+                                {rowTypeOverrides[row.id]}
+                              </span>
+                            ) : null}
                             {canEdit ? (
                               <button
                                 type="button"
@@ -1189,7 +1493,7 @@ export default function ProjectTestSheetPlaceholder({
                           };
 
                           if (column.isCustom) {
-                            const type = getColumnInputType(column.key);
+                            const type = getCustomCellInputType(row.id, column.key);
                             const customKey = customCellKey(row.tabId, row.id, column.key);
                             const customValue = customCellValues[customKey] || "";
                             const dropdownOptions = columnDropdownOptions[column.key] || [];
