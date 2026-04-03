@@ -716,6 +716,10 @@ export default function ProjectWorkspace({
 
   const handleAssignQa = async () => {
     if (!project || selectedIds.length === 0) return;
+    if (isClientProject) {
+      toast.error("QA/Tester assignment is supported only for internal projects");
+      return;
+    }
     try {
       setAssigning(true);
       const assignments = selectedIds.map((userId) => ({
@@ -1299,7 +1303,7 @@ export default function ProjectWorkspace({
       <div className="rounded-xl border border-border bg-card p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Project Team Assignment</h2>
-          {canManageTeam && (
+          {canManageTeam && !isClientProject && (
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" onClick={() => setShowQaPanel((s) => !s)}>
                 <Users className="w-4 h-4 mr-1" />
