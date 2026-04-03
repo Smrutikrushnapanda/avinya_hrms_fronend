@@ -136,7 +136,7 @@ type TestSheetColumn = {
   isCustom?: boolean;
 };
 
-const defaultColumnCount = 26;
+const defaultColumnCount = 10;
 
 const baseColumnConfig: Array<Omit<TestSheetColumn, "letter">> = [
   { key: "caseCode", defaultTitle: "Case ID", defaultWidth: 150 },
@@ -1242,32 +1242,30 @@ export default function ProjectTestSheetPlaceholder({
 
         <div className={`flex gap-4 ${sidebarOpen ? 'xl:grid xl:grid-cols-[1fr_380px]' : ''}`}>
           <div className="rounded-xl border border-border overflow-hidden bg-[#f4f6fb] flex-1">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[#d6dce6] bg-[#e9edf4]">
-              <div className="text-xs font-semibold uppercase tracking-wide text-[#213047]">
-                {projectName} Test Sheet
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleDownloadExcel}
-                  disabled={downloadingExcel || loading}
-                >
-                  {downloadingExcel ? "Downloading..." : "Download Excel"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleAddColumn}
-                  disabled={!canEdit}
-                >
-                  Add Column
-                </Button>
-                <Button size="sm" onClick={() => void handleAddRow()} disabled={!canEdit || addingRow || !activeTab}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  {addingRow ? "Adding..." : "Add Row"}
-                </Button>
-              </div>
+            {/* Excel-style Toolbar */}
+            <div className="flex items-center gap-1 px-3 py-2 border-b border-[#d6dce6] bg-[#f8f9fa] overflow-x-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDownloadExcel}
+                disabled={downloadingExcel || loading}
+                className="h-8 text-xs"
+              >
+                {downloadingExcel ? "Downloading..." : "Export"}
+              </Button>
+              <div className="w-px h-6 bg-[#d6dce6] mx-1"></div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAddColumn}
+                disabled={!canEdit}
+                className="h-8 text-xs"
+              >
+                + Add Column
+              </Button>
+              <Button size="sm" onClick={() => void handleAddRow()} disabled={!canEdit || addingRow || !activeTab} className="h-8 text-xs bg-[#217346] hover:bg-[#1a5a38]">
+                + Add Row
+              </Button>
             </div>
 
             <div className="border-b border-[#d6dce6] bg-white px-4 py-3">
@@ -1367,43 +1365,29 @@ export default function ProjectTestSheetPlaceholder({
                       ))}
                     </div>
 
-                    <div
-                      className={`rounded-lg border-2 border-dashed p-3 text-xs mt-3 transition ${
-                        draggedType 
-                          ? "border-[#217346] bg-[#eff8f2] text-[#1d5f39]" 
-                          : "border-[#d6dce6] bg-[#f8fafc] text-muted-foreground"
-                      }`}
-                      onDragOver={handleTypeDragOver}
-                      onDrop={handleTypeDropForAllColumns}
-                    >
-                      <div className="font-semibold mb-1">💡 Drop Zone</div>
-                      Drop a field type here to apply to <strong>all columns</strong>
-                    </div>
-                  </div>
-
-                  {selectedConfigType === "dropdown" ? (
-                    <div className="space-y-2 border-t border-[#e0e7ff] pt-4">
-                      <label className="text-xs font-bold uppercase tracking-wide text-[#334155]">
-                        Dropdown Options
-                      </label>
-                      <Input
-                        value={dropdownOptionsDraft}
-                        onChange={(event) => setDropdownOptionsDraft(event.target.value)}
-                        placeholder="e.g., Option 1, Option 2, Option 3"
-                        className="h-9 bg-white text-xs"
-                      />
-                      <div className="text-[10px] text-muted-foreground">
-                        Separate options with commas
+                    {selectedConfigType === "dropdown" ? (
+                      <div className="space-y-2 border-t border-[#e0e7ff] pt-4">
+                        <label className="text-xs font-bold uppercase tracking-wide text-[#334155]">
+                          Dropdown Options
+                        </label>
+                        <Input
+                          value={dropdownOptionsDraft}
+                          onChange={(event) => setDropdownOptionsDraft(event.target.value)}
+                          placeholder="e.g., Option 1, Option 2, Option 3"
+                          className="h-9 bg-white text-xs"
+                        />
+                        <div className="text-[10px] text-muted-foreground">
+                          Separate options with commas
+                        </div>
+                        <Button 
+                          size="sm" 
+                          onClick={saveDropdownOptions}
+                          className="w-full bg-[#217346] hover:bg-[#1a5a38] text-white"
+                        >
+                          Save Options
+                        </Button>
                       </div>
-                      <Button 
-                        size="sm" 
-                        onClick={saveDropdownOptions}
-                        className="w-full bg-[#217346] hover:bg-[#1a5a38] text-white"
-                      >
-                        Save Options
-                      </Button>
-                    </div>
-                  ) : null}
+                    ) : null}
 
                   <div className="border-t border-[#e0e7ff] pt-4">
                     <Button
