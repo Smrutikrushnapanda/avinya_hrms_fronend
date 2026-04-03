@@ -630,6 +630,14 @@ export default function ProjectTestSheetPlaceholder({
                         {columnConfig.map((column) => {
                           const cellKey = `${row.id}:${column.key}`;
 
+                          if (column.isCustom) {
+                            return (
+                              <td key={column.key} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
+                                --
+                              </td>
+                            );
+                          }
+
                           if (column.key === "updatedAt") {
                             return (
                               <td key={column.key} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
@@ -686,7 +694,7 @@ export default function ProjectTestSheetPlaceholder({
                             );
                           }
 
-                          const value = String(readCaseFieldValue(row, column.key) || "");
+                          const value = String(readCaseFieldValue(row, column.key as BaseColumnKey) || "");
                           const fieldKey = column.key as Exclude<
                             EditableField,
                             "status" | "qaUserId" | "developerUserId"
@@ -819,98 +827,41 @@ export default function ProjectTestSheetPlaceholder({
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
+                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[44px]">Sl</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[60px]">Action</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[100px]">Summary</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[80px]">Field</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[80px]">User</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[90px]">Date</th>
-                      <th className="border-b border-border px-3 py-2 text-center font-medium text-muted-foreground w-[50px]"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedLogs.length ? (
-                      paginatedLogs.map((log) => {
+                      paginatedLogs.map((log, index) => {
                         const actor =
                           log.changedByUserName ||
                           (log.changedByUserId
                             ? personLabel(memberMap.get(log.changedByUserId) || { userId: log.changedByUserId })
                             : "Unknown user");
-                        const isEditing = editingLogId === log.id;
                         return (
                           <tr key={log.id} className="border-b border-border hover:bg-muted/30">
                             <td className="px-3 py-2">
-                              {isEditing ? (
-                                <Input
-                                  value={logEditData.action}
-                                  onChange={(e) => setLogEditData({ ...logEditData, action: e.target.value })}
-                                  className="h-6 text-xs"
-                                />
-                              ) : (
-                                <span className="text-foreground">{log.action || "-"}</span>
-                              )}
+                              <span className="text-muted-foreground">{(logPage - 1) * logsPerPage + index + 1}</span>
                             </td>
                             <td className="px-3 py-2">
-                              {isEditing ? (
-                                <Input
-                                  value={logEditData.summary}
-                                  onChange={(e) => setLogEditData({ ...logEditData, summary: e.target.value })}
-                                  className="h-6 text-xs"
-                                />
-                              ) : (
-                                <span className="text-foreground">{log.summary || "-"}</span>
-                              )}
+                              <span className="text-foreground">{log.action || "-"}</span>
                             </td>
                             <td className="px-3 py-2">
-                              {isEditing ? (
-                                <Input
-                                  value={logEditData.fieldName}
-                                  onChange={(e) => setLogEditData({ ...logEditData, fieldName: e.target.value })}
-                                  className="h-6 text-xs"
-                                />
-                              ) : (
-                                <span className="text-muted-foreground">{log.fieldName || "-"}</span>
-                              )}
+                              <span className="text-foreground">{log.summary || "-"}</span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="text-muted-foreground">{log.fieldName || "-"}</span>
                             </td>
                             <td className="px-3 py-2">
                               <span className="text-muted-foreground">{actor}</span>
                             </td>
                             <td className="px-3 py-2">
                               <span className="text-muted-foreground">{formatDateTime(log.createdAt)}</span>
-                            </td>
-                            <td className="px-3 py-2">
-                              {isEditing ? (
-                                <div className="flex items-center gap-1 justify-center">
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6"
-                                    onClick={() => {
-                                      // Here we would save - for now just close edit mode
-                                      cancelEditLog();
-                                      toast.success("Log entry updated (demo)");
-                                    }}
-                                  >
-                                    <Save className="w-3 h-3 text-green-600" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6"
-                                    onClick={cancelEditLog}
-                                  >
-                                    <X className="w-3 h-3 text-red-600" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6"
-                                  onClick={() => startEditLog(log)}
-                                >
-                                  <Edit3 className="w-3 h-3" />
-                                </Button>
-                              )}
                             </td>
                           </tr>
                         );
@@ -931,45 +882,35 @@ export default function ProjectTestSheetPlaceholder({
                     <div className="text-xs text-muted-foreground">
                       {payload?.logs?.length} total entries
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap justify-end">
                       <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={logPage === 1}
-                        onClick={() => setLogPage(1)}
-                        className="h-6 w-6"
-                      >
-                        <span className="text-xs">«</span>
-                      </Button>
-                      <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
                         disabled={logPage === 1}
                         onClick={() => setLogPage(logPage - 1)}
-                        className="h-6 w-6"
+                        className="h-7 px-2 text-xs"
                       >
-                        <span className="text-xs">‹</span>
+                        Prev
                       </Button>
-                      <span className="text-xs text-muted-foreground px-1">
-                        {logPage}/{totalLogPages}
-                      </span>
+                      {logPageNumbers.map((pageNumber) => (
+                        <Button
+                          key={pageNumber}
+                          size="sm"
+                          variant={pageNumber === logPage ? "default" : "ghost"}
+                          onClick={() => setLogPage(pageNumber)}
+                          className="h-7 min-w-7 px-2 text-xs"
+                        >
+                          {pageNumber}
+                        </Button>
+                      ))}
                       <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
                         disabled={logPage === totalLogPages}
                         onClick={() => setLogPage(logPage + 1)}
-                        className="h-6 w-6"
+                        className="h-7 px-2 text-xs"
                       >
-                        <span className="text-xs">›</span>
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={logPage === totalLogPages}
-                        onClick={() => setLogPage(totalLogPages)}
-                        className="h-6 w-6"
-                      >
-                        <span className="text-xs">»</span>
+                        Next
                       </Button>
                     </div>
                   </div>
