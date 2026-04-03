@@ -58,6 +58,7 @@ import {
   Clock3,
   CheckCircle2,
   ListTodo,
+  ClipboardList,
 } from "lucide-react";
 
 type ProjectStatus = "planning" | "active" | "on_hold" | "completed";
@@ -350,6 +351,7 @@ export default function ProjectWorkspace({
 
   const [assigning, setAssigning] = useState(false);
   const [showAssignPanel, setShowAssignPanel] = useState(false);
+  const [showQaPanel, setShowQaPanel] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<Record<string, MemberRole>>({});
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -422,6 +424,20 @@ export default function ProjectWorkspace({
         );
       });
   }, [orgEmployees, projectEmployees, employeeSearch]);
+
+  const availableQaEmployees = useMemo(() => {
+    const q = employeeSearch.trim().toLowerCase();
+    return projectEmployees
+      .filter((e) => {
+        if (!q) return true;
+        return (
+          `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+          (e.email || "").toLowerCase().includes(q) ||
+          (e.workEmail || "").toLowerCase().includes(q) ||
+          (e.employeeCode || "").toLowerCase().includes(q)
+        );
+      });
+  }, [projectEmployees, employeeSearch]);
 
   const timesheetEmployeeCount = useMemo(() => {
     const unique = new Set(
@@ -693,6 +709,28 @@ export default function ProjectWorkspace({
       setProjectEmployees(Array.isArray(membersRes.data) ? membersRes.data : []);
     } catch {
       toast.error("Failed to assign members");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleAssignQa = async () => {
+    if (!project || selectedIds.length === 0) return;
+    try {
+      setAssigning(true);
+      const assignments = selectedIds.map((userId) => ({
+        userId,
+        role: "tester",
+      }));
+      await assignProjectEmployees(project.id, assignments);
+      toast.success("QA/Tester assigned");
+      setSelectedIds([]);
+      setEmployeeSearch("");
+      setShowQaPanel(false);
+      const membersRes = await getProjectEmployees(project.id);
+      setProjectEmployees(Array.isArray(membersRes.data) ? membersRes.data : []);
+    } catch {
+      toast.error("Failed to assign QA/Tester");
     } finally {
       setAssigning(false);
     }
@@ -1262,12 +1300,69 @@ export default function ProjectWorkspace({
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Project Team Assignment</h2>
           {canManageTeam && (
-            <Button size="sm" variant="outline" onClick={() => setShowAssignPanel((s) => !s)}>
-              <Plus className="w-4 h-4 mr-1" />
-              {showAssignPanel ? "Close" : "Assign Members"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setShowQaPanel((s) => !s)}>
+                <Users className="w-4 h-4 mr-1" />
+                {showQaPanel ? "Close" : "Add QA/Tester"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowAssignPanel((s) => !s)}>
+                <Plus className="w-4 h-4 mr-1" />
+                {showAssignPanel ? "Close" : "Assign Members"}
+              </Button>
+            </div>
           )}
         </div>
+
+        {showQaPanel && canManageTeam && (
+          <div className="border border-border rounded-lg p-3 space-y-3">
+            <Input
+              value={employeeSearch}
+              onChange={(e) => setEmployeeSearch(e.target.value)}
+              placeholder="Search team member by name/email/id"
+            />
+            <div className="max-h-56 overflow-auto border border-border rounded-md">
+              {availableQaEmployees.length === 0 ? (
+                <div className="p-3 text-sm text-muted-foreground">No team members found.</div>
+              ) : (
+                availableQaEmployees.map((emp) => {
+                  const checked = selectedIds.includes(emp.userId);
+                  const isAlreadyTester = (emp.role || "").toLowerCase() === "tester";
+                  return (
+                    <div key={emp.userId} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border last:border-b-0">
+                      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={isAlreadyTester}
+                          onChange={(e) =>
+                            setSelectedIds((prev) =>
+                              e.target.checked
+                                ? [...prev, emp.userId]
+                                : prev.filter((id) => id !== emp.userId),
+                            )
+                          }
+                        />
+                        <span className="text-sm truncate">
+                          {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.employeeId || "—"})
+                        </span>
+                      </label>
+                      <Badge variant={isAlreadyTester ? "default" : "outline"} className="text-[10px] px-1.5">
+                        {isAlreadyTester ? "Tester" : emp.role || "member"}
+                      </Badge>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <Button
+              size="sm"
+              onClick={handleAssignQa}
+              disabled={assigning || selectedIds.length === 0}
+            >
+              {assigning ? "Assigning..." : `Assign ${selectedIds.length} as QA/Tester`}
+            </Button>
+          </div>
+        )}
 
         {showAssignPanel && canManageTeam && (
           <div className="border border-border rounded-lg p-3 space-y-3">
@@ -1383,22 +1478,34 @@ export default function ProjectWorkspace({
                       {emp.managerName || "—"}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      {canManageTeam && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-500"
-                          disabled={emp.userId === profileUserId}
-                          title={
-                            emp.userId === profileUserId
-                              ? "You cannot remove yourself"
-                              : "Remove member"
-                          }
-                          onClick={() => handleRemoveMember(emp.userId)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <div className="flex items-center justify-end gap-1">
+                        {!isClientProject && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Test Sheet"
+                            onClick={() => router.push(`/user/projects/${project?.id}/test-sheet?userId=${emp.userId}`)}
+                          >
+                            <ClipboardList className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {canManageTeam && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500"
+                            disabled={emp.userId === profileUserId}
+                            title={
+                              emp.userId === profileUserId
+                                ? "You cannot remove yourself"
+                                : "Remove member"
+                            }
+                            onClick={() => handleRemoveMember(emp.userId)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
