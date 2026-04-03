@@ -220,6 +220,11 @@ function normalizeText(value?: string | null) {
   return String(value || "").trim().toLowerCase();
 }
 
+function isQaTesterRole(role?: string | null) {
+  const normalized = normalizeText(role);
+  return normalized === "tester" || normalized === "qa";
+}
+
 function formatDisplayDate(dateStr?: string | null) {
   if (!dateStr) return "--";
   const date = new Date(dateStr);
@@ -353,6 +358,7 @@ export default function ProjectWorkspace({
   const [showAssignPanel, setShowAssignPanel] = useState(false);
   const [showQaPanel, setShowQaPanel] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedQaUserId, setSelectedQaUserId] = useState("");
   const [selectedRoles, setSelectedRoles] = useState<Record<string, MemberRole>>({});
   const [employeeSearch, setEmployeeSearch] = useState("");
 
@@ -408,7 +414,41 @@ export default function ProjectWorkspace({
   const canManageTeam = !isReadOnlyAdminView && (hasManagerRole || isCurrentUserProjectManager);
   const canEditProgress = canManageTeam;
   const canCreateIssue = canManageTeam && !isClientProject;
-  const canAssignQa = hasManagerRole && !isClientProject;
+  const canAssignQa = canManageTeam && !isClientProject;
+  const currentUserProjectRole = useMemo(
+    () =>
+      normalizeText(
+        projectEmployees.find((member) => member.userId === profileUserId)?.role || "",
+      ),
+    [profileUserId, projectEmployees],
+  );
+  const isCurrentUserTester = isQaTesterRole(currentUserProjectRole);
+  const currentProjectQaMember = useMemo(
+    () => projectEmployees.find((member) => isQaTesterRole(member.role)) || null,
+    [projectEmployees],
+  );
+
+  const buildTestSheetPath = useCallback(
+    (userId?: string) => {
+      if (!project?.id || isClientProject) return "";
+      const basePath =
+        mode === "admin"
+          ? `/admin/projects/${project.id}/test-sheet`
+          : `/user/projects/${project.id}/test-sheet`;
+      if (!userId) return basePath;
+      return `${basePath}?userId=${encodeURIComponent(userId)}`;
+    },
+    [isClientProject, mode, project?.id],
+  );
+
+  const handleOpenTestSheet = useCallback(
+    (userId?: string) => {
+      const nextPath = buildTestSheetPath(userId);
+      if (!nextPath) return;
+      router.push(nextPath);
+    },
+    [buildTestSheetPath, router],
+  );
 
   const availableEmployees = useMemo(() => {
     const assigned = new Set(projectEmployees.map((m) => m.userId));
@@ -702,6 +742,7 @@ export default function ProjectWorkspace({
       toast.success("Members assigned");
       setSelectedIds([]);
       setSelectedRoles({});
+      setSelectedQaUserId("");
       setEmployeeSearch("");
       setShowAssignPanel(false);
       const membersRes = isClientProject
@@ -716,20 +757,25 @@ export default function ProjectWorkspace({
   };
 
   const handleAssignQa = async () => {
-    if (!project || selectedIds.length === 0) return;
+    if (!project || !selectedQaUserId) return;
     if (!canAssignQa) {
       toast.error("Only managers can assign QA/Tester");
       return;
     }
     try {
       setAssigning(true);
-      const assignments = selectedIds.map((userId) => ({
-        userId,
-        role: "tester",
-      }));
+      const existingQaMembers = projectEmployees
+        .filter((member) => isQaTesterRole(member.role))
+        .map((member) => member.userId)
+        .filter((userId) => userId !== selectedQaUserId);
+      const assignments = [
+        { userId: selectedQaUserId, role: "tester" },
+        ...existingQaMembers.map((userId) => ({ userId, role: "member" })),
+      ];
       await assignProjectEmployees(project.id, assignments);
       toast.success("QA/Tester assigned");
       setSelectedIds([]);
+      setSelectedQaUserId("");
       setEmployeeSearch("");
       setShowQaPanel(false);
       const membersRes = await getProjectEmployees(project.id);
@@ -923,6 +969,26 @@ export default function ProjectWorkspace({
     assignWorkSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const handleToggleQaPanel = () => {
+    const nextValue = !showQaPanel;
+    setShowQaPanel(nextValue);
+    setShowAssignPanel(false);
+    setSelectedIds([]);
+    setSelectedRoles({});
+    setSelectedQaUserId("");
+    setEmployeeSearch("");
+  };
+
+  const handleToggleAssignPanel = () => {
+    const nextValue = !showAssignPanel;
+    setShowAssignPanel(nextValue);
+    setShowQaPanel(false);
+    setSelectedQaUserId("");
+    setSelectedIds([]);
+    setSelectedRoles({});
+    setEmployeeSearch("");
+  };
+
   if (loading) {
     return (
       <div className="p-6 text-sm text-muted-foreground">Loading project workspace...</div>
@@ -956,9 +1022,38 @@ export default function ProjectWorkspace({
           </div>
         </div>
         {canManageTeam ? (
-          <Button size="sm" onClick={handleAssignWorkClick}>
-            <ListTodo className="w-4 h-4 mr-1" />
-            Assign Work
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={handleAssignWorkClick}>
+              <ListTodo className="w-4 h-4 mr-1" />
+              Assign Work
+            </Button>
+            {!isClientProject ? (
+              <Button size="sm" variant="outline" onClick={() => handleOpenTestSheet()}>
+                <ClipboardList className="w-4 h-4 mr-1" />
+                View Test Case
+              </Button>
+            ) : null}
+          </div>
+        ) : isReadOnlyAdminView && !isClientProject ? (
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => handleOpenTestSheet()}>
+              <ClipboardList className="w-4 h-4 mr-1" />
+              View Test Case
+            </Button>
+            <Badge variant="outline" className="capitalize">
+              {projectSource}
+            </Badge>
+            <Badge variant="outline" className="capitalize">
+              {project.status.replace("_", " ")}
+            </Badge>
+            <Badge variant="outline" className="capitalize">
+              {project.priority}
+            </Badge>
+          </div>
+        ) : isCurrentUserTester && !isClientProject ? (
+          <Button size="sm" variant="outline" onClick={() => handleOpenTestSheet(profileUserId)}>
+            <ClipboardList className="w-4 h-4 mr-1" />
+            Test Sheet
           </Button>
         ) : (
           <div className="flex items-center gap-2">
@@ -1307,12 +1402,12 @@ export default function ProjectWorkspace({
           {canManageTeam && (
             <div className="flex items-center gap-2">
               {canAssignQa && (
-                <Button size="sm" variant="outline" onClick={() => setShowQaPanel((s) => !s)}>
+                <Button size="sm" variant="outline" onClick={handleToggleQaPanel}>
                   <Users className="w-4 h-4 mr-1" />
-                  {showQaPanel ? "Close" : "Add QA/Tester"}
+                  {showQaPanel ? "Close" : "Assign QA"}
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => setShowAssignPanel((s) => !s)}>
+              <Button size="sm" variant="outline" onClick={handleToggleAssignPanel}>
                 <Plus className="w-4 h-4 mr-1" />
                 {showAssignPanel ? "Close" : "Assign Members"}
               </Button>
@@ -1333,41 +1428,44 @@ export default function ProjectWorkspace({
                 <div className="p-3 text-sm text-muted-foreground">No team members found.</div>
               ) : (
                 availableQaEmployees.map((emp) => {
-                  const checked = selectedIds.includes(emp.userId);
-                  const isAlreadyTester = (emp.role || "").toLowerCase() === "tester";
+                  const checked = selectedQaUserId === emp.userId;
+                  const isAlreadyTester = isQaTesterRole(emp.role);
                   return (
                     <div key={emp.userId} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border last:border-b-0">
                       <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
                         <input
-                          type="checkbox"
+                          type="radio"
+                          name="qa-tester-assignment"
                           checked={checked}
-                          disabled={isAlreadyTester}
-                          onChange={(e) =>
-                            setSelectedIds((prev) =>
-                              e.target.checked
-                                ? [...prev, emp.userId]
-                                : prev.filter((id) => id !== emp.userId),
-                            )
-                          }
+                          onChange={() => setSelectedQaUserId(emp.userId)}
                         />
                         <span className="text-sm truncate">
                           {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.employeeId || "—"})
                         </span>
                       </label>
                       <Badge variant={isAlreadyTester ? "default" : "outline"} className="text-[10px] px-1.5">
-                        {isAlreadyTester ? "Tester" : emp.role || "member"}
+                        {isAlreadyTester ? "Current QA" : emp.role || "member"}
                       </Badge>
                     </div>
                   );
                 })
               )}
             </div>
+            {currentProjectQaMember ? (
+              <p className="text-xs text-muted-foreground">
+                Current QA/Tester: {currentProjectQaMember.firstName} {currentProjectQaMember.lastName}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                No QA/Tester assigned yet.
+              </p>
+            )}
             <Button
               size="sm"
               onClick={handleAssignQa}
-              disabled={assigning || selectedIds.length === 0}
+              disabled={assigning || !selectedQaUserId}
             >
-              {assigning ? "Assigning..." : `Assign ${selectedIds.length} as QA/Tester`}
+              {assigning ? "Assigning..." : "Assign as QA/Tester"}
             </Button>
           </div>
         )}
@@ -1492,7 +1590,7 @@ export default function ProjectWorkspace({
                             variant="ghost"
                             size="sm"
                             title="Test Sheet"
-                            onClick={() => router.push(`/user/projects/${project?.id}/test-sheet?userId=${emp.userId}`)}
+                            onClick={() => handleOpenTestSheet(emp.userId)}
                           >
                             <ClipboardList className="w-4 h-4" />
                           </Button>
