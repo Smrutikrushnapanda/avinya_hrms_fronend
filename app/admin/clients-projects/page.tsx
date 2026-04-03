@@ -338,7 +338,6 @@ export default function ClientsProjectsPage() {
     try {
       setProjectSubmitting(true);
       await updateClientProject(editProjectId, {
-        clientId: projectForm.clientId || undefined,
         projectName: projectForm.projectName,
         status: projectForm.status || "ACTIVE",
         startDate: projectForm.startDate || undefined,
