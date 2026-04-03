@@ -980,6 +980,17 @@ export default function ProjectTestSheetPlaceholder({
     [uploadImageForCell],
   );
 
+  const handleDragTypeToColumn = useCallback((event: DragEvent<HTMLDivElement>, columnKey: ColumnKey) => {
+    event.preventDefault();
+    const droppedType = extractDraggedType(event);
+    if (!droppedType) return;
+    setColumnTypes((previous) => ({
+      ...previous,
+      [columnKey]: droppedType,
+    }));
+    setDraggedType(null);
+  }, []);
+
   const workspaceBasePath =
     mode === "admin" ? `/admin/projects/${projectId}` : `/user/projects/${projectId}`;
   const workspacePath = isClientProject
@@ -1259,106 +1270,151 @@ export default function ProjectTestSheetPlaceholder({
               </div>
             </div>
 
-            <div className="border-b border-[#d6dce6] bg-white px-3 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Columns
+            <div className="border-b border-[#d6dce6] bg-white px-4 py-3">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="text-sm font-bold text-[#213047]">✨ Field Type Configuration</div>
+                  <span className="text-xs bg-[#217346]/10 text-[#217346] px-2 py-1 rounded-full">Pro Tip</span>
                 </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Drag column chips/headers to reorder. Drag type chips to column headers or row numbers.
-                </div>
-                <Button size="sm" variant="ghost" className="ml-auto" onClick={showAllColumns}>
-                  Show Columns
-                </Button>
+                {hiddenCustomColumns.length > 0 && (
+                  <Button size="sm" variant="ghost" onClick={showAllColumns} className="text-xs">
+                    Show {hiddenCustomColumns.length} Hidden
+                  </Button>
+                )}
+              </div>
+              
+              <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg border border-blue-200">
+                <p className="text-xs text-blue-900 font-medium leading-relaxed">
+                  💡 <strong>Drag field types</strong> from below onto column headers to convert entire columns, or onto row numbers to apply to single rows. Just like Excel or Google Sheets!
+                </p>
               </div>
 
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
                 {configurableColumns.length ? (
-                  configurableColumns.map((column) => (
-                    <button
-                      key={column.key}
-                      type="button"
-                      draggable={canEdit}
-                      onClick={() => setColumnSettingKey(column.key)}
-                      onDragStart={(event) => handleColumnDragStart(event, column.key)}
-                      onDragOver={handleColumnDragOver}
-                      onDrop={(event) => handleColumnDrop(event, column.key)}
-                      onDragEnd={() => setDraggedColumnKey(null)}
-                      className={`rounded border px-2 py-1 text-xs transition ${
-                        columnSettingKey === column.key
-                          ? "border-[#217346] bg-[#e8f4ed] text-[#1d5f39]"
-                          : "border-[#d6dce6] bg-[#f8fafc] text-[#334155] hover:bg-[#eef3fb]"
-                      }`}
-                    >
-                      {column.letter} - {getColumnTitle(column)}
-                    </button>
-                  ))
+                  configurableColumns.map((column) => {
+                    const columnType = getColumnInputType(column.key);
+                    const typeLabel = columnInputTypeOptions.find((opt) => opt.value === columnType)?.label || "Text";
+                    
+                    return (
+                      <button
+                        key={column.key}
+                        type="button"
+                        draggable={canEdit}
+                        onClick={() => setColumnSettingKey(column.key)}
+                        onDragStart={(event) => handleColumnDragStart(event, column.key)}
+                        onDragOver={handleColumnDragOver}
+                        onDrop={(event) => handleColumnDrop(event, column.key)}
+                        onDragEnd={() => setDraggedColumnKey(null)}
+                        className={`rounded-lg border-2 px-3 py-1.5 text-xs font-semibold transition cursor-grab active:cursor-grabbing ${
+                          columnSettingKey === column.key
+                            ? "border-[#217346] bg-[#e8f4ed] text-[#1d5f39] shadow-sm"
+                            : "border-[#d6dce6] bg-white text-[#334155] hover:border-[#217346] hover:shadow-sm"
+                        }`}
+                        title={`Click to edit, drag to reorder`}
+                      >
+                        <span className="font-bold text-blue-600 mr-1">{column.letter}</span>
+                        {getColumnTitle(column)}
+                        {columnType !== "text" && (
+                          <span className="ml-1 text-[10px] bg-[#217346]/20 text-[#217346] px-1.5 py-0.5 rounded">
+                            {typeLabel}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })
                 ) : (
-                  <div className="text-xs text-muted-foreground">No custom columns available.</div>
+                  <div className="text-xs text-muted-foreground italic">No custom columns yet. Add one to get started!</div>
                 )}
               </div>
 
               {configurableColumns.length ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Type
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {columnInputTypeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        draggable={canEdit}
-                        onDragStart={(event) => handleTypeChipDragStart(event, option.value)}
-                        onDragEnd={handleTypeChipDragEnd}
-                        onClick={() =>
-                          setColumnTypes((previous) => ({
-                            ...previous,
-                            [columnSettingKey]: option.value,
-                          }))
-                        }
-                        className={`rounded border px-2 py-1 text-xs transition ${
-                          selectedConfigType === option.value
-                            ? "border-[#217346] bg-[#e8f4ed] text-[#1d5f39]"
-                            : "border-[#d6dce6] bg-[#f8fafc] text-[#334155] hover:bg-[#eef3fb]"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="mt-4 space-y-4 border-t border-[#e0e7ff] pt-4">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wide text-[#334155] mb-3">
+                      📋 Field Type Control
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">
+                      Drag a field type below onto any column header to convert it, or drop on a row to apply to just that row.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {columnInputTypeOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          draggable={canEdit}
+                          onDragStart={(event) => handleTypeChipDragStart(event, option.value)}
+                          onDragEnd={handleTypeChipDragEnd}
+                          onClick={() =>
+                            setColumnTypes((previous) => ({
+                              ...previous,
+                              [columnSettingKey]: option.value,
+                            }))
+                          }
+                          className={`rounded-lg border-2 px-3 py-2 text-xs font-semibold transition cursor-grab active:cursor-grabbing ${
+                            selectedConfigType === option.value
+                              ? "border-[#217346] bg-[#e8f4ed] text-[#1d5f39] shadow-sm"
+                              : "border-[#d6dce6] bg-white text-[#334155] hover:border-[#217346] hover:shadow-sm"
+                          }`}
+                          title={`Drag to convert columns to ${option.label}`}
+                        >
+                          {option.label === "Text" && "📝"}
+                          {option.label === "Dropdown" && "📋"}
+                          {option.label === "Color" && "🎨"}
+                          {option.label === "Image" && "🖼️"}
+                          {" "}
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
 
-                  <div
-                    className={`rounded border border-dashed px-2 py-1 text-xs ${
-                      draggedType ? "border-[#217346] bg-[#eff8f2] text-[#1d5f39]" : "border-[#d6dce6] text-muted-foreground"
-                    }`}
-                    onDragOver={handleTypeDragOver}
-                    onDrop={handleTypeDropForAllColumns}
-                  >
-                    Drop Type Here: Apply to all columns
+                    <div
+                      className={`rounded-lg border-2 border-dashed p-3 text-xs mt-3 transition ${
+                        draggedType 
+                          ? "border-[#217346] bg-[#eff8f2] text-[#1d5f39]" 
+                          : "border-[#d6dce6] bg-[#f8fafc] text-muted-foreground"
+                      }`}
+                      onDragOver={handleTypeDragOver}
+                      onDrop={handleTypeDropForAllColumns}
+                    >
+                      <div className="font-semibold mb-1">💡 Drop Zone</div>
+                      Drop a field type here to apply to <strong>all columns</strong>
+                    </div>
                   </div>
 
                   {selectedConfigType === "dropdown" ? (
-                    <>
+                    <div className="space-y-2 border-t border-[#e0e7ff] pt-4">
+                      <label className="text-xs font-bold uppercase tracking-wide text-[#334155]">
+                        Dropdown Options
+                      </label>
                       <Input
                         value={dropdownOptionsDraft}
                         onChange={(event) => setDropdownOptionsDraft(event.target.value)}
-                        placeholder="Dropdown options (comma separated)"
-                        className="h-8 w-[280px] bg-[#f8fafc] text-xs"
+                        placeholder="e.g., Option 1, Option 2, Option 3"
+                        className="h-9 bg-white text-xs"
                       />
-                      <Button size="sm" variant="outline" onClick={saveDropdownOptions}>
+                      <div className="text-[10px] text-muted-foreground">
+                        Separate options with commas
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={saveDropdownOptions}
+                        className="w-full bg-[#217346] hover:bg-[#1a5a38] text-white"
+                      >
                         Save Options
                       </Button>
-                    </>
+                    </div>
                   ) : null}
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => removeCustomColumn(columnSettingKey)}
-                  >
-                    Hide Selected Column
-                  </Button>
+                  <div className="border-t border-[#e0e7ff] pt-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => removeCustomColumn(columnSettingKey)}
+                      className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      ✕ Hide This Column
+                    </Button>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -1373,63 +1429,78 @@ export default function ProjectTestSheetPlaceholder({
                     <th className="sticky top-0 left-0 z-20 w-[74px] border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-[11px] font-semibold text-white">
                       Row
                     </th>
-                    {visibleColumns.map((column) => (
-                      <th
-                        key={column.key}
-                        draggable={canEdit}
-                        onDragStart={(event) => handleColumnDragStart(event, column.key)}
-                        onDragOver={handleColumnDragOver}
-                        onDrop={(event) => handleColumnDrop(event, column.key)}
-                        onDragEnd={() => setDraggedColumnKey(null)}
-                        className={`sticky top-0 z-10 border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-left text-[11px] font-semibold text-white relative ${
-                          draggedColumnKey === column.key ? "opacity-80" : ""
-                        }`}
-                        style={{
-                          width: `${getColumnWidth(column)}px`,
-                          minWidth: `${getColumnWidth(column)}px`,
-                        }}
-                        onDoubleClick={() => {
-                          if (canEdit) {
-                            setEditingColumnKey(column.key);
-                            setEditingColumnTitle(getColumnTitle(column));
-                          }
-                        }}
-                      >
-                        <div className="font-mono text-[10px] text-white/75">{column.letter}</div>
-                        {editingColumnKey === column.key ? (
-                          <Input
-                            value={editingColumnTitle}
-                            onChange={(e) => setEditingColumnTitle(e.target.value)}
-                            onBlur={() => void saveEditedColumnTitle()}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                (e.currentTarget as HTMLInputElement).blur();
-                              }
-                              if (e.key === "Escape") {
-                                e.preventDefault();
-                                setEditingColumnKey(null);
-                              }
-                            }}
-                            autoFocus
-                            disabled={savingColumnHeaders}
-                            className="h-5 bg-white text-black font-semibold mt-1"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate">{getColumnTitle(column)}</span>
+                    {visibleColumns.map((column) => {
+                      const columnType = getColumnInputType(column.key);
+                      const typeLabel = columnInputTypeOptions.find((opt) => opt.value === columnType)?.label || "Text";
+                      
+                      return (
+                        <th
+                          key={column.key}
+                          draggable={canEdit}
+                          onDragStart={(event) => handleColumnDragStart(event, column.key)}
+                          onDragOver={handleColumnDragOver}
+                          onDrop={(event) => {
+                            handleColumnDrop(event, column.key);
+                            handleDragTypeToColumn(event, column.key);
+                          }}
+                          onDragEnd={() => setDraggedColumnKey(null)}
+                          className={`sticky top-0 z-10 border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-left text-[11px] font-semibold text-white ${
+                            draggedColumnKey === column.key ? "opacity-80" : ""
+                          } ${draggedType ? "hover:bg-[#1a5a38]" : ""} transition-colors`}
+                          style={{
+                            width: `${getColumnWidth(column)}px`,
+                            minWidth: `${getColumnWidth(column)}px`,
+                          }}
+                          onDoubleClick={() => {
+                            if (canEdit) {
+                              setEditingColumnKey(column.key);
+                              setEditingColumnTitle(getColumnTitle(column));
+                            }
+                          }}
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="font-mono text-[9px] text-white/75">{column.letter}</div>
+                              {column.isCustom && columnType !== "text" && (
+                                <span className="text-[9px] font-semibold bg-white/20 px-1 py-0.5 rounded whitespace-nowrap">
+                                  {typeLabel}
+                                </span>
+                              )}
+                            </div>
+                            {editingColumnKey === column.key ? (
+                              <Input
+                                value={editingColumnTitle}
+                                onChange={(e) => setEditingColumnTitle(e.target.value)}
+                                onBlur={() => void saveEditedColumnTitle()}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    (e.currentTarget as HTMLInputElement).blur();
+                                  }
+                                  if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    setEditingColumnKey(null);
+                                  }
+                                }}
+                                autoFocus
+                                disabled={savingColumnHeaders}
+                                className="h-5 bg-white text-black font-semibold"
+                              />
+                            ) : (
+                              <span className="truncate text-xs leading-tight">{getColumnTitle(column)}</span>
+                            )}
                           </div>
-                        )}
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onMouseDown={(event) => startColumnResize(event, column)}
-                            className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-white/0 hover:bg-white/25"
-                            title="Resize column"
-                          />
-                        ) : null}
-                      </th>
-                    ))}
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              onMouseDown={(event) => startColumnResize(event, column)}
+                              className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-white/0 hover:bg-white/25"
+                              title="Resize column"
+                            />
+                          ) : null}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -1500,15 +1571,27 @@ export default function ProjectTestSheetPlaceholder({
 
                             if (type === "dropdown") {
                               return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                                <td 
+                                  key={column.key} 
+                                  style={columnStyle} 
+                                  className="border border-[#d6dce6] px-2 py-1 hover:bg-[#f9fafc] transition-colors"
+                                  onDragOver={handleTypeDragOver}
+                                  onDrop={(event) => {
+                                    const droppedType = extractDraggedType(event);
+                                    if (!droppedType) return;
+                                    event.preventDefault();
+                                    applyTypeToRow(row.id, droppedType);
+                                    setDraggedType(null);
+                                  }}
+                                >
                                   <select
                                     value={customValue}
                                     disabled={!canEdit}
-                                    className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 text-[12px]"
+                                    className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 py-1 text-[12px] font-medium focus:ring-2 focus:ring-[#217346] focus:border-transparent focus:outline-none"
                                     onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
                                     onChange={(event) => setCustomValue(row, column.key, event.target.value)}
                                   >
-                                    <option value="">Select</option>
+                                    <option value="">-- Select --</option>
                                     {dropdownOptions.map((option) => (
                                       <option key={option} value={option}>
                                         {option}
@@ -1521,21 +1604,33 @@ export default function ProjectTestSheetPlaceholder({
 
                             if (type === "color") {
                               return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                                <td 
+                                  key={column.key} 
+                                  style={columnStyle} 
+                                  className="border border-[#d6dce6] px-2 py-1 hover:bg-[#f9fafc] transition-colors"
+                                  onDragOver={handleTypeDragOver}
+                                  onDrop={(event) => {
+                                    const droppedType = extractDraggedType(event);
+                                    if (!droppedType) return;
+                                    event.preventDefault();
+                                    applyTypeToRow(row.id, droppedType);
+                                    setDraggedType(null);
+                                  }}
+                                >
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
                                       value={customValue || "#2563eb"}
                                       disabled={!canEdit}
-                                      className="h-8 w-10 rounded border border-[#d6dce6] bg-white p-1"
+                                      className="h-8 w-12 rounded border border-[#d6dce6] bg-white p-1 cursor-pointer"
                                       onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
                                       onChange={(event) => setCustomValue(row, column.key, event.target.value)}
                                     />
                                     <span
-                                      className="truncate text-xs font-medium"
+                                      className="text-xs font-semibold"
                                       style={{ color: customValue || "#2563eb" }}
                                     >
-                                      {customValue || "Pick color"}
+                                      {customValue || "#2563eb"}
                                     </span>
                                   </div>
                                 </td>
@@ -1544,26 +1639,44 @@ export default function ProjectTestSheetPlaceholder({
 
                             if (type === "image") {
                               return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                                <td 
+                                  key={column.key} 
+                                  style={columnStyle} 
+                                  className="border border-[#d6dce6] px-1 py-1 hover:bg-[#f9fafc] transition-colors"
+                                  onDragOver={(event) => event.preventDefault()}
+                                  onDrop={(event) => {
+                                    const droppedType = extractDraggedType(event);
+                                    if (droppedType) {
+                                      event.preventDefault();
+                                      applyTypeToRow(row.id, droppedType);
+                                      setDraggedType(null);
+                                    } else {
+                                      handleImageDrop(event, row, column.key);
+                                    }
+                                  }}
+                                >
                                   <div
-                                    className="rounded border border-dashed border-[#c8d2e1] p-1"
-                                    onDragOver={(event) => event.preventDefault()}
-                                    onDrop={(event) => handleImageDrop(event, row, column.key)}
+                                    className="rounded border-2 border-dashed border-[#d6dce6] p-1 hover:border-[#217346] transition-colors"
                                     onPaste={(event) => handleImagePaste(event, row, column.key)}
                                   >
                                     {customValue ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img
-                                        src={customValue}
-                                        alt="Uploaded"
-                                        className="h-16 w-full rounded object-cover"
-                                      />
+                                      <div className="relative group">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={customValue}
+                                          alt="Uploaded"
+                                          className="h-16 w-full rounded object-cover"
+                                        />
+                                        <div className="absolute inset-0 rounded bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          <span className="text-white text-[10px]">Click to replace</span>
+                                        </div>
+                                      </div>
                                     ) : (
-                                      <div className="h-16 w-full rounded bg-[#f8fafc] text-[10px] text-muted-foreground flex items-center justify-center text-center px-2">
-                                        Paste, drag-drop, or upload image
+                                      <div className="h-16 w-full rounded bg-[#f0f4f9] text-[10px] text-muted-foreground flex items-center justify-center text-center px-2 flex-col gap-1">
+                                        <span>📸 Drag/paste image</span>
                                       </div>
                                     )}
-                                    <label className="mt-1 flex cursor-pointer items-center justify-center gap-1 rounded border border-[#d6dce6] bg-white px-2 py-1 text-[10px]">
+                                    <label className="mt-1 flex cursor-pointer items-center justify-center gap-1 rounded border border-[#d6dce6] bg-white px-2 py-1 text-[10px] font-medium hover:bg-[#f8fbff] transition-colors">
                                       <Upload className="h-3 w-3" />
                                       {uploadingImageCellKey === customKey ? "Uploading..." : "Upload"}
                                       <input
@@ -1586,11 +1699,23 @@ export default function ProjectTestSheetPlaceholder({
                             }
 
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
+                              <td 
+                                key={column.key} 
+                                style={columnStyle} 
+                                className="border border-[#d6dce6] px-2 py-1 hover:bg-[#f9fafc] transition-colors"
+                                onDragOver={handleTypeDragOver}
+                                onDrop={(event) => {
+                                  const droppedType = extractDraggedType(event);
+                                  if (!droppedType) return;
+                                  event.preventDefault();
+                                  applyTypeToRow(row.id, droppedType);
+                                  setDraggedType(null);
+                                }}
+                              >
                                 <Input
                                   value={customValue}
                                   disabled={!canEdit}
-                                  className="h-8 border-[#d6dce6] text-[12px]"
+                                  className="h-8 border-[#d6dce6] text-[12px] focus:ring-2 focus:ring-[#217346] focus:border-transparent"
                                   onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
                                   onChange={(event) => setCustomValue(row, column.key, event.target.value)}
                                 />
@@ -1600,7 +1725,7 @@ export default function ProjectTestSheetPlaceholder({
 
                           if (column.key === "updatedAt") {
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
+                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground bg-[#f8fafc]">
                                 {formatDateTime(row.updatedAt)}
                               </td>
                             );
@@ -1610,17 +1735,17 @@ export default function ProjectTestSheetPlaceholder({
                             const fieldKey = column.key as "qaUserId" | "developerUserId";
                             const selectedValue = String(readCaseFieldValue(row, column.key) || "");
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1 hover:bg-[#f9fafc] transition-colors">
                                 <select
                                   value={selectedValue}
                                   disabled={!canEdit || savingCellKey === cellKey}
-                                  className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 text-[12px]"
+                                  className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 py-1 text-[12px] focus:ring-2 focus:ring-[#217346] focus:border-transparent focus:outline-none"
                                   onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
                                   onChange={(event) =>
                                     void commitCell(row, fieldKey, event.target.value)
                                   }
                                 >
-                                  <option value="">Unassigned</option>
+                                  <option value="">-- Unassigned --</option>
                                   {members.map((member) => (
                                     <option key={member.userId} value={member.userId}>
                                       {personLabel(member)}
@@ -1633,11 +1758,11 @@ export default function ProjectTestSheetPlaceholder({
 
                           if (column.key === "status") {
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1 hover:bg-[#f9fafc] transition-colors">
                                 <select
                                   value={row.status}
                                   disabled={!canEdit || savingCellKey === cellKey}
-                                  className={`h-8 w-full rounded border px-2 text-[12px] ${
+                                  className={`h-8 w-full rounded border px-2 py-1 text-[12px] font-medium focus:ring-2 focus:border-transparent focus:outline-none ${
                                     row.status === "resolved"
                                       ? "border-green-300 bg-green-50 text-green-700"
                                       : "border-amber-300 bg-amber-50 text-amber-700"
@@ -1647,8 +1772,8 @@ export default function ProjectTestSheetPlaceholder({
                                     void commitCell(row, "status", event.target.value)
                                   }
                                 >
-                                  <option value="pending">Pending</option>
-                                  <option value="resolved">Resolved</option>
+                                  <option value="pending">⏳ Pending</option>
+                                  <option value="resolved">✓ Resolved</option>
                                 </select>
                               </td>
                             );
@@ -1661,12 +1786,12 @@ export default function ProjectTestSheetPlaceholder({
                           >;
 
                           return (
-                            <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                            <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1 hover:bg-[#f9fafc] transition-colors">
                               <Input
                                 key={`${row.id}:${column.key}:${row.updatedAt}`}
                                 defaultValue={value}
                                 disabled={!canEdit || savingCellKey === cellKey}
-                                className="h-8 border-[#d6dce6] text-[12px]"
+                                className="h-8 border-[#d6dce6] text-[12px] focus:ring-2 focus:ring-[#217346] focus:border-transparent"
                                 onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
                                 onBlur={(event) =>
                                   void commitCell(row, fieldKey, event.target.value)
