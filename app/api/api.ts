@@ -210,6 +210,8 @@ export const deleteClientProject = (id: string) => api.delete(`/client-projects/
 export const getMyClientProjects = () => api.get("/client-projects/my");
 export const updateClientProjectCompletion = (id: string, completionPercent: number) =>
   api.put(`/client-projects/${id}/completion`, { completionPercent });
+export const getClientProjectTimesheetsSummary = (id: string) =>
+  api.get(`/client-projects/${id}/timesheets-summary`);
 
 // PM Projects (under /projects)
 export const getProjects = (params?: any) => api.get("/projects", { params });

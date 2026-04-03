@@ -10,6 +10,7 @@ import {
   deleteProjectTask,
   getClientProject,
   getClientProjectEmployees,
+  getClientProjectTimesheetsSummary,
   getAllOrgEmployees,
   getProfile,
   getProject,
@@ -308,7 +309,20 @@ export default function ProjectWorkspace({
   const [projectTimesheets, setProjectTimesheets] = useState<ProjectTimesheet[]>([]);
   const [timesheetsLoading, setTimesheetsLoading] = useState(false);
   const [timesheetsError, setTimesheetsError] = useState<string | null>(null);
+  const [timesheetDateRange, setTimesheetDateRange] = useState<{ fromDate: string; toDate: string }>({
+    fromDate: "",
+    toDate: "",
+  });
   const [clientTasks, setClientTasks] = useState<ClientProjectTask[]>([]);
+  const [pnlSummary, setPnlSummary] = useState<{
+    projectCost: number;
+    hourlyRate: number;
+    totalHours: number;
+    employeeCount: number;
+    actualCost: number;
+    profitLoss: number;
+    isProfit: boolean;
+  } | null>(null);
   const [clientTasksLoading, setClientTasksLoading] = useState(false);
   const [clientTaskSaving, setClientTaskSaving] = useState(false);
   const [showClientTaskComposer, setShowClientTaskComposer] = useState(false);
@@ -445,7 +459,7 @@ export default function ProjectWorkspace({
   );
 
   const loadProjectTimesheetBoard = useCallback(
-    async (resolvedSource: ProjectSource, projectName: string, orgId: string) => {
+    async (resolvedSource: ProjectSource, projectName: string, orgId: string, fromDate?: string, toDate?: string) => {
       if (!projectName || !orgId) {
         setProjectTimesheets([]);
         setTimesheetsError(null);
@@ -462,11 +476,14 @@ export default function ProjectWorkspace({
           return;
         }
 
-        const today = new Date().toISOString().split("T")[0];
+        // Use provided dates or default to last 30 days
+        const startDate = fromDate || timesheetDateRange.fromDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const endDate = toDate || timesheetDateRange.toDate || new Date().toISOString().split("T")[0];
+        
         const res = await getTimesheets({
           organizationId: orgId,
-          fromDate: today,
-          toDate: today,
+          fromDate: startDate,
+          toDate: endDate,
           page: 1,
           limit: 500,
         });
@@ -482,7 +499,7 @@ export default function ProjectWorkspace({
         setTimesheetsLoading(false);
       }
     },
-    [projectId],
+    [projectId, timesheetDateRange.fromDate, timesheetDateRange.toDate],
   );
 
   const loadClientTaskBoard = useCallback(async (clientProjectId: string) => {
@@ -577,6 +594,21 @@ export default function ProjectWorkspace({
       );
       if (workspaceData.source === "client") {
         await loadClientTaskBoard(workspaceData.project.id);
+        // Fetch P&L summary for client projects
+        try {
+          const pnlRes = await getClientProjectTimesheetsSummary(workspaceData.project.id);
+          if (pnlRes.data) {
+            setPnlSummary({
+              projectCost: pnlRes.data.projectCost || 0,
+              hourlyRate: pnlRes.data.hourlyRate || 0,
+              totalHours: pnlRes.data.totalHours || 0,
+              employeeCount: pnlRes.data.employeeCount || 0,
+              actualCost: pnlRes.data.actualCost || 0,
+              profitLoss: pnlRes.data.profitLoss || 0,
+              isProfit: pnlRes.data.isProfit ?? true,
+            });
+          }
+        } catch { /* ignore - P&L is optional */ }
       } else {
         setClientTasks([]);
       }
@@ -954,56 +986,125 @@ export default function ProjectWorkspace({
             <div>
               <h2 className="font-semibold">Profit / Loss Snapshot</h2>
               <p className="text-xs text-muted-foreground">
-                Estimated from project timesheet hours using default internal billing rates.
+                {pnlSummary
+                  ? `Based on project cost (₹${pnlSummary.projectCost.toLocaleString()}) and hourly rate (₹${pnlSummary.hourlyRate}/hr)`
+                  : "Estimated from project timesheet hours using default internal billing rates."}
               </p>
             </div>
             <Badge variant="outline">
-              {profitLossSnapshot.loggedHours.toFixed(1)}h logged
+              {pnlSummary ? `${pnlSummary.totalHours.toFixed(1)}h logged` : `${profitLossSnapshot.loggedHours.toFixed(1)}h logged`}
             </Badge>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-lg border border-border p-3">
-              <p className="text-xs text-muted-foreground">Estimated Revenue</p>
-              <p className="text-lg font-semibold text-green-600">${profitLossSnapshot.revenue.toLocaleString()}</p>
-            </div>
-            <div className="rounded-lg border border-border p-3">
-              <p className="text-xs text-muted-foreground">Estimated Cost</p>
-              <p className="text-lg font-semibold text-amber-600">${profitLossSnapshot.cost.toLocaleString()}</p>
-            </div>
-            <div className="rounded-lg border border-border p-3">
-              <p className="text-xs text-muted-foreground">
-                {profitLossSnapshot.net >= 0 ? "Estimated Profit" : "Estimated Loss"}
-              </p>
-              <p className={`text-lg font-semibold ${profitLossSnapshot.net >= 0 ? "text-blue-600" : "text-red-600"}`}>
-                ${Math.abs(profitLossSnapshot.net).toLocaleString()}
-              </p>
-            </div>
-          </div>
+          {pnlSummary ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Employees</p>
+                  <p className="text-lg font-semibold">{pnlSummary.employeeCount}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Total Hours</p>
+                  <p className="text-lg font-semibold">{pnlSummary.totalHours.toFixed(1)}h</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Project Cost</p>
+                  <p className="text-lg font-semibold text-green-600">₹{pnlSummary.projectCost.toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Actual Cost</p>
+                  <p className="text-lg font-semibold text-amber-600">₹{pnlSummary.actualCost.toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground mb-1">
+                  {pnlSummary.isProfit ? "Profit" : "Loss"}
+                </p>
+                <p className={`text-2xl font-bold ${pnlSummary.isProfit ? "text-green-600" : "text-red-600"}`}>
+                  {pnlSummary.isProfit ? "+" : "-"}₹{pnlSummary.profitLoss.toLocaleString()}
+                </p>
+              </div>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={[
+                      { name: "Project Cost", amount: pnlSummary.projectCost, color: "#16a34a" },
+                      { name: "Actual Cost", amount: pnlSummary.actualCost, color: "#f59e0b" },
+                      { name: pnlSummary.isProfit ? "Profit" : "Loss", amount: pnlSummary.profitLoss, color: pnlSummary.isProfit ? "#2563eb" : "#dc2626" },
+                    ]}
+                    margin={{ top: 10, right: 16, left: -16, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: 12,
+                      }}
+                      formatter={(value) => [`₹${Number(value || 0).toLocaleString()}`, "Amount"]}
+                    />
+                    <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                      {[
+                        { name: "Project Cost", amount: pnlSummary.projectCost, color: "#16a34a" },
+                        { name: "Actual Cost", amount: pnlSummary.actualCost, color: "#f59e0b" },
+                        { name: pnlSummary.isProfit ? "Profit" : "Loss", amount: pnlSummary.profitLoss, color: pnlSummary.isProfit ? "#2563eb" : "#dc2626" },
+                      ].map((item) => (
+                        <Cell key={item.name} fill={item.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Estimated Revenue</p>
+                  <p className="text-lg font-semibold text-green-600">${profitLossSnapshot.revenue.toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">Estimated Cost</p>
+                  <p className="text-lg font-semibold text-amber-600">${profitLossSnapshot.cost.toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    {profitLossSnapshot.net >= 0 ? "Estimated Profit" : "Estimated Loss"}
+                  </p>
+                  <p className={`text-lg font-semibold ${profitLossSnapshot.net >= 0 ? "text-blue-600" : "text-red-600"}`}>
+                    ${Math.abs(profitLossSnapshot.net).toLocaleString()}
+                  </p>
+                </div>
+              </div>
 
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={profitLossChartData} margin={{ top: 10, right: 16, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: 12,
-                  }}
-                  formatter={(value) => [`$${Number(value || 0).toLocaleString()}`, "Amount"]}
-                />
-                <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
-                  {profitLossChartData.map((item) => (
-                    <Cell key={item.name} fill={item.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+              <div className="h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={profitLossChartData} margin={{ top: 10, right: 16, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: 12,
+                      }}
+                      formatter={(value) => [`${Number(value || 0).toLocaleString()}`, "Amount"]}
+                    />
+                    <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                      {profitLossChartData.map((item) => (
+                        <Cell key={item.name} fill={item.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -1013,7 +1114,7 @@ export default function ProjectWorkspace({
             <h2 className="font-semibold">Project Timesheet Entries</h2>
             <p className="text-xs text-muted-foreground">
               {isClientProject
-                ? "Daily basics for today: who worked on this project and what work was done."
+                ? "View timesheet entries for this project. Filter by date range to see historical data."
                 : "Employees who submitted timesheet entries for this project."}
             </p>
           </div>
@@ -1021,6 +1122,55 @@ export default function ProjectWorkspace({
             <Badge variant="outline">{projectTimesheets.length} entries</Badge>
             <Badge variant="outline">{timesheetEmployeeCount} employees</Badge>
           </div>
+        </div>
+
+        {/* Date Filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">From:</span>
+            <Input
+              type="date"
+              className="h-8 w-36 text-xs"
+              value={timesheetDateRange.fromDate}
+              onChange={(e) => setTimesheetDateRange((prev) => ({ ...prev, fromDate: e.target.value }))}
+            />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">To:</span>
+            <Input
+              type="date"
+              className="h-8 w-36 text-xs"
+              value={timesheetDateRange.toDate}
+              onChange={(e) => setTimesheetDateRange((prev) => ({ ...prev, toDate: e.target.value }))}
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={() => {
+              loadProjectTimesheetBoard(
+                projectSource,
+                project?.name || "",
+                organizationId,
+                timesheetDateRange.fromDate,
+                timesheetDateRange.toDate,
+              );
+            }}
+          >
+            Filter
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8"
+            onClick={() => {
+              setTimesheetDateRange({ fromDate: "", toDate: "" });
+              loadProjectTimesheetBoard(projectSource, project?.name || "", organizationId, "", "");
+            }}
+          >
+            Clear
+          </Button>
         </div>
 
         {timesheetsLoading ? (

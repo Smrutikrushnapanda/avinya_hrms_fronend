@@ -58,6 +58,8 @@ export default function ClientsProjectsPage() {
     endDate: "",
     description: "",
     managerId: "",
+    projectCost: "",
+    hourlyRate: "",
   });
 
   const loadData = async (orgId: string) => {
@@ -281,6 +283,8 @@ export default function ClientsProjectsPage() {
         endDate: projectForm.endDate || undefined,
         description: projectForm.description || undefined,
         managerId: projectForm.managerId || undefined,
+        projectCost: projectForm.projectCost ? parseFloat(projectForm.projectCost) : undefined,
+        hourlyRate: projectForm.hourlyRate ? parseFloat(projectForm.hourlyRate) : undefined,
       });
       toast.success("Project added");
       setProjectForm({
@@ -291,6 +295,8 @@ export default function ClientsProjectsPage() {
         endDate: "",
         description: "",
         managerId: "",
+        projectCost: "",
+        hourlyRate: "",
       });
       await loadData(organizationId);
     } catch (error: any) {
@@ -310,6 +316,8 @@ export default function ClientsProjectsPage() {
       endDate: project.endDate || "",
       description: project.description || "",
       managerId: project.managerId || project.manager?.id || "",
+      projectCost: project.projectCost?.toString() || "",
+      hourlyRate: project.hourlyRate?.toString() || "",
     });
   };
 
@@ -337,6 +345,8 @@ export default function ClientsProjectsPage() {
         endDate: projectForm.endDate || undefined,
         description: projectForm.description || undefined,
         managerId: projectForm.managerId || undefined,
+        projectCost: projectForm.projectCost ? parseFloat(projectForm.projectCost) : undefined,
+        hourlyRate: projectForm.hourlyRate ? parseFloat(projectForm.hourlyRate) : undefined,
       });
       toast.success("Project updated");
       setEditProjectId(null);
@@ -348,6 +358,8 @@ export default function ClientsProjectsPage() {
         endDate: "",
         description: "",
         managerId: "",
+        projectCost: "",
+        hourlyRate: "",
       });
       await loadData(organizationId);
     } catch (error: any) {
@@ -711,6 +723,26 @@ export default function ClientsProjectsPage() {
                   onChange={(e) => setProjectForm((prev) => ({ ...prev, description: e.target.value }))}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Project Cost (₹)</Label>
+                  <Input
+                    type="number"
+                    placeholder="Optional"
+                    value={projectForm.projectCost}
+                    onChange={(e) => setProjectForm((prev) => ({ ...prev, projectCost: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Hourly Rate (₹)</Label>
+                  <Input
+                    type="number"
+                    placeholder="Optional"
+                    value={projectForm.hourlyRate}
+                    onChange={(e) => setProjectForm((prev) => ({ ...prev, hourlyRate: e.target.value }))}
+                  />
+                </div>
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   onClick={editProjectId ? handleUpdateProject : handleCreateProject}
@@ -738,6 +770,8 @@ export default function ClientsProjectsPage() {
                         endDate: "",
                         description: "",
                         managerId: "",
+                        projectCost: "",
+                        hourlyRate: "",
                       });
                     }}
                   >
