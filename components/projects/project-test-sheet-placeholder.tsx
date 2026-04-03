@@ -1383,10 +1383,10 @@ export default function ProjectTestSheet({ mode }: { mode: "user" | "admin" }) {
   );
 }
 
-const pgBtn: React.CSSProperties = {
+const pgBtn: React.CSSProperties & { [key: string]: unknown } = {
   display: "inline-flex", alignItems: "center", justifyContent: "center",
   width: 26, height: 26, border: "1px solid #d0d7de",
   borderRadius: 4, background: "#fff", cursor: "pointer",
   color: "#333", padding: 0,
 };
-pgBtn[":disabled" as string] = { opacity: 0.4, cursor: "default" };
+pgBtn[":disabled"] = { opacity: 0.4, cursor: "default" };
