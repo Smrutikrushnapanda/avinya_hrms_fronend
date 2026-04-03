@@ -220,6 +220,55 @@ function normalizeText(value?: string | null) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeRoleValue(value: unknown) {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+function extractProfileRoles(profile: Record<string, unknown>): string[] {
+  const roleCandidates: string[] = [];
+  const addRoleCandidate = (value: unknown) => {
+    const normalized = normalizeRoleValue(value);
+    if (normalized) roleCandidates.push(normalized);
+  };
+
+  const roles = Array.isArray(profile?.roles) ? profile.roles : [];
+  roles.forEach((roleItem) => {
+    if (typeof roleItem === "string") {
+      addRoleCandidate(roleItem);
+      return;
+    }
+    if (roleItem && typeof roleItem === "object") {
+      const roleObj = roleItem as {
+        roleName?: unknown;
+        name?: unknown;
+        role?: unknown;
+        type?: unknown;
+      };
+      addRoleCandidate(roleObj.roleName);
+      addRoleCandidate(roleObj.name);
+      addRoleCandidate(roleObj.role);
+      addRoleCandidate(roleObj.type);
+    }
+  });
+
+  addRoleCandidate(profile?.roleName);
+  const roleField = profile?.role;
+  if (Array.isArray(roleField)) {
+    roleField.forEach((item) => addRoleCandidate(item));
+  } else if (roleField && typeof roleField === "object") {
+    const roleObj = roleField as { roleName?: unknown; name?: unknown; role?: unknown };
+    addRoleCandidate(roleObj.roleName);
+    addRoleCandidate(roleObj.name);
+    addRoleCandidate(roleObj.role);
+  } else {
+    addRoleCandidate(roleField);
+  }
+  addRoleCandidate(profile?.userType);
+  addRoleCandidate(profile?.type);
+
+  return Array.from(new Set(roleCandidates));
+}
+
 function isQaTesterRole(role?: string | null) {
   const normalized = normalizeText(role);
   return normalized === "tester" || normalized === "qa";
@@ -375,7 +424,11 @@ export default function ProjectWorkspace({
   const assignWorkSectionRef = useRef<HTMLDivElement | null>(null);
 
   const hasManagerRole = useMemo(
-    () => profileRoles.some((role) => role.toUpperCase() === "MANAGER"),
+    () =>
+      profileRoles.some((role) => {
+        const normalized = normalizeRoleValue(role);
+        return normalized === "MANAGER" || normalized.endsWith("_MANAGER");
+      }),
     [profileRoles],
   );
 
@@ -414,7 +467,7 @@ export default function ProjectWorkspace({
   const canManageTeam = !isReadOnlyAdminView && (hasManagerRole || isCurrentUserProjectManager);
   const canEditProgress = canManageTeam;
   const canCreateIssue = canManageTeam && !isClientProject;
-  const canAssignQa = canManageTeam && !isClientProject;
+  const canAssignQa = canManageTeam;
   const currentUserProjectRole = useMemo(
     () =>
       normalizeText(
@@ -584,11 +637,7 @@ export default function ProjectWorkspace({
       setLoading(true);
       const profileRes = await getProfile();
       const profile = profileRes.data || {};
-      const normalizedRoles: string[] = Array.isArray(profile?.roles)
-        ? profile.roles
-            .map((r: { roleName?: string }) => String(r?.roleName || "").toUpperCase())
-            .filter(Boolean)
-        : [];
+      const normalizedRoles = extractProfileRoles(profile as Record<string, unknown>);
 
       const currentUserId = profile.userId || profile.id || "";
       const orgId = profile.organizationId || "";
@@ -772,13 +821,19 @@ export default function ProjectWorkspace({
         { userId: selectedQaUserId, role: "tester" },
         ...existingQaMembers.map((userId) => ({ userId, role: "member" })),
       ];
-      await assignProjectEmployees(project.id, assignments);
+      if (isClientProject) {
+        await assignClientProjectEmployees(project.id, assignments);
+      } else {
+        await assignProjectEmployees(project.id, assignments);
+      }
       toast.success("QA/Tester assigned");
       setSelectedIds([]);
       setSelectedQaUserId("");
       setEmployeeSearch("");
       setShowQaPanel(false);
-      const membersRes = await getProjectEmployees(project.id);
+      const membersRes = isClientProject
+        ? await getClientProjectEmployees(project.id)
+        : await getProjectEmployees(project.id);
       setProjectEmployees(Array.isArray(membersRes.data) ? membersRes.data : []);
     } catch {
       toast.error("Failed to assign QA/Tester");

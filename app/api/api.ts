@@ -288,8 +288,17 @@ export const getAllOrgEmployees = (params?: {
 
 // Client Project Employee Assignment APIs
 export const getClientProjectEmployees = (id: string) => api.get(`/client-projects/${id}/employees`);
-export const assignClientProjectEmployees = (id: string, userIds: string[]) =>
-  api.post(`/client-projects/${id}/employees`, { userIds });
+export const assignClientProjectEmployees = (
+  id: string,
+  userIdsOrAssignments: string[] | Array<{ userId: string; role?: string }>,
+) =>
+  api.post(
+    `/client-projects/${id}/employees`,
+    Array.isArray(userIdsOrAssignments) &&
+      typeof userIdsOrAssignments[0] === "object"
+      ? { assignments: userIdsOrAssignments }
+      : { userIds: userIdsOrAssignments as string[] },
+  );
 export const removeClientProjectEmployee = (id: string, userId: string) =>
   api.delete(`/client-projects/${id}/employees/${userId}`);
 
