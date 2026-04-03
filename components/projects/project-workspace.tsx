@@ -33,6 +33,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Cell,
+} from "recharts";
+import {
   ArrowLeft,
   AlertTriangle,
   Calendar,
@@ -336,11 +346,8 @@ export default function ProjectWorkspace({
   const [uploadingIssueImage, setUploadingIssueImage] = useState(false);
   const assignWorkSectionRef = useRef<HTMLDivElement | null>(null);
 
-  const isAdminOrManager = useMemo(
-    () =>
-      profileRoles.some((role) =>
-        ["ADMIN", "MANAGER", "SUPER_ADMIN", "ORG_ADMIN"].includes(role.toUpperCase()),
-      ),
+  const hasManagerRole = useMemo(
+    () => profileRoles.some((role) => role.toUpperCase() === "MANAGER"),
     [profileRoles],
   );
 
@@ -353,7 +360,30 @@ export default function ProjectWorkspace({
   }, [projectEmployees]);
 
   const isClientProject = projectSource === "client";
-  const canManageTeam = isAdminOrManager || mode === "admin";
+  const isReadOnlyAdminView = mode === "admin";
+  const isCurrentUserProjectManager = useMemo(() => {
+    if (!profileUserId) return false;
+
+    if (isClientProject) {
+      return projectEmployees.some(
+        (member) =>
+          member.userId === profileUserId &&
+          String(member.role || "").toLowerCase() === "manager",
+      );
+    }
+
+    if (project?.createdBy?.id && project.createdBy.id === profileUserId) {
+      return true;
+    }
+
+    return projectEmployees.some(
+      (member) =>
+        member.userId === profileUserId &&
+        ["manager", "lead"].includes(String(member.role || "").toLowerCase()),
+    );
+  }, [isClientProject, profileUserId, project?.createdBy?.id, projectEmployees]);
+
+  const canManageTeam = !isReadOnlyAdminView && (hasManagerRole || isCurrentUserProjectManager);
   const canEditProgress = canManageTeam;
   const canCreateIssue = canManageTeam && !isClientProject;
 
@@ -383,6 +413,36 @@ export default function ProjectWorkspace({
     );
     return unique.size;
   }, [projectTimesheets]);
+
+  const profitLossSnapshot = useMemo(() => {
+    const loggedHours = projectTimesheets.reduce(
+      (acc, row) => acc + Math.max(0, Number(row.workingMinutes || 0)) / 60,
+      0,
+    );
+    const effectiveHours =
+      loggedHours > 0 ? loggedHours : Math.max(1, Number(project?.completionPercent || 0) / 8);
+
+    const billRatePerHour = 85;
+    const costRatePerHour = 52;
+    const revenue = Math.round(effectiveHours * billRatePerHour);
+    const cost = Math.round(effectiveHours * costRatePerHour);
+    const net = revenue - cost;
+
+    return { loggedHours, revenue, cost, net };
+  }, [project?.completionPercent, projectTimesheets]);
+
+  const profitLossChartData = useMemo(
+    () => [
+      { name: "Revenue", amount: profitLossSnapshot.revenue, color: "#16a34a" },
+      { name: "Cost", amount: profitLossSnapshot.cost, color: "#f59e0b" },
+      {
+        name: profitLossSnapshot.net >= 0 ? "Profit" : "Loss",
+        amount: Math.abs(profitLossSnapshot.net),
+        color: profitLossSnapshot.net >= 0 ? "#2563eb" : "#dc2626",
+      },
+    ],
+    [profitLossSnapshot.cost, profitLossSnapshot.net, profitLossSnapshot.revenue],
+  );
 
   const loadProjectTimesheetBoard = useCallback(
     async (resolvedSource: ProjectSource, projectName: string, orgId: string) => {
@@ -813,10 +873,24 @@ export default function ProjectWorkspace({
             </p>
           </div>
         </div>
-        <Button size="sm" onClick={handleAssignWorkClick}>
-          <ListTodo className="w-4 h-4 mr-1" />
-          Assign Work
-        </Button>
+        {canManageTeam ? (
+          <Button size="sm" onClick={handleAssignWorkClick}>
+            <ListTodo className="w-4 h-4 mr-1" />
+            Assign Work
+          </Button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="capitalize">
+              {projectSource}
+            </Badge>
+            <Badge variant="outline" className="capitalize">
+              {project.status.replace("_", " ")}
+            </Badge>
+            <Badge variant="outline" className="capitalize">
+              {project.priority}
+            </Badge>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -868,11 +942,70 @@ export default function ProjectWorkspace({
             </Button>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Only manager/admin can update progress.
+              Only the assigned project manager can update progress.
             </p>
           )}
         </div>
       </div>
+
+      {isReadOnlyAdminView ? (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="font-semibold">Profit / Loss Snapshot</h2>
+              <p className="text-xs text-muted-foreground">
+                Estimated from project timesheet hours using default internal billing rates.
+              </p>
+            </div>
+            <Badge variant="outline">
+              {profitLossSnapshot.loggedHours.toFixed(1)}h logged
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Estimated Revenue</p>
+              <p className="text-lg font-semibold text-green-600">${profitLossSnapshot.revenue.toLocaleString()}</p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Estimated Cost</p>
+              <p className="text-lg font-semibold text-amber-600">${profitLossSnapshot.cost.toLocaleString()}</p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">
+                {profitLossSnapshot.net >= 0 ? "Estimated Profit" : "Estimated Loss"}
+              </p>
+              <p className={`text-lg font-semibold ${profitLossSnapshot.net >= 0 ? "text-blue-600" : "text-red-600"}`}>
+                ${Math.abs(profitLossSnapshot.net).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="h-[240px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={profitLossChartData} margin={{ top: 10, right: 16, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                    fontSize: 12,
+                  }}
+                  formatter={(value) => [`$${Number(value || 0).toLocaleString()}`, "Amount"]}
+                />
+                <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+                  {profitLossChartData.map((item) => (
+                    <Cell key={item.name} fill={item.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-border bg-card p-4 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1238,7 +1371,8 @@ export default function ProjectWorkspace({
                       assignableMembers={projectEmployees}
                       canEditFields={canManageTeam}
                       canChangeStatus={
-                        canManageTeam || issue.assigneeUserId === profileUserId
+                        !isReadOnlyAdminView &&
+                        (canManageTeam || issue.assigneeUserId === profileUserId)
                       }
                       onStatusChange={handleIssueStatusChange}
                       onSave={handleIssueFieldSave}
@@ -1345,7 +1479,9 @@ export default function ProjectWorkspace({
             )
           ) : (
             <p className="text-xs text-muted-foreground">
-              Only manager/admin can create tasks. You can still update your assigned task status.
+              {isReadOnlyAdminView
+                ? "Admin project detail is view-only. Only the assigned project manager can create tasks."
+                : "Only the assigned project manager can create tasks. You can still update your assigned task status."}
             </p>
           )}
 
@@ -1379,11 +1515,13 @@ export default function ProjectWorkspace({
                       const statusMeta = clientTaskStatusConfig[task.status];
                       const StatusIcon = statusMeta.icon;
                       const canUpdateStatus =
-                        canManageTeam || task.assignedToUserId === profileUserId;
+                        !isReadOnlyAdminView &&
+                        (canManageTeam || task.assignedToUserId === profileUserId);
                       const canDeleteTask =
-                        canManageTeam ||
-                        task.assignedByUserId === profileUserId ||
-                        task.assignedToUserId === profileUserId;
+                        !isReadOnlyAdminView &&
+                        (canManageTeam ||
+                          task.assignedByUserId === profileUserId ||
+                          task.assignedToUserId === profileUserId);
 
                       return (
                         <tr key={task.id} className="border-b border-border last:border-b-0 align-top">
