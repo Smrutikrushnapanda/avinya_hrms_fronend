@@ -714,17 +714,6 @@ export default function UserProjectsPage() {
                       size="sm"
                       variant="outline"
                       className="flex-1 text-xs h-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openTaskDialog(project);
-                      }}
-                    >
-                      <ListTodo className="w-3 h-3 mr-1" />Assign Work
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 text-xs h-7"
                       onClick={(e) => openProgress(project, e)}
                     >
                       <TrendingUp className="w-3 h-3 mr-1" />Progress

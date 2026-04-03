@@ -397,8 +397,11 @@ export default function ProjectWorkspace({
           return;
         }
 
+        const today = new Date().toISOString().split("T")[0];
         const res = await getTimesheets({
           organizationId: orgId,
+          fromDate: today,
+          toDate: today,
           page: 1,
           limit: 500,
         });
@@ -870,7 +873,9 @@ export default function ProjectWorkspace({
           <div>
             <h2 className="font-semibold">Project Timesheet Entries</h2>
             <p className="text-xs text-muted-foreground">
-              Employees who submitted timesheet entries for this project.
+              {isClientProject
+                ? "Daily basics for today: who worked on this project and what work was done."
+                : "Employees who submitted timesheet entries for this project."}
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -906,7 +911,9 @@ export default function ProjectWorkspace({
                 {projectTimesheets.length === 0 ? (
                   <tr>
                     <td className="px-3 py-4 text-muted-foreground" colSpan={8}>
-                      No timesheet entries found for this project yet.
+                      {isClientProject
+                        ? "No timesheet entries found for this project today."
+                        : "No timesheet entries found for this project yet."}
                     </td>
                   </tr>
                 ) : (
