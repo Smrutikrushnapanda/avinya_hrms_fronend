@@ -3,24 +3,26 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ClipboardList, Plus, PanelRight, PanelRightClose, Edit3, Save, X } from "lucide-react";
+import { ArrowLeft, ClipboardList, Plus, PanelRight, PanelRightClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
+  getClientProject,
   createClientProjectTestCase,
   createClientProjectTestSheetTab,
   createProjectTestCase,
   createProjectTestSheetTab,
   getClientProjectEmployees,
   getClientProjectTestSheet,
+  getProject,
   getProjectEmployees,
   getProjectTestSheet,
+  updateClientProjectTestSheetColumns,
   updateClientProjectTestCase,
+  updateProjectTestSheetColumns,
   updateProjectTestCase,
 } from "@/app/api/api";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 
 type TestCaseStatus = "pending" | "resolved";
 type EditableField =
@@ -32,6 +34,8 @@ type EditableField =
   | "qaUserId"
   | "developerUserId"
   | "status";
+type BaseColumnKey = EditableField | "updatedAt";
+type ColumnKey = BaseColumnKey | `custom_${number}`;
 
 type ProjectMember = {
   userId: string;
@@ -88,21 +92,62 @@ type TestSheetLog = {
 type TestSheetPayload = {
   projectId: string;
   projectSource: "standalone" | "client";
+  columnHeaders?: Record<string, string> | null;
   tabs: TestSheetTab[];
   logs: TestSheetLog[];
 };
 
-const columnConfig: Array<{ key: EditableField | "updatedAt"; letter: string; title: string; widthClass: string }> = [
-  { key: "caseCode", letter: "A", title: "Case ID", widthClass: "min-w-[120px]" },
-  { key: "title", letter: "B", title: "Test Case", widthClass: "min-w-[220px]" },
-  { key: "steps", letter: "C", title: "Steps", widthClass: "min-w-[240px]" },
-  { key: "expectedResult", letter: "D", title: "Expected Result", widthClass: "min-w-[240px]" },
-  { key: "actualResult", letter: "E", title: "Actual Result", widthClass: "min-w-[240px]" },
-  { key: "qaUserId", letter: "F", title: "QA / Tester", widthClass: "min-w-[180px]" },
-  { key: "developerUserId", letter: "G", title: "Developer", widthClass: "min-w-[180px]" },
-  { key: "status", letter: "H", title: "Status", widthClass: "min-w-[140px]" },
-  { key: "updatedAt", letter: "I", title: "Updated At", widthClass: "min-w-[170px]" },
+type TestSheetColumn = {
+  key: ColumnKey;
+  letter: string;
+  defaultTitle: string;
+  widthClass: string;
+  isCustom?: boolean;
+};
+
+const defaultColumnCount = 26;
+
+const baseColumnConfig: Array<Omit<TestSheetColumn, "letter">> = [
+  { key: "caseCode", defaultTitle: "Case ID", widthClass: "min-w-[120px]" },
+  { key: "title", defaultTitle: "Test Case", widthClass: "min-w-[220px]" },
+  { key: "steps", defaultTitle: "Steps", widthClass: "min-w-[240px]" },
+  { key: "expectedResult", defaultTitle: "Expected Result", widthClass: "min-w-[240px]" },
+  { key: "actualResult", defaultTitle: "Actual Result", widthClass: "min-w-[240px]" },
+  { key: "qaUserId", defaultTitle: "QA / Tester", widthClass: "min-w-[180px]" },
+  { key: "developerUserId", defaultTitle: "Developer", widthClass: "min-w-[180px]" },
+  { key: "status", defaultTitle: "Status", widthClass: "min-w-[140px]" },
+  { key: "updatedAt", defaultTitle: "Updated At", widthClass: "min-w-[170px]" },
 ];
+
+const customColumnConfig: Array<Omit<TestSheetColumn, "letter">> = Array.from(
+  { length: Math.max(defaultColumnCount - baseColumnConfig.length, 0) },
+  (_, index) => ({
+    key: `custom_${index + 1}` as ColumnKey,
+    defaultTitle: `Column ${baseColumnConfig.length + index + 1}`,
+    widthClass: "min-w-[180px]",
+    isCustom: true,
+  }),
+);
+
+function getColumnLetter(index: number) {
+  let current = index + 1;
+  let letter = "";
+
+  while (current > 0) {
+    const remainder = (current - 1) % 26;
+    letter = String.fromCharCode(65 + remainder) + letter;
+    current = Math.floor((current - 1) / 26);
+  }
+
+  return letter;
+}
+
+const columnConfig: TestSheetColumn[] = [...baseColumnConfig, ...customColumnConfig].map((column, index) => ({
+  ...column,
+  letter: getColumnLetter(index),
+}));
+
+const testSheetTableMinWidth = 52 + columnConfig.length * 170;
 
 function personLabel(member: ProjectMember) {
   const name = [member.firstName, member.lastName].filter(Boolean).join(" ").trim();
@@ -133,7 +178,33 @@ function normalizeValue(field: EditableField, value: string): string | null | Te
   return trimmed || null;
 }
 
-function readCaseFieldValue(row: TestSheetCase, field: EditableField | "updatedAt") {
+function extractProjectName(data: Record<string, unknown> | null | undefined) {
+  const candidate =
+    (typeof data?.projectName === "string" && data.projectName) ||
+    (typeof data?.name === "string" && data.name) ||
+    (typeof data?.projectCode === "string" && data.projectCode) ||
+    "";
+
+  const sanitized = candidate.trim();
+  return sanitized || "Project";
+}
+
+function normalizeColumnHeaders(input: unknown): Record<string, string> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const parsed = input as Record<string, unknown>;
+  const normalized: Record<string, string> = {};
+
+  columnConfig.forEach((column) => {
+    const value = parsed[column.key];
+    if (typeof value === "string" && value.trim()) {
+      normalized[column.key] = value.trim();
+    }
+  });
+
+  return normalized;
+}
+
+function readCaseFieldValue(row: TestSheetCase, field: BaseColumnKey) {
   if (field === "updatedAt") return row.updatedAt;
   return row[field] ?? "";
 }
@@ -150,28 +221,25 @@ export default function ProjectTestSheetPlaceholder({
   const isClientProject = source === "client";
 
   const [payload, setPayload] = useState<TestSheetPayload | null>(null);
+  const [projectName, setProjectName] = useState("Project");
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [activeTabId, setActiveTabId] = useState("");
   const [loading, setLoading] = useState(false);
   const [creatingTab, setCreatingTab] = useState(false);
   const [addingRow, setAddingRow] = useState(false);
   const [newTabName, setNewTabName] = useState("");
-  const [selectedCell, setSelectedCell] = useState<{ caseId: string; field: EditableField | "updatedAt" } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ caseId: string; field: BaseColumnKey } | null>(null);
   const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [editingLogId, setEditingLogId] = useState<string | null>(null);
-  const [logEditData, setLogEditData] = useState<{ action: string; summary: string; fieldName: string }>({
-    action: "",
-    summary: "",
-    fieldName: "",
-  });
+  const [columnTitles, setColumnTitles] = useState<Record<string, string>>({});
+  const [savingColumnHeaders, setSavingColumnHeaders] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 20;
 
   // Column name editing state
-  const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
+  const [editingColumnKey, setEditingColumnKey] = useState<ColumnKey | null>(null);
   const [editingColumnTitle, setEditingColumnTitle] = useState("");
 
   // Version Log pagination
@@ -183,12 +251,14 @@ export default function ProjectTestSheetPlaceholder({
   const applyPayload = useCallback((nextPayload: TestSheetPayload) => {
     const safeTabs = Array.isArray(nextPayload?.tabs) ? nextPayload.tabs : [];
     const safeLogs = Array.isArray(nextPayload?.logs) ? nextPayload.logs : [];
+    const safeColumnHeaders = normalizeColumnHeaders(nextPayload?.columnHeaders);
 
     setPayload({
       ...nextPayload,
       tabs: safeTabs,
       logs: safeLogs,
     });
+    setColumnTitles(safeColumnHeaders);
 
     setActiveTabId((previous) => {
       if (safeTabs.some((tab) => tab.id === previous)) return previous;
@@ -203,16 +273,19 @@ export default function ProjectTestSheetPlaceholder({
 
     try {
       setLoading(true);
-      const [sheetRes, membersRes] = await Promise.all([
+      const [sheetRes, membersRes, projectRes] = await Promise.all([
         isClientProject ? getClientProjectTestSheet(projectId) : getProjectTestSheet(projectId),
         isClientProject ? getClientProjectEmployees(projectId) : getProjectEmployees(projectId),
+        isClientProject ? getClientProject(projectId) : getProject(projectId),
       ]);
 
       applyPayload(sheetRes.data as TestSheetPayload);
       setMembers(Array.isArray(membersRes.data) ? membersRes.data : []);
+      setProjectName(extractProjectName(projectRes.data as Record<string, unknown>));
     } catch (error) {
       console.error(error);
       toast.error("Failed to load project test sheet.");
+      setProjectName("Project");
     } finally {
       setLoading(false);
     }
@@ -222,7 +295,7 @@ export default function ProjectTestSheetPlaceholder({
     void fetchTestSheet();
   }, [fetchTestSheet]);
 
-  const tabs = payload?.tabs || [];
+  const tabs = useMemo(() => payload?.tabs ?? [], [payload?.tabs]);
 
   const activeTab = useMemo(() => {
     if (!tabs.length) return null;
@@ -246,6 +319,10 @@ export default function ProjectTestSheetPlaceholder({
   }, [payload?.logs, logPage]);
 
   const totalLogPages = Math.ceil((payload?.logs?.length || 0) / logsPerPage);
+  const logPageNumbers = useMemo(
+    () => Array.from({ length: totalLogPages }, (_, index) => index + 1),
+    [totalLogPages],
+  );
 
   const memberMap = useMemo(() => {
     const map = new Map<string, ProjectMember>();
@@ -260,6 +337,60 @@ export default function ProjectTestSheetPlaceholder({
     const value = readCaseFieldValue(row, selectedCell.field);
     return String(value ?? "");
   }, [activeTab, selectedCell]);
+
+  const getColumnTitle = useCallback(
+    (column: TestSheetColumn) => columnTitles[column.key] || column.defaultTitle,
+    [columnTitles],
+  );
+
+  const saveEditedColumnTitle = useCallback(async () => {
+    if (!editingColumnKey || !projectId) return;
+
+    const defaultTitle =
+      columnConfig.find((column) => column.key === editingColumnKey)?.defaultTitle || "";
+    const nextTitle = editingColumnTitle.trim();
+    const currentTitle = columnTitles[editingColumnKey] || defaultTitle;
+    const normalizedTitle = nextTitle || defaultTitle;
+
+    if (currentTitle === normalizedTitle) {
+      setEditingColumnKey(null);
+      setEditingColumnTitle("");
+      return;
+    }
+
+    const nextHeaders = { ...columnTitles };
+    if (!nextTitle || nextTitle === defaultTitle) {
+      delete nextHeaders[editingColumnKey];
+    } else {
+      nextHeaders[editingColumnKey] = nextTitle;
+    }
+
+    try {
+      setSavingColumnHeaders(true);
+      const response = isClientProject
+        ? await updateClientProjectTestSheetColumns(projectId, { columnHeaders: nextHeaders })
+        : await updateProjectTestSheetColumns(projectId, { columnHeaders: nextHeaders });
+      const nextPayload = response.data as TestSheetPayload;
+      setPayload((previous) => {
+        if (!previous) return nextPayload;
+        const safeLogs = Array.isArray(nextPayload?.logs) ? nextPayload.logs : previous.logs;
+        return {
+          ...previous,
+          logs: safeLogs,
+          columnHeaders: nextPayload?.columnHeaders || {},
+        };
+      });
+      setColumnTitles(normalizeColumnHeaders(nextPayload?.columnHeaders));
+      toast.success("Column name updated.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update column name.");
+    } finally {
+      setSavingColumnHeaders(false);
+      setEditingColumnKey(null);
+      setEditingColumnTitle("");
+    }
+  }, [columnTitles, editingColumnKey, editingColumnTitle, isClientProject, projectId]);
 
   const workspaceBasePath =
     mode === "admin" ? `/admin/projects/${projectId}` : `/user/projects/${projectId}`;
@@ -368,20 +499,6 @@ export default function ProjectTestSheetPlaceholder({
     }
   }, [activeTab, applyPayload, canEdit, isClientProject, projectId]);
 
-  const startEditLog = useCallback((log: TestSheetLog) => {
-    setEditingLogId(log.id);
-    setLogEditData({
-      action: log.action || "",
-      summary: log.summary || "",
-      fieldName: log.fieldName || "",
-    });
-  }, []);
-
-  const cancelEditLog = useCallback(() => {
-    setEditingLogId(null);
-    setLogEditData({ action: "", summary: "", fieldName: "" });
-  }, []);
-
   if (!projectId) {
     return <div className="p-6 text-sm text-red-500">Invalid project id.</div>;
   }
@@ -399,7 +516,7 @@ export default function ProjectTestSheetPlaceholder({
             </Button>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <ClipboardList className="w-6 h-6" />
-              Client Project Test Sheet
+              {projectName} Test Sheet
             </h1>
           </div>
           <div className="flex items-center gap-3">
@@ -433,7 +550,7 @@ export default function ProjectTestSheetPlaceholder({
           <div className="rounded-xl border border-border overflow-hidden bg-[#f4f6fb] flex-1">
             <div className="flex items-center justify-between px-3 py-2 border-b border-[#d6dce6] bg-[#e9edf4]">
               <div className="text-xs font-semibold uppercase tracking-wide text-[#213047]">
-                {isClientProject ? "Client Project Test Sheet" : "Project Test Sheet"}
+                {projectName} Test Sheet
               </div>
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={() => void handleAddRow()} disabled={!canEdit || addingRow || !activeTab}>
@@ -455,7 +572,10 @@ export default function ProjectTestSheetPlaceholder({
             </div>
 
             <div className="max-h-[70vh] overflow-auto bg-white">
-              <table className="min-w-[1560px] border-separate border-spacing-0 text-[12px]">
+              <table
+                className="border-separate border-spacing-0 text-[12px]"
+                style={{ minWidth: `${testSheetTableMinWidth}px` }}
+              >
                 <thead>
                   <tr>
                     <th className="sticky top-0 left-0 z-20 w-[52px] border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-[11px] font-semibold text-white">
@@ -468,7 +588,7 @@ export default function ProjectTestSheetPlaceholder({
                         onDoubleClick={() => {
                           if (canEdit) {
                             setEditingColumnKey(column.key);
-                            setEditingColumnTitle(column.title);
+                            setEditingColumnTitle(getColumnTitle(column));
                           }
                         }}
                       >
@@ -477,25 +597,23 @@ export default function ProjectTestSheetPlaceholder({
                           <Input
                             value={editingColumnTitle}
                             onChange={(e) => setEditingColumnTitle(e.target.value)}
-                            onBlur={() => {
-                              // Save would go here - for now just close
-                              setEditingColumnKey(null);
-                              toast.success("Column name updated (demo)");
-                            }}
+                            onBlur={() => void saveEditedColumnTitle()}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
-                                setEditingColumnKey(null);
-                                toast.success("Column name updated (demo)");
+                                e.preventDefault();
+                                (e.currentTarget as HTMLInputElement).blur();
                               }
                               if (e.key === "Escape") {
+                                e.preventDefault();
                                 setEditingColumnKey(null);
                               }
                             }}
                             autoFocus
+                            disabled={savingColumnHeaders}
                             className="h-5 bg-white text-black font-semibold mt-1"
                           />
                         ) : (
-                          <div>{column.title}</div>
+                          <div>{getColumnTitle(column)}</div>
                         )}
                       </th>
                     ))}
@@ -523,6 +641,14 @@ export default function ProjectTestSheetPlaceholder({
 
                         {columnConfig.map((column) => {
                           const cellKey = `${row.id}:${column.key}`;
+
+                          if (column.isCustom) {
+                            return (
+                              <td key={column.key} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
+                                --
+                              </td>
+                            );
+                          }
 
                           if (column.key === "updatedAt") {
                             return (
@@ -580,7 +706,7 @@ export default function ProjectTestSheetPlaceholder({
                             );
                           }
 
-                          const value = String(readCaseFieldValue(row, column.key) || "");
+                          const value = String(readCaseFieldValue(row, column.key as BaseColumnKey) || "");
                           const fieldKey = column.key as Exclude<
                             EditableField,
                             "status" | "qaUserId" | "developerUserId"
@@ -713,98 +839,41 @@ export default function ProjectTestSheetPlaceholder({
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
+                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[44px]">Sl</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[60px]">Action</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[100px]">Summary</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[80px]">Field</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[80px]">User</th>
                       <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[90px]">Date</th>
-                      <th className="border-b border-border px-3 py-2 text-center font-medium text-muted-foreground w-[50px]"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedLogs.length ? (
-                      paginatedLogs.map((log) => {
+                      paginatedLogs.map((log, index) => {
                         const actor =
                           log.changedByUserName ||
                           (log.changedByUserId
                             ? personLabel(memberMap.get(log.changedByUserId) || { userId: log.changedByUserId })
                             : "Unknown user");
-                        const isEditing = editingLogId === log.id;
                         return (
                           <tr key={log.id} className="border-b border-border hover:bg-muted/30">
                             <td className="px-3 py-2">
-                              {isEditing ? (
-                                <Input
-                                  value={logEditData.action}
-                                  onChange={(e) => setLogEditData({ ...logEditData, action: e.target.value })}
-                                  className="h-6 text-xs"
-                                />
-                              ) : (
-                                <span className="text-foreground">{log.action || "-"}</span>
-                              )}
+                              <span className="text-muted-foreground">{(logPage - 1) * logsPerPage + index + 1}</span>
                             </td>
                             <td className="px-3 py-2">
-                              {isEditing ? (
-                                <Input
-                                  value={logEditData.summary}
-                                  onChange={(e) => setLogEditData({ ...logEditData, summary: e.target.value })}
-                                  className="h-6 text-xs"
-                                />
-                              ) : (
-                                <span className="text-foreground">{log.summary || "-"}</span>
-                              )}
+                              <span className="text-foreground">{log.action || "-"}</span>
                             </td>
                             <td className="px-3 py-2">
-                              {isEditing ? (
-                                <Input
-                                  value={logEditData.fieldName}
-                                  onChange={(e) => setLogEditData({ ...logEditData, fieldName: e.target.value })}
-                                  className="h-6 text-xs"
-                                />
-                              ) : (
-                                <span className="text-muted-foreground">{log.fieldName || "-"}</span>
-                              )}
+                              <span className="text-foreground">{log.summary || "-"}</span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="text-muted-foreground">{log.fieldName || "-"}</span>
                             </td>
                             <td className="px-3 py-2">
                               <span className="text-muted-foreground">{actor}</span>
                             </td>
                             <td className="px-3 py-2">
                               <span className="text-muted-foreground">{formatDateTime(log.createdAt)}</span>
-                            </td>
-                            <td className="px-3 py-2">
-                              {isEditing ? (
-                                <div className="flex items-center gap-1 justify-center">
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6"
-                                    onClick={() => {
-                                      // Here we would save - for now just close edit mode
-                                      cancelEditLog();
-                                      toast.success("Log entry updated (demo)");
-                                    }}
-                                  >
-                                    <Save className="w-3 h-3 text-green-600" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6"
-                                    onClick={cancelEditLog}
-                                  >
-                                    <X className="w-3 h-3 text-red-600" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6"
-                                  onClick={() => startEditLog(log)}
-                                >
-                                  <Edit3 className="w-3 h-3" />
-                                </Button>
-                              )}
                             </td>
                           </tr>
                         );
@@ -825,45 +894,35 @@ export default function ProjectTestSheetPlaceholder({
                     <div className="text-xs text-muted-foreground">
                       {payload?.logs?.length} total entries
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap justify-end">
                       <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={logPage === 1}
-                        onClick={() => setLogPage(1)}
-                        className="h-6 w-6"
-                      >
-                        <span className="text-xs">«</span>
-                      </Button>
-                      <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
                         disabled={logPage === 1}
                         onClick={() => setLogPage(logPage - 1)}
-                        className="h-6 w-6"
+                        className="h-7 px-2 text-xs"
                       >
-                        <span className="text-xs">‹</span>
+                        Prev
                       </Button>
-                      <span className="text-xs text-muted-foreground px-1">
-                        {logPage}/{totalLogPages}
-                      </span>
+                      {logPageNumbers.map((pageNumber) => (
+                        <Button
+                          key={pageNumber}
+                          size="sm"
+                          variant={pageNumber === logPage ? "default" : "ghost"}
+                          onClick={() => setLogPage(pageNumber)}
+                          className="h-7 min-w-7 px-2 text-xs"
+                        >
+                          {pageNumber}
+                        </Button>
+                      ))}
                       <Button
-                        size="icon"
+                        size="sm"
                         variant="ghost"
                         disabled={logPage === totalLogPages}
                         onClick={() => setLogPage(logPage + 1)}
-                        className="h-6 w-6"
+                        className="h-7 px-2 text-xs"
                       >
-                        <span className="text-xs">›</span>
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={logPage === totalLogPages}
-                        onClick={() => setLogPage(totalLogPages)}
-                        className="h-6 w-6"
-                      >
-                        <span className="text-xs">»</span>
+                        Next
                       </Button>
                     </div>
                   </div>

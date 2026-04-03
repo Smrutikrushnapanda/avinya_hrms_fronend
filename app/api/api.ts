@@ -280,6 +280,10 @@ export const updateProjectIssue = (
   }>,
 ) => api.patch(`/projects/${id}/issues/${issueId}`, data);
 export const getProjectTestSheet = (id: string) => api.get(`/projects/${id}/test-sheet`);
+export const updateProjectTestSheetColumns = (
+  id: string,
+  data: { columnHeaders: Record<string, string> },
+) => api.patch(`/projects/${id}/test-sheet/columns`, data);
 export const createProjectTestSheetTab = (
   id: string,
   data: { name: string },
@@ -340,6 +344,10 @@ export const assignClientProjectEmployees = (
 export const removeClientProjectEmployee = (id: string, userId: string) =>
   api.delete(`/client-projects/${id}/employees/${userId}`);
 export const getClientProjectTestSheet = (id: string) => api.get(`/client-projects/${id}/test-sheet`);
+export const updateClientProjectTestSheetColumns = (
+  id: string,
+  data: { columnHeaders: Record<string, string> },
+) => api.patch(`/client-projects/${id}/test-sheet/columns`, data);
 export const createClientProjectTestSheetTab = (
   id: string,
   data: { name: string },
