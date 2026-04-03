@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import { useRouter } from "next/navigation";
 import {
   assignClientProjectEmployees,
@@ -45,6 +45,7 @@ import {
   Circle,
   Clock3,
   CheckCircle2,
+  ListTodo,
 } from "lucide-react";
 
 type ProjectStatus = "planning" | "active" | "on_hold" | "completed";
@@ -330,6 +331,7 @@ export default function ProjectWorkspace({
   });
   const [savingIssue, setSavingIssue] = useState(false);
   const [uploadingIssueImage, setUploadingIssueImage] = useState(false);
+  const assignWorkSectionRef = useRef<HTMLDivElement | null>(null);
 
   const isAdminOrManager = useMemo(
     () =>
@@ -768,6 +770,10 @@ export default function ProjectWorkspace({
     }
   };
 
+  const handleAssignWorkClick = () => {
+    assignWorkSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   if (loading) {
     return (
       <div className="p-6 text-sm text-muted-foreground">Loading project workspace...</div>
@@ -800,17 +806,10 @@ export default function ProjectWorkspace({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="capitalize">
-            {projectSource}
-          </Badge>
-          <Badge variant="outline" className="capitalize">
-            {project.status.replace("_", " ")}
-          </Badge>
-          <Badge variant="outline" className="capitalize">
-            {project.priority}
-          </Badge>
-        </div>
+        <Button size="sm" onClick={handleAssignWorkClick}>
+          <ListTodo className="w-4 h-4 mr-1" />
+          Assign Work
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -1098,7 +1097,11 @@ export default function ProjectWorkspace({
       </div>
 
       {!isClientProject ? (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+        <div
+          id="assign-work-section"
+          ref={assignWorkSectionRef}
+          className="rounded-xl border border-border bg-card p-4 space-y-4"
+        >
           <h2 className="font-semibold">Assigned Work Data Table</h2>
           <p className="text-xs text-muted-foreground">
             Managers can assign work to project employees. Team members can update assigned task status.
@@ -1240,7 +1243,11 @@ export default function ProjectWorkspace({
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+        <div
+          id="assign-work-section"
+          ref={assignWorkSectionRef}
+          className="rounded-xl border border-border bg-card p-4 space-y-4"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               <h2 className="font-semibold">Assign Work / Create Task</h2>
