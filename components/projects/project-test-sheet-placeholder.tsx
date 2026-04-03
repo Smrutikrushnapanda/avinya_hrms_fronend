@@ -158,13 +158,25 @@ export default function ProjectTestSheetPlaceholder({
   const [newTabName, setNewTabName] = useState("");
   const [selectedCell, setSelectedCell] = useState<{ caseId: string; field: EditableField | "updatedAt" } | null>(null);
   const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [logEditData, setLogEditData] = useState<{ action: string; summary: string; fieldName: string }>({
     action: "",
     summary: "",
     fieldName: "",
   });
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 20;
+
+  // Column name editing state
+  const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
+  const [editingColumnTitle, setEditingColumnTitle] = useState("");
+
+  // Version Log pagination
+  const [logPage, setLogPage] = useState(1);
+  const logsPerPage = 10;
 
   const canEdit = mode === "user";
 
@@ -182,6 +194,8 @@ export default function ProjectTestSheetPlaceholder({
       if (safeTabs.some((tab) => tab.id === previous)) return previous;
       return safeTabs[0]?.id || "";
     });
+    setCurrentPage(1); // Reset to first page when tabs change
+    setLogPage(1); // Reset log page when data changes
   }, []);
 
   const fetchTestSheet = useCallback(async () => {
@@ -214,6 +228,24 @@ export default function ProjectTestSheetPlaceholder({
     if (!tabs.length) return null;
     return tabs.find((tab) => tab.id === activeTabId) || tabs[0];
   }, [activeTabId, tabs]);
+
+  // Paginated cases for current page
+  const paginatedCases = useMemo(() => {
+    if (!activeTab?.cases) return [];
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    return activeTab.cases.slice(startIndex, startIndex + rowsPerPage);
+  }, [activeTab?.cases, currentPage]);
+
+  const totalPages = Math.ceil((activeTab?.cases?.length || 0) / rowsPerPage);
+
+  // Paginated logs for Version Log
+  const paginatedLogs = useMemo(() => {
+    if (!payload?.logs) return [];
+    const startIndex = (logPage - 1) * logsPerPage;
+    return payload.logs.slice(startIndex, startIndex + logsPerPage);
+  }, [payload?.logs, logPage]);
+
+  const totalLogPages = Math.ceil((payload?.logs?.length || 0) / logsPerPage);
 
   const memberMap = useMemo(() => {
     const map = new Map<string, ProjectMember>();
@@ -327,6 +359,7 @@ export default function ProjectTestSheetPlaceholder({
             status: "pending",
           });
       applyPayload(response.data as TestSheetPayload);
+      setCurrentPage(1); // Reset to first page after adding row
     } catch (error) {
       console.error(error);
       toast.error("Failed to add row.");
@@ -432,9 +465,38 @@ export default function ProjectTestSheetPlaceholder({
                       <th
                         key={column.key}
                         className={`sticky top-0 z-10 border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-left text-[11px] font-semibold text-white ${column.widthClass}`}
+                        onDoubleClick={() => {
+                          if (canEdit) {
+                            setEditingColumnKey(column.key);
+                            setEditingColumnTitle(column.title);
+                          }
+                        }}
                       >
                         <div className="font-mono text-[10px] text-white/75">{column.letter}</div>
-                        <div>{column.title}</div>
+                        {editingColumnKey === column.key ? (
+                          <Input
+                            value={editingColumnTitle}
+                            onChange={(e) => setEditingColumnTitle(e.target.value)}
+                            onBlur={() => {
+                              // Save would go here - for now just close
+                              setEditingColumnKey(null);
+                              toast.success("Column name updated (demo)");
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                setEditingColumnKey(null);
+                                toast.success("Column name updated (demo)");
+                              }
+                              if (e.key === "Escape") {
+                                setEditingColumnKey(null);
+                              }
+                            }}
+                            autoFocus
+                            className="h-5 bg-white text-black font-semibold mt-1"
+                          />
+                        ) : (
+                          <div>{column.title}</div>
+                        )}
                       </th>
                     ))}
                   </tr>
@@ -453,10 +515,10 @@ export default function ProjectTestSheetPlaceholder({
                       </td>
                     </tr>
                   ) : (
-                    activeTab.cases.map((row, rowIndex) => (
+                    paginatedCases.map((row, rowIndex) => (
                       <tr key={row.id} className="align-top">
                         <td className="sticky left-0 z-[5] border border-[#d6dce6] bg-[#f0f4f9] px-2 py-1.5 font-semibold text-[#31435b]">
-                          {rowIndex + 1}
+                          {(currentPage - 1) * rowsPerPage + rowIndex + 1}
                         </td>
 
                         {columnConfig.map((column) => {
@@ -549,6 +611,56 @@ export default function ProjectTestSheetPlaceholder({
                   )}
                 </tbody>
               </table>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-3 py-2 border-t border-[#d6dce6] bg-white">
+                  <div className="text-xs text-muted-foreground">
+                    Showing {((currentPage - 1) * rowsPerPage) + 1} to {Math.min(currentPage * rowsPerPage, activeTab?.cases?.length || 0)} of {activeTab?.cases?.length || 0} rows
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(1)}
+                      className="h-7 px-2 text-xs"
+                    >
+                      First
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Prev
+                    </Button>
+                    <span className="text-xs text-muted-foreground px-2">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Next
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(totalPages)}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Last
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="border-t border-[#d6dce6] bg-[#eef2f7] px-3 py-2 flex flex-wrap items-center gap-2">
@@ -610,8 +722,8 @@ export default function ProjectTestSheetPlaceholder({
                     </tr>
                   </thead>
                   <tbody>
-                    {payload?.logs?.length ? (
-                      payload.logs.map((log) => {
+                    {paginatedLogs.length ? (
+                      paginatedLogs.map((log) => {
                         const actor =
                           log.changedByUserName ||
                           (log.changedByUserId
@@ -706,6 +818,56 @@ export default function ProjectTestSheetPlaceholder({
                     )}
                   </tbody>
                 </table>
+
+                {/* Version Log Pagination */}
+                {totalLogPages > 1 && (
+                  <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/30">
+                    <div className="text-xs text-muted-foreground">
+                      {payload?.logs?.length} total entries
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        disabled={logPage === 1}
+                        onClick={() => setLogPage(1)}
+                        className="h-6 w-6"
+                      >
+                        <span className="text-xs">«</span>
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        disabled={logPage === 1}
+                        onClick={() => setLogPage(logPage - 1)}
+                        className="h-6 w-6"
+                      >
+                        <span className="text-xs">‹</span>
+                      </Button>
+                      <span className="text-xs text-muted-foreground px-1">
+                        {logPage}/{totalLogPages}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        disabled={logPage === totalLogPages}
+                        onClick={() => setLogPage(logPage + 1)}
+                        className="h-6 w-6"
+                      >
+                        <span className="text-xs">›</span>
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        disabled={logPage === totalLogPages}
+                        onClick={() => setLogPage(totalLogPages)}
+                        className="h-6 w-6"
+                      >
+                        <span className="text-xs">»</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
