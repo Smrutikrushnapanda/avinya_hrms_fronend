@@ -12,7 +12,25 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ClipboardList, Plus, PanelRight, PanelRightClose, Upload, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ClipboardList,
+  Plus,
+  PanelRight,
+  PanelRightClose,
+  Upload,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  EyeOff,
+  Type,
+  ChevronDown,
+  Palette,
+  ImageIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -47,7 +65,7 @@ type EditableField =
   | "developerUserId"
   | "status";
 type BaseColumnKey = EditableField | "updatedAt";
-type ColumnKey = BaseColumnKey | `custom_${number}`;
+type ColumnKey = BaseColumnKey;
 type ColumnInputType = "text" | "dropdown" | "color" | "image";
 
 type ProjectMember = {
@@ -118,53 +136,52 @@ type TestSheetColumn = {
   isCustom?: boolean;
 };
 
-const defaultColumnCount = 26;
-
+// Only 8 base columns + updatedAt — no custom columns K-Y
 const baseColumnConfig: Array<Omit<TestSheetColumn, "letter">> = [
-  { key: "caseCode", defaultTitle: "Case ID", defaultWidth: 150 },
-  { key: "title", defaultTitle: "Test Case", defaultWidth: 260 },
-  { key: "steps", defaultTitle: "Steps", defaultWidth: 270 },
-  { key: "expectedResult", defaultTitle: "Expected Result", defaultWidth: 270 },
-  { key: "actualResult", defaultTitle: "Actual Result", defaultWidth: 270 },
-  { key: "qaUserId", defaultTitle: "QA / Tester", defaultWidth: 210 },
-  { key: "developerUserId", defaultTitle: "Developer", defaultWidth: 210 },
-  { key: "status", defaultTitle: "Status", defaultWidth: 160 },
+  { key: "caseCode", defaultTitle: "Case ID", defaultWidth: 130 },
+  { key: "title", defaultTitle: "Test Case", defaultWidth: 240 },
+  { key: "steps", defaultTitle: "Steps", defaultWidth: 250 },
+  { key: "expectedResult", defaultTitle: "Expected Result", defaultWidth: 250 },
+  { key: "actualResult", defaultTitle: "Actual Result", defaultWidth: 250 },
+  { key: "qaUserId", defaultTitle: "QA / Tester", defaultWidth: 190 },
+  { key: "developerUserId", defaultTitle: "Developer", defaultWidth: 190 },
+  { key: "status", defaultTitle: "Status", defaultWidth: 140 },
 ];
 
 const updatedAtColumn: Omit<TestSheetColumn, "letter"> = {
   key: "updatedAt",
   defaultTitle: "Updated At",
-  defaultWidth: 190,
+  defaultWidth: 175,
 };
-
-const customColumnConfig: Array<Omit<TestSheetColumn, "letter">> = Array.from(
-  { length: Math.max(defaultColumnCount - baseColumnConfig.length - 1, 0) },
-  (_, index) => ({
-    key: `custom_${index + 1}` as ColumnKey,
-    defaultTitle: `Column ${baseColumnConfig.length + index + 1}`,
-    defaultWidth: 210,
-    isCustom: true,
-  }),
-);
 
 function getColumnLetter(index: number) {
   let current = index + 1;
   let letter = "";
-
   while (current > 0) {
     const remainder = (current - 1) % 26;
     letter = String.fromCharCode(65 + remainder) + letter;
     current = Math.floor((current - 1) / 26);
   }
-
   return letter;
 }
 
-const columnConfig: TestSheetColumn[] = [...baseColumnConfig, ...customColumnConfig, updatedAtColumn].map((column, index) => ({
-  ...column,
-  letter: getColumnLetter(index),
-}));
-const allColumnKeys = columnConfig.map((column) => column.key);
+const columnConfig: TestSheetColumn[] = [...baseColumnConfig, updatedAtColumn].map(
+  (column, index) => ({ ...column, letter: getColumnLetter(index) }),
+);
+const allColumnKeys = columnConfig.map((c) => c.key);
+
+// Per-column type override map (all base columns can be overridden)
+const BASE_COLUMN_TYPES: Record<ColumnKey, ColumnInputType> = {
+  caseCode: "text",
+  title: "text",
+  steps: "text",
+  expectedResult: "text",
+  actualResult: "text",
+  qaUserId: "dropdown",
+  developerUserId: "dropdown",
+  status: "dropdown",
+  updatedAt: "text",
+};
 
 function personLabel(member: ProjectMember) {
   const name = [member.firstName, member.lastName].filter(Boolean).join(" ").trim();
@@ -172,9 +189,9 @@ function personLabel(member: ProjectMember) {
 }
 
 function formatDateTime(value?: string | null) {
-  if (!value) return "--";
+  if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--";
+  if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString("en-IN", {
     year: "numeric",
     month: "short",
@@ -185,10 +202,7 @@ function formatDateTime(value?: string | null) {
 }
 
 function normalizeValue(field: EditableField, value: string): string | null | TestCaseStatus {
-  if (field === "status") {
-    return value === "resolved" ? "resolved" : "pending";
-  }
-
+  if (field === "status") return value === "resolved" ? "resolved" : "pending";
   const trimmed = value.trim();
   if (field === "title") return trimmed;
   if (field === "qaUserId" || field === "developerUserId") return trimmed || null;
@@ -201,44 +215,29 @@ function extractProjectName(data: Record<string, unknown> | null | undefined) {
     (typeof data?.name === "string" && data.name) ||
     (typeof data?.projectCode === "string" && data.projectCode) ||
     "";
-
-  const sanitized = candidate.trim();
-  return sanitized || "Project";
+  return candidate.trim() || "Project";
 }
 
 function normalizeColumnHeaders(input: unknown): Record<string, string> {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const parsed = input as Record<string, unknown>;
   const normalized: Record<string, string> = {};
-
-  columnConfig.forEach((column) => {
-    const value = parsed[column.key];
-    if (typeof value === "string" && value.trim()) {
-      normalized[column.key] = value.trim();
-    }
+  columnConfig.forEach((col) => {
+    const value = parsed[col.key];
+    if (typeof value === "string" && value.trim()) normalized[col.key] = value.trim();
   });
-
   return normalized;
 }
 
 function normalizeColumnOrder(input: unknown): ColumnKey[] {
   const fallback = [...allColumnKeys];
   if (!Array.isArray(input)) return fallback;
-
   const unique = new Set<ColumnKey>();
   input.forEach((value) => {
     const key = String(value || "") as ColumnKey;
-    if (allColumnKeys.includes(key)) {
-      unique.add(key);
-    }
+    if (allColumnKeys.includes(key)) unique.add(key);
   });
-
-  allColumnKeys.forEach((key) => {
-    if (!unique.has(key)) {
-      unique.add(key);
-    }
-  });
-
+  allColumnKeys.forEach((key) => { if (!unique.has(key)) unique.add(key); });
   return Array.from(unique);
 }
 
@@ -246,14 +245,10 @@ function normalizeColumnWidths(input: unknown): Record<string, number> {
   if (!input || typeof input !== "object" || Array.isArray(input)) return {};
   const parsed = input as Record<string, unknown>;
   const normalized: Record<string, number> = {};
-
   allColumnKeys.forEach((key) => {
     const raw = Number(parsed[key]);
-    if (Number.isFinite(raw) && raw >= 110 && raw <= 1000) {
-      normalized[key] = Math.round(raw);
-    }
+    if (Number.isFinite(raw) && raw >= 80 && raw <= 1200) normalized[key] = Math.round(raw);
   });
-
   return normalized;
 }
 
@@ -262,15 +257,25 @@ function readCaseFieldValue(row: TestSheetCase, field: BaseColumnKey) {
   return row[field] ?? "";
 }
 
-function customCellKey(tabId: string, caseId: string, columnKey: ColumnKey) {
-  return `${tabId}:${caseId}:${columnKey}`;
+// ─── Cell background based on type ──────────────────────────────────────────
+function getCellBg(type: ColumnInputType): string {
+  switch (type) {
+    case "dropdown": return "#f0f7ff";
+    case "color":    return "#fdf7ff";
+    case "image":    return "#f7fdf9";
+    default:         return "#ffffff";
+  }
 }
 
-export default function ProjectTestSheetPlaceholder({
-  mode,
-}: {
-  mode: "user" | "admin";
-}) {
+// ─── Type icon ───────────────────────────────────────────────────────────────
+function TypeIcon({ type, size = 10 }: { type: ColumnInputType; size?: number }) {
+  if (type === "dropdown") return <ChevronDown style={{ width: size, height: size }} />;
+  if (type === "color")    return <Palette     style={{ width: size, height: size }} />;
+  if (type === "image")    return <ImageIcon   style={{ width: size, height: size }} />;
+  return <Type style={{ width: size, height: size }} />;
+}
+
+export default function ProjectTestSheet({ mode }: { mode: "user" | "admin" }) {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const projectId = String(params?.id || "");
@@ -285,83 +290,69 @@ export default function ProjectTestSheetPlaceholder({
   const [creatingTab, setCreatingTab] = useState(false);
   const [addingRow, setAddingRow] = useState(false);
   const [newTabName, setNewTabName] = useState("");
-  const [selectedCell, setSelectedCell] = useState<{ caseId: string; field: ColumnKey } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ caseId: string; colKey: ColumnKey } | null>(null);
   const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [columnTitles, setColumnTitles] = useState<Record<string, string>>({});
   const [savingColumnHeaders, setSavingColumnHeaders] = useState(false);
-  const [columnTypes, setColumnTypes] = useState<Record<string, ColumnInputType>>({});
-  const [columnDropdownOptions, setColumnDropdownOptions] = useState<Record<string, string[]>>({});
   const [hiddenColumns, setHiddenColumns] = useState<Record<string, boolean>>({});
-  const [customCellValues, setCustomCellValues] = useState<Record<string, string>>({});
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(() => [...allColumnKeys]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [draggedColumnKey, setDraggedColumnKey] = useState<ColumnKey | null>(null);
   const [uploadingImageCellKey, setUploadingImageCellKey] = useState<string | null>(null);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
-  const [columnSettingKey, setColumnSettingKey] = useState<ColumnKey>(() => {
-    const firstCustom = columnConfig.find((column) => column.isCustom);
-    return firstCustom?.key || "title";
-  });
-  const [dropdownOptionsDraft, setDropdownOptionsDraft] = useState("");
+  const [editingColumnKey, setEditingColumnKey] = useState<ColumnKey | null>(null);
+  const [editingColumnTitle, setEditingColumnTitle] = useState("");
+
+  // Per-column type overrides (stored locally)
+  const [columnTypeOverrides, setColumnTypeOverrides] = useState<Partial<Record<ColumnKey, ColumnInputType>>>({});
+  // Per-column dropdown options (stored locally)
+  const [columnDropdownOptions, setColumnDropdownOptions] = useState<Record<string, string[]>>({});
+  // Per-cell custom values (for color/image/text override)
+  const [customCellValues, setCustomCellValues] = useState<Record<string, string>>({});
+
+  // Context menu for column header right-click
+  const [contextMenu, setContextMenu] = useState<{
+    columnKey: ColumnKey;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [dropdownDraft, setDropdownDraft] = useState("");
+
   const resizingStateRef = useRef<{
     columnKey: ColumnKey;
     startX: number;
     startWidth: number;
   } | null>(null);
 
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 20;
-
-  // Column name editing state
-  const [editingColumnKey, setEditingColumnKey] = useState<ColumnKey | null>(null);
-  const [editingColumnTitle, setEditingColumnTitle] = useState("");
-
-  // Version Log pagination
   const [logPage, setLogPage] = useState(1);
   const logsPerPage = 10;
 
   const canEdit = mode === "user";
-  const customUiStorageKey = useMemo(
-    () =>
-      projectId
-        ? `project-test-sheet:ui:${isClientProject ? "client" : "standalone"}:${projectId}`
-        : "",
+
+  const storageKey = useMemo(
+    () => projectId ? `pts:ui:${isClientProject ? "c" : "s"}:${projectId}` : "",
     [isClientProject, projectId],
   );
 
-  const applyPayload = useCallback((nextPayload: TestSheetPayload) => {
-    const safeTabs = Array.isArray(nextPayload?.tabs) ? nextPayload.tabs : [];
-    const safeLogs = Array.isArray(nextPayload?.logs) ? nextPayload.logs : [];
-    const safeColumnHeaders = normalizeColumnHeaders(nextPayload?.columnHeaders);
-
-    setPayload({
-      ...nextPayload,
-      tabs: safeTabs,
-      logs: safeLogs,
+  const applyPayload = useCallback((next: TestSheetPayload) => {
+    const safeTabs = Array.isArray(next?.tabs) ? next.tabs : [];
+    const safeLogs = Array.isArray(next?.logs) ? next.logs : [];
+    setPayload({ ...next, tabs: safeTabs, logs: safeLogs });
+    setColumnTitles(normalizeColumnHeaders(next?.columnHeaders));
+    setActiveTabId((prev) => {
+      const resolved = safeTabs.some((t) => t.id === prev) ? prev : safeTabs[0]?.id || "";
+      const count = safeTabs.find((t) => t.id === resolved)?.cases?.length || 0;
+      setCurrentPage((p) => Math.min(p, Math.max(1, Math.ceil(count / rowsPerPage))));
+      return resolved;
     });
-    setColumnTitles(safeColumnHeaders);
-
-    setActiveTabId((previous) => {
-      const resolvedTabId = safeTabs.some((tab) => tab.id === previous)
-        ? previous
-        : safeTabs[0]?.id || "";
-
-      const activeCasesCount =
-        safeTabs.find((tab) => tab.id === resolvedTabId)?.cases?.length || 0;
-      const maxPage = Math.max(1, Math.ceil(activeCasesCount / rowsPerPage));
-      setCurrentPage((previousPage) => Math.min(previousPage, maxPage));
-      return resolvedTabId;
-    });
-
-    const maxLogPage = Math.max(1, Math.ceil(safeLogs.length / logsPerPage));
-    setLogPage((previousPage) => Math.min(previousPage, maxLogPage));
-  }, [logsPerPage, rowsPerPage]);
+    setLogPage((p) => Math.min(p, Math.max(1, Math.ceil(safeLogs.length / logsPerPage))));
+  }, []);
 
   const fetchTestSheet = useCallback(async () => {
     if (!projectId) return;
-
     try {
       setLoading(true);
       const [sheetRes, membersRes, projectRes] = await Promise.all([
@@ -369,338 +360,128 @@ export default function ProjectTestSheetPlaceholder({
         isClientProject ? getClientProjectEmployees(projectId) : getProjectEmployees(projectId),
         isClientProject ? getClientProject(projectId) : getProject(projectId),
       ]);
-
       applyPayload(sheetRes.data as TestSheetPayload);
       setMembers(Array.isArray(membersRes.data) ? membersRes.data : []);
       setProjectName(extractProjectName(projectRes.data as Record<string, unknown>));
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to load project test sheet.");
-      setProjectName("Project");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load test sheet.");
     } finally {
       setLoading(false);
     }
   }, [applyPayload, isClientProject, projectId]);
 
-  useEffect(() => {
-    void fetchTestSheet();
-  }, [fetchTestSheet]);
+  useEffect(() => { void fetchTestSheet(); }, [fetchTestSheet]);
 
+  // Load from localStorage
   useEffect(() => {
-    if (!customUiStorageKey) return;
+    if (!storageKey) return;
     try {
-      const raw = localStorage.getItem(customUiStorageKey);
+      const raw = localStorage.getItem(storageKey);
       if (!raw) return;
-
       const parsed = JSON.parse(raw) as {
-        columnTypes?: Record<string, ColumnInputType>;
+        columnTypeOverrides?: Partial<Record<ColumnKey, ColumnInputType>>;
         columnDropdownOptions?: Record<string, string[]>;
         hiddenColumns?: Record<string, boolean>;
         customCellValues?: Record<string, string>;
         columnOrder?: ColumnKey[];
         columnWidths?: Record<string, number>;
       };
+      if (parsed?.columnTypeOverrides) setColumnTypeOverrides(parsed.columnTypeOverrides);
+      if (parsed?.columnDropdownOptions) setColumnDropdownOptions(parsed.columnDropdownOptions);
+      if (parsed?.hiddenColumns) setHiddenColumns(parsed.hiddenColumns);
+      if (parsed?.customCellValues) setCustomCellValues(parsed.customCellValues);
+      if (parsed?.columnOrder) setColumnOrder(normalizeColumnOrder(parsed.columnOrder));
+      if (parsed?.columnWidths) setColumnWidths(normalizeColumnWidths(parsed.columnWidths));
+    } catch (e) { console.error(e); }
+  }, [storageKey]);
 
-      if (parsed?.columnTypes && typeof parsed.columnTypes === "object") {
-        setColumnTypes(parsed.columnTypes);
-      }
-      if (parsed?.columnDropdownOptions && typeof parsed.columnDropdownOptions === "object") {
-        setColumnDropdownOptions(parsed.columnDropdownOptions);
-      }
-      if (parsed?.hiddenColumns && typeof parsed.hiddenColumns === "object") {
-        setHiddenColumns(parsed.hiddenColumns);
-      }
-      if (parsed?.customCellValues && typeof parsed.customCellValues === "object") {
-        setCustomCellValues(parsed.customCellValues);
-      }
-      if (parsed?.columnOrder) {
-        setColumnOrder(normalizeColumnOrder(parsed.columnOrder));
-      }
-      if (parsed?.columnWidths) {
-        setColumnWidths(normalizeColumnWidths(parsed.columnWidths));
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  }, [customUiStorageKey]);
-
+  // Persist to localStorage
   useEffect(() => {
-    if (!customUiStorageKey) return;
-    const payloadToStore = {
-      columnTypes,
-      columnDropdownOptions,
-      hiddenColumns,
-      customCellValues,
-      columnOrder,
-      columnWidths,
-    };
-    localStorage.setItem(customUiStorageKey, JSON.stringify(payloadToStore));
-  }, [
-    columnDropdownOptions,
-    columnOrder,
-    columnTypes,
-    columnWidths,
-    customCellValues,
-    customUiStorageKey,
-    hiddenColumns,
-  ]);
+    if (!storageKey) return;
+    localStorage.setItem(storageKey, JSON.stringify({
+      columnTypeOverrides, columnDropdownOptions, hiddenColumns,
+      customCellValues, columnOrder, columnWidths,
+    }));
+  }, [columnTypeOverrides, columnDropdownOptions, hiddenColumns, customCellValues, columnOrder, columnWidths, storageKey]);
 
-  const tabs = useMemo(() => payload?.tabs ?? [], [payload?.tabs]);
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [contextMenu]);
 
-  const activeTab = useMemo(() => {
-    if (!tabs.length) return null;
-    return tabs.find((tab) => tab.id === activeTabId) || tabs[0];
-  }, [activeTabId, tabs]);
+  const tabs = useMemo(() => payload?.tabs ?? [], [payload]);
+  const activeTab = useMemo(
+    () => (tabs.length ? tabs.find((t) => t.id === activeTabId) || tabs[0] : null),
+    [activeTabId, tabs],
+  );
 
-  // Paginated cases for current page
   const paginatedCases = useMemo(() => {
     if (!activeTab?.cases) return [];
-    const startIndex = (currentPage - 1) * rowsPerPage;
-    return activeTab.cases.slice(startIndex, startIndex + rowsPerPage);
-  }, [activeTab?.cases, currentPage]);
+    return activeTab.cases.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+  }, [activeTab, currentPage]);
 
   const totalPages = Math.ceil((activeTab?.cases?.length || 0) / rowsPerPage);
 
-  // Paginated logs for Version Log
   const paginatedLogs = useMemo(() => {
     if (!payload?.logs) return [];
-    const startIndex = (logPage - 1) * logsPerPage;
-    return payload.logs.slice(startIndex, startIndex + logsPerPage);
+    return payload.logs.slice((logPage - 1) * logsPerPage, logPage * logsPerPage);
   }, [payload?.logs, logPage]);
 
   const totalLogPages = Math.ceil((payload?.logs?.length || 0) / logsPerPage);
-  const logPageNumbers = useMemo(
-    () => Array.from({ length: totalLogPages }, (_, index) => index + 1),
-    [totalLogPages],
-  );
 
   const memberMap = useMemo(() => {
-    const map = new Map<string, ProjectMember>();
-    members.forEach((member) => map.set(member.userId, member));
-    return map;
+    const m = new Map<string, ProjectMember>();
+    members.forEach((mb) => m.set(mb.userId, mb));
+    return m;
   }, [members]);
 
   const getColumnTitle = useCallback(
-    (column: TestSheetColumn) => columnTitles[column.key] || column.defaultTitle,
+    (col: TestSheetColumn) => columnTitles[col.key] || col.defaultTitle,
     [columnTitles],
   );
 
+  const getEffectiveType = useCallback(
+    (key: ColumnKey): ColumnInputType =>
+      columnTypeOverrides[key] ?? BASE_COLUMN_TYPES[key] ?? "text",
+    [columnTypeOverrides],
+  );
+
   const orderedColumns = useMemo(() => {
-    const normalizedOrder = normalizeColumnOrder(columnOrder);
-    const map = new Map(columnConfig.map((column) => [column.key, column]));
-    return normalizedOrder
-      .map((columnKey) => map.get(columnKey))
-      .filter((column): column is TestSheetColumn => Boolean(column));
+    const normalized = normalizeColumnOrder(columnOrder);
+    const map = new Map(columnConfig.map((c) => [c.key, c]));
+    return normalized.map((k) => map.get(k)).filter((c): c is TestSheetColumn => !!c);
   }, [columnOrder]);
+
   const visibleColumns = useMemo(
-    () => orderedColumns.filter((column) => !hiddenColumns[column.key]),
+    () => orderedColumns.filter((c) => !hiddenColumns[c.key]),
     [hiddenColumns, orderedColumns],
   );
+
   const getColumnWidth = useCallback(
-    (column: TestSheetColumn) => {
-      const saved = columnWidths[column.key];
-      if (typeof saved === "number" && Number.isFinite(saved)) {
-        return Math.max(110, Math.min(1000, saved));
-      }
-      return column.defaultWidth;
+    (col: TestSheetColumn) => {
+      const saved = columnWidths[col.key];
+      return typeof saved === "number" && Number.isFinite(saved)
+        ? Math.max(80, Math.min(1200, saved))
+        : col.defaultWidth;
     },
     [columnWidths],
   );
-  const visibleTableMinWidth = useMemo(
-    () => 74 + visibleColumns.reduce((sum, column) => sum + getColumnWidth(column), 0),
+
+  const tableMinWidth = useMemo(
+    () => 60 + visibleColumns.reduce((s, c) => s + getColumnWidth(c), 0),
     [getColumnWidth, visibleColumns],
   );
-  const configurableColumns = useMemo(
-    () => visibleColumns.filter((column) => column.isCustom),
-    [visibleColumns],
-  );
-  const getColumnInputType = useCallback(
-    (columnKey: ColumnKey): ColumnInputType =>
-      columnTypes[columnKey] || "text",
-    [columnTypes],
-  );
-  const selectedConfigType = getColumnInputType(columnSettingKey);
 
-  useEffect(() => {
-    if (!selectedCell) return;
-    if (String(selectedCell.field).startsWith("custom_")) {
-      setColumnSettingKey(selectedCell.field);
-    }
-  }, [selectedCell]);
-
-  useEffect(() => {
-    if (!configurableColumns.length) return;
-    if (!configurableColumns.some((column) => column.key === columnSettingKey)) {
-      setColumnSettingKey(configurableColumns[0].key);
-    }
-  }, [columnSettingKey, configurableColumns]);
-
-  useEffect(() => {
-    const options = columnDropdownOptions[columnSettingKey] || [];
-    setDropdownOptionsDraft(options.join(", "));
-  }, [columnDropdownOptions, columnSettingKey]);
-
-  const saveEditedColumnTitle = useCallback(async () => {
-    if (!editingColumnKey || !projectId) return;
-
-    const defaultTitle =
-      columnConfig.find((column) => column.key === editingColumnKey)?.defaultTitle || "";
-    const nextTitle = editingColumnTitle.trim();
-    const currentTitle = columnTitles[editingColumnKey] || defaultTitle;
-    const normalizedTitle = nextTitle || defaultTitle;
-
-    if (currentTitle === normalizedTitle) {
-      setEditingColumnKey(null);
-      setEditingColumnTitle("");
-      return;
-    }
-
-    const nextHeaders = { ...columnTitles };
-    if (!nextTitle || nextTitle === defaultTitle) {
-      delete nextHeaders[editingColumnKey];
-    } else {
-      nextHeaders[editingColumnKey] = nextTitle;
-    }
-
-    try {
-      setSavingColumnHeaders(true);
-      const response = isClientProject
-        ? await updateClientProjectTestSheetColumns(projectId, { columnHeaders: nextHeaders })
-        : await updateProjectTestSheetColumns(projectId, { columnHeaders: nextHeaders });
-      const nextPayload = response.data as TestSheetPayload;
-      setPayload((previous) => {
-        if (!previous) return nextPayload;
-        const safeLogs = Array.isArray(nextPayload?.logs) ? nextPayload.logs : previous.logs;
-        return {
-          ...previous,
-          logs: safeLogs,
-          columnHeaders: nextPayload?.columnHeaders || {},
-        };
-      });
-      setColumnTitles(normalizeColumnHeaders(nextPayload?.columnHeaders));
-      toast.success("Column name updated.");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to update column name.");
-    } finally {
-      setSavingColumnHeaders(false);
-      setEditingColumnKey(null);
-      setEditingColumnTitle("");
-    }
-  }, [columnTitles, editingColumnKey, editingColumnTitle, isClientProject, projectId]);
-
-  const saveDropdownOptions = useCallback(() => {
-    if (!String(columnSettingKey).startsWith("custom_")) return;
-
-    const parsedOptions = dropdownOptionsDraft
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .slice(0, 50);
-
-    setColumnDropdownOptions((previous) => ({
-      ...previous,
-      [columnSettingKey]: parsedOptions,
-    }));
-    toast.success("Dropdown options updated.");
-  }, [columnSettingKey, dropdownOptionsDraft]);
-
-  const removeCustomColumn = useCallback((columnKey: ColumnKey) => {
-    if (!String(columnKey).startsWith("custom_")) return;
-
-    setHiddenColumns((previous) => ({ ...previous, [columnKey]: true }));
-    setColumnTypes((previous) => {
-      const next = { ...previous };
-      delete next[columnKey];
-      return next;
-    });
-    setColumnDropdownOptions((previous) => {
-      const next = { ...previous };
-      delete next[columnKey];
-      return next;
-    });
-    setColumnTitles((previous) => {
-      const next = { ...previous };
-      delete next[columnKey];
-      return next;
-    });
-    setCustomCellValues((previous) => {
-      const next: Record<string, string> = {};
-      Object.entries(previous).forEach(([key, value]) => {
-        if (!key.endsWith(`:${columnKey}`)) {
-          next[key] = value;
-        }
-      });
-      return next;
-    });
-    toast.success("Column removed.");
-  }, []);
-
-  const showAllColumns = useCallback(() => {
-    setHiddenColumns({});
-  }, []);
-
-  const handleColumnDragStart = useCallback(
-    (event: DragEvent<HTMLElement>, columnKey: ColumnKey) => {
-      if (!canEdit) return;
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", String(columnKey));
-      setDraggedColumnKey(columnKey);
-    },
-    [canEdit],
-  );
-
-  const handleColumnDragOver = useCallback(
-    (event: DragEvent<HTMLElement>) => {
-      if (!canEdit || !draggedColumnKey) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
-    },
-    [canEdit, draggedColumnKey],
-  );
-
-  const moveColumnTo = useCallback(
-    (targetKey: ColumnKey) => {
-      if (!draggedColumnKey || draggedColumnKey === targetKey) return;
-      setColumnOrder((previous) => {
-        const normalized = normalizeColumnOrder(previous);
-        const sourceIndex = normalized.indexOf(draggedColumnKey);
-        const targetIndex = normalized.indexOf(targetKey);
-        if (sourceIndex < 0 || targetIndex < 0) return normalized;
-
-        const nextOrder = [...normalized];
-        const [moved] = nextOrder.splice(sourceIndex, 1);
-        nextOrder.splice(targetIndex, 0, moved);
-        return nextOrder;
-      });
-      setDraggedColumnKey(null);
-    },
-    [draggedColumnKey],
-  );
-
-  const handleColumnDrop = useCallback(
-    (event: DragEvent<HTMLElement>, targetKey: ColumnKey) => {
-      event.preventDefault();
-      moveColumnTo(targetKey);
-    },
-    [moveColumnTo],
-  );
-
-  const stopColumnResize = useCallback(() => {
-    resizingStateRef.current = null;
-    document.body.style.cursor = "";
-    document.body.style.userSelect = "";
-  }, []);
-
+  // ── Column resize ──────────────────────────────────────────────────────────
   const startColumnResize = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>, column: TestSheetColumn) => {
-      event.preventDefault();
-      event.stopPropagation();
-      resizingStateRef.current = {
-        columnKey: column.key,
-        startX: event.clientX,
-        startWidth: getColumnWidth(column),
-      };
+    (e: ReactMouseEvent<HTMLDivElement>, col: TestSheetColumn) => {
+      e.preventDefault();
+      e.stopPropagation();
+      resizingStateRef.current = { columnKey: col.key, startX: e.clientX, startWidth: getColumnWidth(col) };
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
@@ -708,874 +489,904 @@ export default function ProjectTestSheetPlaceholder({
   );
 
   useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
-      const state = resizingStateRef.current;
-      if (!state) return;
-
-      const nextWidth = Math.max(110, Math.min(1000, state.startWidth + (event.clientX - state.startX)));
-      setColumnWidths((previous) => ({
-        ...previous,
-        [state.columnKey]: Math.round(nextWidth),
-      }));
+    const onMove = (e: MouseEvent) => {
+      const s = resizingStateRef.current;
+      if (!s) return;
+      const next = Math.max(80, Math.min(1200, s.startWidth + (e.clientX - s.startX)));
+      setColumnWidths((p) => ({ ...p, [s.columnKey]: Math.round(next) }));
     };
-
-    const handleMouseUp = () => {
+    const onUp = () => {
       if (resizingStateRef.current) {
-        stopColumnResize();
+        resizingStateRef.current = null;
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
       }
     };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [stopColumnResize]);
-
-  const setCustomValue = useCallback((row: TestSheetCase, columnKey: ColumnKey, value: string) => {
-    const key = customCellKey(row.tabId, row.id, columnKey);
-    setCustomCellValues((previous) => ({
-      ...previous,
-      [key]: value,
-    }));
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
   }, []);
 
-  const uploadImageForCell = useCallback(
-    async (file: File, row: TestSheetCase, columnKey: ColumnKey) => {
-      if (!file) return;
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("Image must be under 10MB.");
-        return;
-      }
+  // ── Column drag-reorder ────────────────────────────────────────────────────
+  const handleColumnDragStart = useCallback((e: DragEvent<HTMLElement>, key: ColumnKey) => {
+    if (!canEdit) return;
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedColumnKey(key);
+  }, [canEdit]);
 
-      const key = customCellKey(row.tabId, row.id, columnKey);
-      try {
-        setUploadingImageCellKey(key);
-        const formData = new FormData();
-        formData.append("file", file);
-        const response = await uploadFile(formData, { path: "projects/test-sheet", public: true });
-        const url =
-          response?.data?.url ||
-          response?.data?.secureUrl ||
-          response?.data?.fileUrl ||
-          "";
-        if (!url) {
-          toast.error("Image upload did not return a URL.");
-          return;
-        }
-        setCustomValue(row, columnKey, url);
-        toast.success("Image uploaded.");
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to upload image.");
-      } finally {
-        setUploadingImageCellKey(null);
-      }
-    },
-    [setCustomValue],
+  const handleColumnDrop = useCallback((e: DragEvent<HTMLElement>, targetKey: ColumnKey) => {
+    e.preventDefault();
+    if (!draggedColumnKey || draggedColumnKey === targetKey) { setDraggedColumnKey(null); return; }
+    setColumnOrder((prev) => {
+      const normalized = normalizeColumnOrder(prev);
+      const si = normalized.indexOf(draggedColumnKey);
+      const ti = normalized.indexOf(targetKey);
+      if (si < 0 || ti < 0) return normalized;
+      const next = [...normalized];
+      const [m] = next.splice(si, 1);
+      next.splice(ti, 0, m);
+      return next;
+    });
+    setDraggedColumnKey(null);
+  }, [draggedColumnKey]);
+
+  // ── Custom cell values ─────────────────────────────────────────────────────
+  const customKey = useCallback(
+    (row: TestSheetCase, colKey: ColumnKey) => `${row.tabId}:${row.id}:${colKey}`,
+    [],
   );
+
+  const setCustomVal = useCallback((row: TestSheetCase, colKey: ColumnKey, val: string) => {
+    setCustomCellValues((p) => ({ ...p, [customKey(row, colKey)]: val }));
+  }, [customKey]);
+
+  const getCustomVal = useCallback(
+    (row: TestSheetCase, colKey: ColumnKey) => customCellValues[customKey(row, colKey)] || "",
+    [customCellValues, customKey],
+  );
+
+  // ── Image upload ───────────────────────────────────────────────────────────
+  const uploadImage = useCallback(async (file: File, row: TestSheetCase, colKey: ColumnKey) => {
+    if (file.size > 10 * 1024 * 1024) { toast.error("Image must be under 10MB."); return; }
+    const ck = customKey(row, colKey);
+    try {
+      setUploadingImageCellKey(ck);
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await uploadFile(fd, { path: "projects/test-sheet", public: true });
+      const url = res?.data?.url || res?.data?.secureUrl || res?.data?.fileUrl || "";
+      if (!url) { toast.error("Upload did not return a URL."); return; }
+      setCustomVal(row, colKey, url);
+      toast.success("Image uploaded.");
+    } catch (e) { console.error(e); toast.error("Failed to upload image."); }
+    finally { setUploadingImageCellKey(null); }
+  }, [customKey, setCustomVal]);
 
   const handleImageDrop = useCallback(
-    (event: DragEvent<HTMLDivElement>, row: TestSheetCase, columnKey: ColumnKey) => {
-      event.preventDefault();
-      const file = event.dataTransfer?.files?.[0];
-      if (file) {
-        void uploadImageForCell(file, row, columnKey);
-      }
-    },
-    [uploadImageForCell],
-  );
+    (e: DragEvent<HTMLDivElement>, row: TestSheetCase, colKey: ColumnKey) => {
+      e.preventDefault();
+      const file = e.dataTransfer?.files?.[0];
+      if (file) void uploadImage(file, row, colKey);
+    }, [uploadImage]);
 
   const handleImagePaste = useCallback(
-    (event: ClipboardEvent<HTMLDivElement>, row: TestSheetCase, columnKey: ColumnKey) => {
-      const fileItem = Array.from(event.clipboardData.items).find((item) =>
-        item.type.startsWith("image/"),
-      );
-      if (!fileItem) return;
-      const file = fileItem.getAsFile();
-      if (file) {
-        event.preventDefault();
-        void uploadImageForCell(file, row, columnKey);
-      }
-    },
-    [uploadImageForCell],
-  );
+    (e: ClipboardEvent<HTMLDivElement>, row: TestSheetCase, colKey: ColumnKey) => {
+      const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith("image/"));
+      if (!item) return;
+      const file = item.getAsFile();
+      if (file) { e.preventDefault(); void uploadImage(file, row, colKey); }
+    }, [uploadImage]);
 
-  const workspaceBasePath =
-    mode === "admin" ? `/admin/projects/${projectId}` : `/user/projects/${projectId}`;
-  const workspacePath = isClientProject
-    ? `${workspaceBasePath}?source=client`
-    : workspaceBasePath;
+  // ── Commit cell ────────────────────────────────────────────────────────────
+  const commitCell = useCallback(async (row: TestSheetCase, field: EditableField, raw: string) => {
+    if (!canEdit) return;
+    const normalized = normalizeValue(field, raw);
+    const current = row[field] ?? null;
+    if (JSON.stringify(current) === JSON.stringify(normalized)) return;
 
-  const commitCell = useCallback(
-    async (row: TestSheetCase, field: EditableField, rawValue: string) => {
-      if (!canEdit) return;
+    const patch: Record<string, unknown> = {};
+    if (field === "status") patch.status = normalized as TestCaseStatus;
+    else patch[field] = normalized;
 
-      const normalized = normalizeValue(field, rawValue);
+    const ck = `${row.id}:${field}`;
+    try {
+      setSavingCellKey(ck);
+      const res = isClientProject
+        ? await updateClientProjectTestCase(projectId, row.id, patch)
+        : await updateProjectTestCase(projectId, row.id, patch);
+      applyPayload(res.data as TestSheetPayload);
+    } catch (e) { console.error(e); toast.error("Failed to save."); }
+    finally { setSavingCellKey(null); }
+  }, [applyPayload, canEdit, isClientProject, projectId]);
 
-      const current = row[field] ?? null;
-      if (JSON.stringify(current) === JSON.stringify(normalized)) return;
+  // ── Save column header ─────────────────────────────────────────────────────
+  const saveEditedColumnTitle = useCallback(async () => {
+    if (!editingColumnKey || !projectId) return;
+    const defaultTitle = columnConfig.find((c) => c.key === editingColumnKey)?.defaultTitle || "";
+    const next = editingColumnTitle.trim();
+    const current = columnTitles[editingColumnKey] || defaultTitle;
+    const normalized = next || defaultTitle;
+    if (current === normalized) { setEditingColumnKey(null); return; }
 
-      const patch: Partial<{
-        caseCode: string | null;
-        title: string;
-        steps: string | null;
-        expectedResult: string | null;
-        actualResult: string | null;
-        qaUserId: string | null;
-        developerUserId: string | null;
-        status: TestCaseStatus;
-      }> = {};
+    const nextHeaders = { ...columnTitles };
+    if (!next || next === defaultTitle) delete nextHeaders[editingColumnKey];
+    else nextHeaders[editingColumnKey] = next;
 
-      if (field === "status") {
-        patch.status = normalized as TestCaseStatus;
-      } else {
-        patch[field] = normalized as never;
-      }
+    try {
+      setSavingColumnHeaders(true);
+      const res = isClientProject
+        ? await updateClientProjectTestSheetColumns(projectId, { columnHeaders: nextHeaders })
+        : await updateProjectTestSheetColumns(projectId, { columnHeaders: nextHeaders });
+      const np = res.data as TestSheetPayload;
+      setPayload((p) => p ? { ...p, logs: np?.logs || p.logs, columnHeaders: np?.columnHeaders || {} } : np);
+      setColumnTitles(normalizeColumnHeaders(np?.columnHeaders));
+      toast.success("Column name updated.");
+    } catch (e) { console.error(e); toast.error("Failed to update column name."); }
+    finally { setSavingColumnHeaders(false); setEditingColumnKey(null); setEditingColumnTitle(""); }
+  }, [columnTitles, editingColumnKey, editingColumnTitle, isClientProject, projectId]);
 
-      const cellKey = `${row.id}:${field}`;
-      try {
-        setSavingCellKey(cellKey);
-        const response = isClientProject
-          ? await updateClientProjectTestCase(projectId, row.id, patch)
-          : await updateProjectTestCase(projectId, row.id, patch);
-        applyPayload(response.data as TestSheetPayload);
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to save cell value.");
-      } finally {
-        setSavingCellKey(null);
-      }
-    },
-    [applyPayload, canEdit, isClientProject, projectId],
-  );
-
+  // ── Add tab ────────────────────────────────────────────────────────────────
   const handleCreateTab = useCallback(async () => {
-    if (!canEdit || !projectId) return;
-
     const name = newTabName.trim();
-    if (!name) {
-      toast.error("Enter a tab name.");
-      return;
-    }
-
+    if (!name) { toast.error("Enter a tab name."); return; }
     try {
       setCreatingTab(true);
-      const response = isClientProject
+      const res = isClientProject
         ? await createClientProjectTestSheetTab(projectId, { name })
         : await createProjectTestSheetTab(projectId, { name });
-      applyPayload(response.data as TestSheetPayload);
+      applyPayload(res.data as TestSheetPayload);
       setNewTabName("");
-      toast.success("New sheet tab created.");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to create tab.");
-    } finally {
-      setCreatingTab(false);
-    }
-  }, [applyPayload, canEdit, isClientProject, newTabName, projectId]);
+      toast.success("Tab created.");
+    } catch (e) { console.error(e); toast.error("Failed to create tab."); }
+    finally { setCreatingTab(false); }
+  }, [applyPayload, isClientProject, newTabName, projectId]);
 
+  // ── Add row ────────────────────────────────────────────────────────────────
   const handleAddRow = useCallback(async () => {
-    if (!canEdit || !activeTab || !projectId) return;
-
+    if (!activeTab) return;
     try {
       setAddingRow(true);
-      const response = isClientProject
-        ? await createClientProjectTestCase(projectId, activeTab.id, {
-            title: "",
-            status: "pending",
-          })
-        : await createProjectTestCase(projectId, activeTab.id, {
-            title: "",
-            status: "pending",
-          });
-      const nextPayload = response.data as TestSheetPayload;
-      applyPayload(nextPayload);
-      const nextActiveTab = (nextPayload?.tabs || []).find((tab) => tab.id === activeTab.id);
-      const nextTotalPages = Math.max(1, Math.ceil((nextActiveTab?.cases?.length || 0) / rowsPerPage));
-      setCurrentPage(nextTotalPages);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to add row.");
-    } finally {
-      setAddingRow(false);
-    }
-  }, [activeTab, applyPayload, canEdit, isClientProject, projectId]);
+      const res = isClientProject
+        ? await createClientProjectTestCase(projectId, activeTab.id, { title: "", status: "pending" })
+        : await createProjectTestCase(projectId, activeTab.id, { title: "", status: "pending" });
+      const np = res.data as TestSheetPayload;
+      applyPayload(np);
+      const nextCount = (np?.tabs || []).find((t) => t.id === activeTab.id)?.cases?.length || 0;
+      setCurrentPage(Math.max(1, Math.ceil(nextCount / rowsPerPage)));
+    } catch (e) { console.error(e); toast.error("Failed to add row."); }
+    finally { setAddingRow(false); }
+  }, [activeTab, applyPayload, isClientProject, projectId]);
 
-  const handleDeleteRow = useCallback(
-    async (row: TestSheetCase) => {
-      if (!canEdit || !projectId) return;
+  // ── Delete row ─────────────────────────────────────────────────────────────
+  const handleDeleteRow = useCallback(async (row: TestSheetCase) => {
+    if (!canEdit) return;
+    if (!window.confirm("Delete this row permanently?")) return;
+    try {
+      setDeletingRowId(row.id);
+      const res = isClientProject
+        ? await deleteClientProjectTestCase(projectId, row.id)
+        : await deleteProjectTestCase(projectId, row.id);
+      applyPayload(res.data as TestSheetPayload);
+      toast.success("Row deleted.");
+    } catch (e) { console.error(e); toast.error("Failed to delete row."); }
+    finally { setDeletingRowId(null); }
+  }, [applyPayload, canEdit, isClientProject, projectId]);
 
-      const confirmDelete =
-        typeof window === "undefined"
-          ? true
-          : window.confirm("Delete this row permanently? This will remove it from the database.");
-      if (!confirmDelete) return;
+  const workspaceBasePath = mode === "admin" ? `/admin/projects/${projectId}` : `/user/projects/${projectId}`;
+  const workspacePath = isClientProject ? `${workspaceBasePath}?source=client` : workspaceBasePath;
 
-      try {
-        setDeletingRowId(row.id);
-        const response = isClientProject
-          ? await deleteClientProjectTestCase(projectId, row.id)
-          : await deleteProjectTestCase(projectId, row.id);
-        applyPayload(response.data as TestSheetPayload);
-        toast.success("Row deleted.");
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to delete row.");
-      } finally {
-        setDeletingRowId(null);
-      }
-    },
-    [applyPayload, canEdit, isClientProject, projectId],
-  );
+  if (!projectId) return <div className="p-6 text-sm text-red-500">Invalid project id.</div>;
 
-  if (!projectId) {
-    return <div className="p-6 text-sm text-red-500">Invalid project id.</div>;
-  }
+  // ── Styles ─────────────────────────────────────────────────────────────────
+  const headerBg = "#1e7e45";
+  const headerText = "#ffffff";
+  const rowNumBg = "#f1f3f4";
+  const borderColor = "#d0d7de";
+  const tabBarBg = "#f8f9fa";
+  const activeTabBg = "#1e7e45";
+  const frozenShadow = "2px 0 4px rgba(0,0,0,0.08)";
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="w-full p-4 md:p-6 space-y-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" asChild>
-              <Link href={workspacePath}>
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                Back
-              </Link>
-            </Button>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <ClipboardList className="w-6 h-6" />
-              {projectName} Test Sheet
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-muted-foreground">
-              {mode === "admin"
-                ? "Admin view is read-only. Manager and employee can edit in User mode."
-                : "QA/Tester can add test cases. Developers can update status to Resolved."}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSidebarOpen((prev) => !prev)}
-              className="ml-2"
-            >
-              {sidebarOpen ? (
-                <>
-                  <PanelRightClose className="w-4 h-4 mr-1" />
-                  Hide Log
-                </>
-              ) : (
-                <>
-                  <PanelRight className="w-4 h-4 mr-1" />
-                  Show Log
-                </>
-              )}
-            </Button>
-          </div>
+    <div style={{ minHeight: "100vh", background: "#f8f9fa", fontFamily: "'Google Sans', Arial, sans-serif" }}>
+      {/* ── Top bar ── */}
+      <div style={{
+        background: "#fff",
+        borderBottom: `1px solid ${borderColor}`,
+        padding: "8px 16px",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+      }}>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={workspacePath} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <ArrowLeft size={14} /> Back
+          </Link>
+        </Button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <ClipboardList size={20} color={headerBg} />
+          <span style={{ fontSize: 16, fontWeight: 600, color: "#202124" }}>
+            {projectName} · Test Sheet
+          </span>
         </div>
 
-        <div className={`flex gap-4 ${sidebarOpen ? 'xl:grid xl:grid-cols-[1fr_380px]' : ''}`}>
-          <div className="rounded-xl border border-border overflow-hidden bg-[#f4f6fb] flex-1">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[#d6dce6] bg-[#e9edf4]">
-              <div className="text-xs font-semibold uppercase tracking-wide text-[#213047]">
-                {projectName} Test Sheet
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" onClick={() => void handleAddRow()} disabled={!canEdit || addingRow || !activeTab}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  {addingRow ? "Adding..." : "Add Row"}
-                </Button>
-              </div>
-            </div>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: "#5f6368" }}>
+            {mode === "admin" ? "Admin — read only" : "QA can add cases · Devs can resolve"}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSidebarOpen((p) => !p)}
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}
+          >
+            {sidebarOpen ? <><PanelRightClose size={13} /> Hide Log</> : <><PanelRight size={13} /> Show Log</>}
+          </Button>
+        </div>
+      </div>
 
-            <div className="border-b border-[#d6dce6] bg-white px-3 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Columns
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Drag headers or chips to reorder. Drag right edge of headers to resize.
-                </div>
-                <Button size="sm" variant="ghost" className="ml-auto" onClick={showAllColumns}>
-                  Show Columns
-                </Button>
-              </div>
+      {/* ── Toolbar ── */}
+      <div style={{
+        background: "#fff",
+        borderBottom: `1px solid ${borderColor}`,
+        padding: "4px 16px",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+      }}>
+        <Button
+          size="sm"
+          onClick={() => void handleAddRow()}
+          disabled={!canEdit || addingRow || !activeTab}
+          style={{ background: headerBg, color: "#fff", border: "none", fontSize: 12, height: 30 }}
+        >
+          <Plus size={13} style={{ marginRight: 4 }} />
+          {addingRow ? "Adding…" : "Add Row"}
+        </Button>
 
-              <div className="mt-2 flex flex-wrap gap-2">
-                {configurableColumns.length ? (
-                  configurableColumns.map((column) => (
-                    <button
-                      key={column.key}
-                      type="button"
-                      draggable={canEdit}
-                      onClick={() => setColumnSettingKey(column.key)}
-                      onDragStart={(event) => handleColumnDragStart(event, column.key)}
-                      onDragOver={handleColumnDragOver}
-                      onDrop={(event) => handleColumnDrop(event, column.key)}
-                      onDragEnd={() => setDraggedColumnKey(null)}
-                      className={`rounded border px-2 py-1 text-xs transition ${
-                        columnSettingKey === column.key
-                          ? "border-[#217346] bg-[#e8f4ed] text-[#1d5f39]"
-                          : "border-[#d6dce6] bg-[#f8fafc] text-[#334155] hover:bg-[#eef3fb]"
-                      }`}
-                    >
-                      {column.letter} - {getColumnTitle(column)}
-                    </button>
-                  ))
-                ) : (
-                  <div className="text-xs text-muted-foreground">No custom columns available.</div>
-                )}
-              </div>
+        <div style={{ width: 1, height: 20, background: borderColor, margin: "0 4px" }} />
 
-              {configurableColumns.length ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Type
-                  </div>
-                  <select
-                    value={selectedConfigType}
-                    onChange={(event) =>
-                      setColumnTypes((previous) => ({
-                        ...previous,
-                        [columnSettingKey]: event.target.value as ColumnInputType,
-                      }))
-                    }
-                    className="h-8 min-w-[140px] rounded border border-[#d6dce6] bg-[#f8fafc] px-2 text-xs"
-                  >
-                    <option value="text">Text</option>
-                    <option value="dropdown">Dropdown</option>
-                    <option value="color">Color</option>
-                    <option value="image">Image</option>
-                  </select>
+        {/* Column visibility toggle */}
+        {columnConfig.map((col) => (
+          <button
+            key={col.key}
+            title={hiddenColumns[col.key] ? `Show ${getColumnTitle(col)}` : `Hide ${getColumnTitle(col)}`}
+            onClick={() => setHiddenColumns((p) => ({ ...p, [col.key]: !p[col.key] }))}
+            style={{
+              fontSize: 11,
+              padding: "2px 8px",
+              borderRadius: 4,
+              border: `1px solid ${hiddenColumns[col.key] ? "#d0d7de" : borderColor}`,
+              background: hiddenColumns[col.key] ? "#fafafa" : "#fff",
+              color: hiddenColumns[col.key] ? "#bbb" : "#333",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              height: 28,
+            }}
+          >
+            {hiddenColumns[col.key] ? <EyeOff size={10} /> : <Eye size={10} />}
+            {col.letter}
+          </button>
+        ))}
+      </div>
 
-                  {selectedConfigType === "dropdown" ? (
-                    <>
-                      <Input
-                        value={dropdownOptionsDraft}
-                        onChange={(event) => setDropdownOptionsDraft(event.target.value)}
-                        placeholder="Dropdown options (comma separated)"
-                        className="h-8 w-[280px] bg-[#f8fafc] text-xs"
-                      />
-                      <Button size="sm" variant="outline" onClick={saveDropdownOptions}>
-                        Save Options
-                      </Button>
-                    </>
-                  ) : null}
+      {/* ── Main area ── */}
+      <div style={{ display: "flex", gap: 0, height: "calc(100vh - 110px)" }}>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => removeCustomColumn(columnSettingKey)}
-                  >
-                    Hide Selected Column
-                  </Button>
-                </div>
-              ) : null}
-            </div>
+        {/* ── Sheet ── */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-            <div className="max-h-[70vh] overflow-auto bg-white">
-              <table
-                className="border-separate border-spacing-0 text-[12px]"
-                style={{ minWidth: `${visibleTableMinWidth}px` }}
-              >
-                <thead>
-                  <tr>
-                    <th className="sticky top-0 left-0 z-20 w-[74px] border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-[11px] font-semibold text-white">
-                      Row
-                    </th>
-                    {visibleColumns.map((column) => (
+          {/* Scrollable table */}
+          <div style={{ flex: 1, overflow: "auto", background: "#fff" }}>
+            <table
+              style={{
+                borderCollapse: "collapse",
+                minWidth: `${tableMinWidth}px`,
+                fontSize: 12,
+                tableLayout: "fixed",
+              }}
+            >
+              {/* ── Column header row ── */}
+              <thead>
+                <tr>
+                  {/* Row number header */}
+                  <th style={{
+                    position: "sticky", top: 0, left: 0, zIndex: 30,
+                    width: 60, minWidth: 60,
+                    background: headerBg, color: headerText,
+                    border: `1px solid rgba(255,255,255,0.2)`,
+                    padding: "6px 4px",
+                    textAlign: "center",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    boxShadow: frozenShadow,
+                  }}>
+                    #
+                  </th>
+
+                  {visibleColumns.map((col) => {
+                    const type = getEffectiveType(col.key);
+                    const w = getColumnWidth(col);
+                    return (
                       <th
-                        key={column.key}
+                        key={col.key}
                         draggable={canEdit}
-                        onDragStart={(event) => handleColumnDragStart(event, column.key)}
-                        onDragOver={handleColumnDragOver}
-                        onDrop={(event) => handleColumnDrop(event, column.key)}
+                        onDragStart={(e) => handleColumnDragStart(e, col.key)}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                        onDrop={(e) => handleColumnDrop(e, col.key)}
                         onDragEnd={() => setDraggedColumnKey(null)}
-                        className={`sticky top-0 z-10 border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-left text-[11px] font-semibold text-white relative ${
-                          draggedColumnKey === column.key ? "opacity-80" : ""
-                        }`}
-                        style={{
-                          width: `${getColumnWidth(column)}px`,
-                          minWidth: `${getColumnWidth(column)}px`,
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setContextMenu({ columnKey: col.key, x: e.clientX, y: e.clientY });
+                          setDropdownDraft((columnDropdownOptions[col.key] || []).join(", "));
                         }}
-                        onDoubleClick={() => {
-                          if (canEdit) {
-                            setEditingColumnKey(column.key);
-                            setEditingColumnTitle(getColumnTitle(column));
-                          }
+                        style={{
+                          position: "sticky", top: 0, zIndex: 20,
+                          width: w, minWidth: w,
+                          background: draggedColumnKey === col.key ? "#155d35" : headerBg,
+                          color: headerText,
+                          border: `1px solid rgba(255,255,255,0.2)`,
+                          padding: "0",
+                          userSelect: "none",
+                          cursor: canEdit ? "grab" : "default",
+                          verticalAlign: "middle",
                         }}
                       >
-                        <div className="font-mono text-[10px] text-white/75">{column.letter}</div>
-                        {editingColumnKey === column.key ? (
-                          <Input
-                            value={editingColumnTitle}
-                            onChange={(e) => setEditingColumnTitle(e.target.value)}
-                            onBlur={() => void saveEditedColumnTitle()}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                (e.currentTarget as HTMLInputElement).blur();
-                              }
-                              if (e.key === "Escape") {
-                                e.preventDefault();
-                                setEditingColumnKey(null);
-                              }
-                            }}
-                            autoFocus
-                            disabled={savingColumnHeaders}
-                            className="h-5 bg-white text-black font-semibold mt-1"
-                          />
-                        ) : (
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate">{getColumnTitle(column)}</span>
+                        <div style={{ padding: "4px 8px", position: "relative" }}>
+                          {/* letter + type icon */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 1 }}>
+                            <span style={{ fontSize: 9, opacity: 0.65, fontFamily: "monospace" }}>{col.letter}</span>
+                            <TypeIcon type={type} size={9} />
                           </div>
-                        )}
-                        {canEdit ? (
-                          <button
-                            type="button"
-                            onMouseDown={(event) => startColumnResize(event, column)}
-                            className="absolute right-0 top-0 h-full w-2 cursor-col-resize bg-white/0 hover:bg-white/25"
-                            title="Resize column"
-                          />
-                        ) : null}
+
+                          {/* editable column title */}
+                          {editingColumnKey === col.key ? (
+                            <input
+                              autoFocus
+                              value={editingColumnTitle}
+                              onChange={(e) => setEditingColumnTitle(e.target.value)}
+                              onBlur={() => void saveEditedColumnTitle()}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+                                if (e.key === "Escape") { setEditingColumnKey(null); setEditingColumnTitle(""); }
+                              }}
+                              disabled={savingColumnHeaders}
+                              style={{
+                                width: "100%", background: "rgba(255,255,255,0.2)", border: "none",
+                                borderBottom: "1px solid #fff", color: "#fff", fontSize: 12,
+                                fontWeight: 600, outline: "none", padding: "1px 2px",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{ fontWeight: 600, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: canEdit ? "text" : "default" }}
+                              onDoubleClick={() => {
+                                if (!canEdit) return;
+                                setEditingColumnKey(col.key);
+                                setEditingColumnTitle(getColumnTitle(col));
+                              }}
+                              title={`${getColumnTitle(col)} · Right-click to change type`}
+                            >
+                              {getColumnTitle(col)}
+                            </div>
+                          )}
+
+                          {/* resize handle */}
+                          {canEdit && (
+                            <div
+                              onMouseDown={(e) => startColumnResize(e, col)}
+                              style={{
+                                position: "absolute", right: 0, top: 0, width: 4, height: "100%",
+                                cursor: "col-resize",
+                                background: "rgba(255,255,255,0)",
+                              }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.35)"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0)"; }}
+                            />
+                          )}
+                        </div>
                       </th>
-                    ))}
+                    );
+                  })}
+                </tr>
+              </thead>
+
+              {/* ── Body ── */}
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={visibleColumns.length + 1} style={{ padding: "24px 16px", color: "#5f6368", fontSize: 13 }}>
+                      Loading test sheet…
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={visibleColumns.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
-                        Loading test sheet...
-                      </td>
-                    </tr>
-                  ) : !activeTab || activeTab.cases.length === 0 ? (
-                    <tr>
-                      <td colSpan={visibleColumns.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
-                        No test cases yet. Use <span className="font-medium text-foreground">Add Row</span> to start.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedCases.map((row, rowIndex) => (
-                      <tr key={row.id} className="align-top">
-                        <td className="sticky left-0 z-[5] border border-[#d6dce6] bg-[#f0f4f9] px-2 py-1.5 text-[#31435b]">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-semibold">
-                              {(currentPage - 1) * rowsPerPage + rowIndex + 1}
-                            </span>
-                            {canEdit ? (
+                ) : !activeTab || activeTab.cases.length === 0 ? (
+                  <tr>
+                    <td colSpan={visibleColumns.length + 1} style={{ padding: "24px 16px", color: "#5f6368", fontSize: 13 }}>
+                      No test cases yet. Click <strong>Add Row</strong> to start.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedCases.map((row, ri) => {
+                    const globalIndex = (currentPage - 1) * rowsPerPage + ri + 1;
+                    const isSelected = selectedCell?.caseId === row.id;
+                    return (
+                      <tr
+                        key={row.id}
+                        style={{ background: isSelected ? "#f0f7ff" : ri % 2 === 0 ? "#fff" : "#fafbfc" }}
+                      >
+                        {/* Row number */}
+                        <td style={{
+                          position: "sticky", left: 0, zIndex: 5,
+                          width: 60, minWidth: 60,
+                          background: rowNumBg,
+                          border: `1px solid ${borderColor}`,
+                          padding: "2px 4px",
+                          textAlign: "center",
+                          color: "#5f6368",
+                          fontSize: 11,
+                          fontWeight: 500,
+                          boxShadow: frozenShadow,
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 2 }}>
+                            <span>{globalIndex}</span>
+                            {canEdit && (
                               <button
-                                type="button"
-                                disabled={deletingRowId === row.id}
-                                className="inline-flex h-5 w-5 items-center justify-center rounded border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-60"
-                                onClick={() => void handleDeleteRow(row)}
                                 title="Delete row"
+                                disabled={deletingRowId === row.id}
+                                onClick={() => void handleDeleteRow(row)}
+                                style={{
+                                  display: "none", // shown on row hover via CSS trick — use inline style
+                                  width: 14, height: 14, padding: 0, border: "none",
+                                  borderRadius: 2, background: "#fee2e2", color: "#dc2626",
+                                  cursor: "pointer", alignItems: "center", justifyContent: "center",
+                                }}
+                                className="row-del-btn"
                               >
-                                <X className="h-3 w-3" />
+                                <X size={9} />
                               </button>
-                            ) : null}
+                            )}
                           </div>
                         </td>
 
-                        {visibleColumns.map((column) => {
-                          const cellKey = `${row.id}:${column.key}`;
-                          const columnWidth = getColumnWidth(column);
-                          const columnStyle = {
-                            width: `${columnWidth}px`,
-                            minWidth: `${columnWidth}px`,
+                        {visibleColumns.map((col) => {
+                          const w = getColumnWidth(col);
+                          const colStyle: React.CSSProperties = {
+                            width: w, minWidth: w,
+                            border: `1px solid ${borderColor}`,
+                            padding: 0,
+                            verticalAlign: "top",
                           };
 
-                          if (column.isCustom) {
-                            const type = getColumnInputType(column.key);
-                            const customKey = customCellKey(row.tabId, row.id, column.key);
-                            const customValue = customCellValues[customKey] || "";
-                            const dropdownOptions = columnDropdownOptions[column.key] || [];
+                          const isSelectedCell = selectedCell?.caseId === row.id && selectedCell?.colKey === col.key;
+                          const cellBorder = isSelectedCell ? "2px solid #1e7e45" : `1px solid ${borderColor}`;
+                          const isSaving = savingCellKey === `${row.id}:${col.key}`;
 
-                            if (type === "dropdown") {
-                              return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
-                                  <select
-                                    value={customValue}
-                                    disabled={!canEdit}
-                                    className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 text-[12px]"
-                                    onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
-                                    onChange={(event) => setCustomValue(row, column.key, event.target.value)}
-                                  >
-                                    <option value="">Select</option>
-                                    {dropdownOptions.map((option) => (
-                                      <option key={option} value={option}>
-                                        {option}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </td>
-                              );
-                            }
+                          const type = getEffectiveType(col.key);
+                          const bg = getCellBg(type);
 
-                            if (type === "color") {
-                              return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="color"
-                                      value={customValue || "#2563eb"}
-                                      disabled={!canEdit}
-                                      className="h-8 w-10 rounded border border-[#d6dce6] bg-white p-1"
-                                      onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
-                                      onChange={(event) => setCustomValue(row, column.key, event.target.value)}
-                                    />
-                                    <span
-                                      className="truncate text-xs font-medium"
-                                      style={{ color: customValue || "#2563eb" }}
-                                    >
-                                      {customValue || "Pick color"}
-                                    </span>
-                                  </div>
-                                </td>
-                              );
-                            }
+                          // ── updatedAt ──
+                          if (col.key === "updatedAt") {
+                            return (
+                              <td key={col.key} style={{ ...colStyle, border: cellBorder, background: "#fafafa" }}>
+                                <div style={{ padding: "5px 8px", fontSize: 11, color: "#5f6368", whiteSpace: "nowrap" }}>
+                                  {formatDateTime(row.updatedAt)}
+                                </div>
+                              </td>
+                            );
+                          }
 
-                            if (type === "image") {
-                              return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
-                                  <div
-                                    className="rounded border border-dashed border-[#c8d2e1] p-1"
-                                    onDragOver={(event) => event.preventDefault()}
-                                    onDrop={(event) => handleImageDrop(event, row, column.key)}
-                                    onPaste={(event) => handleImagePaste(event, row, column.key)}
-                                  >
-                                    {customValue ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img
-                                        src={customValue}
-                                        alt="Uploaded"
-                                        className="h-16 w-full rounded object-cover"
-                                      />
-                                    ) : (
-                                      <div className="h-16 w-full rounded bg-[#f8fafc] text-[10px] text-muted-foreground flex items-center justify-center text-center px-2">
-                                        Paste, drag-drop, or upload image
-                                      </div>
-                                    )}
-                                    <label className="mt-1 flex cursor-pointer items-center justify-center gap-1 rounded border border-[#d6dce6] bg-white px-2 py-1 text-[10px]">
-                                      <Upload className="h-3 w-3" />
-                                      {uploadingImageCellKey === customKey ? "Uploading..." : "Upload"}
+                          // ── IMAGE type ──
+                          if (type === "image") {
+                            const cKey = customKey(row, col.key);
+                            const val = getCustomVal(row, col.key);
+                            return (
+                              <td key={col.key} style={{ ...colStyle, border: cellBorder, background: "#f7fdf9" }}>
+                                <div
+                                  onClick={() => setSelectedCell({ caseId: row.id, colKey: col.key })}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => handleImageDrop(e, row, col.key)}
+                                  onPaste={(e) => handleImagePaste(e, row, col.key)}
+                                  tabIndex={0}
+                                  style={{ padding: 4, outline: "none" }}
+                                >
+                                  {val ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={val} alt="cell" style={{ width: "100%", height: 64, objectFit: "cover", borderRadius: 3 }} />
+                                  ) : (
+                                    <div style={{
+                                      height: 64, border: "1.5px dashed #aad4b8", borderRadius: 4,
+                                      display: "flex", flexDirection: "column", alignItems: "center",
+                                      justifyContent: "center", color: "#94a3b8", fontSize: 10, gap: 2,
+                                    }}>
+                                      <ImageIcon size={14} />
+                                      <span>Drop / Paste / Upload</span>
+                                    </div>
+                                  )}
+                                  {canEdit && (
+                                    <label style={{
+                                      marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center",
+                                      gap: 4, fontSize: 10, color: "#1e7e45", cursor: "pointer",
+                                      padding: "2px 6px", borderRadius: 3, background: "#f0faf4",
+                                      border: "1px solid #c3e6cb",
+                                    }}>
+                                      <Upload size={9} />
+                                      {uploadingImageCellKey === cKey ? "Uploading…" : "Upload"}
                                       <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        disabled={!canEdit || uploadingImageCellKey === customKey}
-                                        onChange={(event) => {
-                                          const file = event.target.files?.[0];
-                                          if (file) {
-                                            void uploadImageForCell(file, row, column.key);
-                                          }
-                                          event.currentTarget.value = "";
+                                        type="file" accept="image/*" style={{ display: "none" }}
+                                        disabled={uploadingImageCellKey === cKey}
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) void uploadImage(file, row, col.key);
+                                          e.currentTarget.value = "";
                                         }}
                                       />
                                     </label>
-                                  </div>
-                                </td>
-                              );
-                            }
-
-                            return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
-                                <Input
-                                  value={customValue}
-                                  disabled={!canEdit}
-                                  className="h-8 border-[#d6dce6] text-[12px]"
-                                  onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
-                                  onChange={(event) => setCustomValue(row, column.key, event.target.value)}
-                                />
+                                  )}
+                                </div>
                               </td>
                             );
                           }
 
-                          if (column.key === "updatedAt") {
+                          // ── COLOR type ──
+                          if (type === "color") {
+                            const val = getCustomVal(row, col.key) || row[col.key as EditableField] as string || "#2563eb";
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
-                                {formatDateTime(row.updatedAt)}
-                              </td>
-                            );
-                          }
-
-                          if (column.key === "qaUserId" || column.key === "developerUserId") {
-                            const fieldKey = column.key as "qaUserId" | "developerUserId";
-                            const selectedValue = String(readCaseFieldValue(row, column.key) || "");
-                            return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
-                                <select
-                                  value={selectedValue}
-                                  disabled={!canEdit || savingCellKey === cellKey}
-                                  className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 text-[12px]"
-                                  onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
-                                  onChange={(event) =>
-                                    void commitCell(row, fieldKey, event.target.value)
-                                  }
+                              <td key={col.key} style={{ ...colStyle, border: cellBorder, background: val + "22" }}>
+                                <div
+                                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px" }}
+                                  onClick={() => setSelectedCell({ caseId: row.id, colKey: col.key })}
                                 >
-                                  <option value="">Unassigned</option>
-                                  {members.map((member) => (
-                                    <option key={member.userId} value={member.userId}>
-                                      {personLabel(member)}
-                                    </option>
+                                  <input
+                                    type="color"
+                                    value={val}
+                                    disabled={!canEdit}
+                                    style={{ width: 28, height: 28, border: "none", padding: 0, borderRadius: 3, cursor: "pointer", background: "transparent" }}
+                                    onChange={(e) => setCustomVal(row, col.key, e.target.value)}
+                                  />
+                                  <span style={{ fontSize: 11, fontFamily: "monospace", color: val, fontWeight: 600 }}>{val}</span>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          // ── DROPDOWN type — members ──
+                          if (col.key === "qaUserId" || col.key === "developerUserId") {
+                            const fieldKey = col.key as "qaUserId" | "developerUserId";
+                            const val = String(readCaseFieldValue(row, col.key) || "");
+                            return (
+                              <td key={col.key} style={{ ...colStyle, border: cellBorder, background: bg }}>
+                                <select
+                                  value={val}
+                                  disabled={!canEdit || isSaving}
+                                  onFocus={() => setSelectedCell({ caseId: row.id, colKey: col.key })}
+                                  onChange={(e) => void commitCell(row, fieldKey, e.target.value)}
+                                  style={{
+                                    width: "100%", height: "100%", minHeight: 30,
+                                    border: "none", outline: "none",
+                                    background: bg, fontSize: 12, padding: "5px 8px",
+                                    appearance: "auto", color: "#202124",
+                                  }}
+                                >
+                                  <option value="">— Unassigned —</option>
+                                  {members.map((m) => (
+                                    <option key={m.userId} value={m.userId}>{personLabel(m)}</option>
                                   ))}
                                 </select>
                               </td>
                             );
                           }
 
-                          if (column.key === "status") {
+                          // ── DROPDOWN type — status ──
+                          if (col.key === "status") {
+                            const statusBg = row.status === "resolved" ? "#dcfce7" : "#fef9c3";
+                            const statusColor = row.status === "resolved" ? "#166534" : "#854d0e";
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                              <td key={col.key} style={{ ...colStyle, border: cellBorder, background: statusBg }}>
                                 <select
                                   value={row.status}
-                                  disabled={!canEdit || savingCellKey === cellKey}
-                                  className={`h-8 w-full rounded border px-2 text-[12px] ${
-                                    row.status === "resolved"
-                                      ? "border-green-300 bg-green-50 text-green-700"
-                                      : "border-amber-300 bg-amber-50 text-amber-700"
-                                  }`}
-                                  onFocus={() => setSelectedCell({ caseId: row.id, field: "status" })}
-                                  onChange={(event) =>
-                                    void commitCell(row, "status", event.target.value)
-                                  }
+                                  disabled={!canEdit || isSaving}
+                                  onFocus={() => setSelectedCell({ caseId: row.id, colKey: col.key })}
+                                  onChange={(e) => void commitCell(row, "status", e.target.value)}
+                                  style={{
+                                    width: "100%", height: "100%", minHeight: 30,
+                                    border: "none", outline: "none",
+                                    background: "transparent", fontSize: 12,
+                                    padding: "5px 8px", fontWeight: 600, color: statusColor,
+                                    appearance: "auto",
+                                  }}
                                 >
-                                  <option value="pending">Pending</option>
-                                  <option value="resolved">Resolved</option>
+                                  <option value="pending">⏳ Pending</option>
+                                  <option value="resolved">✅ Resolved</option>
                                 </select>
                               </td>
                             );
                           }
 
-                          const value = String(readCaseFieldValue(row, column.key as BaseColumnKey) || "");
-                          const fieldKey = column.key as Exclude<
-                            EditableField,
-                            "status" | "qaUserId" | "developerUserId"
-                          >;
+                          // ── DROPDOWN type — custom options ──
+                          if (type === "dropdown") {
+                            const opts = columnDropdownOptions[col.key] || [];
+                            const val = getCustomVal(row, col.key);
+                            return (
+                              <td key={col.key} style={{ ...colStyle, border: cellBorder, background: bg }}>
+                                <select
+                                  value={val}
+                                  disabled={!canEdit}
+                                  onFocus={() => setSelectedCell({ caseId: row.id, colKey: col.key })}
+                                  onChange={(e) => setCustomVal(row, col.key, e.target.value)}
+                                  style={{
+                                    width: "100%", height: "100%", minHeight: 30,
+                                    border: "none", outline: "none",
+                                    background: bg, fontSize: 12, padding: "5px 8px",
+                                    appearance: "auto", color: "#202124",
+                                  }}
+                                >
+                                  <option value="">— Select —</option>
+                                  {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                                </select>
+                              </td>
+                            );
+                          }
 
+                          // ── TEXT type (default) ──
+                          const val = String(readCaseFieldValue(row, col.key as BaseColumnKey) || "");
+                          const fieldKey = col.key as Exclude<EditableField, "status" | "qaUserId" | "developerUserId">;
                           return (
-                            <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
-                              <Input
-                                key={`${row.id}:${column.key}:${row.updatedAt}`}
-                                defaultValue={value}
-                                disabled={!canEdit || savingCellKey === cellKey}
-                                className="h-8 border-[#d6dce6] text-[12px]"
-                                onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
-                                onBlur={(event) =>
-                                  void commitCell(row, fieldKey, event.target.value)
-                                }
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter") {
-                                    (event.currentTarget as HTMLInputElement).blur();
-                                  }
+                            <td key={col.key} style={{ ...colStyle, border: cellBorder, background: bg }}>
+                              <input
+                                key={`${row.id}:${col.key}:${row.updatedAt}`}
+                                defaultValue={val}
+                                disabled={!canEdit || isSaving}
+                                onFocus={() => setSelectedCell({ caseId: row.id, colKey: col.key })}
+                                onBlur={(e) => void commitCell(row, fieldKey, e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur(); }}
+                                style={{
+                                  width: "100%", border: "none", outline: "none",
+                                  background: "transparent", fontSize: 12,
+                                  padding: "5px 8px", color: "#202124",
+                                  minHeight: 30,
                                 }}
                               />
                             </td>
                           );
                         })}
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-3 py-2 border-t border-[#d6dce6] bg-white">
-                  <div className="text-xs text-muted-foreground">
-                    Showing {((currentPage - 1) * rowsPerPage) + 1} to {Math.min(currentPage * rowsPerPage, activeTab?.cases?.length || 0)} of {activeTab?.cases?.length || 0} rows
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(1)}
-                      className="h-7 px-2 text-xs"
-                    >
-                      First
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                      className="h-7 px-2 text-xs"
-                    >
-                      Prev
-                    </Button>
-                    <span className="text-xs text-muted-foreground px-2">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                      className="h-7 px-2 text-xs"
-                    >
-                      Next
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(totalPages)}
-                      className="h-7 px-2 text-xs"
-                    >
-                      Last
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-[#d6dce6] bg-[#eef2f7] px-3 py-2 flex flex-wrap items-center gap-2">
-              {(tabs || []).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTabId(tab.id)}
-                  className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
-                    activeTab?.id === tab.id
-                      ? "border-[#217346] bg-[#217346] text-white"
-                      : "border-[#c8d2e1] bg-white text-[#34485f] hover:bg-[#f8fbff]"
-                  }`}
-                >
-                  {tab.name}
-                </button>
-              ))}
-
-              {canEdit ? (
-                <div className="ml-auto flex items-center gap-2">
-                  <Input
-                    value={newTabName}
-                    onChange={(event) => setNewTabName(event.target.value)}
-                    placeholder="New tab name"
-                    className="h-8 w-[170px] bg-white"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void handleCreateTab()}
-                    disabled={creatingTab}
-                  >
-                    {creatingTab ? "Creating..." : "Add Tab"}
-                  </Button>
-                </div>
-              ) : null}
-            </div>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
 
-          {sidebarOpen && (
-            <div className="rounded-xl border border-border bg-card w-full xl:w-[380px] shrink-0">
-              <div className="border-b border-border px-4 py-3">
-                <h2 className="text-sm font-semibold">Version Log</h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Every save in the sheet is tracked like lightweight version history.
-                </p>
-              </div>
-              <div className="overflow-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted/50 sticky top-0">
-                    <tr>
-                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[44px]">Sl</th>
-                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[60px]">Action</th>
-                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[100px]">Summary</th>
-                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[80px]">Field</th>
-                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[80px]">User</th>
-                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[90px]">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedLogs.length ? (
-                      paginatedLogs.map((log, index) => {
-                        const actor =
-                          log.changedByUserName ||
-                          (log.changedByUserId
-                            ? personLabel(memberMap.get(log.changedByUserId) || { userId: log.changedByUserId })
-                            : "Unknown user");
-                        return (
-                          <tr key={log.id} className="border-b border-border hover:bg-muted/30">
-                            <td className="px-3 py-2">
-                              <span className="text-muted-foreground">{(logPage - 1) * logsPerPage + index + 1}</span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="text-foreground">{log.action || "-"}</span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="text-foreground">{log.summary || "-"}</span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="text-muted-foreground">{log.fieldName || "-"}</span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="text-muted-foreground">{actor}</span>
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className="text-muted-foreground">{formatDateTime(log.createdAt)}</span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground">
-                          No changes logged yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-
-                {/* Version Log Pagination */}
-                {totalLogPages > 1 && (
-                  <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-muted/30">
-                    <div className="text-xs text-muted-foreground">
-                      {payload?.logs?.length} total entries
-                    </div>
-                    <div className="flex items-center gap-1 flex-wrap justify-end">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={logPage === 1}
-                        onClick={() => setLogPage(logPage - 1)}
-                        className="h-7 px-2 text-xs"
-                      >
-                        Prev
-                      </Button>
-                      {logPageNumbers.map((pageNumber) => (
-                        <Button
-                          key={pageNumber}
-                          size="sm"
-                          variant={pageNumber === logPage ? "default" : "ghost"}
-                          onClick={() => setLogPage(pageNumber)}
-                          className="h-7 min-w-7 px-2 text-xs"
-                        >
-                          {pageNumber}
-                        </Button>
-                      ))}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={logPage === totalLogPages}
-                        onClick={() => setLogPage(logPage + 1)}
-                        className="h-7 px-2 text-xs"
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
+          {/* ── Pagination ── */}
+          {totalPages > 1 && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "6px 16px", borderTop: `1px solid ${borderColor}`,
+              background: "#fff", fontSize: 12, color: "#5f6368",
+            }}>
+              <span>
+                Rows {((currentPage - 1) * rowsPerPage) + 1}–{Math.min(currentPage * rowsPerPage, activeTab?.cases?.length || 0)} of {activeTab?.cases?.length || 0}
+              </span>
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} style={pgBtn}><ChevronsLeft size={12} /></button>
+                <button onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1} style={pgBtn}><ChevronLeft size={12} /></button>
+                <span style={{ padding: "0 8px" }}>Page {currentPage} / {totalPages}</span>
+                <button onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages} style={pgBtn}><ChevronRight size={12} /></button>
+                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} style={pgBtn}><ChevronsRight size={12} /></button>
               </div>
             </div>
           )}
+
+          {/* ── Tab bar ── */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 0,
+            background: tabBarBg, borderTop: `1px solid ${borderColor}`,
+            padding: "0 8px", flexWrap: "nowrap", overflowX: "auto",
+            minHeight: 36,
+          }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTabId(tab.id)}
+                style={{
+                  padding: "6px 16px", fontSize: 12, border: "none",
+                  borderRight: `1px solid ${borderColor}`,
+                  background: activeTab?.id === tab.id ? activeTabBg : "transparent",
+                  color: activeTab?.id === tab.id ? "#fff" : "#333",
+                  cursor: "pointer", whiteSpace: "nowrap",
+                  fontWeight: activeTab?.id === tab.id ? 600 : 400,
+                }}
+              >
+                {tab.name}
+              </button>
+            ))}
+
+            {canEdit && (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto", padding: "0 8px" }}>
+                <input
+                  value={newTabName}
+                  onChange={(e) => setNewTabName(e.target.value)}
+                  placeholder="New tab name"
+                  onKeyDown={(e) => { if (e.key === "Enter") void handleCreateTab(); }}
+                  style={{
+                    height: 26, border: `1px solid ${borderColor}`, borderRadius: 4,
+                    padding: "0 8px", fontSize: 12, outline: "none", background: "#fff",
+                  }}
+                />
+                <button
+                  onClick={() => void handleCreateTab()}
+                  disabled={creatingTab}
+                  style={{
+                    height: 26, padding: "0 10px", fontSize: 12,
+                    background: headerBg, color: "#fff", border: "none",
+                    borderRadius: 4, cursor: "pointer",
+                  }}
+                >
+                  {creatingTab ? "…" : "+ Add Tab"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* ── Version Log sidebar ── */}
+        {sidebarOpen && (
+          <div style={{
+            width: 380, flexShrink: 0,
+            borderLeft: `1px solid ${borderColor}`,
+            background: "#fff",
+            display: "flex", flexDirection: "column",
+            overflow: "hidden",
+          }}>
+            <div style={{ padding: "10px 14px", borderBottom: `1px solid ${borderColor}` }}>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "#202124" }}>Version Log</div>
+              <div style={{ fontSize: 11, color: "#5f6368", marginTop: 2 }}>Every save is tracked here.</div>
+            </div>
+
+            <div style={{ flex: 1, overflow: "auto" }}>
+              <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
+                <thead style={{ position: "sticky", top: 0, background: "#f8f9fa" }}>
+                  <tr>
+                    {["#", "Action", "Summary", "Field", "User", "Date"].map((h) => (
+                      <th key={h} style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600, color: "#5f6368", borderBottom: `1px solid ${borderColor}`, whiteSpace: "nowrap", fontSize: 11 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedLogs.length ? paginatedLogs.map((log, i) => {
+                    const actor = log.changedByUserName ||
+                      (log.changedByUserId ? personLabel(memberMap.get(log.changedByUserId) || { userId: log.changedByUserId }) : "Unknown");
+                    return (
+                      <tr key={log.id} style={{ borderBottom: `1px solid ${borderColor}` }}>
+                        <td style={{ padding: "5px 8px", color: "#5f6368" }}>{(logPage - 1) * logsPerPage + i + 1}</td>
+                        <td style={{ padding: "5px 8px" }}>{log.action || "—"}</td>
+                        <td style={{ padding: "5px 8px", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={log.summary || ""}>{log.summary || "—"}</td>
+                        <td style={{ padding: "5px 8px", color: "#5f6368" }}>{log.fieldName || "—"}</td>
+                        <td style={{ padding: "5px 8px", color: "#5f6368" }}>{actor}</td>
+                        <td style={{ padding: "5px 8px", color: "#5f6368", whiteSpace: "nowrap" }}>{formatDateTime(log.createdAt)}</td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={6} style={{ padding: "20px 12px", textAlign: "center", color: "#aaa" }}>No changes logged yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {totalLogPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderTop: `1px solid ${borderColor}`, fontSize: 11, color: "#5f6368" }}>
+                <span>{payload?.logs?.length} entries</span>
+                <div style={{ display: "flex", gap: 2 }}>
+                  <button onClick={() => setLogPage(p => p - 1)} disabled={logPage === 1} style={pgBtn}><ChevronLeft size={11} /></button>
+                  <span style={{ padding: "0 6px" }}>{logPage}/{totalLogPages}</span>
+                  <button onClick={() => setLogPage(p => p + 1)} disabled={logPage === totalLogPages} style={pgBtn}><ChevronRight size={11} /></button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* ── Context menu (right-click column header to change type) ── */}
+      {contextMenu && canEdit && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            left: contextMenu.x, top: contextMenu.y,
+            zIndex: 9999,
+            background: "#fff",
+            border: `1px solid ${borderColor}`,
+            borderRadius: 6,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+            padding: 12,
+            minWidth: 240,
+            fontSize: 12,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 8, color: "#202124" }}>
+            Column Type · {columnConfig.find(c => c.key === contextMenu.columnKey)?.letter}
+          </div>
+
+          {(["text", "dropdown", "color", "image"] as ColumnInputType[]).map((t) => {
+            const active = getEffectiveType(contextMenu.columnKey) === t;
+            return (
+              <button
+                key={t}
+                onClick={() => {
+                  setColumnTypeOverrides((p) => ({ ...p, [contextMenu.columnKey]: t }));
+                  if (t !== "dropdown") setContextMenu(null);
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  width: "100%", padding: "6px 10px",
+                  background: active ? "#e8f5e9" : "transparent",
+                  border: active ? `1px solid #1e7e45` : "1px solid transparent",
+                  borderRadius: 4, cursor: "pointer", marginBottom: 2,
+                  color: active ? "#1e7e45" : "#333", fontWeight: active ? 600 : 400,
+                }}
+              >
+                <TypeIcon type={t} size={12} />
+                <span style={{ textTransform: "capitalize" }}>{t}</span>
+              </button>
+            );
+          })}
+
+          {getEffectiveType(contextMenu.columnKey) === "dropdown" && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11, color: "#5f6368", marginBottom: 4 }}>Options (comma-separated)</div>
+              <input
+                value={dropdownDraft}
+                onChange={(e) => setDropdownDraft(e.target.value)}
+                placeholder="Option A, Option B, Option C"
+                style={{
+                  width: "100%", border: `1px solid ${borderColor}`, borderRadius: 4,
+                  padding: "5px 8px", fontSize: 12, outline: "none",
+                }}
+              />
+              <button
+                onClick={() => {
+                  const opts = dropdownDraft.split(",").map(s => s.trim()).filter(Boolean).slice(0, 50);
+                  setColumnDropdownOptions((p) => ({ ...p, [contextMenu.columnKey]: opts }));
+                  toast.success("Dropdown options saved.");
+                  setContextMenu(null);
+                }}
+                style={{
+                  marginTop: 6, width: "100%", padding: "5px 0",
+                  background: headerBg, color: "#fff", border: "none",
+                  borderRadius: 4, cursor: "pointer", fontSize: 12,
+                }}
+              >
+                Save Options
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Row hover delete button CSS ── */}
+      <style>{`
+        tr:hover .row-del-btn { display: inline-flex !important; }
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f3f4; }
+        ::-webkit-scrollbar-thumb { background: #c1c8cd; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9aa3aa; }
+      `}</style>
     </div>
   );
 }
+
+const pgBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  width: 26, height: 26, border: "1px solid #d0d7de",
+  borderRadius: 4, background: "#fff", cursor: "pointer",
+  color: "#333", padding: 0,
+};
+pgBtn[":disabled" as string] = { opacity: 0.4, cursor: "default" };
