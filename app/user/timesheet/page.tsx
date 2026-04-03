@@ -27,6 +27,7 @@ export default function TimesheetPage() {
   const [organizationId, setOrganizationId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [isApprover, setIsApprover] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [directReports, setDirectReports] = useState<DirectReport[]>([]);
   const [selectedReportUserId, setSelectedReportUserId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -38,8 +39,17 @@ export default function TimesheetPage() {
         const profile = profileRes.data || {};
         const orgId = profile.organizationId ?? "";
         const uid = profile.id ?? profile.userId ?? "";
+        const role = profile.role ?? profile.roles ?? "";
+        const userRoles = Array.isArray(role) ? role : role ? [role] : [];
+        const isAdminUser = userRoles.some(
+          (r: string) =>
+            r.toLowerCase() === "admin" ||
+            r.toLowerCase() === "super_admin" ||
+            r.toLowerCase() === "organization_admin",
+        );
         setOrganizationId(orgId);
         setIsApprover(Boolean(profile.isApprover));
+        setIsAdmin(isAdminUser);
 
         if (uid) {
           const employeeRes = await getEmployeeByUserId(uid);
@@ -96,12 +106,12 @@ export default function TimesheetPage() {
         </Button>
       </div>
 
-      {hasTeamAccess ? (
+      {hasTeamAccess || isAdmin ? (
         <Tabs defaultValue="my" className="space-y-6">
           <TabsList>
             <TabsTrigger value="my">My Timesheet</TabsTrigger>
-            <TabsTrigger value="team">Team Timesheet</TabsTrigger>
-            <TabsTrigger value="project">Project Timesheet</TabsTrigger>
+            {(hasTeamAccess || isAdmin) && <TabsTrigger value="team">Team Timesheet</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="project">Project Timesheet</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="my">

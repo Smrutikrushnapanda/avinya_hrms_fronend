@@ -98,6 +98,8 @@ interface Project {
   createdBy: { id: string; email: string; firstName: string; lastName: string } | null;
   createdAt: string;
   updatedAt: string;
+  projectCost?: number;
+  hourlyRate?: number;
   /** "client" = from client_projects table; "standalone" = from projects table */
   _source?: "client" | "standalone";
 }
@@ -253,10 +255,14 @@ export default function AdminProjectsPage() {
     name: "", description: "", status: "planning" as ProjectStatus,
     priority: "medium" as ProjectPriority, estimatedEndDate: "",
     memberUserIds: [] as string[],
+    projectCost: "",
+    hourlyRate: "",
   });
   const [editForm, setEditForm] = useState({
     name: "", description: "", status: "planning" as ProjectStatus,
     priority: "medium" as ProjectPriority, completionPercent: 0, estimatedEndDate: "",
+    projectCost: "",
+    hourlyRate: "",
   });
   const [saving, setSaving] = useState(false);
   const [assignUserIds, setAssignUserIds] = useState<string[]>([]);
@@ -400,10 +406,15 @@ export default function AdminProjectsPage() {
     if (!form.name.trim()) { toast.error("Project name is required"); return; }
     setSaving(true);
     try {
-      await createProject({ ...form, estimatedEndDate: form.estimatedEndDate || undefined });
+      await createProject({ 
+        ...form, 
+        estimatedEndDate: form.estimatedEndDate || undefined,
+        projectCost: form.projectCost ? parseFloat(form.projectCost) : undefined,
+        hourlyRate: form.hourlyRate ? parseFloat(form.hourlyRate) : undefined,
+      });
       toast.success("Project created");
       setCreateOpen(false);
-      setForm({ name: "", description: "", status: "planning", priority: "medium", estimatedEndDate: "", memberUserIds: [] });
+      setForm({ name: "", description: "", status: "planning", priority: "medium", estimatedEndDate: "", memberUserIds: [], projectCost: "", hourlyRate: "" });
       load();
     } catch { toast.error("Failed to create project"); }
     finally { setSaving(false); }
@@ -416,6 +427,8 @@ export default function AdminProjectsPage() {
       status: p.status, priority: p.priority,
       completionPercent: p.completionPercent,
       estimatedEndDate: p.estimatedEndDate ?? "",
+      projectCost: p.projectCost?.toString() ?? "",
+      hourlyRate: p.hourlyRate?.toString() ?? "",
     });
     setEditOpen(true);
   };
@@ -424,7 +437,12 @@ export default function AdminProjectsPage() {
     if (!activeProject) return;
     setSaving(true);
     try {
-      await updateProject(activeProject.id, { ...editForm, estimatedEndDate: editForm.estimatedEndDate || undefined });
+      await updateProject(activeProject.id, { 
+        ...editForm, 
+        estimatedEndDate: editForm.estimatedEndDate || undefined,
+        projectCost: editForm.projectCost ? parseFloat(editForm.projectCost) : undefined,
+        hourlyRate: editForm.hourlyRate ? parseFloat(editForm.hourlyRate) : undefined,
+      });
       toast.success("Project updated");
       setEditOpen(false);
       load();
@@ -805,6 +823,28 @@ export default function AdminProjectsPage() {
               </div>
             </div>
             <div><Label>Estimated End Date</Label><Input type="date" value={form.estimatedEndDate} onChange={(e) => setForm(f => ({ ...f, estimatedEndDate: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Project Cost (₹)</Label>
+                <Input 
+                  type="number" 
+                  value={form.projectCost} 
+                  onChange={(e) => setForm(f => ({ ...f, projectCost: e.target.value }))} 
+                  placeholder="e.g., 50000" 
+                  min="0"
+                />
+              </div>
+              <div>
+                <Label>Hourly Rate (₹)</Label>
+                <Input 
+                  type="number" 
+                  value={form.hourlyRate} 
+                  onChange={(e) => setForm(f => ({ ...f, hourlyRate: e.target.value }))} 
+                  placeholder="e.g., 85" 
+                  min="0"
+                />
+              </div>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
               <Button onClick={handleCreate} disabled={saving}>{saving ? "Creating..." : "Create Project"}</Button>
@@ -859,6 +899,28 @@ export default function AdminProjectsPage() {
               <div className="mt-1"><ProgressBar value={editForm.completionPercent} /></div>
             </div>
             <div><Label>Estimated End Date</Label><Input type="date" value={editForm.estimatedEndDate} onChange={(e) => setEditForm(f => ({ ...f, estimatedEndDate: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Project Cost (₹)</Label>
+                <Input 
+                  type="number" 
+                  value={editForm.projectCost} 
+                  onChange={(e) => setEditForm(f => ({ ...f, projectCost: e.target.value }))} 
+                  placeholder="e.g., 50000" 
+                  min="0"
+                />
+              </div>
+              <div>
+                <Label>Hourly Rate (₹)</Label>
+                <Input 
+                  type="number" 
+                  value={editForm.hourlyRate} 
+                  onChange={(e) => setEditForm(f => ({ ...f, hourlyRate: e.target.value }))} 
+                  placeholder="e.g., 85" 
+                  min="0"
+                />
+              </div>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
               <Button onClick={handleEdit} disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>

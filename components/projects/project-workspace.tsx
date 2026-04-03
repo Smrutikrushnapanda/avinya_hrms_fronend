@@ -80,6 +80,8 @@ type ProjectShape = {
   isOverdue: boolean;
   members: Array<{ userId: string; role: string }>;
   createdBy: { id: string; firstName: string; lastName: string } | null;
+  projectCost?: number;
+  hourlyRate?: number;
 };
 
 type ProjectEmployee = {
@@ -151,6 +153,8 @@ type ClientProjectApi = {
   completionPercent?: number | null;
   endDate?: string | null;
   startDate?: string | null;
+  projectCost?: number | null;
+  hourlyRate?: number | null;
   members?: Array<{ userId?: string | null; role?: string | null }>;
 };
 
@@ -288,6 +292,8 @@ function mapClientProjectToWorkspace(cp: ClientProjectApi): ProjectShape {
         }))
       : [],
     createdBy: null,
+    projectCost: cp.projectCost ?? undefined,
+    hourlyRate: cp.hourlyRate ?? undefined,
   };
 }
 
@@ -436,14 +442,15 @@ export default function ProjectWorkspace({
     const effectiveHours =
       loggedHours > 0 ? loggedHours : Math.max(1, Number(project?.completionPercent || 0) / 8);
 
-    const billRatePerHour = 85;
-    const costRatePerHour = 52;
+    // Use project-specific rates if available, otherwise use defaults
+    const billRatePerHour = project?.hourlyRate ? project.hourlyRate * 1.5 : 85;
+    const costRatePerHour = project?.hourlyRate || 52;
     const revenue = Math.round(effectiveHours * billRatePerHour);
     const cost = Math.round(effectiveHours * costRatePerHour);
     const net = revenue - cost;
 
-    return { loggedHours, revenue, cost, net };
-  }, [project?.completionPercent, projectTimesheets]);
+    return { loggedHours, revenue, cost, net, billRatePerHour, costRatePerHour };
+  }, [project?.completionPercent, project?.hourlyRate, projectTimesheets]);
 
   const profitLossChartData = useMemo(
     () => [
@@ -455,7 +462,7 @@ export default function ProjectWorkspace({
         color: profitLossSnapshot.net >= 0 ? "#2563eb" : "#dc2626",
       },
     ],
-    [profitLossSnapshot.cost, profitLossSnapshot.net, profitLossSnapshot.revenue],
+    [profitLossSnapshot.cost, profitLossSnapshot.net, profitLossSnapshot.revenue, profitLossSnapshot.billRatePerHour, profitLossSnapshot.costRatePerHour],
   );
 
   const loadProjectTimesheetBoard = useCallback(
@@ -1064,21 +1071,31 @@ export default function ProjectWorkspace({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">Estimated Revenue</p>
-                  <p className="text-lg font-semibold text-green-600">${profitLossSnapshot.revenue.toLocaleString()}</p>
+                  <p className="text-lg font-semibold text-green-600">₹{profitLossSnapshot.revenue.toLocaleString()}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">Estimated Cost</p>
-                  <p className="text-lg font-semibold text-amber-600">${profitLossSnapshot.cost.toLocaleString()}</p>
+                  <p className="text-lg font-semibold text-amber-600">₹{profitLossSnapshot.cost.toLocaleString()}</p>
                 </div>
                 <div className="rounded-lg border border-border p-3">
                   <p className="text-xs text-muted-foreground">
                     {profitLossSnapshot.net >= 0 ? "Estimated Profit" : "Estimated Loss"}
                   </p>
                   <p className={`text-lg font-semibold ${profitLossSnapshot.net >= 0 ? "text-blue-600" : "text-red-600"}`}>
-                    ${Math.abs(profitLossSnapshot.net).toLocaleString()}
+                    ₹{Math.abs(profitLossSnapshot.net).toLocaleString()}
                   </p>
                 </div>
               </div>
+
+              {project?.projectCost && (
+                <div className="rounded-lg border border-border p-3 mt-3">
+                  <p className="text-xs text-muted-foreground">Project Budget</p>
+                  <p className="text-lg font-semibold text-green-600">₹{Number(project.projectCost).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Hourly Rate: ₹{project.hourlyRate || profitLossSnapshot.costRatePerHour}/hr
+                  </p>
+                </div>
+              )}
 
               <div className="h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1108,10 +1125,12 @@ export default function ProjectWorkspace({
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-border bg-card p-4 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <h2 className="font-semibold">Project Timesheet Entries</h2>
+      {/* Project Timesheet Entries - Only visible to Admin/Manager */}
+      {isReadOnlyAdminView ? (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 className="font-semibold">Project Timesheet Entries</h2>
             <p className="text-xs text-muted-foreground">
               {isClientProject
                 ? "View timesheet entries for this project. Filter by date range to see historical data."
@@ -1237,6 +1256,7 @@ export default function ProjectWorkspace({
           </div>
         )}
       </div>
+      ) : null}
 
       <div className="rounded-xl border border-border bg-card p-4 space-y-4">
         <div className="flex items-center justify-between">
