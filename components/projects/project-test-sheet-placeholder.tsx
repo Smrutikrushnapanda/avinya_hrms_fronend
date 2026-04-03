@@ -1,9 +1,140 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ClipboardList } from "lucide-react";
+import { ArrowLeft, ClipboardList, Plus } from "lucide-react";
+import {
+  createClientProjectTestCase,
+  createClientProjectTestSheetTab,
+  createProjectTestCase,
+  createProjectTestSheetTab,
+  getClientProjectEmployees,
+  getClientProjectTestSheet,
+  getProjectEmployees,
+  getProjectTestSheet,
+  updateClientProjectTestCase,
+  updateProjectTestCase,
+} from "@/app/api/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+
+type TestCaseStatus = "pending" | "resolved";
+type EditableField =
+  | "caseCode"
+  | "title"
+  | "steps"
+  | "expectedResult"
+  | "actualResult"
+  | "qaUserId"
+  | "developerUserId"
+  | "status";
+
+type ProjectMember = {
+  userId: string;
+  role?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  workEmail?: string;
+};
+
+type TestSheetCase = {
+  id: string;
+  tabId: string;
+  rowIndex: number;
+  caseCode: string | null;
+  title: string;
+  steps: string | null;
+  expectedResult: string | null;
+  actualResult: string | null;
+  qaUserId: string | null;
+  developerUserId: string | null;
+  status: TestCaseStatus;
+  createdByUserId: string;
+  updatedByUserId: string | null;
+  resolvedByUserId: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type TestSheetTab = {
+  id: string;
+  name: string;
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+  cases: TestSheetCase[];
+};
+
+type TestSheetLog = {
+  id: string;
+  action: string;
+  fieldName: string | null;
+  summary: string | null;
+  beforeValue: Record<string, unknown> | null;
+  afterValue: Record<string, unknown> | null;
+  changedByUserId: string | null;
+  changedByUserName: string | null;
+  tabId: string | null;
+  testCaseId: string | null;
+  createdAt: string;
+};
+
+type TestSheetPayload = {
+  projectId: string;
+  projectSource: "standalone" | "client";
+  tabs: TestSheetTab[];
+  logs: TestSheetLog[];
+};
+
+const columnConfig: Array<{ key: EditableField | "updatedAt"; letter: string; title: string; widthClass: string }> = [
+  { key: "caseCode", letter: "A", title: "Case ID", widthClass: "min-w-[120px]" },
+  { key: "title", letter: "B", title: "Test Case", widthClass: "min-w-[220px]" },
+  { key: "steps", letter: "C", title: "Steps", widthClass: "min-w-[240px]" },
+  { key: "expectedResult", letter: "D", title: "Expected Result", widthClass: "min-w-[240px]" },
+  { key: "actualResult", letter: "E", title: "Actual Result", widthClass: "min-w-[240px]" },
+  { key: "qaUserId", letter: "F", title: "QA / Tester", widthClass: "min-w-[180px]" },
+  { key: "developerUserId", letter: "G", title: "Developer", widthClass: "min-w-[180px]" },
+  { key: "status", letter: "H", title: "Status", widthClass: "min-w-[140px]" },
+  { key: "updatedAt", letter: "I", title: "Updated At", widthClass: "min-w-[170px]" },
+];
+
+function personLabel(member: ProjectMember) {
+  const name = [member.firstName, member.lastName].filter(Boolean).join(" ").trim();
+  return name || member.workEmail || member.email || member.userId.slice(0, 8);
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleString("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function normalizeValue(field: EditableField, value: string): string | null | TestCaseStatus {
+  if (field === "status") {
+    return value === "resolved" ? "resolved" : "pending";
+  }
+
+  const trimmed = value.trim();
+  if (field === "title") return trimmed;
+  if (field === "qaUserId" || field === "developerUserId") return trimmed || null;
+  return trimmed || null;
+}
+
+function readCaseFieldValue(row: TestSheetCase, field: EditableField | "updatedAt") {
+  if (field === "updatedAt") return row.updatedAt;
+  return row[field] ?? "";
+}
 
 export default function ProjectTestSheetPlaceholder({
   mode,
@@ -14,33 +145,440 @@ export default function ProjectTestSheetPlaceholder({
   const searchParams = useSearchParams();
   const projectId = String(params?.id || "");
   const source = searchParams.get("source");
+  const isClientProject = source === "client";
+
+  const [payload, setPayload] = useState<TestSheetPayload | null>(null);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [activeTabId, setActiveTabId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [creatingTab, setCreatingTab] = useState(false);
+  const [addingRow, setAddingRow] = useState(false);
+  const [newTabName, setNewTabName] = useState("");
+  const [selectedCell, setSelectedCell] = useState<{ caseId: string; field: EditableField | "updatedAt" } | null>(null);
+  const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
+
+  const canEdit = mode === "user";
+
+  const applyPayload = useCallback((nextPayload: TestSheetPayload) => {
+    const safeTabs = Array.isArray(nextPayload?.tabs) ? nextPayload.tabs : [];
+    const safeLogs = Array.isArray(nextPayload?.logs) ? nextPayload.logs : [];
+
+    setPayload({
+      ...nextPayload,
+      tabs: safeTabs,
+      logs: safeLogs,
+    });
+
+    setActiveTabId((previous) => {
+      if (safeTabs.some((tab) => tab.id === previous)) return previous;
+      return safeTabs[0]?.id || "";
+    });
+  }, []);
+
+  const fetchTestSheet = useCallback(async () => {
+    if (!projectId) return;
+
+    try {
+      setLoading(true);
+      const [sheetRes, membersRes] = await Promise.all([
+        isClientProject ? getClientProjectTestSheet(projectId) : getProjectTestSheet(projectId),
+        isClientProject ? getClientProjectEmployees(projectId) : getProjectEmployees(projectId),
+      ]);
+
+      applyPayload(sheetRes.data as TestSheetPayload);
+      setMembers(Array.isArray(membersRes.data) ? membersRes.data : []);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load project test sheet.");
+    } finally {
+      setLoading(false);
+    }
+  }, [applyPayload, isClientProject, projectId]);
+
+  useEffect(() => {
+    void fetchTestSheet();
+  }, [fetchTestSheet]);
+
+  const tabs = payload?.tabs || [];
+
+  const activeTab = useMemo(() => {
+    if (!tabs.length) return null;
+    return tabs.find((tab) => tab.id === activeTabId) || tabs[0];
+  }, [activeTabId, tabs]);
+
+  const memberMap = useMemo(() => {
+    const map = new Map<string, ProjectMember>();
+    members.forEach((member) => map.set(member.userId, member));
+    return map;
+  }, [members]);
+
+  const selectedCellDisplay = useMemo(() => {
+    if (!selectedCell || !activeTab) return "";
+    const row = activeTab.cases.find((item) => item.id === selectedCell.caseId);
+    if (!row) return "";
+    const value = readCaseFieldValue(row, selectedCell.field);
+    return String(value ?? "");
+  }, [activeTab, selectedCell]);
+
+  const workspaceBasePath =
+    mode === "admin" ? `/admin/projects/${projectId}` : `/user/projects/${projectId}`;
+  const workspacePath = isClientProject
+    ? `${workspaceBasePath}?source=client`
+    : workspaceBasePath;
+
+  const commitCell = useCallback(
+    async (row: TestSheetCase, field: EditableField, rawValue: string) => {
+      if (!canEdit) return;
+
+      const normalized = normalizeValue(field, rawValue);
+      if (field === "title" && typeof normalized === "string" && !normalized) {
+        toast.error("Test case title cannot be empty.");
+        return;
+      }
+
+      const current = row[field] ?? null;
+      if (JSON.stringify(current) === JSON.stringify(normalized)) return;
+
+      const patch: Partial<{
+        caseCode: string | null;
+        title: string;
+        steps: string | null;
+        expectedResult: string | null;
+        actualResult: string | null;
+        qaUserId: string | null;
+        developerUserId: string | null;
+        status: TestCaseStatus;
+      }> = {};
+
+      if (field === "status") {
+        patch.status = normalized as TestCaseStatus;
+      } else {
+        patch[field] = normalized as never;
+      }
+
+      const cellKey = `${row.id}:${field}`;
+      try {
+        setSavingCellKey(cellKey);
+        const response = isClientProject
+          ? await updateClientProjectTestCase(projectId, row.id, patch)
+          : await updateProjectTestCase(projectId, row.id, patch);
+        applyPayload(response.data as TestSheetPayload);
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to save cell value.");
+      } finally {
+        setSavingCellKey(null);
+      }
+    },
+    [applyPayload, canEdit, isClientProject, projectId],
+  );
+
+  const handleCreateTab = useCallback(async () => {
+    if (!canEdit || !projectId) return;
+
+    const name = newTabName.trim();
+    if (!name) {
+      toast.error("Enter a tab name.");
+      return;
+    }
+
+    try {
+      setCreatingTab(true);
+      const response = isClientProject
+        ? await createClientProjectTestSheetTab(projectId, { name })
+        : await createProjectTestSheetTab(projectId, { name });
+      applyPayload(response.data as TestSheetPayload);
+      setNewTabName("");
+      toast.success("New sheet tab created.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to create tab.");
+    } finally {
+      setCreatingTab(false);
+    }
+  }, [applyPayload, canEdit, isClientProject, newTabName, projectId]);
+
+  const handleAddRow = useCallback(async () => {
+    if (!canEdit || !activeTab || !projectId) return;
+
+    const nextIndex = (activeTab.cases?.length || 0) + 1;
+    const defaultCode = `TC-${String(nextIndex).padStart(3, "0")}`;
+
+    try {
+      setAddingRow(true);
+      const response = isClientProject
+        ? await createClientProjectTestCase(projectId, activeTab.id, {
+            caseCode: defaultCode,
+            title: `Test case ${nextIndex}`,
+            status: "pending",
+          })
+        : await createProjectTestCase(projectId, activeTab.id, {
+            caseCode: defaultCode,
+            title: `Test case ${nextIndex}`,
+            status: "pending",
+          });
+      applyPayload(response.data as TestSheetPayload);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to add row.");
+    } finally {
+      setAddingRow(false);
+    }
+  }, [activeTab, applyPayload, canEdit, isClientProject, projectId]);
 
   if (!projectId) {
     return <div className="p-6 text-sm text-red-500">Invalid project id.</div>;
   }
 
-  const workspaceBasePath =
-    mode === "admin" ? `/admin/projects/${projectId}` : `/user/projects/${projectId}`;
-  const workspacePath =
-    source === "client" ? `${workspaceBasePath}?source=client` : workspaceBasePath;
-
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1440px] p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={workspacePath}>
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back
-            </Link>
-          </Button>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <ClipboardList className="w-6 h-6" />
-            Test Sheet
-          </h1>
+      <div className="mx-auto max-w-[1680px] p-4 md:p-6 space-y-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={workspacePath}>
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Back
+              </Link>
+            </Button>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <ClipboardList className="w-6 h-6" />
+              Test Sheet Workspace
+            </h1>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {mode === "admin"
+              ? "Admin view is read-only. Manager and employee can edit in User mode."
+              : "QA/Tester can add test cases. Developers can update status to Resolved."}
+          </div>
         </div>
 
-        <div className="min-h-[80vh]" />
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="rounded-xl border border-border overflow-hidden bg-[#f4f6fb]">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[#d6dce6] bg-[#e9edf4]">
+              <div className="text-xs font-semibold uppercase tracking-wide text-[#213047]">
+                {isClientProject ? "Client Project Test Sheet" : "Project Test Sheet"}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => void handleAddRow()} disabled={!canEdit || addingRow || !activeTab}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  {addingRow ? "Adding..." : "Add Row"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 border-b border-[#d6dce6] bg-white px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cell</div>
+              <div className="rounded border border-[#d6dce6] bg-[#f8fafc] px-2 py-1 text-xs text-foreground min-w-[90px]">
+                {selectedCell ? `${selectedCell.field}` : "--"}
+              </div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Formula Bar</div>
+              <div className="flex-1 rounded border border-[#d6dce6] bg-[#f8fafc] px-2 py-1 text-xs text-foreground truncate">
+                {selectedCellDisplay || "Select a cell to inspect value"}
+              </div>
+            </div>
+
+            <div className="max-h-[70vh] overflow-auto bg-white">
+              <table className="min-w-[1560px] border-separate border-spacing-0 text-[12px]">
+                <thead>
+                  <tr>
+                    <th className="sticky top-0 left-0 z-20 w-[52px] border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-[11px] font-semibold text-white">
+                      #
+                    </th>
+                    {columnConfig.map((column) => (
+                      <th
+                        key={column.key}
+                        className={`sticky top-0 z-10 border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-left text-[11px] font-semibold text-white ${column.widthClass}`}
+                      >
+                        <div className="font-mono text-[10px] text-white/75">{column.letter}</div>
+                        <div>{column.title}</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={columnConfig.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
+                        Loading test sheet...
+                      </td>
+                    </tr>
+                  ) : !activeTab || activeTab.cases.length === 0 ? (
+                    <tr>
+                      <td colSpan={columnConfig.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
+                        No test cases yet. Use <span className="font-medium text-foreground">Add Row</span> to start.
+                      </td>
+                    </tr>
+                  ) : (
+                    activeTab.cases.map((row, rowIndex) => (
+                      <tr key={row.id} className="align-top">
+                        <td className="sticky left-0 z-[5] border border-[#d6dce6] bg-[#f0f4f9] px-2 py-1.5 font-semibold text-[#31435b]">
+                          {rowIndex + 1}
+                        </td>
+
+                        {columnConfig.map((column) => {
+                          const cellKey = `${row.id}:${column.key}`;
+
+                          if (column.key === "updatedAt") {
+                            return (
+                              <td key={column.key} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
+                                {formatDateTime(row.updatedAt)}
+                              </td>
+                            );
+                          }
+
+                          if (column.key === "qaUserId" || column.key === "developerUserId") {
+                            const fieldKey = column.key as "qaUserId" | "developerUserId";
+                            const selectedValue = String(readCaseFieldValue(row, column.key) || "");
+                            return (
+                              <td key={column.key} className="border border-[#d6dce6] px-1 py-1">
+                                <select
+                                  value={selectedValue}
+                                  disabled={!canEdit || savingCellKey === cellKey}
+                                  className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 text-[12px]"
+                                  onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
+                                  onChange={(event) =>
+                                    void commitCell(row, fieldKey, event.target.value)
+                                  }
+                                >
+                                  <option value="">Unassigned</option>
+                                  {members.map((member) => (
+                                    <option key={member.userId} value={member.userId}>
+                                      {personLabel(member)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            );
+                          }
+
+                          if (column.key === "status") {
+                            return (
+                              <td key={column.key} className="border border-[#d6dce6] px-1 py-1">
+                                <select
+                                  value={row.status}
+                                  disabled={!canEdit || savingCellKey === cellKey}
+                                  className={`h-8 w-full rounded border px-2 text-[12px] ${
+                                    row.status === "resolved"
+                                      ? "border-green-300 bg-green-50 text-green-700"
+                                      : "border-amber-300 bg-amber-50 text-amber-700"
+                                  }`}
+                                  onFocus={() => setSelectedCell({ caseId: row.id, field: "status" })}
+                                  onChange={(event) =>
+                                    void commitCell(row, "status", event.target.value)
+                                  }
+                                >
+                                  <option value="pending">Pending</option>
+                                  <option value="resolved">Resolved</option>
+                                </select>
+                              </td>
+                            );
+                          }
+
+                          const value = String(readCaseFieldValue(row, column.key) || "");
+                          const fieldKey = column.key as Exclude<
+                            EditableField,
+                            "status" | "qaUserId" | "developerUserId"
+                          >;
+
+                          return (
+                            <td key={column.key} className="border border-[#d6dce6] px-1 py-1">
+                              <Input
+                                key={`${row.id}:${column.key}:${row.updatedAt}`}
+                                defaultValue={value}
+                                disabled={!canEdit || savingCellKey === cellKey}
+                                className="h-8 border-[#d6dce6] text-[12px]"
+                                onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
+                                onBlur={(event) =>
+                                  void commitCell(row, fieldKey, event.target.value)
+                                }
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    (event.currentTarget as HTMLInputElement).blur();
+                                  }
+                                }}
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="border-t border-[#d6dce6] bg-[#eef2f7] px-3 py-2 flex flex-wrap items-center gap-2">
+              {(tabs || []).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTabId(tab.id)}
+                  className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
+                    activeTab?.id === tab.id
+                      ? "border-[#217346] bg-[#217346] text-white"
+                      : "border-[#c8d2e1] bg-white text-[#34485f] hover:bg-[#f8fbff]"
+                  }`}
+                >
+                  {tab.name}
+                </button>
+              ))}
+
+              {canEdit ? (
+                <div className="ml-auto flex items-center gap-2">
+                  <Input
+                    value={newTabName}
+                    onChange={(event) => setNewTabName(event.target.value)}
+                    placeholder="New tab name"
+                    className="h-8 w-[170px] bg-white"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleCreateTab()}
+                    disabled={creatingTab}
+                  >
+                    {creatingTab ? "Creating..." : "Add Tab"}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <h2 className="text-sm font-semibold">Version Log</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Every save in the sheet is tracked like lightweight version history.
+              </p>
+            </div>
+            <div className="max-h-[72vh] overflow-auto p-3 space-y-2">
+              {payload?.logs?.length ? (
+                payload.logs.map((log) => {
+                  const actor =
+                    log.changedByUserName ||
+                    (log.changedByUserId
+                      ? personLabel(memberMap.get(log.changedByUserId) || { userId: log.changedByUserId })
+                      : "Unknown user");
+                  return (
+                    <div key={log.id} className="rounded-lg border border-border p-3 text-xs space-y-1">
+                      <p className="font-medium text-foreground">{log.summary || log.action}</p>
+                      <p className="text-muted-foreground">
+                        {actor} • {formatDateTime(log.createdAt)}
+                      </p>
+                      {log.fieldName ? (
+                        <p className="text-[11px] text-muted-foreground">Fields: {log.fieldName}</p>
+                      ) : null}
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-muted-foreground">No changes logged yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

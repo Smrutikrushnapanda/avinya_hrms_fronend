@@ -279,6 +279,44 @@ export const updateProjectIssue = (
     assigneeUserId: string | null;
   }>,
 ) => api.patch(`/projects/${id}/issues/${issueId}`, data);
+export const getProjectTestSheet = (id: string) => api.get(`/projects/${id}/test-sheet`);
+export const createProjectTestSheetTab = (
+  id: string,
+  data: { name: string },
+) => api.post(`/projects/${id}/test-sheet/tabs`, data);
+export const updateProjectTestSheetTab = (
+  id: string,
+  tabId: string,
+  data: Partial<{ name: string; orderIndex: number }>,
+) => api.patch(`/projects/${id}/test-sheet/tabs/${tabId}`, data);
+export const createProjectTestCase = (
+  id: string,
+  tabId: string,
+  data: {
+    caseCode?: string;
+    title: string;
+    steps?: string;
+    expectedResult?: string;
+    actualResult?: string;
+    qaUserId?: string | null;
+    developerUserId?: string | null;
+    status?: "pending" | "resolved";
+  },
+) => api.post(`/projects/${id}/test-sheet/tabs/${tabId}/cases`, data);
+export const updateProjectTestCase = (
+  id: string,
+  testCaseId: string,
+  data: Partial<{
+    caseCode: string | null;
+    title: string;
+    steps: string | null;
+    expectedResult: string | null;
+    actualResult: string | null;
+    qaUserId: string | null;
+    developerUserId: string | null;
+    status: "pending" | "resolved";
+  }>,
+) => api.patch(`/projects/${id}/test-sheet/cases/${testCaseId}`, data);
 export const getMyTeamEmployees = () => api.get('/projects/managers/team');
 export const getAllOrgEmployees = (params?: {
   search?: string;
@@ -301,6 +339,44 @@ export const assignClientProjectEmployees = (
   );
 export const removeClientProjectEmployee = (id: string, userId: string) =>
   api.delete(`/client-projects/${id}/employees/${userId}`);
+export const getClientProjectTestSheet = (id: string) => api.get(`/client-projects/${id}/test-sheet`);
+export const createClientProjectTestSheetTab = (
+  id: string,
+  data: { name: string },
+) => api.post(`/client-projects/${id}/test-sheet/tabs`, data);
+export const updateClientProjectTestSheetTab = (
+  id: string,
+  tabId: string,
+  data: Partial<{ name: string; orderIndex: number }>,
+) => api.patch(`/client-projects/${id}/test-sheet/tabs/${tabId}`, data);
+export const createClientProjectTestCase = (
+  id: string,
+  tabId: string,
+  data: {
+    caseCode?: string;
+    title: string;
+    steps?: string;
+    expectedResult?: string;
+    actualResult?: string;
+    qaUserId?: string | null;
+    developerUserId?: string | null;
+    status?: "pending" | "resolved";
+  },
+) => api.post(`/client-projects/${id}/test-sheet/tabs/${tabId}/cases`, data);
+export const updateClientProjectTestCase = (
+  id: string,
+  testCaseId: string,
+  data: Partial<{
+    caseCode: string | null;
+    title: string;
+    steps: string | null;
+    expectedResult: string | null;
+    actualResult: string | null;
+    qaUserId: string | null;
+    developerUserId: string | null;
+    status: "pending" | "resolved";
+  }>,
+) => api.patch(`/client-projects/${id}/test-sheet/cases/${testCaseId}`, data);
 
 // Project Task APIs
 export const createProjectTask = (projectId: string, data: {
