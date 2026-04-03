@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ClipboardList, Plus } from "lucide-react";
+import { ArrowLeft, ClipboardList, Plus, PanelRight, PanelRightClose, Edit3, Save, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import {
   createClientProjectTestCase,
   createClientProjectTestSheetTab,
@@ -16,9 +19,8 @@ import {
   updateClientProjectTestCase,
   updateProjectTestCase,
 } from "@/app/api/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 type TestCaseStatus = "pending" | "resolved";
 type EditableField =
@@ -156,6 +158,13 @@ export default function ProjectTestSheetPlaceholder({
   const [newTabName, setNewTabName] = useState("");
   const [selectedCell, setSelectedCell] = useState<{ caseId: string; field: EditableField | "updatedAt" } | null>(null);
   const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [logEditData, setLogEditData] = useState<{ action: string; summary: string; fieldName: string }>({
+    action: "",
+    summary: "",
+    fieldName: "",
+  });
 
   const canEdit = mode === "user";
 
@@ -326,13 +335,27 @@ export default function ProjectTestSheetPlaceholder({
     }
   }, [activeTab, applyPayload, canEdit, isClientProject, projectId]);
 
+  const startEditLog = useCallback((log: TestSheetLog) => {
+    setEditingLogId(log.id);
+    setLogEditData({
+      action: log.action || "",
+      summary: log.summary || "",
+      fieldName: log.fieldName || "",
+    });
+  }, []);
+
+  const cancelEditLog = useCallback(() => {
+    setEditingLogId(null);
+    setLogEditData({ action: "", summary: "", fieldName: "" });
+  }, []);
+
   if (!projectId) {
     return <div className="p-6 text-sm text-red-500">Invalid project id.</div>;
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-[1680px] p-4 md:p-6 space-y-4">
+      <div className="w-full p-4 md:p-6 space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" asChild>
@@ -343,18 +366,38 @@ export default function ProjectTestSheetPlaceholder({
             </Button>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <ClipboardList className="w-6 h-6" />
-              Test Sheet Workspace
+              Client Project Test Sheet
             </h1>
           </div>
-          <div className="text-xs text-muted-foreground">
-            {mode === "admin"
-              ? "Admin view is read-only. Manager and employee can edit in User mode."
-              : "QA/Tester can add test cases. Developers can update status to Resolved."}
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-muted-foreground">
+              {mode === "admin"
+                ? "Admin view is read-only. Manager and employee can edit in User mode."
+                : "QA/Tester can add test cases. Developers can update status to Resolved."}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              className="ml-2"
+            >
+              {sidebarOpen ? (
+                <>
+                  <PanelRightClose className="w-4 h-4 mr-1" />
+                  Hide Log
+                </>
+              ) : (
+                <>
+                  <PanelRight className="w-4 h-4 mr-1" />
+                  Show Log
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="rounded-xl border border-border overflow-hidden bg-[#f4f6fb]">
+        <div className={`flex gap-4 ${sidebarOpen ? 'xl:grid xl:grid-cols-[1fr_380px]' : ''}`}>
+          <div className="rounded-xl border border-border overflow-hidden bg-[#f4f6fb] flex-1">
             <div className="flex items-center justify-between px-3 py-2 border-b border-[#d6dce6] bg-[#e9edf4]">
               <div className="text-xs font-semibold uppercase tracking-wide text-[#213047]">
                 {isClientProject ? "Client Project Test Sheet" : "Project Test Sheet"}
@@ -546,38 +589,126 @@ export default function ProjectTestSheetPlaceholder({
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card">
-            <div className="border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">Version Log</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Every save in the sheet is tracked like lightweight version history.
-              </p>
+          {sidebarOpen && (
+            <div className="rounded-xl border border-border bg-card w-full xl:w-[380px] shrink-0">
+              <div className="border-b border-border px-4 py-3">
+                <h2 className="text-sm font-semibold">Version Log</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Every save in the sheet is tracked like lightweight version history.
+                </p>
+              </div>
+              <div className="overflow-auto">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[60px]">Action</th>
+                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[100px]">Summary</th>
+                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[80px]">Field</th>
+                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[80px]">User</th>
+                      <th className="border-b border-border px-3 py-2 text-left font-medium text-muted-foreground w-[90px]">Date</th>
+                      <th className="border-b border-border px-3 py-2 text-center font-medium text-muted-foreground w-[50px]"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payload?.logs?.length ? (
+                      payload.logs.map((log) => {
+                        const actor =
+                          log.changedByUserName ||
+                          (log.changedByUserId
+                            ? personLabel(memberMap.get(log.changedByUserId) || { userId: log.changedByUserId })
+                            : "Unknown user");
+                        const isEditing = editingLogId === log.id;
+                        return (
+                          <tr key={log.id} className="border-b border-border hover:bg-muted/30">
+                            <td className="px-3 py-2">
+                              {isEditing ? (
+                                <Input
+                                  value={logEditData.action}
+                                  onChange={(e) => setLogEditData({ ...logEditData, action: e.target.value })}
+                                  className="h-6 text-xs"
+                                />
+                              ) : (
+                                <span className="text-foreground">{log.action || "-"}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              {isEditing ? (
+                                <Input
+                                  value={logEditData.summary}
+                                  onChange={(e) => setLogEditData({ ...logEditData, summary: e.target.value })}
+                                  className="h-6 text-xs"
+                                />
+                              ) : (
+                                <span className="text-foreground">{log.summary || "-"}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              {isEditing ? (
+                                <Input
+                                  value={logEditData.fieldName}
+                                  onChange={(e) => setLogEditData({ ...logEditData, fieldName: e.target.value })}
+                                  className="h-6 text-xs"
+                                />
+                              ) : (
+                                <span className="text-muted-foreground">{log.fieldName || "-"}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="text-muted-foreground">{actor}</span>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span className="text-muted-foreground">{formatDateTime(log.createdAt)}</span>
+                            </td>
+                            <td className="px-3 py-2">
+                              {isEditing ? (
+                                <div className="flex items-center gap-1 justify-center">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6"
+                                    onClick={() => {
+                                      // Here we would save - for now just close edit mode
+                                      cancelEditLog();
+                                      toast.success("Log entry updated (demo)");
+                                    }}
+                                  >
+                                    <Save className="w-3 h-3 text-green-600" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-6 w-6"
+                                    onClick={cancelEditLog}
+                                  >
+                                    <X className="w-3 h-3 text-red-600" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() => startEditLog(log)}
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-4 text-center text-muted-foreground">
+                          No changes logged yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div className="max-h-[72vh] overflow-auto p-3 space-y-2">
-              {payload?.logs?.length ? (
-                payload.logs.map((log) => {
-                  const actor =
-                    log.changedByUserName ||
-                    (log.changedByUserId
-                      ? personLabel(memberMap.get(log.changedByUserId) || { userId: log.changedByUserId })
-                      : "Unknown user");
-                  return (
-                    <div key={log.id} className="rounded-lg border border-border p-3 text-xs space-y-1">
-                      <p className="font-medium text-foreground">{log.summary || log.action}</p>
-                      <p className="text-muted-foreground">
-                        {actor} • {formatDateTime(log.createdAt)}
-                      </p>
-                      {log.fieldName ? (
-                        <p className="text-[11px] text-muted-foreground">Fields: {log.fieldName}</p>
-                      ) : null}
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-xs text-muted-foreground">No changes logged yet.</p>
-              )}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
