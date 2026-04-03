@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ClipboardEvent, type DragEvent } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ClipboardList, Plus, PanelRight, PanelRightClose } from "lucide-react";
+import { ArrowLeft, ClipboardList, Plus, PanelRight, PanelRightClose, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import {
   getProjectTestSheet,
   updateClientProjectTestSheetColumns,
   updateClientProjectTestCase,
+  uploadFile,
   updateProjectTestSheetColumns,
   updateProjectTestCase,
 } from "@/app/api/api";
@@ -36,6 +37,7 @@ type EditableField =
   | "status";
 type BaseColumnKey = EditableField | "updatedAt";
 type ColumnKey = BaseColumnKey | `custom_${number}`;
+type ColumnInputType = "text" | "dropdown" | "color" | "image";
 
 type ProjectMember = {
   userId: string;
@@ -116,11 +118,16 @@ const baseColumnConfig: Array<Omit<TestSheetColumn, "letter">> = [
   { key: "qaUserId", defaultTitle: "QA / Tester", widthClass: "min-w-[180px]" },
   { key: "developerUserId", defaultTitle: "Developer", widthClass: "min-w-[180px]" },
   { key: "status", defaultTitle: "Status", widthClass: "min-w-[140px]" },
-  { key: "updatedAt", defaultTitle: "Updated At", widthClass: "min-w-[170px]" },
 ];
 
+const updatedAtColumn: Omit<TestSheetColumn, "letter"> = {
+  key: "updatedAt",
+  defaultTitle: "Updated At",
+  widthClass: "min-w-[170px]",
+};
+
 const customColumnConfig: Array<Omit<TestSheetColumn, "letter">> = Array.from(
-  { length: Math.max(defaultColumnCount - baseColumnConfig.length, 0) },
+  { length: Math.max(defaultColumnCount - baseColumnConfig.length - 1, 0) },
   (_, index) => ({
     key: `custom_${index + 1}` as ColumnKey,
     defaultTitle: `Column ${baseColumnConfig.length + index + 1}`,
@@ -142,12 +149,10 @@ function getColumnLetter(index: number) {
   return letter;
 }
 
-const columnConfig: TestSheetColumn[] = [...baseColumnConfig, ...customColumnConfig].map((column, index) => ({
+const columnConfig: TestSheetColumn[] = [...baseColumnConfig, ...customColumnConfig, updatedAtColumn].map((column, index) => ({
   ...column,
   letter: getColumnLetter(index),
 }));
-
-const testSheetTableMinWidth = 52 + columnConfig.length * 170;
 
 function personLabel(member: ProjectMember) {
   const name = [member.firstName, member.lastName].filter(Boolean).join(" ").trim();
@@ -209,6 +214,10 @@ function readCaseFieldValue(row: TestSheetCase, field: BaseColumnKey) {
   return row[field] ?? "";
 }
 
+function customCellKey(tabId: string, caseId: string, columnKey: ColumnKey) {
+  return `${tabId}:${caseId}:${columnKey}`;
+}
+
 export default function ProjectTestSheetPlaceholder({
   mode,
 }: {
@@ -228,11 +237,21 @@ export default function ProjectTestSheetPlaceholder({
   const [creatingTab, setCreatingTab] = useState(false);
   const [addingRow, setAddingRow] = useState(false);
   const [newTabName, setNewTabName] = useState("");
-  const [selectedCell, setSelectedCell] = useState<{ caseId: string; field: BaseColumnKey } | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ caseId: string; field: ColumnKey } | null>(null);
   const [savingCellKey, setSavingCellKey] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [columnTitles, setColumnTitles] = useState<Record<string, string>>({});
   const [savingColumnHeaders, setSavingColumnHeaders] = useState(false);
+  const [columnTypes, setColumnTypes] = useState<Record<string, ColumnInputType>>({});
+  const [columnDropdownOptions, setColumnDropdownOptions] = useState<Record<string, string[]>>({});
+  const [hiddenColumns, setHiddenColumns] = useState<Record<string, boolean>>({});
+  const [customCellValues, setCustomCellValues] = useState<Record<string, string>>({});
+  const [uploadingImageCellKey, setUploadingImageCellKey] = useState<string | null>(null);
+  const [columnSettingKey, setColumnSettingKey] = useState<ColumnKey>(() => {
+    const firstCustom = columnConfig.find((column) => column.isCustom);
+    return firstCustom?.key || "title";
+  });
+  const [dropdownOptionsDraft, setDropdownOptionsDraft] = useState("");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -247,6 +266,13 @@ export default function ProjectTestSheetPlaceholder({
   const logsPerPage = 10;
 
   const canEdit = mode === "user";
+  const customUiStorageKey = useMemo(
+    () =>
+      projectId
+        ? `project-test-sheet:ui:${isClientProject ? "client" : "standalone"}:${projectId}`
+        : "",
+    [isClientProject, projectId],
+  );
 
   const applyPayload = useCallback((nextPayload: TestSheetPayload) => {
     const safeTabs = Array.isArray(nextPayload?.tabs) ? nextPayload.tabs : [];
@@ -295,6 +321,47 @@ export default function ProjectTestSheetPlaceholder({
     void fetchTestSheet();
   }, [fetchTestSheet]);
 
+  useEffect(() => {
+    if (!customUiStorageKey) return;
+    try {
+      const raw = localStorage.getItem(customUiStorageKey);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw) as {
+        columnTypes?: Record<string, ColumnInputType>;
+        columnDropdownOptions?: Record<string, string[]>;
+        hiddenColumns?: Record<string, boolean>;
+        customCellValues?: Record<string, string>;
+      };
+
+      if (parsed?.columnTypes && typeof parsed.columnTypes === "object") {
+        setColumnTypes(parsed.columnTypes);
+      }
+      if (parsed?.columnDropdownOptions && typeof parsed.columnDropdownOptions === "object") {
+        setColumnDropdownOptions(parsed.columnDropdownOptions);
+      }
+      if (parsed?.hiddenColumns && typeof parsed.hiddenColumns === "object") {
+        setHiddenColumns(parsed.hiddenColumns);
+      }
+      if (parsed?.customCellValues && typeof parsed.customCellValues === "object") {
+        setCustomCellValues(parsed.customCellValues);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }, [customUiStorageKey]);
+
+  useEffect(() => {
+    if (!customUiStorageKey) return;
+    const payloadToStore = {
+      columnTypes,
+      columnDropdownOptions,
+      hiddenColumns,
+      customCellValues,
+    };
+    localStorage.setItem(customUiStorageKey, JSON.stringify(payloadToStore));
+  }, [columnDropdownOptions, columnTypes, customCellValues, customUiStorageKey, hiddenColumns]);
+
   const tabs = useMemo(() => payload?.tabs ?? [], [payload?.tabs]);
 
   const activeTab = useMemo(() => {
@@ -330,18 +397,45 @@ export default function ProjectTestSheetPlaceholder({
     return map;
   }, [members]);
 
-  const selectedCellDisplay = useMemo(() => {
-    if (!selectedCell || !activeTab) return "";
-    const row = activeTab.cases.find((item) => item.id === selectedCell.caseId);
-    if (!row) return "";
-    const value = readCaseFieldValue(row, selectedCell.field);
-    return String(value ?? "");
-  }, [activeTab, selectedCell]);
-
   const getColumnTitle = useCallback(
     (column: TestSheetColumn) => columnTitles[column.key] || column.defaultTitle,
     [columnTitles],
   );
+
+  const visibleColumns = useMemo(
+    () => columnConfig.filter((column) => !hiddenColumns[column.key]),
+    [hiddenColumns],
+  );
+  const visibleTableMinWidth = 52 + visibleColumns.length * 170;
+  const configurableColumns = useMemo(
+    () => visibleColumns.filter((column) => column.isCustom),
+    [visibleColumns],
+  );
+  const getColumnInputType = useCallback(
+    (columnKey: ColumnKey): ColumnInputType =>
+      columnTypes[columnKey] || "text",
+    [columnTypes],
+  );
+  const selectedConfigType = getColumnInputType(columnSettingKey);
+
+  useEffect(() => {
+    if (!selectedCell) return;
+    if (String(selectedCell.field).startsWith("custom_")) {
+      setColumnSettingKey(selectedCell.field);
+    }
+  }, [selectedCell]);
+
+  useEffect(() => {
+    if (!configurableColumns.length) return;
+    if (!configurableColumns.some((column) => column.key === columnSettingKey)) {
+      setColumnSettingKey(configurableColumns[0].key);
+    }
+  }, [columnSettingKey, configurableColumns]);
+
+  useEffect(() => {
+    const options = columnDropdownOptions[columnSettingKey] || [];
+    setDropdownOptionsDraft(options.join(", "));
+  }, [columnDropdownOptions, columnSettingKey]);
 
   const saveEditedColumnTitle = useCallback(async () => {
     if (!editingColumnKey || !projectId) return;
@@ -391,6 +485,126 @@ export default function ProjectTestSheetPlaceholder({
       setEditingColumnTitle("");
     }
   }, [columnTitles, editingColumnKey, editingColumnTitle, isClientProject, projectId]);
+
+  const saveDropdownOptions = useCallback(() => {
+    if (!String(columnSettingKey).startsWith("custom_")) return;
+
+    const parsedOptions = dropdownOptionsDraft
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 50);
+
+    setColumnDropdownOptions((previous) => ({
+      ...previous,
+      [columnSettingKey]: parsedOptions,
+    }));
+    toast.success("Dropdown options updated.");
+  }, [columnSettingKey, dropdownOptionsDraft]);
+
+  const removeCustomColumn = useCallback((columnKey: ColumnKey) => {
+    if (!String(columnKey).startsWith("custom_")) return;
+
+    setHiddenColumns((previous) => ({ ...previous, [columnKey]: true }));
+    setColumnTypes((previous) => {
+      const next = { ...previous };
+      delete next[columnKey];
+      return next;
+    });
+    setColumnDropdownOptions((previous) => {
+      const next = { ...previous };
+      delete next[columnKey];
+      return next;
+    });
+    setColumnTitles((previous) => {
+      const next = { ...previous };
+      delete next[columnKey];
+      return next;
+    });
+    setCustomCellValues((previous) => {
+      const next: Record<string, string> = {};
+      Object.entries(previous).forEach(([key, value]) => {
+        if (!key.endsWith(`:${columnKey}`)) {
+          next[key] = value;
+        }
+      });
+      return next;
+    });
+    toast.success("Column removed.");
+  }, []);
+
+  const showAllColumns = useCallback(() => {
+    setHiddenColumns({});
+  }, []);
+
+  const setCustomValue = useCallback((row: TestSheetCase, columnKey: ColumnKey, value: string) => {
+    const key = customCellKey(row.tabId, row.id, columnKey);
+    setCustomCellValues((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  }, []);
+
+  const uploadImageForCell = useCallback(
+    async (file: File, row: TestSheetCase, columnKey: ColumnKey) => {
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Image must be under 10MB.");
+        return;
+      }
+
+      const key = customCellKey(row.tabId, row.id, columnKey);
+      try {
+        setUploadingImageCellKey(key);
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await uploadFile(formData, { path: "projects/test-sheet", public: true });
+        const url =
+          response?.data?.url ||
+          response?.data?.secureUrl ||
+          response?.data?.fileUrl ||
+          "";
+        if (!url) {
+          toast.error("Image upload did not return a URL.");
+          return;
+        }
+        setCustomValue(row, columnKey, url);
+        toast.success("Image uploaded.");
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to upload image.");
+      } finally {
+        setUploadingImageCellKey(null);
+      }
+    },
+    [setCustomValue],
+  );
+
+  const handleImageDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>, row: TestSheetCase, columnKey: ColumnKey) => {
+      event.preventDefault();
+      const file = event.dataTransfer?.files?.[0];
+      if (file) {
+        void uploadImageForCell(file, row, columnKey);
+      }
+    },
+    [uploadImageForCell],
+  );
+
+  const handleImagePaste = useCallback(
+    (event: ClipboardEvent<HTMLDivElement>, row: TestSheetCase, columnKey: ColumnKey) => {
+      const fileItem = Array.from(event.clipboardData.items).find((item) =>
+        item.type.startsWith("image/"),
+      );
+      if (!fileItem) return;
+      const file = fileItem.getAsFile();
+      if (file) {
+        event.preventDefault();
+        void uploadImageForCell(file, row, columnKey);
+      }
+    },
+    [uploadImageForCell],
+  );
 
   const workspaceBasePath =
     mode === "admin" ? `/admin/projects/${projectId}` : `/user/projects/${projectId}`;
@@ -560,28 +774,73 @@ export default function ProjectTestSheetPlaceholder({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 border-b border-[#d6dce6] bg-white px-3 py-2">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cell</div>
-              <div className="rounded border border-[#d6dce6] bg-[#f8fafc] px-2 py-1 text-xs text-foreground min-w-[90px]">
-                {selectedCell ? `${selectedCell.field}` : "--"}
-              </div>
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Formula Bar</div>
-              <div className="flex-1 rounded border border-[#d6dce6] bg-[#f8fafc] px-2 py-1 text-xs text-foreground truncate">
-                {selectedCellDisplay || "Select a cell to inspect value"}
-              </div>
+            <div className="flex flex-wrap items-center gap-2 border-b border-[#d6dce6] bg-white px-3 py-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Column</div>
+              <select
+                value={columnSettingKey}
+                onChange={(event) => setColumnSettingKey(event.target.value as ColumnKey)}
+                disabled={!configurableColumns.length}
+                className="h-8 min-w-[170px] rounded border border-[#d6dce6] bg-[#f8fafc] px-2 text-xs"
+              >
+                {configurableColumns.length ? (
+                  configurableColumns.map((column) => (
+                    <option key={column.key} value={column.key}>
+                      {column.letter} - {getColumnTitle(column)}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No custom columns</option>
+                )}
+              </select>
+
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Type</div>
+              <select
+                value={selectedConfigType}
+                disabled={!configurableColumns.length}
+                onChange={(event) =>
+                  setColumnTypes((previous) => ({
+                    ...previous,
+                    [columnSettingKey]: event.target.value as ColumnInputType,
+                  }))
+                }
+                className="h-8 min-w-[130px] rounded border border-[#d6dce6] bg-[#f8fafc] px-2 text-xs"
+              >
+                <option value="text">Text</option>
+                <option value="dropdown">Dropdown</option>
+                <option value="color">Color</option>
+                <option value="image">Image</option>
+              </select>
+
+              {selectedConfigType === "dropdown" ? (
+                <>
+                  <Input
+                    value={dropdownOptionsDraft}
+                    onChange={(event) => setDropdownOptionsDraft(event.target.value)}
+                    placeholder="Dropdown options (comma separated)"
+                    className="h-8 w-[280px] bg-[#f8fafc] text-xs"
+                  />
+                  <Button size="sm" variant="outline" onClick={saveDropdownOptions}>
+                    Save Options
+                  </Button>
+                </>
+              ) : null}
+
+              <Button size="sm" variant="ghost" className="ml-auto" onClick={showAllColumns}>
+                Show Columns
+              </Button>
             </div>
 
             <div className="max-h-[70vh] overflow-auto bg-white">
               <table
                 className="border-separate border-spacing-0 text-[12px]"
-                style={{ minWidth: `${testSheetTableMinWidth}px` }}
+                style={{ minWidth: `${visibleTableMinWidth}px` }}
               >
                 <thead>
                   <tr>
                     <th className="sticky top-0 left-0 z-20 w-[52px] border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-[11px] font-semibold text-white">
                       #
                     </th>
-                    {columnConfig.map((column) => (
+                    {visibleColumns.map((column) => (
                       <th
                         key={column.key}
                         className={`sticky top-0 z-10 border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-left text-[11px] font-semibold text-white ${column.widthClass}`}
@@ -613,7 +872,22 @@ export default function ProjectTestSheetPlaceholder({
                             className="h-5 bg-white text-black font-semibold mt-1"
                           />
                         ) : (
-                          <div>{getColumnTitle(column)}</div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span>{getColumnTitle(column)}</span>
+                            {canEdit && column.isCustom ? (
+                              <button
+                                type="button"
+                                className="inline-flex h-4 w-4 items-center justify-center rounded hover:bg-white/20"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  removeCustomColumn(column.key);
+                                }}
+                                title="Remove column"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            ) : null}
+                          </div>
                         )}
                       </th>
                     ))}
@@ -622,13 +896,13 @@ export default function ProjectTestSheetPlaceholder({
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={columnConfig.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
+                      <td colSpan={visibleColumns.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
                         Loading test sheet...
                       </td>
                     </tr>
                   ) : !activeTab || activeTab.cases.length === 0 ? (
                     <tr>
-                      <td colSpan={columnConfig.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
+                      <td colSpan={visibleColumns.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
                         No test cases yet. Use <span className="font-medium text-foreground">Add Row</span> to start.
                       </td>
                     </tr>
@@ -639,13 +913,111 @@ export default function ProjectTestSheetPlaceholder({
                           {(currentPage - 1) * rowsPerPage + rowIndex + 1}
                         </td>
 
-                        {columnConfig.map((column) => {
+                        {visibleColumns.map((column) => {
                           const cellKey = `${row.id}:${column.key}`;
 
                           if (column.isCustom) {
+                            const type = getColumnInputType(column.key);
+                            const customKey = customCellKey(row.tabId, row.id, column.key);
+                            const customValue = customCellValues[customKey] || "";
+                            const dropdownOptions = columnDropdownOptions[column.key] || [];
+
+                            if (type === "dropdown") {
+                              return (
+                                <td key={column.key} className="border border-[#d6dce6] px-1 py-1">
+                                  <select
+                                    value={customValue}
+                                    disabled={!canEdit}
+                                    className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 text-[12px]"
+                                    onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
+                                    onChange={(event) => setCustomValue(row, column.key, event.target.value)}
+                                  >
+                                    <option value="">Select</option>
+                                    {dropdownOptions.map((option) => (
+                                      <option key={option} value={option}>
+                                        {option}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                              );
+                            }
+
+                            if (type === "color") {
+                              return (
+                                <td key={column.key} className="border border-[#d6dce6] px-1 py-1">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="color"
+                                      value={customValue || "#2563eb"}
+                                      disabled={!canEdit}
+                                      className="h-8 w-10 rounded border border-[#d6dce6] bg-white p-1"
+                                      onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
+                                      onChange={(event) => setCustomValue(row, column.key, event.target.value)}
+                                    />
+                                    <span
+                                      className="truncate text-xs font-medium"
+                                      style={{ color: customValue || "#2563eb" }}
+                                    >
+                                      {customValue || "Pick color"}
+                                    </span>
+                                  </div>
+                                </td>
+                              );
+                            }
+
+                            if (type === "image") {
+                              return (
+                                <td key={column.key} className="border border-[#d6dce6] px-1 py-1">
+                                  <div
+                                    className="rounded border border-dashed border-[#c8d2e1] p-1"
+                                    onDragOver={(event) => event.preventDefault()}
+                                    onDrop={(event) => handleImageDrop(event, row, column.key)}
+                                    onPaste={(event) => handleImagePaste(event, row, column.key)}
+                                  >
+                                    {customValue ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={customValue}
+                                        alt="Uploaded"
+                                        className="h-16 w-full rounded object-cover"
+                                      />
+                                    ) : (
+                                      <div className="h-16 w-full rounded bg-[#f8fafc] text-[10px] text-muted-foreground flex items-center justify-center text-center px-2">
+                                        Paste, drag-drop, or upload image
+                                      </div>
+                                    )}
+                                    <label className="mt-1 flex cursor-pointer items-center justify-center gap-1 rounded border border-[#d6dce6] bg-white px-2 py-1 text-[10px]">
+                                      <Upload className="h-3 w-3" />
+                                      {uploadingImageCellKey === customKey ? "Uploading..." : "Upload"}
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        disabled={!canEdit || uploadingImageCellKey === customKey}
+                                        onChange={(event) => {
+                                          const file = event.target.files?.[0];
+                                          if (file) {
+                                            void uploadImageForCell(file, row, column.key);
+                                          }
+                                          event.currentTarget.value = "";
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                </td>
+                              );
+                            }
+
                             return (
                               <td key={column.key} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
-                                --
+                                <Input
+                                  value={customValue}
+                                  disabled={!canEdit}
+                                  className="h-8 border-[#d6dce6] text-[12px]"
+                                  onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
+                                  onChange={(event) => setCustomValue(row, column.key, event.target.value)}
+                                />
                               </td>
                             );
                           }
