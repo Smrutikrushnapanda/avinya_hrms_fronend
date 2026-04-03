@@ -321,6 +321,8 @@ export const updateProjectTestCase = (
     status: "pending" | "resolved";
   }>,
 ) => api.patch(`/projects/${id}/test-sheet/cases/${testCaseId}`, data);
+export const deleteProjectTestCase = (id: string, testCaseId: string) =>
+  api.delete(`/projects/${id}/test-sheet/cases/${testCaseId}`);
 export const getMyTeamEmployees = () => api.get('/projects/managers/team');
 export const getAllOrgEmployees = (params?: {
   search?: string;
@@ -385,6 +387,8 @@ export const updateClientProjectTestCase = (
     status: "pending" | "resolved";
   }>,
 ) => api.patch(`/client-projects/${id}/test-sheet/cases/${testCaseId}`, data);
+export const deleteClientProjectTestCase = (id: string, testCaseId: string) =>
+  api.delete(`/client-projects/${id}/test-sheet/cases/${testCaseId}`);
 
 // Project Task APIs
 export const createProjectTask = (projectId: string, data: {
