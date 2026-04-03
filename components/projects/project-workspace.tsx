@@ -408,6 +408,7 @@ export default function ProjectWorkspace({
   const canManageTeam = !isReadOnlyAdminView && (hasManagerRole || isCurrentUserProjectManager);
   const canEditProgress = canManageTeam;
   const canCreateIssue = canManageTeam && !isClientProject;
+  const canAssignQa = hasManagerRole && !isClientProject;
 
   const availableEmployees = useMemo(() => {
     const assigned = new Set(projectEmployees.map((m) => m.userId));
@@ -716,8 +717,8 @@ export default function ProjectWorkspace({
 
   const handleAssignQa = async () => {
     if (!project || selectedIds.length === 0) return;
-    if (isClientProject) {
-      toast.error("QA/Tester assignment is supported only for internal projects");
+    if (!canAssignQa) {
+      toast.error("Only managers can assign QA/Tester");
       return;
     }
     try {
@@ -1303,12 +1304,14 @@ export default function ProjectWorkspace({
       <div className="rounded-xl border border-border bg-card p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Project Team Assignment</h2>
-          {canManageTeam && !isClientProject && (
+          {canManageTeam && (
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => setShowQaPanel((s) => !s)}>
-                <Users className="w-4 h-4 mr-1" />
-                {showQaPanel ? "Close" : "Add QA/Tester"}
-              </Button>
+              {canAssignQa && (
+                <Button size="sm" variant="outline" onClick={() => setShowQaPanel((s) => !s)}>
+                  <Users className="w-4 h-4 mr-1" />
+                  {showQaPanel ? "Close" : "Add QA/Tester"}
+                </Button>
+              )}
               <Button size="sm" variant="outline" onClick={() => setShowAssignPanel((s) => !s)}>
                 <Plus className="w-4 h-4 mr-1" />
                 {showAssignPanel ? "Close" : "Assign Members"}
@@ -1317,7 +1320,8 @@ export default function ProjectWorkspace({
           )}
         </div>
 
-        {showQaPanel && canManageTeam && (
+
+        {showQaPanel && canAssignQa && (
           <div className="border border-border rounded-lg p-3 space-y-3">
             <Input
               value={employeeSearch}
