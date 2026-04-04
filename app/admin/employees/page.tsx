@@ -487,9 +487,8 @@ export default function EmployeesPage() {
     };
 
     if (!isUpdate) {
-      if (!data.loginUserName?.trim()) {
-        errors.loginUserName = "Login username is required";
-      } else if (data.loginUserName.trim().length < 3) {
+      // Username is optional now - defaults to work email prefix
+      if (data.loginUserName?.trim() && data.loginUserName.trim().length < 3) {
         errors.loginUserName = "Login username must be at least 3 characters";
       }
       if (!data.loginPassword?.trim()) {

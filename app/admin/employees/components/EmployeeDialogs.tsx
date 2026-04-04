@@ -373,7 +373,15 @@ export default function EmployeeDialogs({
                       id="workEmail"
                       type="email"
                       value={newEmployee.workEmail}
-                      onChange={(e) => setNewEmployee({ ...newEmployee, workEmail: e.target.value })}
+                      onChange={(e) => {
+                        const email = e.target.value;
+                        setNewEmployee({ 
+                          ...newEmployee, 
+                          workEmail: email,
+                          // Auto-fill username from work email if not already set by user
+                          loginUserName: newEmployee.loginUserName || email.split('@')[0]
+                        });
+                      }}
                       placeholder="john.doe@company.com"
                       className={formErrors.workEmail ? "border-red-500" : ""}
                     />
@@ -676,12 +684,12 @@ export default function EmployeeDialogs({
               <div className="grid gap-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="createLoginUserName">Username *</Label>
+                    <Label htmlFor="createLoginUserName">Username</Label>
                     <Input
                       id="createLoginUserName"
                       value={newEmployee.loginUserName}
                       onChange={(e) => setNewEmployee({ ...newEmployee, loginUserName: e.target.value })}
-                      placeholder="employee.username"
+                      placeholder="Auto-generated from work email"
                       className={formErrors.loginUserName ? "border-red-500" : ""}
                     />
                     {formErrors.loginUserName && (
