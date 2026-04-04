@@ -606,7 +606,7 @@ export default function Home() {
             </motion.div>
           </div>
 
-          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))]">
+          <div className="grid gap-6 [grid-template-columns:repeat(3,1fr)]">
             {features.map((f, i) => (
               <motion.div
                 key={f.title}

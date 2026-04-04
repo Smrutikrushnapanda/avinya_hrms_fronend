@@ -1094,7 +1094,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {!effectiveBasicPlan && (
-          <Card className="p-5 min-w-0 md:col-span-2 xl:col-span-1 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
+          <Card className="p-5 min-w-0 md:col-span-2 xl:col-span-3 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h2 className="text-sm font-bold text-foreground">
