@@ -602,6 +602,7 @@ export default function ClientsProjectsPage() {
                             <Button
                               variant="outline"
                               size="sm"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                               onClick={() => openEditClient(client)}
                             >
                               Edit
@@ -609,6 +610,7 @@ export default function ClientsProjectsPage() {
                             <Button
                               variant="outline"
                               size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
                               onClick={() => handleDeleteClient(client.id)}
                             >
                             Delete
@@ -821,10 +823,10 @@ export default function ClientsProjectsPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openEditProject(project)}>
+                            <Button variant="outline" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditProject(project)}>
                               Edit
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleDeleteProject(project.id)}>
+                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteProject(project.id)}>
                               Delete
                             </Button>
                           </div>
