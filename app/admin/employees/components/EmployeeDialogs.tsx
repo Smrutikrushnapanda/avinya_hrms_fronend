@@ -378,8 +378,8 @@ export default function EmployeeDialogs({
                         setNewEmployee({ 
                           ...newEmployee, 
                           workEmail: email,
-                          // Auto-fill username from work email if not already set by user
-                          loginUserName: newEmployee.loginUserName || email.split('@')[0]
+                          // Auto-fill username with full work email
+                          loginUserName: email
                         });
                       }}
                       placeholder="john.doe@company.com"
@@ -930,12 +930,15 @@ export default function EmployeeDialogs({
                       id="editWorkEmail"
                       type="email"
                       value={editEmployee.workEmail}
-                      onChange={(e) => setEditEmployee({ 
-                        ...editEmployee, 
-                        workEmail: e.target.value,
-                        // Auto-update username to match work email
-                        loginUserName: e.target.value
-                      })}
+                      onChange={(e) => {
+                        const email = e.target.value;
+                        setEditEmployee({ 
+                          ...editEmployee, 
+                          workEmail: email,
+                          // Auto-update username to match work email (full email address)
+                          loginUserName: email
+                        });
+                      }}
                       className={formErrors.workEmail ? "border-red-500" : ""}
                     />
                     {formErrors.workEmail && (
