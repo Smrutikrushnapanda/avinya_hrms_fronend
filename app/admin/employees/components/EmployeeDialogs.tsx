@@ -930,7 +930,12 @@ export default function EmployeeDialogs({
                       id="editWorkEmail"
                       type="email"
                       value={editEmployee.workEmail}
-                      onChange={(e) => setEditEmployee({ ...editEmployee, workEmail: e.target.value })}
+                      onChange={(e) => setEditEmployee({ 
+                        ...editEmployee, 
+                        workEmail: e.target.value,
+                        // Auto-update username to match work email
+                        loginUserName: e.target.value
+                      })}
                       className={formErrors.workEmail ? "border-red-500" : ""}
                     />
                     {formErrors.workEmail && (
