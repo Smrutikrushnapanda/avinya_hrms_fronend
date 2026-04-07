@@ -314,6 +314,15 @@ const fetchProfile = async () => {
 
         // For employees: conditionally add Performance, WFH Monitor, Projects
         if (primaryRole === "EMPLOYEE") {
+          // Insert My Projects right after Dashboard (at index 1)
+          if (!(isBasicPlan || inferredBasic)) {
+            // Find Dashboard and insert My Projects right after it
+            const dashboardIndex = items.findIndex(item => item.name === "Dashboard");
+            if (dashboardIndex !== -1) {
+              items.splice(dashboardIndex + 1, 0, { name: "My Projects", icon: FolderKanban, href: "/user/projects", animation: "float" as const });
+            }
+          }
+
           // Performance — only if admin enabled it
           try {
             const perfRes = await getPerformanceSettings();
@@ -338,13 +347,6 @@ const fetchProfile = async () => {
             }
           } catch {
             // ignore — don't block sidebar load
-          }
-
-          if (!(isBasicPlan || inferredBasic)) {
-            items = [
-              ...items,
-              { name: "My Projects", icon: FolderKanban, href: "/user/projects", animation: "float" as const },
-            ];
           }
         }
 
