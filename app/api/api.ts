@@ -369,6 +369,31 @@ export const assignClientProjectEmployees = (
   );
 export const removeClientProjectEmployee = (id: string, userId: string) =>
   api.delete(`/client-projects/${id}/employees/${userId}`);
+export const getClientProjectDocuments = (id: string) =>
+  api.get(`/client-projects/${id}/documents`);
+export const createClientProjectDocument = (
+  id: string,
+  data: {
+    title: string;
+    fileUrl: string;
+    fileName?: string;
+    mimeType?: string;
+    fileSize?: number;
+    description?: string;
+  },
+) => api.post(`/client-projects/${id}/documents`, data);
+export const updateClientProjectDocument = (
+  id: string,
+  documentId: string,
+  data: Partial<{
+    title: string;
+    fileUrl: string;
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+    description: string;
+  }>,
+) => api.patch(`/client-projects/${id}/documents/${documentId}`, data);
 export const getClientProjectTestSheet = (id: string) => api.get(`/client-projects/${id}/test-sheet`);
 export const updateClientProjectTestSheetColumns = (
   id: string,

@@ -5,16 +5,19 @@ import { useRouter } from "next/navigation";
 import {
   assignClientProjectEmployees,
   assignProjectEmployees,
+  createClientProjectDocument,
   createProjectDocument,
   createProjectTask,
   createProjectIssue,
   deleteProjectTask,
   getClientProject,
+  getClientProjectDocuments,
   getClientProjectEmployees,
   getClientProjectTimesheetsSummary,
   getAllOrgEmployees,
   getProfile,
   getProject,
+  getProjectDocuments,
   getProjectEmployees,
   getProjectIssues,
   getProjectTasks,
@@ -123,6 +126,22 @@ type ProjectIssue = {
   assigneeUserId: string | null;
   createdByUserId: string;
   resolvedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ProjectDocument = {
+  id: string;
+  projectId: string;
+  organizationId: string;
+  title: string;
+  description: string | null;
+  fileUrl: string;
+  fileName: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  uploadedByUserId: string;
+  updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -304,6 +323,22 @@ function formatMinutes(minutes?: number) {
   return `${h}h ${m}m`;
 }
 
+function formatDocumentSize(size?: number | null) {
+  const bytes = Number(size ?? 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return null;
+  if (bytes < 1024) return `${bytes} B`;
+
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+}
+
 function formatUserName(user?: { firstName?: string; lastName?: string; email?: string } | null) {
   if (!user) return "--";
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
@@ -396,6 +431,7 @@ export default function ProjectWorkspace({
     priority: "medium" as ClientTaskPriority,
   });
   const [issues, setIssues] = useState<ProjectIssue[]>([]);
+  const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [showDocumentComposer, setShowDocumentComposer] = useState(false);
   const [documentDraft, setDocumentDraft] = useState({
     title: "",
@@ -407,6 +443,7 @@ export default function ProjectWorkspace({
   });
   const [uploadingDocumentFile, setUploadingDocumentFile] = useState(false);
   const [savingDocument, setSavingDocument] = useState(false);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
   const [orgEmployees, setOrgEmployees] = useState<TeamMember[]>([]);
   const [profileUserId, setProfileUserId] = useState<string>("");
   const [profileRoles, setProfileRoles] = useState<string[]>([]);
@@ -485,7 +522,7 @@ export default function ProjectWorkspace({
   const canEditProgress = canManageTeam;
   const canCreateIssue = canManageTeam && !isClientProject;
   const canManageDocuments =
-    !isClientProject && (hasAdminRole || hasManagerRole || isCurrentUserProjectManager);
+    hasAdminRole || hasManagerRole || isCurrentUserProjectManager;
   const canAssignQa = canManageTeam;
   const currentProjectQaMember = useMemo(
     () => projectEmployees.find((member) => isQaTesterRole(member.role)) || null,
@@ -646,6 +683,29 @@ export default function ProjectWorkspace({
     }
   }, []);
 
+  const loadProjectDocumentsBoard = useCallback(
+    async (
+      workspaceProjectId: string,
+      workspaceSource: ProjectSource,
+      silent = false,
+    ) => {
+      setDocumentsLoading(true);
+      try {
+        const res =
+          workspaceSource === "client"
+            ? await getClientProjectDocuments(workspaceProjectId)
+            : await getProjectDocuments(workspaceProjectId);
+        setDocuments(Array.isArray(res.data) ? (res.data as ProjectDocument[]) : []);
+      } catch {
+        setDocuments([]);
+        if (!silent) toast.error("Failed to load project documents");
+      } finally {
+        setDocumentsLoading(false);
+      }
+    },
+    [],
+  );
+
   const loadWorkspace = useCallback(async () => {
     try {
       setLoading(true);
@@ -672,6 +732,7 @@ export default function ProjectWorkspace({
           project: projectRes.data as ProjectShape,
           members: Array.isArray(membersRes.data) ? membersRes.data : [],
           issues: Array.isArray(issuesRes.data) ? issuesRes.data : [],
+          documents: [] as ProjectDocument[],
         };
       };
 
@@ -686,6 +747,7 @@ export default function ProjectWorkspace({
           project: mapClientProjectToWorkspace(clientProject),
           members: Array.isArray(membersRes.data) ? membersRes.data : [],
           issues: [] as ProjectIssue[],
+          documents: [] as ProjectDocument[],
         };
       };
 
@@ -695,6 +757,7 @@ export default function ProjectWorkspace({
             project: ProjectShape;
             members: ProjectEmployee[];
             issues: ProjectIssue[];
+            documents: ProjectDocument[];
           }
         | undefined;
 
@@ -714,6 +777,7 @@ export default function ProjectWorkspace({
       setProgressValue(Number(workspaceData.project?.completionPercent || 0));
       setProjectEmployees(workspaceData.members);
       setIssues(workspaceData.issues);
+      setDocuments(workspaceData.documents);
       await loadProjectTimesheetBoard(
         workspaceData.source,
         workspaceData.project.name,
@@ -721,6 +785,7 @@ export default function ProjectWorkspace({
       );
       if (workspaceData.source === "client") {
         await loadClientTaskBoard(workspaceData.project.id);
+        await loadProjectDocumentsBoard(workspaceData.project.id, workspaceData.source, true);
         // Fetch P&L summary for client projects
         try {
           const pnlRes = await getClientProjectTimesheetsSummary(workspaceData.project.id);
@@ -738,6 +803,7 @@ export default function ProjectWorkspace({
         } catch { /* ignore - P&L is optional */ }
       } else {
         setClientTasks([]);
+        await loadProjectDocumentsBoard(workspaceData.project.id, workspaceData.source, true);
       }
     } catch (error: unknown) {
       const message =
@@ -751,7 +817,7 @@ export default function ProjectWorkspace({
     } finally {
       setLoading(false);
     }
-  }, [loadClientTaskBoard, loadProjectTimesheetBoard, projectId, source]);
+  }, [loadClientTaskBoard, loadProjectDocumentsBoard, loadProjectTimesheetBoard, projectId, source]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -1032,13 +1098,15 @@ export default function ProjectWorkspace({
   };
 
   const handleDocumentFileUpload = async (file: File) => {
-    if (!project || isClientProject) return;
+    if (!project) return;
     try {
       setUploadingDocumentFile(true);
       const formData = new FormData();
       formData.append("file", file);
       const res = await uploadFile(formData, {
-        path: `projects/${project.id}/documents`,
+        path: isClientProject
+          ? `client-projects/${project.id}/documents`
+          : `projects/${project.id}/documents`,
         public: true,
       });
       const url = res?.data?.url || res?.data?.secureUrl || "";
@@ -1063,7 +1131,7 @@ export default function ProjectWorkspace({
   };
 
   const handleCreateDocument = async () => {
-    if (!project || isClientProject) return;
+    if (!project) return;
     if (!canManageDocuments) {
       toast.error("Only admin/manager can add project documents");
       return;
@@ -1074,14 +1142,19 @@ export default function ProjectWorkspace({
     }
     try {
       setSavingDocument(true);
-      await createProjectDocument(project.id, {
+      const payload = {
         title: documentDraft.title.trim(),
         description: documentDraft.description.trim() || undefined,
         fileUrl: documentDraft.fileUrl.trim(),
         fileName: documentDraft.fileName.trim() || undefined,
         mimeType: documentDraft.mimeType.trim() || undefined,
         fileSize: documentDraft.fileSize ?? undefined,
-      });
+      };
+      if (isClientProject) {
+        await createClientProjectDocument(project.id, payload);
+      } else {
+        await createProjectDocument(project.id, payload);
+      }
       setDocumentDraft({
         title: "",
         description: "",
@@ -1091,6 +1164,7 @@ export default function ProjectWorkspace({
         fileSize: null,
       });
       setShowDocumentComposer(false);
+      await loadProjectDocumentsBoard(project.id, projectSource);
       toast.success("Project document added");
     } catch {
       toast.error("Failed to add project document");
@@ -1179,7 +1253,7 @@ export default function ProjectWorkspace({
         <div className="rounded-xl border border-border bg-card p-4 space-y-2 lg:col-span-2">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-semibold">Project Overview</h3>
-            {!isClientProject && canManageDocuments ? (
+            {canManageDocuments ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -1213,7 +1287,7 @@ export default function ProjectWorkspace({
               </span>
             )}
           </div>
-          {!isClientProject && canManageDocuments && showDocumentComposer ? (
+          {canManageDocuments && showDocumentComposer ? (
             <div className="mt-2 grid grid-cols-1 md:grid-cols-8 gap-2 p-3 border border-border rounded-lg">
               <Input
                 className="md:col-span-2"
@@ -1277,6 +1351,45 @@ export default function ProjectWorkspace({
               </div>
             </div>
           ) : null}
+          <div className="mt-3 border border-border rounded-lg p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-sm font-medium">Project Documents</h4>
+              <Badge variant="outline">{documents.length}</Badge>
+            </div>
+            {documentsLoading ? (
+              <p className="text-xs text-muted-foreground">Loading documents...</p>
+            ) : documents.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No project documents uploaded yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {documents.map((document) => {
+                  const size = formatDocumentSize(document.fileSize);
+                  return (
+                    <div
+                      key={document.id}
+                      className="flex items-start justify-between gap-3 rounded-md border border-border p-2"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-sm font-medium truncate">{document.title}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {document.fileName || "Attached document"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {formatDisplayDate(document.createdAt)}
+                          {size ? ` • ${size}` : ""}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={document.fileUrl} target="_blank" rel="noreferrer">
+                          Open
+                        </a>
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
         <div className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h3 className="font-semibold">Progress</h3>
