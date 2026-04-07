@@ -1257,10 +1257,17 @@ export default function ProjectWorkspace({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setShowDocumentComposer((prev) => !prev)}
+                onClick={() => {
+                  const basePath =
+                    mode === "admin"
+                      ? `/admin/projects/${project.id}/documents`
+                      : `/user/projects/${project.id}/documents`;
+                  const nextPath = isClientProject ? `${basePath}?source=client` : basePath;
+                  router.push(nextPath);
+                }}
               >
                 <Upload className="w-4 h-4 mr-1" />
-                {showDocumentComposer ? "Close" : "Project Documents"}
+                Project Documents
               </Button>
             ) : null}
           </div>
