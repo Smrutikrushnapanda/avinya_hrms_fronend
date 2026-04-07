@@ -488,11 +488,11 @@ export default function Home() {
 
             <div className="dashboard-mockup" style={{ background: "#fff", borderRadius: 24, border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,0.12)", position: "relative", zIndex: 1 }}>
               {/* Browser chrome */}
-              <div className="dashboard-browser flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
+              <div className="dashboard-browser flex items-center gap-3 px-4 py-3 sm:px-5">
                 <div style={{ display: "flex", gap: 6 }}>
                   {["#f87171","#fbbf24","#34d399"].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c }} />)}
                 </div>
-                <div className="dashboard-address w-full flex-1 rounded-md px-3 py-1 text-xs max-w-[320px] mx-auto">
+                <div className="dashboard-address flex-1 min-w-0 rounded-md px-3 py-1 text-xs sm:max-w-[420px]">
                   app.avinya-hrms.com/dashboard
                 </div>
               </div>
@@ -501,7 +501,7 @@ export default function Home() {
               <div className="dashboard-body p-4 sm:p-7">
                 
                 {/* Top stats row */}
-                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                   {[
                     { label: "Total Employees", value: "1,284", icon: Users, delta: "+12%", color: "#2563eb" },
                     { label: "On Leave Today",  value: "47",    icon: Calendar, delta: "-3%",  color: "#7c3aed" },

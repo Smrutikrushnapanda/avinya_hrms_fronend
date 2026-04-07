@@ -15,7 +15,6 @@ import {
   getAllOrgEmployees,
   getProfile,
   getProject,
-  getProjectDocuments,
   getProjectEmployees,
   getProjectIssues,
   getProjectTasks,
@@ -26,7 +25,6 @@ import {
   updateTaskStatus,
   updateClientProjectCompletion,
   updateProject,
-  updateProjectDocument,
   updateProjectIssue,
   updateProjectMemberRole,
   uploadFile,
@@ -52,8 +50,6 @@ import {
   Calendar,
   Clock,
   FolderKanban,
-  FileText,
-  ExternalLink,
   Plus,
   Save,
   Upload,
@@ -127,22 +123,6 @@ type ProjectIssue = {
   assigneeUserId: string | null;
   createdByUserId: string;
   resolvedByUserId: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type ProjectDocument = {
-  id: string;
-  projectId: string;
-  organizationId: string;
-  title: string;
-  description: string | null;
-  fileUrl: string;
-  fileName: string | null;
-  mimeType: string | null;
-  fileSize: number | null;
-  uploadedByUserId: string;
-  updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -324,13 +304,6 @@ function formatMinutes(minutes?: number) {
   return `${h}h ${m}m`;
 }
 
-function formatFileSize(size?: number | null) {
-  if (!size || size <= 0) return "--";
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
-}
-
 function formatUserName(user?: { firstName?: string; lastName?: string; email?: string } | null) {
   if (!user) return "--";
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
@@ -423,8 +396,7 @@ export default function ProjectWorkspace({
     priority: "medium" as ClientTaskPriority,
   });
   const [issues, setIssues] = useState<ProjectIssue[]>([]);
-  const [documents, setDocuments] = useState<ProjectDocument[]>([]);
-  const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [showDocumentComposer, setShowDocumentComposer] = useState(false);
   const [documentDraft, setDocumentDraft] = useState({
     title: "",
     description: "",
@@ -689,11 +661,10 @@ export default function ProjectWorkspace({
       setProfileRoles(normalizedRoles);
 
       const loadStandaloneWorkspace = async () => {
-        const [projectRes, membersRes, issuesRes, documentsRes] = await Promise.all([
+        const [projectRes, membersRes, issuesRes] = await Promise.all([
           getProject(projectId),
           getProjectEmployees(projectId),
           getProjectIssues(projectId),
-          getProjectDocuments(projectId).catch(() => ({ data: [] })),
         ]);
 
         return {
@@ -701,7 +672,6 @@ export default function ProjectWorkspace({
           project: projectRes.data as ProjectShape,
           members: Array.isArray(membersRes.data) ? membersRes.data : [],
           issues: Array.isArray(issuesRes.data) ? issuesRes.data : [],
-          documents: Array.isArray(documentsRes.data) ? documentsRes.data : [],
         };
       };
 
@@ -716,7 +686,6 @@ export default function ProjectWorkspace({
           project: mapClientProjectToWorkspace(clientProject),
           members: Array.isArray(membersRes.data) ? membersRes.data : [],
           issues: [] as ProjectIssue[],
-          documents: [] as ProjectDocument[],
         };
       };
 
@@ -726,7 +695,6 @@ export default function ProjectWorkspace({
             project: ProjectShape;
             members: ProjectEmployee[];
             issues: ProjectIssue[];
-            documents: ProjectDocument[];
           }
         | undefined;
 
@@ -746,8 +714,6 @@ export default function ProjectWorkspace({
       setProgressValue(Number(workspaceData.project?.completionPercent || 0));
       setProjectEmployees(workspaceData.members);
       setIssues(workspaceData.issues);
-      setDocuments(workspaceData.documents);
-      setDocumentsError(null);
       await loadProjectTimesheetBoard(
         workspaceData.source,
         workspaceData.project.name,
@@ -1065,18 +1031,6 @@ export default function ProjectWorkspace({
     }
   };
 
-  const loadProjectDocumentsList = useCallback(async () => {
-    if (!project || isClientProject) return;
-    try {
-      const res = await getProjectDocuments(project.id);
-      setDocuments(Array.isArray(res.data) ? (res.data as ProjectDocument[]) : []);
-      setDocumentsError(null);
-    } catch {
-      setDocuments([]);
-      setDocumentsError("Failed to load project documents");
-    }
-  }, [isClientProject, project]);
-
   const handleDocumentFileUpload = async (file: File) => {
     if (!project || isClientProject) return;
     try {
@@ -1136,7 +1090,7 @@ export default function ProjectWorkspace({
         mimeType: "",
         fileSize: null,
       });
-      await loadProjectDocumentsList();
+      setShowDocumentComposer(false);
       toast.success("Project document added");
     } catch {
       toast.error("Failed to add project document");
@@ -1144,54 +1098,6 @@ export default function ProjectWorkspace({
       setSavingDocument(false);
     }
   };
-
-  const handleUpdateDocument = useCallback(
-    async (
-      documentId: string,
-      patch: Partial<
-        Pick<ProjectDocument, "title" | "description" | "fileUrl" | "fileName" | "mimeType" | "fileSize">
-      >,
-    ) => {
-      if (!project || isClientProject) return;
-      if (!canManageDocuments) {
-        toast.error("Only admin/manager can update project documents");
-        return;
-      }
-      try {
-        await updateProjectDocument(project.id, documentId, {
-          ...(patch.title !== undefined ? { title: patch.title } : {}),
-          ...(patch.description !== undefined ? { description: patch.description || "" } : {}),
-          ...(patch.fileUrl !== undefined ? { fileUrl: patch.fileUrl } : {}),
-          ...(patch.fileName !== undefined ? { fileName: patch.fileName || "" } : {}),
-          ...(patch.mimeType !== undefined ? { mimeType: patch.mimeType || "" } : {}),
-          ...(typeof patch.fileSize === "number" ? { fileSize: patch.fileSize } : {}),
-        });
-        setDocuments((prev) =>
-          prev.map((doc) =>
-            doc.id === documentId
-              ? {
-                  ...doc,
-                  ...patch,
-                  description:
-                    patch.description === undefined ? doc.description : patch.description || null,
-                  fileName:
-                    patch.fileName === undefined ? doc.fileName : patch.fileName || null,
-                  mimeType:
-                    patch.mimeType === undefined ? doc.mimeType : patch.mimeType || null,
-                  fileSize:
-                    patch.fileSize === undefined ? doc.fileSize : patch.fileSize ?? null,
-                  updatedByUserId: profileUserId || doc.updatedByUserId,
-                }
-              : doc,
-          ),
-        );
-        toast.success("Document updated");
-      } catch {
-        toast.error("Failed to update document");
-      }
-    },
-    [canManageDocuments, isClientProject, profileUserId, project],
-  );
 
   const handleToggleQaPanel = () => {
     const nextValue = !showQaPanel;
@@ -1271,7 +1177,19 @@ export default function ProjectWorkspace({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="rounded-xl border border-border bg-card p-4 space-y-2 lg:col-span-2">
-          <h3 className="font-semibold">Project Overview</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-semibold">Project Overview</h3>
+            {!isClientProject && canManageDocuments ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDocumentComposer((prev) => !prev)}
+              >
+                <Upload className="w-4 h-4 mr-1" />
+                {showDocumentComposer ? "Close" : "Project Documents"}
+              </Button>
+            ) : null}
+          </div>
           <p className="text-sm text-muted-foreground">
             {project.description || "No description provided."}
           </p>
@@ -1295,6 +1213,70 @@ export default function ProjectWorkspace({
               </span>
             )}
           </div>
+          {!isClientProject && canManageDocuments && showDocumentComposer ? (
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-8 gap-2 p-3 border border-border rounded-lg">
+              <Input
+                className="md:col-span-2"
+                placeholder="Document title"
+                value={documentDraft.title}
+                onChange={(e) =>
+                  setDocumentDraft((prev) => ({ ...prev, title: e.target.value }))
+                }
+              />
+              <Input
+                className="md:col-span-4"
+                placeholder="Document URL (or upload below)"
+                value={documentDraft.fileUrl}
+                onChange={(e) =>
+                  setDocumentDraft((prev) => ({ ...prev, fileUrl: e.target.value }))
+                }
+              />
+              <div className="md:col-span-2 flex justify-end">
+                <Button onClick={handleCreateDocument} disabled={savingDocument}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  {savingDocument ? "Saving..." : "Add Document"}
+                </Button>
+              </div>
+              <Input
+                className="md:col-span-4"
+                placeholder="Description (optional)"
+                value={documentDraft.description}
+                onChange={(e) =>
+                  setDocumentDraft((prev) => ({ ...prev, description: e.target.value }))
+                }
+              />
+              <div className="md:col-span-4 flex items-center gap-2">
+                <label className="inline-flex">
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleDocumentFileUpload(file);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={uploadingDocumentFile}
+                    asChild
+                  >
+                    <span>
+                      <Upload className="w-4 h-4 mr-1" />
+                      {uploadingDocumentFile ? "Uploading..." : "Upload File"}
+                    </span>
+                  </Button>
+                </label>
+                {documentDraft.fileName ? (
+                  <span className="text-xs text-muted-foreground truncate max-w-[240px]">
+                    {documentDraft.fileName}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="rounded-xl border border-border bg-card p-4 space-y-3">
           <h3 className="font-semibold">Progress</h3>
@@ -1593,135 +1575,6 @@ export default function ProjectWorkspace({
           </div>
         )}
       </div>
-      ) : null}
-
-      {!isClientProject ? (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h2 className="font-semibold">Project Documents</h2>
-              <p className="text-xs text-muted-foreground">
-                Admin, manager, and assigned members can view project documents.
-              </p>
-            </div>
-            <Badge variant="outline">{documents.length} files</Badge>
-          </div>
-
-          {documentsError ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-              {documentsError}
-            </div>
-          ) : null}
-
-          {canManageDocuments ? (
-            <div className="grid grid-cols-1 md:grid-cols-8 gap-2 p-3 border border-border rounded-lg">
-              <Input
-                className="md:col-span-2"
-                placeholder="Document title"
-                value={documentDraft.title}
-                onChange={(e) =>
-                  setDocumentDraft((prev) => ({ ...prev, title: e.target.value }))
-                }
-              />
-              <Input
-                className="md:col-span-3"
-                placeholder="Document URL (or upload below)"
-                value={documentDraft.fileUrl}
-                onChange={(e) =>
-                  setDocumentDraft((prev) => ({ ...prev, fileUrl: e.target.value }))
-                }
-              />
-              <Input
-                className="md:col-span-3"
-                placeholder="Description (optional)"
-                value={documentDraft.description}
-                onChange={(e) =>
-                  setDocumentDraft((prev) => ({ ...prev, description: e.target.value }))
-                }
-              />
-
-              <div className="md:col-span-4 flex items-center gap-2">
-                <label className="inline-flex">
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void handleDocumentFileUpload(file);
-                      e.currentTarget.value = "";
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={uploadingDocumentFile}
-                    asChild
-                  >
-                    <span>
-                      <Upload className="w-4 h-4 mr-1" />
-                      {uploadingDocumentFile ? "Uploading..." : "Upload File"}
-                    </span>
-                  </Button>
-                </label>
-                {documentDraft.fileName ? (
-                  <span className="text-xs text-muted-foreground truncate max-w-[220px]">
-                    {documentDraft.fileName}
-                  </span>
-                ) : null}
-              </div>
-              <div className="md:col-span-4 flex justify-end">
-                <Button onClick={handleCreateDocument} disabled={savingDocument}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  {savingDocument ? "Saving..." : "Add Document"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Only admin/manager can add or edit project documents.
-            </p>
-          )}
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border border-border">
-              <thead className="bg-muted/40">
-                <tr>
-                  <th className="text-left px-2 py-2 border-b border-border">Title</th>
-                  <th className="text-left px-2 py-2 border-b border-border">Description</th>
-                  <th className="text-left px-2 py-2 border-b border-border">File</th>
-                  <th className="text-left px-2 py-2 border-b border-border">Type</th>
-                  <th className="text-left px-2 py-2 border-b border-border">Size</th>
-                  <th className="text-left px-2 py-2 border-b border-border">Uploaded By</th>
-                  <th className="text-left px-2 py-2 border-b border-border">Updated</th>
-                  <th className="text-right px-2 py-2 border-b border-border">Save</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.length === 0 ? (
-                  <tr>
-                    <td className="px-3 py-4 text-muted-foreground" colSpan={8}>
-                      No project documents added yet.
-                    </td>
-                  </tr>
-                ) : (
-                  documents.map((document) => (
-                    <ProjectDocumentRow
-                      key={document.id}
-                      document={document}
-                      canEdit={canManageDocuments}
-                      uploaderName={
-                        memberNameByUserId.get(document.uploadedByUserId) ||
-                        shortId(document.uploadedByUserId)
-                      }
-                      onSave={handleUpdateDocument}
-                    />
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
       ) : null}
 
       <div className="rounded-xl border border-border bg-card p-4 space-y-4">
@@ -2296,128 +2149,6 @@ export default function ProjectWorkspace({
         </div>
       )}
     </div>
-  );
-}
-
-function ProjectDocumentRow({
-  document,
-  uploaderName,
-  canEdit,
-  onSave,
-}: {
-  document: ProjectDocument;
-  uploaderName: string;
-  canEdit: boolean;
-  onSave: (
-    documentId: string,
-    patch: Partial<
-      Pick<ProjectDocument, "title" | "description" | "fileUrl" | "fileName" | "mimeType" | "fileSize">
-    >,
-  ) => Promise<void>;
-}) {
-  const [draft, setDraft] = useState({
-    title: document.title || "",
-    description: document.description || "",
-    fileUrl: document.fileUrl || "",
-    fileName: document.fileName || "",
-    mimeType: document.mimeType || "",
-  });
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setDraft({
-      title: document.title || "",
-      description: document.description || "",
-      fileUrl: document.fileUrl || "",
-      fileName: document.fileName || "",
-      mimeType: document.mimeType || "",
-    });
-  }, [document]);
-
-  return (
-    <tr className="border-b border-border last:border-b-0 align-top">
-      <td className="px-2 py-2 min-w-[170px]">
-        <Input
-          value={draft.title}
-          disabled={!canEdit}
-          onChange={(e) => setDraft((prev) => ({ ...prev, title: e.target.value }))}
-        />
-      </td>
-      <td className="px-2 py-2 min-w-[220px]">
-        <Textarea
-          className="min-h-[38px]"
-          value={draft.description}
-          disabled={!canEdit}
-          onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
-        />
-      </td>
-      <td className="px-2 py-2 min-w-[260px]">
-        <Input
-          value={draft.fileUrl}
-          disabled={!canEdit}
-          onChange={(e) => setDraft((prev) => ({ ...prev, fileUrl: e.target.value }))}
-        />
-        <a
-          href={draft.fileUrl || document.fileUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-blue-600 underline mt-1 inline-flex items-center gap-1"
-        >
-          <ExternalLink className="w-3 h-3" />
-          Open file
-        </a>
-      </td>
-      <td className="px-2 py-2 min-w-[140px]">
-        <Input
-          value={draft.mimeType}
-          disabled={!canEdit}
-          onChange={(e) => setDraft((prev) => ({ ...prev, mimeType: e.target.value }))}
-          placeholder="mime/type"
-        />
-      </td>
-      <td className="px-2 py-2 min-w-[95px] text-xs text-muted-foreground">
-        {formatFileSize(document.fileSize)}
-      </td>
-      <td className="px-2 py-2 min-w-[130px] text-xs text-muted-foreground">
-        {uploaderName}
-      </td>
-      <td className="px-2 py-2 min-w-[120px] text-xs text-muted-foreground">
-        {formatDisplayDate(document.updatedAt)}
-      </td>
-      <td className="px-2 py-2 text-right min-w-[90px]">
-        {canEdit ? (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={saving}
-            onClick={async () => {
-              try {
-                setSaving(true);
-                await onSave(document.id, {
-                  title: draft.title,
-                  description: draft.description,
-                  fileUrl: draft.fileUrl,
-                  fileName: draft.fileName,
-                  mimeType: draft.mimeType,
-                });
-              } finally {
-                setSaving(false);
-              }
-            }}
-          >
-            <Save className="w-3.5 h-3.5 mr-1" />
-            Save
-          </Button>
-        ) : (
-          <Button size="sm" variant="outline" asChild>
-            <a href={document.fileUrl} target="_blank" rel="noreferrer">
-              <FileText className="w-3.5 h-3.5 mr-1" />
-              View
-            </a>
-          </Button>
-        )}
-      </td>
-    </tr>
   );
 }
 
