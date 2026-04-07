@@ -255,6 +255,30 @@ export const updateProjectMemberRole = (
   userId: string,
   role: string,
 ) => api.patch(`/projects/${id}/members/${userId}/role`, { role });
+export const getProjectDocuments = (id: string) => api.get(`/projects/${id}/documents`);
+export const createProjectDocument = (
+  id: string,
+  data: {
+    title: string;
+    fileUrl: string;
+    fileName?: string;
+    mimeType?: string;
+    fileSize?: number;
+    description?: string;
+  },
+) => api.post(`/projects/${id}/documents`, data);
+export const updateProjectDocument = (
+  id: string,
+  documentId: string,
+  data: Partial<{
+    title: string;
+    fileUrl: string;
+    fileName: string;
+    mimeType: string;
+    fileSize: number;
+    description: string;
+  }>,
+) => api.patch(`/projects/${id}/documents/${documentId}`, data);
 export const getProjectIssues = (id: string) => api.get(`/projects/${id}/issues`);
 export const createProjectIssue = (
   id: string,
