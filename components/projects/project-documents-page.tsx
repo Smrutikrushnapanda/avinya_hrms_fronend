@@ -6,6 +6,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import {
   createClientProjectDocument,
   createProjectDocument,
+  deleteClientProjectDocument,
+  deleteProjectDocument,
   getClientProject,
   getClientProjectDocuments,
   getClientProjectEmployees,
@@ -13,6 +15,8 @@ import {
   getProject,
   getProjectDocuments,
   getProjectEmployees,
+  updateClientProjectDocument,
+  updateProjectDocument,
   uploadFile,
 } from "@/app/api/api";
 import { toast } from "sonner";
@@ -117,7 +121,6 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
   const projectId = String(params?.id || "");
   const source = (searchParams.get("source") === "client" ? "client" : "standalone") as ProjectSource;
   const isClientProject = source === "client";
-  const isReadOnlyAdminView = mode === "admin";
 
   const [loading, setLoading] = useState(true);
   const [projectName, setProjectName] = useState("Project");
@@ -125,6 +128,7 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
   const [projectCreatedByUserId, setProjectCreatedByUserId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [showComposer, setShowComposer] = useState(false);
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
   const [uploadingDocumentFile, setUploadingDocumentFile] = useState(false);
   const [savingDocument, setSavingDocument] = useState(false);
   const [profileUserId, setProfileUserId] = useState<string>("");
@@ -172,8 +176,7 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
     );
   }, [isClientProject, profileUserId, projectCreatedByUserId, projectMembers]);
 
-  const canManageDocuments =
-    !isReadOnlyAdminView && (hasAdminRole || hasManagerRole || isCurrentUserProjectManager);
+  const canManageDocuments = hasAdminRole || hasManagerRole || isCurrentUserProjectManager;
 
   const loadDocuments = useCallback(async () => {
     if (!projectId) return;
@@ -296,10 +299,18 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
         fileSize: documentDraft.fileSize ?? undefined,
       };
 
-      if (isClientProject) {
-        await createClientProjectDocument(projectId, payload);
+      if (editingDocumentId) {
+        if (isClientProject) {
+          await updateClientProjectDocument(projectId, editingDocumentId, payload);
+        } else {
+          await updateProjectDocument(projectId, editingDocumentId, payload);
+        }
       } else {
-        await createProjectDocument(projectId, payload);
+        if (isClientProject) {
+          await createClientProjectDocument(projectId, payload);
+        } else {
+          await createProjectDocument(projectId, payload);
+        }
       }
 
       setDocumentDraft({
@@ -311,12 +322,49 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
         fileSize: null,
       });
       setShowComposer(false);
+      setEditingDocumentId(null);
       await loadDocuments();
-      toast.success("Project document added");
+      toast.success(editingDocumentId ? "Project document updated" : "Project document added");
     } catch {
-      toast.error("Failed to add project document");
+      toast.error(editingDocumentId ? "Failed to update project document" : "Failed to add project document");
     } finally {
       setSavingDocument(false);
+    }
+  };
+
+  const handleStartEdit = (document: ProjectDocument) => {
+    if (!canManageDocuments) return;
+    setEditingDocumentId(document.id);
+    setDocumentDraft({
+      title: document.title || "",
+      description: document.description || "",
+      fileUrl: document.fileUrl || "",
+      fileName: document.fileName || "",
+      mimeType: document.mimeType || "",
+      fileSize: Number.isFinite(Number(document.fileSize)) ? Number(document.fileSize) : null,
+    });
+    setShowComposer(true);
+  };
+
+  const handleDeleteDocument = async (document: ProjectDocument) => {
+    if (!projectId || !canManageDocuments) return;
+    const confirmed = window.confirm(`Delete document "${document.title}"?`);
+    if (!confirmed) return;
+
+    try {
+      if (isClientProject) {
+        await deleteClientProjectDocument(projectId, document.id);
+      } else {
+        await deleteProjectDocument(projectId, document.id);
+      }
+      if (editingDocumentId === document.id) {
+        setEditingDocumentId(null);
+        setShowComposer(false);
+      }
+      await loadDocuments();
+      toast.success("Project document deleted");
+    } catch {
+      toast.error("Failed to delete project document");
     }
   };
 
@@ -346,9 +394,20 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
           </h1>
         </div>
         {canManageDocuments ? (
-          <Button size="sm" variant="outline" onClick={() => setShowComposer((prev) => !prev)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (showComposer) {
+                setShowComposer(false);
+                setEditingDocumentId(null);
+              } else {
+                setShowComposer(true);
+              }
+            }}
+          >
             <Plus className="w-4 h-4 mr-1" />
-            {showComposer ? "Close" : "Add Document"}
+            {showComposer ? "Close" : editingDocumentId ? "Edit Document" : "Add Document"}
           </Button>
         ) : (
           <Badge variant="outline">Read only</Badge>
@@ -371,7 +430,7 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
           />
           <div className="md:col-span-2 flex justify-end">
             <Button onClick={handleCreateDocument} disabled={savingDocument}>
-              {savingDocument ? "Saving..." : "Add Document"}
+              {savingDocument ? "Saving..." : editingDocumentId ? "Update Document" : "Add Document"}
             </Button>
           </div>
           <Textarea
@@ -446,11 +505,32 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
                       {size ? ` • ${size}` : ""}
                     </p>
                   </div>
-                  <Button size="sm" variant="outline" asChild>
-                    <a href={document.fileUrl} target="_blank" rel="noreferrer">
-                      Open
-                    </a>
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={document.fileUrl} target="_blank" rel="noreferrer">
+                        Open
+                      </a>
+                    </Button>
+                    {canManageDocuments ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleStartEdit(document)}
+                      >
+                        Update
+                      </Button>
+                    ) : null}
+                    {canManageDocuments ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:text-red-700"
+                        onClick={() => handleDeleteDocument(document)}
+                      >
+                        Delete
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               );
             })}

@@ -5,19 +5,15 @@ import { useRouter } from "next/navigation";
 import {
   assignClientProjectEmployees,
   assignProjectEmployees,
-  createClientProjectDocument,
-  createProjectDocument,
   createProjectTask,
   createProjectIssue,
   deleteProjectTask,
   getClientProject,
-  getClientProjectDocuments,
   getClientProjectEmployees,
   getClientProjectTimesheetsSummary,
   getAllOrgEmployees,
   getProfile,
   getProject,
-  getProjectDocuments,
   getProjectEmployees,
   getProjectIssues,
   getProjectTasks,
@@ -126,22 +122,6 @@ type ProjectIssue = {
   assigneeUserId: string | null;
   createdByUserId: string;
   resolvedByUserId: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type ProjectDocument = {
-  id: string;
-  projectId: string;
-  organizationId: string;
-  title: string;
-  description: string | null;
-  fileUrl: string;
-  fileName: string | null;
-  mimeType: string | null;
-  fileSize: number | null;
-  uploadedByUserId: string;
-  updatedByUserId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -323,22 +303,6 @@ function formatMinutes(minutes?: number) {
   return `${h}h ${m}m`;
 }
 
-function formatDocumentSize(size?: number | null) {
-  const bytes = Number(size ?? 0);
-  if (!Number.isFinite(bytes) || bytes <= 0) return null;
-  if (bytes < 1024) return `${bytes} B`;
-
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)} ${units[unitIndex]}`;
-}
-
 function formatUserName(user?: { firstName?: string; lastName?: string; email?: string } | null) {
   if (!user) return "--";
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
@@ -431,19 +395,6 @@ export default function ProjectWorkspace({
     priority: "medium" as ClientTaskPriority,
   });
   const [issues, setIssues] = useState<ProjectIssue[]>([]);
-  const [documents, setDocuments] = useState<ProjectDocument[]>([]);
-  const [showDocumentComposer, setShowDocumentComposer] = useState(false);
-  const [documentDraft, setDocumentDraft] = useState({
-    title: "",
-    description: "",
-    fileUrl: "",
-    fileName: "",
-    mimeType: "",
-    fileSize: null as number | null,
-  });
-  const [uploadingDocumentFile, setUploadingDocumentFile] = useState(false);
-  const [savingDocument, setSavingDocument] = useState(false);
-  const [documentsLoading, setDocumentsLoading] = useState(false);
   const [orgEmployees, setOrgEmployees] = useState<TeamMember[]>([]);
   const [profileUserId, setProfileUserId] = useState<string>("");
   const [profileRoles, setProfileRoles] = useState<string[]>([]);
@@ -683,29 +634,6 @@ export default function ProjectWorkspace({
     }
   }, []);
 
-  const loadProjectDocumentsBoard = useCallback(
-    async (
-      workspaceProjectId: string,
-      workspaceSource: ProjectSource,
-      silent = false,
-    ) => {
-      setDocumentsLoading(true);
-      try {
-        const res =
-          workspaceSource === "client"
-            ? await getClientProjectDocuments(workspaceProjectId)
-            : await getProjectDocuments(workspaceProjectId);
-        setDocuments(Array.isArray(res.data) ? (res.data as ProjectDocument[]) : []);
-      } catch {
-        setDocuments([]);
-        if (!silent) toast.error("Failed to load project documents");
-      } finally {
-        setDocumentsLoading(false);
-      }
-    },
-    [],
-  );
-
   const loadWorkspace = useCallback(async () => {
     try {
       setLoading(true);
@@ -732,7 +660,6 @@ export default function ProjectWorkspace({
           project: projectRes.data as ProjectShape,
           members: Array.isArray(membersRes.data) ? membersRes.data : [],
           issues: Array.isArray(issuesRes.data) ? issuesRes.data : [],
-          documents: [] as ProjectDocument[],
         };
       };
 
@@ -747,7 +674,6 @@ export default function ProjectWorkspace({
           project: mapClientProjectToWorkspace(clientProject),
           members: Array.isArray(membersRes.data) ? membersRes.data : [],
           issues: [] as ProjectIssue[],
-          documents: [] as ProjectDocument[],
         };
       };
 
@@ -757,7 +683,6 @@ export default function ProjectWorkspace({
             project: ProjectShape;
             members: ProjectEmployee[];
             issues: ProjectIssue[];
-            documents: ProjectDocument[];
           }
         | undefined;
 
@@ -777,7 +702,6 @@ export default function ProjectWorkspace({
       setProgressValue(Number(workspaceData.project?.completionPercent || 0));
       setProjectEmployees(workspaceData.members);
       setIssues(workspaceData.issues);
-      setDocuments(workspaceData.documents);
       await loadProjectTimesheetBoard(
         workspaceData.source,
         workspaceData.project.name,
@@ -785,7 +709,6 @@ export default function ProjectWorkspace({
       );
       if (workspaceData.source === "client") {
         await loadClientTaskBoard(workspaceData.project.id);
-        await loadProjectDocumentsBoard(workspaceData.project.id, workspaceData.source, true);
         // Fetch P&L summary for client projects
         try {
           const pnlRes = await getClientProjectTimesheetsSummary(workspaceData.project.id);
@@ -803,7 +726,6 @@ export default function ProjectWorkspace({
         } catch { /* ignore - P&L is optional */ }
       } else {
         setClientTasks([]);
-        await loadProjectDocumentsBoard(workspaceData.project.id, workspaceData.source, true);
       }
     } catch (error: unknown) {
       const message =
@@ -817,7 +739,7 @@ export default function ProjectWorkspace({
     } finally {
       setLoading(false);
     }
-  }, [loadClientTaskBoard, loadProjectDocumentsBoard, loadProjectTimesheetBoard, projectId, source]);
+  }, [loadClientTaskBoard, loadProjectTimesheetBoard, projectId, source]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -1097,82 +1019,6 @@ export default function ProjectWorkspace({
     }
   };
 
-  const handleDocumentFileUpload = async (file: File) => {
-    if (!project) return;
-    try {
-      setUploadingDocumentFile(true);
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await uploadFile(formData, {
-        path: isClientProject
-          ? `client-projects/${project.id}/documents`
-          : `projects/${project.id}/documents`,
-        public: true,
-      });
-      const url = res?.data?.url || res?.data?.secureUrl || "";
-      if (!url) {
-        toast.error("File upload did not return a URL");
-        return;
-      }
-      setDocumentDraft((prev) => ({
-        ...prev,
-        fileUrl: url,
-        fileName: file.name || prev.fileName,
-        mimeType: file.type || prev.mimeType,
-        fileSize: Number.isFinite(file.size) ? file.size : prev.fileSize,
-        title: prev.title || file.name || "Project Document",
-      }));
-      toast.success("Document uploaded");
-    } catch {
-      toast.error("Failed to upload document");
-    } finally {
-      setUploadingDocumentFile(false);
-    }
-  };
-
-  const handleCreateDocument = async () => {
-    if (!project) return;
-    if (!canManageDocuments) {
-      toast.error("Only admin/manager can add project documents");
-      return;
-    }
-    if (!documentDraft.title.trim() || !documentDraft.fileUrl.trim()) {
-      toast.error("Document title and file URL are required");
-      return;
-    }
-    try {
-      setSavingDocument(true);
-      const payload = {
-        title: documentDraft.title.trim(),
-        description: documentDraft.description.trim() || undefined,
-        fileUrl: documentDraft.fileUrl.trim(),
-        fileName: documentDraft.fileName.trim() || undefined,
-        mimeType: documentDraft.mimeType.trim() || undefined,
-        fileSize: documentDraft.fileSize ?? undefined,
-      };
-      if (isClientProject) {
-        await createClientProjectDocument(project.id, payload);
-      } else {
-        await createProjectDocument(project.id, payload);
-      }
-      setDocumentDraft({
-        title: "",
-        description: "",
-        fileUrl: "",
-        fileName: "",
-        mimeType: "",
-        fileSize: null,
-      });
-      setShowDocumentComposer(false);
-      await loadProjectDocumentsBoard(project.id, projectSource);
-      toast.success("Project document added");
-    } catch {
-      toast.error("Failed to add project document");
-    } finally {
-      setSavingDocument(false);
-    }
-  };
-
   const handleToggleQaPanel = () => {
     const nextValue = !showQaPanel;
     setShowQaPanel(nextValue);
@@ -1292,109 +1138,6 @@ export default function ProjectWorkspace({
                   ? `${Math.abs(project.daysRemaining)}d overdue`
                   : `${project.daysRemaining}d remaining`}
               </span>
-            )}
-          </div>
-          {canManageDocuments && showDocumentComposer ? (
-            <div className="mt-2 grid grid-cols-1 md:grid-cols-8 gap-2 p-3 border border-border rounded-lg">
-              <Input
-                className="md:col-span-2"
-                placeholder="Document title"
-                value={documentDraft.title}
-                onChange={(e) =>
-                  setDocumentDraft((prev) => ({ ...prev, title: e.target.value }))
-                }
-              />
-              <Input
-                className="md:col-span-4"
-                placeholder="Document URL (or upload below)"
-                value={documentDraft.fileUrl}
-                onChange={(e) =>
-                  setDocumentDraft((prev) => ({ ...prev, fileUrl: e.target.value }))
-                }
-              />
-              <div className="md:col-span-2 flex justify-end">
-                <Button onClick={handleCreateDocument} disabled={savingDocument}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  {savingDocument ? "Saving..." : "Add Document"}
-                </Button>
-              </div>
-              <Input
-                className="md:col-span-4"
-                placeholder="Description (optional)"
-                value={documentDraft.description}
-                onChange={(e) =>
-                  setDocumentDraft((prev) => ({ ...prev, description: e.target.value }))
-                }
-              />
-              <div className="md:col-span-4 flex items-center gap-2">
-                <label className="inline-flex">
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void handleDocumentFileUpload(file);
-                      e.currentTarget.value = "";
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={uploadingDocumentFile}
-                    asChild
-                  >
-                    <span>
-                      <Upload className="w-4 h-4 mr-1" />
-                      {uploadingDocumentFile ? "Uploading..." : "Upload File"}
-                    </span>
-                  </Button>
-                </label>
-                {documentDraft.fileName ? (
-                  <span className="text-xs text-muted-foreground truncate max-w-[240px]">
-                    {documentDraft.fileName}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-          <div className="mt-3 border border-border rounded-lg p-3 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <h4 className="text-sm font-medium">Project Documents</h4>
-              <Badge variant="outline">{documents.length}</Badge>
-            </div>
-            {documentsLoading ? (
-              <p className="text-xs text-muted-foreground">Loading documents...</p>
-            ) : documents.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No project documents uploaded yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {documents.map((document) => {
-                  const size = formatDocumentSize(document.fileSize);
-                  return (
-                    <div
-                      key={document.id}
-                      className="flex items-start justify-between gap-3 rounded-md border border-border p-2"
-                    >
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-medium truncate">{document.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {document.fileName || "Attached document"}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">
-                          {formatDisplayDate(document.createdAt)}
-                          {size ? ` • ${size}` : ""}
-                        </p>
-                      </div>
-                      <Button size="sm" variant="outline" asChild>
-                        <a href={document.fileUrl} target="_blank" rel="noreferrer">
-                          Open
-                        </a>
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
             )}
           </div>
         </div>

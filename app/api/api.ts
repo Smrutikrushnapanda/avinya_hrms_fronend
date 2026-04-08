@@ -279,6 +279,8 @@ export const updateProjectDocument = (
     description: string;
   }>,
 ) => api.patch(`/projects/${id}/documents/${documentId}`, data);
+export const deleteProjectDocument = (id: string, documentId: string) =>
+  api.delete(`/projects/${id}/documents/${documentId}`);
 export const getProjectIssues = (id: string) => api.get(`/projects/${id}/issues`);
 export const createProjectIssue = (
   id: string,
@@ -394,6 +396,8 @@ export const updateClientProjectDocument = (
     description: string;
   }>,
 ) => api.patch(`/client-projects/${id}/documents/${documentId}`, data);
+export const deleteClientProjectDocument = (id: string, documentId: string) =>
+  api.delete(`/client-projects/${id}/documents/${documentId}`);
 export const getClientProjectTestSheet = (id: string) => api.get(`/client-projects/${id}/test-sheet`);
 export const updateClientProjectTestSheetColumns = (
   id: string,
