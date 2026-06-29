@@ -913,6 +913,10 @@ export const sendMeetingNotification = (id: string) =>
 export const updateMeetingStatus = (id: string, status: string) =>
   api.put(`/meetings/${id}/status`, { status });
 
+// 📋 Menu Items API
+export const getMenuItems = (role?: string, planType?: string) =>
+  api.get('/menu-items', { params: { role, planType } });
+
 // Export the axios instance as default and named export
 export { api, apiBaseURL };
 export default api;

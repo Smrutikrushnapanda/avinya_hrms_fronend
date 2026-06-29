@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlanAccess } from "@/components/plan-access-provider";
-import { getProfile, getChatConversations, getPerformanceSettings, getWfhToday, getOrganization } from "@/app/api/api";
+import { getProfile, getChatConversations, getMenuItems } from "@/app/api/api";
 import {
   Users,
   LayoutDashboard,
@@ -27,10 +27,12 @@ import {
   TrendingUp,
   Monitor,
   FolderKanban,
+  Kanban,
   Receipt,
   Video,
   UserRound,
   MessageSquarePlus,
+  Bell,
 } from "lucide-react";
 import {
   Tooltip,
@@ -76,135 +78,83 @@ interface Profile {
   };
 }
 
-interface MenuItemChild {
-  name: string;
-  icon: LucideIcon;
-  href: string;
-  animation: AnimationType;
-}
-
 interface MenuItem {
   name: string;
   icon: LucideIcon;
   href?: string;
   animation: AnimationType;
-  children?: MenuItemChild[];
+  children?: MenuItem[];
 }
 
-const applyBasicPlanMenuScope = (
-  items: MenuItem[],
-  role: string,
-  isBasicPlan: boolean
-): MenuItem[] => {
-  if (!isBasicPlan) {
-    return items;
-  }
+interface ApiMenuItem {
+  id: string;
+  label: string;
+  iconName?: string;
+  route?: string;
+  sortOrder: number;
+  children?: ApiMenuItem[];
+}
+
+const iconMap: Record<string, LucideIcon> = {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  BookMarked,
+  Clock,
+  CalendarDays,
+  Home,
+  Monitor,
+  Video,
+  BadgeDollarSign,
+  Vote,
+  MessageSquarePlus,
+  FolderKanban,
+  Kanban,
+  TrendingUp,
+  Shield,
+  Receipt,
+  Settings,
+  FileText,
+  UserRound,
+  Bell,
+};
+
+function mapApiItem(item: ApiMenuItem): MenuItem {
+  return {
+    name: item.label,
+    icon: iconMap[item.iconName || ''] || LayoutDashboard,
+    href: item.route || undefined,
+    animation: DEFAULT_ANIMATION,
+    children: item.children?.map(mapApiItem),
+  };
+}
+
+const DEFAULT_ANIMATION: AnimationType = 'pulse';
+
+function applyPlanScope(items: MenuItem[], isBasic: boolean, role: string): MenuItem[] {
+  if (!isBasic) return items;
 
   const basicEmployeeAllowlist = new Set([
-    "Dashboard",
-    "Attendance",
-    "Timesheet",
-    "Leave",
-    "WFH",
-    "Time Slips",
-    "Salary Slips",
-    "Policy",
-    "My Profile",
+    "Dashboard", "Attendance", "Timesheet", "Leave", "WFH",
+    "Time Slips", "Salary Slips", "Policy", "My Profile",
   ]);
 
   const basicAdminAllowlist = new Set([
-    "Dashboard",
-    "Employees",
-    "Attendance",
-    "Time Slips",
-    "Leave & WFH",
-    "Policy",
-    "Settings",
+    "Dashboard", "Employees", "Attendance", "Time Slips",
+    "Leave & WFH", "Policy", "Settings",
   ]);
 
-  if (role === "EMPLOYEE") {
-    return items.filter((item) => basicEmployeeAllowlist.has(item.name));
-  }
+  const allowlist = role === "EMPLOYEE" ? basicEmployeeAllowlist : basicAdminAllowlist;
+  if (!allowlist) return items;
 
-  if (role === "ADMIN" || role === "HR") {
-    return items.filter((item) => basicAdminAllowlist.has(item.name));
-  }
-
-  return items;
-};
-
-const menuByRole: Record<string, MenuItem[]> = {
-  ADMIN: [
-    { name: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", animation: "pulse" },
-    { name: "Employees", icon: Users, href: "/admin/employees", animation: "wiggle" },
-    { name: "Attendance", icon: Calendar, href: "/admin/attendance", animation: "flip" },
-    { name: "Timesheet", icon: BookMarked, href: "/admin/timesheets", animation: "swing" },
-    { name: "Time Slips", icon: Clock, href: "/admin/timeslips", animation: "float" },
-    {
-      name: "Leave & WFH",
-      icon: CalendarDays,
-      animation: "float",
-      children: [
-        { name: "Leave", icon: CalendarDays, href: "/admin/leave", animation: "float" },
-        { name: "WFH", icon: Home, href: "/admin/wfh", animation: "wiggle" },
-        { name: "WFH Monitor", icon: Monitor, href: "/admin/wfh-monitor", animation: "pulse" },
-      ],
-    },
-    { name: "Meetings", icon: Video, href: "/admin/meetings", animation: "bounce" },
-    { name: "Payroll", icon: BadgeDollarSign, href: "/admin/payroll", animation: "bounce" },
-    { name: "Polls", icon: Vote, href: "/admin/polls", animation: "rubberBand" },
-    { name: "Community Posts", icon: MessageSquarePlus, href: "/admin/posts", animation: "float" },
-    { name: "Projects", icon: FolderKanban, href: "/admin/projects", animation: "float" },
-    { name: "Performance", icon: TrendingUp, href: "/admin/performance", animation: "float" },
-    { name: "Policy", icon: Shield, href: "/admin/policy", animation: "float" },
-    { name: "Expenses", icon: Receipt, href: "/admin/expenses", animation: "float" },
-    { name: "Settings", icon: Settings, href: "/admin/settings", animation: "spin" },
-    { name: "Reports", icon: BookMarked, href: "/admin/reports", animation: "swing" },
-    { name: "Log Report", icon: FileText, href: "/admin/logreport", animation: "float" },
-  ],
-  HR: [
-    { name: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", animation: "pulse" },
-    { name: "Employees", icon: Users, href: "/admin/employees", animation: "wiggle" },
-    { name: "Attendance", icon: Calendar, href: "/admin/attendance", animation: "flip" },
-    { name: "Time Slips", icon: Clock, href: "/admin/timeslips", animation: "float" },
-    { name: "Timesheet", icon: BookMarked, href: "/admin/timesheets", animation: "swing" },
-    {
-      name: "Leave & WFH",
-      icon: CalendarDays,
-      animation: "float",
-      children: [
-        { name: "Leave", icon: CalendarDays, href: "/admin/leave", animation: "float" },
-        { name: "WFH", icon: Home, href: "/admin/wfh", animation: "wiggle" },
-        { name: "WFH Monitor", icon: Monitor, href: "/admin/wfh-monitor", animation: "pulse" },
-      ],
-    },
-    { name: "Meetings", icon: Video, href: "/admin/meetings", animation: "bounce" },
-    { name: "Payroll", icon: BadgeDollarSign, href: "/admin/payroll", animation: "bounce" },
-    { name: "Reports", icon: BookMarked, href: "/admin/reports", animation: "swing" },
-    { name: "Polls", icon: Vote, href: "/admin/polls", animation: "rubberBand" },
-    { name: "Community Posts", icon: MessageSquarePlus, href: "/admin/posts", animation: "float" },
-    { name: "Performance", icon: TrendingUp, href: "/admin/performance", animation: "float" },
-    { name: "Policy", icon: Shield, href: "/admin/policy", animation: "float" },
-    { name: "Expenses", icon: Receipt, href: "/admin/expenses", animation: "float" },
-    { name: "Settings", icon: Settings, href: "/admin/settings", animation: "spin" },
-  ],
-  EMPLOYEE: [
-    { name: "Dashboard", icon: LayoutDashboard, href: "/user/dashboard", animation: "pulse" },
-    { name: "Attendance", icon: Calendar, href: "/user/attendance", animation: "flip" },
-    { name: "Timesheet", icon: BookMarked, href: "/user/timesheet", animation: "swing" },
-    { name: "Leave", icon: CalendarDays, href: "/user/leave", animation: "float" },
-    { name: "WFH", icon: Home, href: "/user/wfh", animation: "wiggle" },
-    { name: "Time Slips", icon: Clock, href: "/user/timeslips", animation: "float" },
-    { name: "Salary Slips", icon: BadgeDollarSign, href: "/user/payroll", animation: "bounce" },
-    { name: "Expenses & Travels", icon: Receipt, href: "/user/expenses", animation: "float" },
-    { name: "Messages", icon: Users, href: "/user/messages", animation: "wiggle" },
-    { name: "Polls", icon: Vote, href: "/user/polls", animation: "rubberBand" },
-    { name: "Policy", icon: Shield, href: "/user/policy", animation: "float" },
-{ name: "My Meetings", icon: Video, href: "/user/meetings", animation: "bounce" },
-    { name: "Posts", icon: LayoutDashboard, href: "/user/posts", animation: "pulse" },
-    { name: "My Profile", icon: UserRound, href: "/user/profile", animation: "pulse" },
-  ],
-};
+  return items.flatMap((item) => {
+    if (item.children?.length) {
+      const allowedChildren = item.children.filter((c) => allowlist.has(c.name));
+      return allowedChildren.length ? [{ ...item, children: allowedChildren }] : [];
+    }
+    return allowlist.has(item.name) ? [item] : [];
+  });
+}
 
 const getPrimaryRoleFromPathAndRoles = (pathname: string, roles: string[] = []): string => {
   const isAdminRoute = pathname.startsWith("/admin");
@@ -219,10 +169,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { isPathAllowed, isBasicPlan } = usePlanAccess();
   const isEmployeeRoute = pathname?.startsWith("/user");
-  const [isBasicMenuInferred, setIsBasicMenuInferred] = useState<boolean>(false);
-  const effectiveBasicMenu = isBasicPlan || isBasicMenuInferred;
   const [mode, setMode] = useState<SidebarMode>("expanded");
-  const initialRole = useMemo(() => getPrimaryRoleFromPathAndRoles(pathname || "/"), [pathname]);
   const filterMenuItemsByPlan = useMemo(
     () => (items: MenuItem[]): MenuItem[] =>
       items.flatMap((item) => {
@@ -246,11 +193,7 @@ export default function Sidebar() {
       }),
     [isPathAllowed]
   );
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() =>
-    filterMenuItemsByPlan(
-      applyBasicPlanMenuScope([...(menuByRole[initialRole] || [])], initialRole, effectiveBasicMenu)
-    )
-  );
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const sidebarIconGradientClass =
@@ -258,108 +201,27 @@ export default function Sidebar() {
   const isExpanded = mode === "expanded";
 
   useEffect(() => {
-    const roleFromPath = getPrimaryRoleFromPathAndRoles(pathname || "/");
-    setMenuItems(
-      filterMenuItemsByPlan(
-        applyBasicPlanMenuScope(
-          [...(menuByRole[roleFromPath] || [])],
-          roleFromPath,
-          effectiveBasicMenu
-        )
-      )
-    );
-  }, [effectiveBasicMenu, filterMenuItemsByPlan, pathname]);
-
-  useEffect(() => {
-const fetchProfile = async () => {
+    const fetchMenu = async () => {
       try {
-        const res = await getProfile();
-        const user: Profile = res.data;
-        const normalizePlan = (value?: string | number | null): string =>
-          String(value ?? "").trim().toUpperCase();
-        const isBasicPlanHint = (value?: string | number | null): boolean => {
-          const normalized = normalizePlan(value);
-          return normalized === "1" || normalized === "BASIC";
-        };
-        const typeHints = [
-          user.planType,
-          user.pricingTypeId,
-          user.organization?.planType,
-          user.organization?.pricingTypeId,
-          user.organization?.pricingType?.typeId,
-        ];
-        let inferredBasic = typeHints.some((hint) => isBasicPlanHint(hint));
-
-        if (!inferredBasic && user.organizationId) {
-          try {
-            const orgRes = await getOrganization(user.organizationId);
-            const org = orgRes.data || {};
-            const orgTypeHints = [
-              org?.planType,
-              org?.pricingTypeId,
-              org?.pricingType?.typeId,
-            ];
-            inferredBasic = orgTypeHints.some((hint) => isBasicPlanHint(hint));
-          } catch {
-            // ignore org fallback failures
-          }
-        }
-
-        setIsBasicMenuInferred(inferredBasic);
+        const profileRes = await getProfile();
+        const user: Profile = profileRes.data;
 
         const roles: string[] = user.roles?.map((r: Role) => r.roleName) || [];
         const primaryRole = getPrimaryRoleFromPathAndRoles(pathname || "/", roles);
-        let items: MenuItem[] = [...(menuByRole[primaryRole] || [])];
-        setMenuItems(applyBasicPlanMenuScope(items, primaryRole, isBasicPlan || inferredBasic));
 
-        // For employees: conditionally add Performance, WFH Monitor, Projects
-        if (primaryRole === "EMPLOYEE") {
-          // Insert My Projects right after Dashboard (at index 1)
-          if (!(isBasicPlan || inferredBasic)) {
-            // Find Dashboard and insert My Projects right after it
-            const dashboardIndex = items.findIndex(item => item.name === "Dashboard");
-            if (dashboardIndex !== -1) {
-              items.splice(dashboardIndex + 1, 0, { name: "My Projects", icon: FolderKanban, href: "/user/projects", animation: "float" as const });
-            }
-          }
+        const planTier = isBasicPlan ? 'BASIC' : 'PRO';
+        const menuRes = await getMenuItems(primaryRole, planTier);
+        const apiItems: ApiMenuItem[] = Array.isArray(menuRes.data) ? menuRes.data : [];
+        let items: MenuItem[] = apiItems.map(mapApiItem);
 
-          // Performance — only if admin enabled it
-          try {
-            const perfRes = await getPerformanceSettings();
-            if (perfRes.data?.isEnabled) {
-              items = [
-                ...items,
-                { name: "Performance", icon: TrendingUp, href: "/user/performance", animation: "float" as const },
-              ];
-            }
-          } catch {
-            // ignore — don't block sidebar load
-          }
-
-          // WFH Monitor — only if today's WFH is approved
-          try {
-            const wfhRes = await getWfhToday();
-            if (wfhRes.data?.hasApprovedWfh) {
-              items = [
-                ...items,
-                { name: "WFH Monitor", icon: Monitor, href: "/user/wfh-monitor", animation: "pulse" as const },
-              ];
-            }
-          } catch {
-            // ignore — don't block sidebar load
-          }
-        }
-
-        setMenuItems(
-          filterMenuItemsByPlan(applyBasicPlanMenuScope(items, primaryRole, isBasicPlan || inferredBasic))
-        );
-
+        items = applyPlanScope(items, isBasicPlan, primaryRole);
+        setMenuItems(filterMenuItemsByPlan(items));
       } catch {
-        // Keep fallback menu rendered from path; avoid blocking interaction.
+        // Fallback: keep whatever was last rendered
       }
     };
 
-    fetchProfile();
+    fetchMenu();
   }, [filterMenuItemsByPlan, isBasicPlan, isEmployeeRoute, pathname]);
 
   useEffect(() => {
@@ -569,7 +431,7 @@ const fetchProfile = async () => {
                     return (
                       <Link
                         key={`${item.name}-${child.name}`}
-                        href={child.href}
+                        href={child.href || "#"}
                         className={cn(
                           "flex items-center gap-4 w-full p-2 pl-10 rounded-lg transition-all duration-200 group relative",
                           isChildActive
