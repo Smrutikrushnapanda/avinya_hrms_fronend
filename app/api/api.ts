@@ -27,6 +27,14 @@ api.interceptors.request.use((config) => {
 
 let isRedirectingToLogin = false;
 
+function clearAuthData() {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("user");
+  document.cookie = "user=; path=/; max-age=0";
+  document.cookie = "user_role=; path=/; max-age=0";
+  document.cookie = "must_change_password=; path=/; max-age=0";
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -34,16 +42,11 @@ api.interceptors.response.use(
     const isAuthRoute = requestUrl.includes("/auth/login");
 
     if (error.response?.status === 401 && typeof window !== "undefined" && !isAuthRoute) {
-      const isAdminRoute = window.location.pathname.startsWith("/admin");
-      if (isAdminRoute) {
-        if (!isRedirectingToLogin) {
-          isRedirectingToLogin = true;
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("user");
-          toast.error("Session expired. Please sign in again.");
-          window.location.href = "/signin";
-        }
-        return new Promise(() => {});
+      if (!isRedirectingToLogin) {
+        isRedirectingToLogin = true;
+        clearAuthData();
+        toast.error("Session expired. Please sign in again.");
+        window.location.href = "/signin";
       }
     }
     return Promise.reject(error);

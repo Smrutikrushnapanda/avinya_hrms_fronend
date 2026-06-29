@@ -14,7 +14,7 @@ export default function SessionExpired() {
 
   useEffect(() => {
     if (countdown === 0) {
-      router.push("/login"); // redirect to login page after countdown
+      router.push("/signin");
       return;
     }
     const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -50,7 +50,7 @@ export default function SessionExpired() {
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 100 }}
             >
-              <Button className="w-full" onClick={() => router.push("/login")}>
+                <Button className="w-full" onClick={() => router.push("/signin")}>
                 Go to Login Now
               </Button>
             </motion.div>
