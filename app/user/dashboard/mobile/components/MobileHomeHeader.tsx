@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { usePlanAccess } from "@/components/plan-access-provider";
 import useUnreadMessages from "./useUnreadMessages";
+import PwaInstallButton from "@/components/pwa-install-button";
 
 type UserInfo = {
   name: string;
@@ -36,18 +37,21 @@ export default function MobileHomeHeader({
         </div>
       </div>
       {!isBasicPlan && (
-        <button
-          className="relative"
-          onClick={() => router.push("/user/dashboard/mobile/notifications")}
-          aria-label="Notifications"
-        >
-          <Bell className="w-6 h-6" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          <PwaInstallButton className="rounded-md p-1 hover:bg-white/10 transition-colors text-white" />
+          <button
+            className="relative"
+            onClick={() => router.push("/user/dashboard/mobile/notifications")}
+            aria-label="Notifications"
+          >
+            <Bell className="w-6 h-6" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { usePlanAccess } from "@/components/plan-access-provider";
 import useUnreadMessages from "./useUnreadMessages";
+import PwaInstallButton from "@/components/pwa-install-button";
 
 export default function MobileTabHeader({
   title,
@@ -64,18 +65,21 @@ export default function MobileTabHeader({
         </div>
       )}
       {showBell && !isBasicPlan && (
-        <button
-          className="relative rounded-md p-1 hover:bg-white/10 transition-colors"
-          onClick={() => router.push("/user/dashboard/mobile/notifications")}
-          aria-label="Notifications"
-        >
-          <Bell className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <PwaInstallButton className="rounded-md p-1 hover:bg-white/10 transition-colors text-white" />
+          <button
+            className="relative rounded-md p-1 hover:bg-white/10 transition-colors"
+            onClick={() => router.push("/user/dashboard/mobile/notifications")}
+            aria-label="Notifications"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
       )}
     </div>
   );
