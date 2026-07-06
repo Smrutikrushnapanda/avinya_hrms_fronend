@@ -60,12 +60,12 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
   const getActiveTab = () => {
     if (pathname === "/user/dashboard/mobile") return 0;
     if (pathname.includes("/attendance")) return 1;
-    if (pathname.includes("/leave")) return 2;
-    if (isBasicPlan && pathname.includes("/wfh")) return 3;
-    if (pathname.includes("/timeslip")) return 4;
-    if (
-      !isBasicPlan &&
-      (
+    if (isBasicPlan) {
+      if (pathname.includes("/leave")) return 2;
+      if (pathname.includes("/wfh")) return 3;
+      if (pathname.includes("/timeslip")) return 4;
+    } else {
+      if (
         pathname.includes("/services") ||
         pathname.includes("/timesheet") ||
         pathname.includes("/payroll") ||
@@ -77,8 +77,10 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
         pathname.includes("/profile") ||
         pathname.includes("/wfh")
       )
-    )
-      return 2;
+        return 2;
+      if (pathname.includes("/leave")) return 3;
+      if (pathname.includes("/timeslip")) return 4;
+    }
     return 0;
   };
 
