@@ -774,6 +774,10 @@ export const downloadPayrollSlip = (id: string) =>
   api.get(`/payroll/${id}/slip`, { responseType: "blob" });
 export const sendPayslip = (id: string, method: 'email' | 'in_app' | 'both' = 'both') =>
   api.post(`/payroll/${id}/send`, { method });
+export const getEmployeeBankDetail = (employeeId: string) =>
+  api.get(`/payroll/bank-details/${employeeId}`);
+export const updateEmployeeBankDetail = (employeeId: string, data: any) =>
+  api.put(`/payroll/bank-details/${employeeId}`, data);
 
 // 💬 Chat APIs
 export const getChatConversations = () => api.get('/chat/conversations');

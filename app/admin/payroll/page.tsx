@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Download, Plus, Pencil, Send, Mail, Smartphone, ChevronDown } from "lucide-react";
+import { Download, Plus, Pencil, Send, Mail, Smartphone, ChevronDown, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { deductionFieldKeys, earningFieldKeys, payrollLayoutConfig, type PayrollAmountFieldKey } from "@/lib/payroll-config";
 import {
@@ -24,6 +24,8 @@ import {
   getPayrollSettings,
   updatePayrollSettings,
   sendPayslip,
+  getEmployeeBankDetail,
+  updateEmployeeBankDetail,
 } from "@/app/api/api";
 
 type PayrollStatus = "draft" | "processed" | "paid";
@@ -83,6 +85,18 @@ const emptyForm = {
   tds: 0,
 };
 
+const emptyBankForm = {
+  accountHolderName: "",
+  bankName: "",
+  accountNumber: "",
+  ifscCode: "",
+  branchName: "",
+  panNumber: "",
+  uanNumber: "",
+  pfNumber: "",
+  esiNumber: "",
+};
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -109,6 +123,12 @@ export default function PayrollPage() {
 
   const [settings, setSettings] = useState<PayrollSettings>({ customFields: [] });
   const [savingSettings, setSavingSettings] = useState(false);
+
+  const [isBankDialogOpen, setIsBankDialogOpen] = useState(false);
+  const [bankEmployee, setBankEmployee] = useState<{ id: string; firstName: string; lastName?: string } | null>(null);
+  const [bankForm, setBankForm] = useState({ ...emptyBankForm });
+  const [savingBankDetail, setSavingBankDetail] = useState(false);
+  const [loadingBankDetail, setLoadingBankDetail] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -275,6 +295,55 @@ export default function PayrollPage() {
       toast.error(error?.response?.data?.message || "Failed to send payslip");
     } finally {
       setSendingId(null);
+    }
+  };
+
+  const openBankDetails = async (record: PayrollRecord) => {
+    setBankEmployee({
+      id: record.employeeId,
+      firstName: record.employee?.firstName || "",
+      lastName: record.employee?.lastName,
+    });
+    setBankForm({ ...emptyBankForm });
+    setIsBankDialogOpen(true);
+    setLoadingBankDetail(true);
+    try {
+      const res = await getEmployeeBankDetail(record.employeeId);
+      if (res.data) {
+        setBankForm({
+          accountHolderName: res.data.accountHolderName || "",
+          bankName: res.data.bankName || "",
+          accountNumber: res.data.accountNumber || "",
+          ifscCode: res.data.ifscCode || "",
+          branchName: res.data.branchName || "",
+          panNumber: res.data.panNumber || "",
+          uanNumber: res.data.uanNumber || "",
+          pfNumber: res.data.pfNumber || "",
+          esiNumber: res.data.esiNumber || "",
+        });
+      }
+    } catch (error) {
+      toast.error("Failed to load bank details");
+    } finally {
+      setLoadingBankDetail(false);
+    }
+  };
+
+  const handleSaveBankDetail = async () => {
+    if (!bankEmployee) return;
+    if (!bankForm.accountHolderName || !bankForm.bankName || !bankForm.accountNumber || !bankForm.ifscCode) {
+      toast.error("Account holder, bank name, account number and IFSC are required");
+      return;
+    }
+    try {
+      setSavingBankDetail(true);
+      await updateEmployeeBankDetail(bankEmployee.id, bankForm);
+      toast.success("Bank details saved");
+      setIsBankDialogOpen(false);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to save bank details");
+    } finally {
+      setSavingBankDetail(false);
     }
   };
 
@@ -469,6 +538,9 @@ export default function PayrollPage() {
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => handleDownload(r.id)}>
                           <Download className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => openBankDetails(r)} title="Bank Details">
+                          <Landmark className="w-4 h-4" />
                         </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -690,6 +762,66 @@ export default function PayrollPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSave}>{editing ? "Update" : "Create"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBankDialogOpen} onOpenChange={setIsBankDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>
+              Bank Details {bankEmployee ? `— ${bankEmployee.firstName} ${bankEmployee.lastName || ""}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {loadingBankDetail ? (
+            <div className="py-6 text-center text-muted-foreground">Loading...</div>
+          ) : (
+            <div className="grid gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Account Holder Name</Label>
+                  <Input value={bankForm.accountHolderName} onChange={(e) => setBankForm({ ...bankForm, accountHolderName: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bank Name</Label>
+                  <Input value={bankForm.bankName} onChange={(e) => setBankForm({ ...bankForm, bankName: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Account Number</Label>
+                  <Input value={bankForm.accountNumber} onChange={(e) => setBankForm({ ...bankForm, accountNumber: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>IFSC Code</Label>
+                  <Input value={bankForm.ifscCode} onChange={(e) => setBankForm({ ...bankForm, ifscCode: e.target.value.toUpperCase() })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Branch Name</Label>
+                  <Input value={bankForm.branchName} onChange={(e) => setBankForm({ ...bankForm, branchName: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>PAN Number</Label>
+                  <Input value={bankForm.panNumber} onChange={(e) => setBankForm({ ...bankForm, panNumber: e.target.value.toUpperCase() })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>UAN Number</Label>
+                  <Input value={bankForm.uanNumber} onChange={(e) => setBankForm({ ...bankForm, uanNumber: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>PF Number</Label>
+                  <Input value={bankForm.pfNumber} onChange={(e) => setBankForm({ ...bankForm, pfNumber: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>ESI Number</Label>
+                  <Input value={bankForm.esiNumber} onChange={(e) => setBankForm({ ...bankForm, esiNumber: e.target.value })} />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBankDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveBankDetail} disabled={savingBankDetail || loadingBankDetail}>
+              {savingBankDetail ? "Saving..." : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

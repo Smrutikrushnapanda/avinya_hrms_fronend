@@ -2,6 +2,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { usePlanAccess } from "@/components/plan-access-provider";
+import PwaInstallPrompt from "@/components/pwa-install-prompt";
 import {
   Home,
   CalendarDays,
@@ -91,6 +92,8 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
   return (
     <div className="employee-mobile-shell min-h-screen bg-background text-foreground flex flex-col">
       {children}
+
+      <PwaInstallPrompt />
 
       {/* Bottom Sheet Overlay */}
       {hasServicesCenter && sheetOpen && (
