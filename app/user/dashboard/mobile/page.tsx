@@ -103,6 +103,39 @@ function formatCoordinateLocation(latitude: number, longitude: number): string {
   return `Lat ${latitude.toFixed(6)}, Lng ${longitude.toFixed(6)}`;
 }
 
+// ── GPS cache: avoid re-acquiring a fresh fix every time the Home tab remounts
+const GPS_CACHE_KEY = "hrms_gps_location_cache";
+const GPS_CACHE_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+
+interface CachedLocation {
+  latitude: number;
+  longitude: number;
+  locationName: string;
+  timestamp: number;
+}
+
+function readCachedLocation(): CachedLocation | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(GPS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed: CachedLocation = JSON.parse(raw);
+    if (Date.now() - parsed.timestamp > GPS_CACHE_MAX_AGE_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedLocation(entry: CachedLocation) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(GPS_CACHE_KEY, JSON.stringify(entry));
+  } catch {
+    // ignore storage errors (private mode, quota, etc.)
+  }
+}
+
 async function reverseGeocodeCoordinates(
   latitude: number,
   longitude: number
@@ -415,12 +448,14 @@ export default function MobileDashboardPage() {
           };
           setCoords(nextCoords);
           setGpsLocationName("");
+          writeCachedLocation({ ...nextCoords, locationName: "", timestamp: Date.now() });
           void reverseGeocodeCoordinates(
             nextCoords.latitude,
             nextCoords.longitude
           ).then((placeName) => {
             if (placeName) {
               setGpsLocationName(placeName);
+              writeCachedLocation({ ...nextCoords, locationName: placeName, timestamp: Date.now() });
             }
           });
           setLocationStatus("available");
@@ -430,7 +465,7 @@ export default function MobileDashboardPage() {
           setLocationStatus("denied");
           resolve(null);
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: GPS_CACHE_MAX_AGE_MS }
       );
     });
   }, []);
@@ -524,9 +559,18 @@ export default function MobileDashboardPage() {
             setSettings(fetchedSettings);
           }
 
-          // Request location only if GPS validation is enabled
+          // Request location only if GPS validation is enabled.
+          // Reuse a recent fix from cache first so returning to this tab
+          // doesn't flash "Fetching..." and re-request GPS every time.
           if (fetchedSettings.enableGpsValidation) {
-            requestGeolocation();
+            const cached = readCachedLocation();
+            if (cached) {
+              setCoords({ latitude: cached.latitude, longitude: cached.longitude });
+              setGpsLocationName(cached.locationName);
+              setLocationStatus("available");
+            } else {
+              requestGeolocation();
+            }
           }
 
           // Fetch today's logs
@@ -1232,14 +1276,7 @@ export default function MobileDashboardPage() {
                 {isDarkTheme ? <Sun className="w-5 h-5 mr-3" /> : <Moon className="w-5 h-5 mr-3" />}
                 Theme: {isDarkTheme ? "Dark" : "Light"}
               </Button>
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
-                onClick={() => router.push("/user/dashboard/mobile/wfh")}
-              >
-                <Home className="w-5 h-5 mr-3" />
-                WFH
-              </Button>
+              
               <Button
                 variant="ghost"
                 className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-12"

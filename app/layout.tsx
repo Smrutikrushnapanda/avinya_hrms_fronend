@@ -3,6 +3,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import LayoutWrapper from "@/components/layout-wrapper";
 import { Toaster } from "@/components/ui/sonner";
+import RegisterServiceWorker from "@/components/register-service-worker";
 import "@fontsource-variable/inter";
 
 
@@ -57,6 +58,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Toaster position="bottom-right" richColors closeButton />
+          <RegisterServiceWorker />
           <LayoutWrapper>{children}</LayoutWrapper>
         </ThemeProvider>
       </body>

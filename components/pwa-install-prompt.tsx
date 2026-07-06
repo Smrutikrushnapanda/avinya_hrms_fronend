@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { X, Download, Smartphone } from "lucide-react";
+import { toast } from "sonner";
 
 const SESSION_DISMISS_KEY = "pwa_install_dismissed_ts";
 const PWA_INSTALLED_KEY = "pwa_installed";
@@ -101,8 +102,13 @@ export default function PwaInstallPrompt() {
       }
       setDeferredPrompt(null);
     } else {
-      // Fallback for iOS: show instructions
-      setShow(true);
+      // Browser hasn't (or can't) fire beforeinstallprompt yet — give the
+      // user something actionable instead of a button that visibly does nothing.
+      toast.info(
+        platform === "android"
+          ? "Open your browser menu and tap \"Install app\" or \"Add to Home screen\"."
+          : "Open your browser menu and look for \"Install app\" or \"Add to Home screen\"."
+      );
     }
   };
 
