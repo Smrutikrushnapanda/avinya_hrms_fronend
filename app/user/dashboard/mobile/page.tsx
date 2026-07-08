@@ -211,6 +211,7 @@ export default function MobileDashboardPage() {
 
   // ── UI
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [hasCustomHeaderBranding, setHasCustomHeaderBranding] = useState(false);
   const [open, setOpen] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -848,23 +849,21 @@ export default function MobileDashboardPage() {
     day: "numeric",
     year: "numeric",
   });
-  const sessionText =
-    clockTime.getHours() < 12 ? "Morning" : clockTime.getHours() < 17 ? "Afternoon" : "Evening";
+  const shortDateDisplay = clockTime
+    .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    .replace(/ /g, "-");
   const greeting =
-    clockTime.getHours() < 12
+    clockTime.getHours() >= 5 && clockTime.getHours() < 12
       ? "Good Morning"
       : clockTime.getHours() < 17
       ? "Good Afternoon"
-      : "Good Evening";
+      : clockTime.getHours() < 20
+      ? "Good Evening"
+      : "Good Night";
   const isPunchDisabled =
     isLoading ||
     (settings.enableWifiValidation && !wifiConnected) ||
     (settings.enableGpsValidation && locationStatus !== "available");
-  const punchButtonClass = isPunchDisabled
-    ? "bg-gray-400 cursor-not-allowed hover:bg-gray-400"
-    : hasPunchedInToday
-    ? "bg-red-500 hover:bg-red-600"
-    : "bg-green-500 hover:bg-green-600";
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -876,30 +875,30 @@ export default function MobileDashboardPage() {
       <MobileHomeHeader
         user={user}
         onOpenSidebar={() => setIsSidebarOpen(true)}
+        onBrandingChange={setHasCustomHeaderBranding}
       />
 
       {/* ── Date + Time + Punch Card ── */}
-      <Card className="mx-4 -mt-10 h-38 shadow-lg">
-        <CardContent className="p-4 -mt-7">
-          {/* Clock row */}
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm font-medium">{dateDisplay}</p>
-              <p className="text-xs text-gray-500">
-                {greeting} {user.name.split(" ")[0]}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-medium">{clockDisplay}</p>
-              <p className="text-xs text-gray-500">{sessionText}</p>
-            </div>
-          </div>
+      <Card
+        className={`mx-4 ${hasCustomHeaderBranding ? "-mt-10" : "mt-1"} border-0 shadow-lg bg-primary text-primary-foreground overflow-hidden relative`}
+      >
+        {clockTime.getHours() >= 17 || clockTime.getHours() < 5 ? (
+          <Moon className="absolute -top-2 right-2 w-16 h-16 text-white/15" />
+        ) : (
+          <Sun className="absolute -top-2 right-2 w-16 h-16 text-white/15" />
+        )}
+        <CardContent className="p-5 relative">
+          <p className="text-xs font-medium opacity-90">{dateDisplay}</p>
+          <p className="text-3xl font-bold mt-1">{clockDisplay}</p>
+          <p className="text-sm mt-1.5 opacity-85">
+            👋 {greeting} {user.name.split(" ")[0]}
+          </p>
 
           {/* Status badges — only show if admin has enabled them */}
           {(settings.enableWifiValidation || settings.enableGpsValidation) && (
-            <div className="flex justify-between items-center mt-3 text-xs">
+            <div className="flex justify-between items-center mt-3.5 pt-3 border-t border-white/25 text-xs">
               {settings.enableWifiValidation && (
-                <p className={wifiConnected ? "text-green-600" : "text-red-500"}>
+                <p className={wifiConnected ? "text-green-300" : "text-red-300"}>
                   {wifiConnected ? (
                     <>
                       <Wifi className="w-3 h-3 inline mr-1" />
@@ -917,10 +916,10 @@ export default function MobileDashboardPage() {
                 <p
                   className={
                     locationStatus === "available"
-                      ? "text-green-600"
+                      ? "text-green-300"
                       : locationStatus === "denied"
-                      ? "text-red-500"
-                      : "text-yellow-500"
+                      ? "text-red-300"
+                      : "text-yellow-300"
                   }
                 >
                   {locationStatus === "available" ? (
@@ -948,7 +947,9 @@ export default function MobileDashboardPage() {
           <Button
             onClick={() => setOpen(true)}
             disabled={isPunchDisabled}
-            className={`w-full mt-4 ${punchButtonClass} text-white flex items-center justify-center gap-2`}
+            className={`mt-4 rounded-full ${
+              isPunchDisabled ? "bg-white/60 text-muted-foreground" : "bg-white text-primary hover:bg-white/90"
+            } flex items-center justify-center gap-2 w-fit px-6`}
           >
             {isLoading ? (
               <>
@@ -1069,80 +1070,83 @@ export default function MobileDashboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Today Attendance ── */}
+      {/* ── Today's Overview ── */}
       <div className="px-4 mt-4">
         <div className="flex justify-between items-center mb-2">
-          <h3 className="font-semibold text-base">Today Attendance</h3>
+          <h3 className="font-semibold text-base">Today&apos;s Overview</h3>
           <p
-            className="text-sm text-blue-500 cursor-pointer"
+            className="text-sm text-primary cursor-pointer"
             onClick={() => router.push("/user/dashboard/mobile/attendance")}
           >
             View all
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Card>
-            <CardContent className="flex justify-between items-center ">
-              <div className="flex items-center gap-2">
-                <div className="bg-blue-100 rounded-full p-1">
-                  <LogIn className="w-5 h-5 text-blue-600" />
-                </div>
-                <p className="text-sm">Punch In</p>
-              </div>
-              <p className="text-sm font-medium text-gray-700">{punchInTimeStr}</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl p-3.5 bg-blue-50 dark:bg-blue-500/10">
+            <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/25 flex items-center justify-center mb-2.5">
+              <LogIn className="w-[18px] h-[18px] text-blue-600 dark:text-blue-400" />
+            </div>
+            <p className="text-[13px] font-semibold">Punch In</p>
+            <p className="text-lg font-bold mt-1 mb-2">{punchInTimeStr}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-muted-foreground">{shortDateDisplay}</p>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300">
+                {hasPunchedInToday ? "Completed" : "Not done"}
+              </span>
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className="flex justify-between items-center ">
-              <div className="flex items-center gap-2">
-                <div className="bg-red-100 rounded-full p-1">
-                  <LogOut className="w-5 h-5 text-red-600" />
-                </div>
-                <p className="text-sm">Last Punch</p>
-              </div>
-              <p className="text-sm font-medium text-gray-700">{punchOutTimeStr}</p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl p-3.5 bg-red-50 dark:bg-red-500/10">
+            <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-500/25 flex items-center justify-center mb-2.5">
+              <LogOut className="w-[18px] h-[18px] text-red-600 dark:text-red-400" />
+            </div>
+            <p className="text-[13px] font-semibold">Last Punch</p>
+            <p className="text-lg font-bold mt-1 mb-2">{punchOutTimeStr}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-muted-foreground">{shortDateDisplay}</p>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300">
+                {punchOutTimeStr !== "--:-- --" ? "Completed" : "Not done"}
+              </span>
+            </div>
+          </div>
 
-          <Card>
-            <CardContent className="flex justify-between items-center ">
-              <div className="flex items-center gap-2">
-                <div className="bg-green-100 rounded-full p-1">
-                  <Timer className="w-5 h-5 text-green-600" />
-                </div>
-                <p className="text-sm">Working Hours</p>
-              </div>
-              <p className="text-sm font-medium text-gray-700">
-                {workingSeconds > 0 ? formatWorkingTime(workingSeconds) : "0:00:00 hrs"}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="rounded-2xl p-3.5 bg-emerald-50 dark:bg-emerald-500/10">
+            <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-500/25 flex items-center justify-center mb-2.5">
+              <Timer className="w-[18px] h-[18px] text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <p className="text-[13px] font-semibold">Working Hours</p>
+            <p className="text-lg font-bold mt-1 mb-2">
+              {workingSeconds > 0 ? formatWorkingTime(workingSeconds) : "0:00:00 hrs"}
+            </p>
+            <p className="text-[11px] text-muted-foreground">{shortDateDisplay}</p>
+          </div>
 
-          <Card>
-            <CardContent className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className={`${isOnBreak ? "bg-amber-100" : "bg-emerald-100"} rounded-full p-1`}>
-                  <Coffee className={`w-5 h-5 ${isOnBreak ? "text-amber-600" : "text-emerald-600"}`} />
-                </div>
-                <p className="text-sm">Break</p>
-              </div>
-              <Button
-                onClick={handleBreakToggle}
-                disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
-                className={`h-9 px-3 ${
-                  !isCheckedIn && !isOnBreak
-                    ? "bg-gray-400 hover:bg-gray-400"
-                    : isOnBreak
-                    ? "bg-amber-500 hover:bg-amber-600"
-                    : "bg-emerald-500 hover:bg-emerald-600"
-                } text-white`}
-              >
-                {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
-              </Button>
-            </CardContent>
-          </Card>
+          <div className={`rounded-2xl p-3.5 ${isOnBreak ? "bg-amber-50 dark:bg-amber-500/10" : "bg-emerald-50 dark:bg-emerald-500/10"}`}>
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-2.5 ${isOnBreak ? "bg-amber-100 dark:bg-amber-500/25" : "bg-emerald-100 dark:bg-emerald-500/25"}`}>
+              <Coffee className={`w-[18px] h-[18px] ${isOnBreak ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} />
+            </div>
+            <p className="text-[13px] font-semibold">Break</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-2.5">
+              {isOnBreak ? "Currently on break" : "Available for work"}
+            </p>
+            <Button
+              onClick={handleBreakToggle}
+              disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
+              className={`h-8 w-full text-xs ${
+                !isCheckedIn && !isOnBreak
+                  ? "bg-gray-400 hover:bg-gray-400"
+                  : isOnBreak
+                  ? "bg-amber-500 hover:bg-amber-600"
+                  : "bg-emerald-500 hover:bg-emerald-600"
+              } text-white`}
+            >
+              {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
+            </Button>
+            {!isCheckedIn && !isOnBreak && (
+              <p className="text-[11px] text-muted-foreground mt-1.5 text-center">Check in first</p>
+            )}
+          </div>
         </div>
       </div>
 
