@@ -142,7 +142,7 @@ export default function MobilePayrollPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
-      <MobileTabHeader title="Payslips" backHref="/user/dashboard/mobile" className="bg-[#026D94]" />
+      <MobileTabHeader title="Payslips" backHref="/user/dashboard/mobile" />
 
       <div className="px-5 -mt-11 relative z-10 space-y-4">
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E8ECEF] relative overflow-hidden">

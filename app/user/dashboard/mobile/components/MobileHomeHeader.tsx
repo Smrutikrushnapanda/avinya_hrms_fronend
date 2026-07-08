@@ -25,7 +25,7 @@ export default function MobileHomeHeader({
   const unreadCount = useUnreadMessages();
 
   return (
-    <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center justify-between">
+    <div className="bg-primary text-primary-foreground px-4 pt-5 pb-16 flex items-center justify-between">
       <div className="flex items-center space-x-2 cursor-pointer" onClick={onOpenSidebar}>
         <Avatar className="w-12 h-12 border-2 border-white transition-transform active:scale-95">
           <AvatarImage src={user.avatar} alt={user.name} />

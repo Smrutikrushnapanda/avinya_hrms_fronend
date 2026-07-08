@@ -122,6 +122,16 @@
   --sidebar-ring: oklch(0.45 0.018 261.451);
 }
 
+/* Employee mobile app/web brand blue — scoped so it doesn't affect the admin panel's neutral palette */
+.employee-mobile-shell {
+  --primary: #1D4ED8;
+  --primary-foreground: #ffffff;
+}
+.dark .employee-mobile-shell {
+  --primary: #3B82F6;
+  --primary-foreground: #ffffff;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

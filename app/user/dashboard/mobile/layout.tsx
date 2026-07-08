@@ -38,15 +38,15 @@ const basicTabs = [
 ];
 
 const serviceItems = [
-  { name: "Profile", href: "/user/dashboard/mobile/profile", icon: Users, color: "#026D94" },
-  { name: "Timesheet", href: "/user/dashboard/mobile/timesheet", icon: FileText, color: "#026D94" },
-  { name: "WFH", href: "/user/dashboard/mobile/wfh", icon: Monitor, color: "#026D94" },
-  { name: "Payroll", href: "/user/dashboard/mobile/payroll", icon: DollarSign, color: "#026D94" },
-  { name: "Messages", href: "/user/dashboard/mobile/messages", icon: MessageSquare, color: "#026D94" },
-  { name: "Polls", href: "/user/dashboard/mobile/polls", icon: BarChart2, color: "#026D94" },
-  { name: "Posts", href: "/user/dashboard/mobile/posts", icon: Newspaper, color: "#026D94" },
-  { name: "Settings", href: "/user/dashboard/mobile/settings", icon: Settings, color: "#026D94" },
-  { name: "Notifications", href: "/user/dashboard/mobile/notifications", icon: Bell, color: "#026D94" },
+  { name: "Profile", href: "/user/dashboard/mobile/profile", icon: Users },
+  { name: "Timesheet", href: "/user/dashboard/mobile/timesheet", icon: FileText },
+  { name: "WFH", href: "/user/dashboard/mobile/wfh", icon: Monitor },
+  { name: "Payroll", href: "/user/dashboard/mobile/payroll", icon: DollarSign },
+  { name: "Messages", href: "/user/dashboard/mobile/messages", icon: MessageSquare },
+  { name: "Polls", href: "/user/dashboard/mobile/polls", icon: BarChart2 },
+  { name: "Posts", href: "/user/dashboard/mobile/posts", icon: Newspaper },
+  { name: "Settings", href: "/user/dashboard/mobile/settings", icon: Settings },
+  { name: "Notifications", href: "/user/dashboard/mobile/notifications", icon: Bell },
 ];
 
 export default function MobileLayout({ children }: { children: ReactNode }) {
@@ -140,10 +140,10 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                   setSheetOpen(false);
                   router.push(item.href);
                 }}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-muted/70 hover:bg-[#026D94]/10"
+                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-muted/70 hover:bg-primary/10"
               >
                 <div className="w-12 h-12 rounded-full bg-background shadow-sm flex items-center justify-center border border-border">
-                  <Icon className="w-5 h-5 text-[#026D94]" />
+                  <Icon className="w-5 h-5 text-primary" />
                 </div>
                 <span className="text-[11px] font-medium text-muted-foreground">{item.name}</span>
               </button>
@@ -167,17 +167,17 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                   {/* Floating Services Button */}
                   <button
                     onClick={() => setSheetOpen((prev) => !prev)}
-                    className="absolute left-1/2 -translate-x-1/2 w-14 h-14 rounded-full flex items-center justify-center shadow-lg bg-[#026D94]"
+                    className="absolute left-1/2 -translate-x-1/2 w-14 h-14 rounded-full flex items-center justify-center shadow-lg bg-primary"
                     style={{
                       bottom: "22px",
-                      boxShadow: "0 4px 16px rgba(2,109,148,0.4)",
+                      boxShadow: "0 4px 16px color-mix(in srgb, var(--primary) 40%, transparent)",
                     }}
                   >
-                    <Icon className="w-6 h-6 text-white" />
+                    <Icon className="w-6 h-6 text-primary-foreground" />
                   </button>
                   <span
                     className={`text-[10px] ${
-                      isActive || sheetOpen ? "text-[#026D94] font-semibold" : "text-muted-foreground font-medium"
+                      isActive || sheetOpen ? "text-primary font-semibold" : "text-muted-foreground font-medium"
                     }`}
                   >
                     {tab.name}
@@ -191,11 +191,11 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                 key={tab.name}
                 onClick={() => tab.href && router.push(tab.href)}
                 className={`flex-1 flex flex-col items-center pt-1 pb-3 relative ${
-                  isActive ? "text-[#026D94]" : "text-muted-foreground"
+                  isActive ? "text-primary" : "text-muted-foreground"
                 }`}
               >
                 {isActive && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-[#026D94] rounded-b-full" />
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-primary rounded-b-full" />
                 )}
                 <Icon className="w-5 h-5" />
                 <span className={`text-[10px] mt-1 ${isActive ? "font-semibold" : "font-medium"}`}>
