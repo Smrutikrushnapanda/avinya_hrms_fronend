@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PlusCircle } from "lucide-react";
 
 import { getEmployeeByUserId, getEmployeeHierarchy, getProfile } from "@/app/api/api";
 import TimesheetSection from "@/components/timesheet/TimesheetSection";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type DirectReport = {
@@ -18,8 +16,6 @@ type DirectReport = {
   middleName?: string;
   lastName?: string;
   employeeCode?: string;
-  department?: { name?: string };
-  designation?: { name?: string };
 };
 
 export default function TimesheetPage() {
@@ -29,7 +25,6 @@ export default function TimesheetPage() {
   const [isApprover, setIsApprover] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [directReports, setDirectReports] = useState<DirectReport[]>([]);
-  const [selectedReportUserId, setSelectedReportUserId] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,13 +54,8 @@ export default function TimesheetPage() {
           if (profile.isApprover && orgId && empId) {
             const hierarchyRes = await getEmployeeHierarchy(orgId, empId);
             const reports: DirectReport[] =
-              hierarchyRes.data?.directReports ??
-              hierarchyRes.data?.data?.directReports ??
-              [];
+              hierarchyRes.data?.directReports ?? hierarchyRes.data?.data?.directReports ?? [];
             setDirectReports(reports);
-            if (reports.length > 0) {
-              setSelectedReportUserId(reports[0].userId);
-            }
           }
         }
       } catch (error) {
@@ -80,11 +70,12 @@ export default function TimesheetPage() {
 
   const hasTeamAccess = isApprover && directReports.length > 0;
 
-  const selectedReportName = useMemo(() => {
-    const report = directReports.find((r) => r.userId === selectedReportUserId);
-    if (!report) return "";
-    return [report.firstName, report.middleName, report.lastName].filter(Boolean).join(" ");
-  }, [directReports, selectedReportUserId]);
+  const directReportOptions = directReports.map((r) => ({
+    id: r.id,
+    userId: r.userId,
+    name: [r.firstName, r.middleName, r.lastName].filter(Boolean).join(" "),
+    employeeCode: r.employeeCode,
+  }));
 
   if (loading) {
     return (
@@ -117,67 +108,23 @@ export default function TimesheetPage() {
           <TabsContent value="my">
             <TimesheetSection
               title="My Timesheet"
-              description="Your daily work log for the selected month"
+              description="Your daily work log — today's entries are editable, past days are read-only"
               organizationId={organizationId}
+              mode="self"
               employeeId={employeeId}
-              allowEdit
             />
           </TabsContent>
 
-          <TabsContent value="team" className="space-y-6">
-            <Card>
-              <CardContent className="py-5 flex flex-col gap-4">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Select a team member</p>
-                  <p className="text-xs text-muted-foreground">
-                    View monthly timesheet details for direct reports
-                  </p>
-                </div>
-                <Select
-                  value={selectedReportUserId}
-                  onValueChange={(value) => setSelectedReportUserId(value)}
-                >
-                  <SelectTrigger className="max-w-md">
-                    <SelectValue placeholder="Choose an employee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {directReports.map((report) => {
-                      const name = [report.firstName, report.middleName, report.lastName]
-                        .filter(Boolean)
-                        .join(" ");
-                      const meta = [report.employeeCode, report.designation?.name, report.department?.name]
-                        .filter(Boolean)
-                        .join(" - ");
-                      return (
-                        <SelectItem key={report.userId} value={report.userId}>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">{name}</span>
-                            {meta ? <span className="text-xs text-muted-foreground">{meta}</span> : null}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-
-            {selectedReportUserId ? (
-              <TimesheetSection
-                title={selectedReportName ? `${selectedReportName}'s Timesheet` : "Team Timesheet"}
-                description="Daily work entries submitted by your team member"
-                organizationId={organizationId}
-                employeeId={directReports.find((r) => r.userId === selectedReportUserId)?.id || ""}
-                canRemark
-                managerId={employeeId}
-              />
-            ) : (
-              <Card>
-                <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                  Select a team member to view their timesheet.
-                </CardContent>
-              </Card>
-            )}
+          <TabsContent value="team">
+            <TimesheetSection
+              title="Team Timesheet"
+              description="Review and approve your direct reports' daily work logs"
+              organizationId={organizationId}
+              mode="team"
+              directReports={directReportOptions}
+              showEmployee
+              allowApproval
+            />
           </TabsContent>
 
           <TabsContent value="project">
@@ -185,9 +132,9 @@ export default function TimesheetPage() {
               title="Project Timesheet Board"
               description="View timesheet entries project-wise across employees in your organization"
               organizationId={organizationId}
+              mode="project"
               showEmployee
-              canRemark
-              managerId={employeeId}
+              allowApproval
               projectFilterEnabled
             />
           </TabsContent>
@@ -195,10 +142,10 @@ export default function TimesheetPage() {
       ) : (
         <TimesheetSection
           title="My Timesheet"
-          description="Your daily work log for the selected month"
+          description="Your daily work log — today's entries are editable, past days are read-only"
           organizationId={organizationId}
+          mode="self"
           employeeId={employeeId}
-          allowEdit
         />
       )}
     </div>

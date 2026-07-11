@@ -6,168 +6,14 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Circle, Edit2, MessageCircle, Search, Users, X } from "lucide-react";
 import { getChatConversations, getEmployees, getProfile } from "@/app/api/api";
 import { createMessageSocket } from "@/lib/socket";
-
-type ConversationParticipant = {
-  userId: string;
-  firstName?: string;
-  lastName?: string;
-};
-
-type Conversation = {
-  id: string;
-  type: "DIRECT" | "GROUP";
-  title?: string;
-  participants: ConversationParticipant[];
-  lastMessage?: {
-    text?: string;
-    createdAt?: string;
-    senderId?: string;
-    attachments?: Array<{ id: string }>;
-  } | null;
-  unreadCount?: number;
-  updatedAt?: string;
-};
-
-type Employee = {
-  id: string;
-  userId: string;
-  firstName?: string;
-  lastName?: string;
-  workEmail?: string;
-  photoUrl?: string;
-};
-
-type ProfileLike = {
-  id?: string;
-  userId?: string;
-  organizationId?: string;
-};
-
-type PresencePayload = {
-  userId?: string;
-  status?: "online" | "offline";
-};
-
-type ChatMessagePayload = {
-  senderId?: string;
-  text?: string;
-  createdAt?: string;
-  attachments?: Array<{ id: string }>;
-};
-
-type ChatSocketPayload = {
-  conversationId?: string;
-  message?: ChatMessagePayload;
-};
-
-const normalizeConversation = (input: unknown): Conversation | null => {
-  if (!input || typeof input !== "object") return null;
-  const obj = input as {
-    id?: string;
-    type?: string;
-    title?: string;
-    participants?: Array<{ userId?: string; firstName?: string; lastName?: string }>;
-    lastMessage?: {
-      text?: string;
-      createdAt?: string;
-      senderId?: string;
-      attachments?: Array<{ id: string }>;
-    } | null;
-    unreadCount?: number;
-    updatedAt?: string;
-  };
-
-  if (!obj.id) return null;
-
-  return {
-    id: obj.id,
-    type: obj.type === "GROUP" ? "GROUP" : "DIRECT",
-    title: obj.title || "",
-    participants: Array.isArray(obj.participants)
-      ? obj.participants
-          .filter((item) => typeof item?.userId === "string")
-          .map((item) => ({
-            userId: item.userId as string,
-            firstName: item.firstName || "",
-            lastName: item.lastName || "",
-          }))
-      : [],
-    lastMessage: obj.lastMessage
-      ? {
-          text: obj.lastMessage.text || "",
-          createdAt: obj.lastMessage.createdAt,
-          senderId: obj.lastMessage.senderId,
-          attachments: Array.isArray(obj.lastMessage.attachments)
-            ? obj.lastMessage.attachments
-            : [],
-        }
-      : null,
-    unreadCount: Number(obj.unreadCount || 0),
-    updatedAt: obj.updatedAt || obj.lastMessage?.createdAt || new Date().toISOString(),
-  };
-};
-
-const normalizeEmployee = (input: unknown): Employee | null => {
-  if (!input || typeof input !== "object") return null;
-  const obj = input as {
-    id?: string;
-    userId?: string;
-    firstName?: string;
-    lastName?: string;
-    workEmail?: string;
-    photoUrl?: string;
-  };
-
-  if (!obj.id || !obj.userId) return null;
-
-  return {
-    id: obj.id,
-    userId: obj.userId,
-    firstName: obj.firstName || "",
-    lastName: obj.lastName || "",
-    workEmail: obj.workEmail || "",
-    photoUrl: obj.photoUrl || "",
-  };
-};
-
-const formatChatTime = (dateString?: string) => {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "";
-
-  const now = new Date();
-  const isToday =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-
-  if (isToday) {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
-
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
-};
-
-const resolveUrl = (url?: string) => {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
-
-  const base =
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_LOCAL_API_BASE_URL ||
-    "https://avinyahrms.duckdns.org";
-
-  return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
-};
-
-const normalizeSystemText = (text?: string) => (text || "").trim().toLowerCase();
-
-const getMeetingSystemLabel = (text?: string) => {
-  const normalized = normalizeSystemText(text);
-  if (normalized === "meeting started" || normalized === "you entered") return "You entered";
-  if (normalized === "meeting ended" || normalized === "you left") return "You left";
-  return null;
-};
+import { Conversation, Employee, ProfileLike, PresencePayload, ChatSocketPayload } from "@/types/chat";
+import {
+  formatChatTime,
+  getMeetingSystemLabel,
+  resolveAttachmentUrl,
+  toConversation,
+  normalizeEmployee,
+} from "@/lib/chat-utils";
 
 export default function MessageList() {
   const router = useRouter();
@@ -203,7 +49,7 @@ export default function MessageList() {
       const response = await getChatConversations();
       const raw = Array.isArray(response.data) ? response.data : [];
       const normalized = raw
-        .map((item: unknown) => normalizeConversation(item))
+        .map((item: unknown) => toConversation(item))
         .filter((item): item is Conversation => Boolean(item));
 
       setConversations(
@@ -227,21 +73,25 @@ export default function MessageList() {
 
   const loadEmployees = useCallback(async (orgId: string, me: string) => {
     if (!orgId) return;
-    const response = await getEmployees(orgId);
-    const raw: unknown[] = Array.isArray(response.data?.employees)
-      ? response.data.employees
-      : Array.isArray(response.data?.data)
-        ? response.data.data
-        : Array.isArray(response.data)
-          ? response.data
-          : [];
+    try {
+      const response = await getEmployees(orgId);
+      const raw: unknown[] = Array.isArray(response.data?.employees)
+        ? response.data.employees
+        : Array.isArray(response.data?.data)
+          ? response.data.data
+          : Array.isArray(response.data)
+            ? response.data
+            : [];
 
-    const normalized = raw
-      .map((item: unknown) => normalizeEmployee(item))
-      .filter((item: Employee | null): item is Employee => Boolean(item))
-      .filter((item) => item.userId !== me);
+      const normalized = raw
+        .map((item: unknown) => normalizeEmployee(item))
+        .filter((item: Employee | null): item is Employee => Boolean(item))
+        .filter((item) => item.userId !== me);
 
-    setEmployees(normalized);
+      setEmployees(normalized);
+    } catch {
+      setEmployees([]);
+    }
   }, []);
 
   useEffect(() => {
@@ -479,7 +329,7 @@ export default function MessageList() {
                         <Users className="w-5 h-5 text-muted-foreground" />
                       ) : avatar ? (
                         <Image
-                          src={resolveUrl(avatar)}
+                          src={resolveAttachmentUrl(avatar)}
                           alt={name}
                           width={46}
                           height={46}

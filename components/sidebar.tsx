@@ -158,9 +158,11 @@ function applyPlanScope(items: MenuItem[], isBasic: boolean, role: string): Menu
 
 const getPrimaryRoleFromPathAndRoles = (pathname: string, roles: string[] = []): string => {
   const isAdminRoute = pathname.startsWith("/admin");
+  const isSuperadminRoute = pathname.startsWith("/superadmin");
+  if (isSuperadminRoute) return "SUPERADMIN";
   if (!isAdminRoute) return "EMPLOYEE";
 
-  if (roles.includes("SUPER_ADMIN") || roles.includes("ORG_ADMIN")) return "ADMIN";
+  if (roles.includes("SUPER_ADMIN") || roles.includes("ORG_ADMIN") || roles.includes("SUPERADMIN")) return "ADMIN";
   if (roles.includes("HR")) return "HR";
   return "ADMIN";
 };

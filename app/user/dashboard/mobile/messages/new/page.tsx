@@ -4,37 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Search, X } from "lucide-react";
 import { createDirectChat, getEmployees, getProfile } from "@/app/api/api";
-
-type Employee = {
-  id: string;
-  userId: string;
-  firstName?: string;
-  lastName?: string;
-  designation?: { name?: string };
-  designationName?: string;
-  photoUrl?: string;
-};
-
-type ProfileLike = {
-  id?: string;
-  userId?: string;
-  organizationId?: string;
-};
-
-const normalizeEmployee = (input: unknown): Employee | null => {
-  if (!input || typeof input !== "object") return null;
-  const obj = input as Employee;
-  if (!obj.id || !obj.userId) return null;
-  return {
-    id: obj.id,
-    userId: obj.userId,
-    firstName: obj.firstName || "",
-    lastName: obj.lastName || "",
-    designation: obj.designation,
-    designationName: obj.designationName,
-    photoUrl: obj.photoUrl || "",
-  };
-};
+import { Employee, ProfileLike } from "@/types/chat";
+import { normalizeEmployee } from "@/lib/chat-utils";
 
 export default function NewChatPage() {
   const router = useRouter();

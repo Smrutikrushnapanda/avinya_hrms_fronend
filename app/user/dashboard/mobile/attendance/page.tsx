@@ -283,7 +283,7 @@ export default function WebAttendancePage() {
       <MobileTabHeader title="Attendance" />
 
       {/* ── CONTENT ── */}
-      <div className="px-5 -mt-12 relative z-10 pb-8">
+      <div className="px-5 mt-4 relative z-10 pb-8">
 
         {/* ── STATS CARD ── */}
         <div className="bg-white rounded-[20px] p-6 shadow-md border border-[#E8ECEF] relative overflow-hidden">

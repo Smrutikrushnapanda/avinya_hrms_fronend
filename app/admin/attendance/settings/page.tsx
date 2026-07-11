@@ -9,8 +9,6 @@ import api, {
   createWifiLocation,
   updateWifiLocation,
   deleteWifiLocation,
-  getOrganization,
-  updateOrganization,
   getBranches,
   createBranch,
   updateBranch,
@@ -305,7 +303,7 @@ export default function AttendanceSettingsPage() {
         const orgId = res.data?.organizationId;
         if (orgId) {
           setOrganizationId(orgId);
-          fetchSettings(orgId).then(() => fetchOrgValidationSettings(orgId));
+          fetchSettings(orgId);
           fetchWifiNetworks(orgId);
           fetchBranches(orgId);
           fetchShifts(orgId);
@@ -333,26 +331,6 @@ export default function AttendanceSettingsPage() {
       console.error("Error fetching settings:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchOrgValidationSettings = async (orgId: string) => {
-    try {
-      const response = await getOrganization(orgId);
-      const org = response.data || {};
-      setSettings((prev) => ({
-        ...prev,
-        enableGpsValidation:
-          typeof org.enableGpsValidation === "boolean"
-            ? org.enableGpsValidation
-            : prev.enableGpsValidation,
-        enableWifiValidation:
-          typeof org.enableWifiValidation === "boolean"
-            ? org.enableWifiValidation
-            : prev.enableWifiValidation,
-      }));
-    } catch (error) {
-      console.error("Error fetching organization settings:", error);
     }
   };
 
@@ -520,16 +498,6 @@ export default function AttendanceSettingsPage() {
         Object.entries(raw).filter(([, v]) => v != null)
       );
       await updateAttendanceSettings(organizationId, payload);
-
-      // Keep org-level validation flags in sync, but don't fail the whole save if this optional sync fails.
-      try {
-        await updateOrganization(organizationId, {
-          enableGpsValidation: settings.enableGpsValidation,
-          enableWifiValidation: settings.enableWifiValidation,
-        });
-      } catch (orgSyncError) {
-        console.error("Failed to sync organization validation flags:", orgSyncError);
-      }
 
       toast.success("Settings saved successfully!");
     } catch (error) {

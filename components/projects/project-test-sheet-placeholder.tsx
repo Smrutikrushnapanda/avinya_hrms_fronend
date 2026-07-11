@@ -121,14 +121,14 @@ type TestSheetColumn = {
 const defaultColumnCount = 26;
 
 const baseColumnConfig: Array<Omit<TestSheetColumn, "letter">> = [
-  { key: "caseCode", defaultTitle: "Case ID", defaultWidth: 150 },
-  { key: "title", defaultTitle: "Test Case", defaultWidth: 260 },
-  { key: "steps", defaultTitle: "Steps", defaultWidth: 270 },
-  { key: "expectedResult", defaultTitle: "Expected Result", defaultWidth: 270 },
-  { key: "actualResult", defaultTitle: "Actual Result", defaultWidth: 270 },
-  { key: "qaUserId", defaultTitle: "QA / Tester", defaultWidth: 210 },
-  { key: "developerUserId", defaultTitle: "Developer", defaultWidth: 210 },
-  { key: "status", defaultTitle: "Status", defaultWidth: 160 },
+  { key: "caseCode", defaultTitle: "Case ID", defaultWidth: 120 },
+  { key: "title", defaultTitle: "Test Case", defaultWidth: 320 },
+  { key: "steps", defaultTitle: "Steps", defaultWidth: 320 },
+  { key: "expectedResult", defaultTitle: "Expected Result", defaultWidth: 280 },
+  { key: "actualResult", defaultTitle: "Actual Result", defaultWidth: 280 },
+  { key: "qaUserId", defaultTitle: "QA / Tester", defaultWidth: 200 },
+  { key: "developerUserId", defaultTitle: "Developer", defaultWidth: 200 },
+  { key: "status", defaultTitle: "Status", defaultWidth: 120 },
 ];
 
 const updatedAtColumn: Omit<TestSheetColumn, "letter"> = {
@@ -294,6 +294,7 @@ export default function ProjectTestSheetPlaceholder({
   const [columnDropdownOptions, setColumnDropdownOptions] = useState<Record<string, string[]>>({});
   const [hiddenColumns, setHiddenColumns] = useState<Record<string, boolean>>({});
   const [customCellValues, setCustomCellValues] = useState<Record<string, string>>({});
+  const [cellEditValues, setCellEditValues] = useState<Record<string, string>>({});
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>(() => [...allColumnKeys]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [draggedColumnKey, setDraggedColumnKey] = useState<ColumnKey | null>(null);
@@ -1281,12 +1282,13 @@ export default function ProjectTestSheetPlaceholder({
                               );
                             }
 
+                            const isSelected = selectedCell?.caseId === row.id && selectedCell?.field === column.key;
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
+                              <td key={column.key} style={columnStyle} className={`border border-[#d6dce6] px-1 py-1 text-[11px] transition-colors ${isSelected ? "bg-blue-50" : ""}`}>
                                 <Input
                                   value={customValue}
                                   disabled={!canEdit}
-                                  className="h-8 border-[#d6dce6] text-[12px]"
+                                  className={`h-8 border-[#d6dce6] text-[12px] ${isSelected ? "border-blue-400 ring-1 ring-blue-200" : ""}`}
                                   onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
                                   onChange={(event) => setCustomValue(row, column.key, event.target.value)}
                                 />
@@ -1305,12 +1307,13 @@ export default function ProjectTestSheetPlaceholder({
                           if (column.key === "qaUserId" || column.key === "developerUserId") {
                             const fieldKey = column.key as "qaUserId" | "developerUserId";
                             const selectedValue = String(readCaseFieldValue(row, column.key) || "");
+                            const isSelected = selectedCell?.caseId === row.id && selectedCell?.field === fieldKey;
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                              <td key={column.key} style={columnStyle} className={`border border-[#d6dce6] px-1 py-1 transition-colors ${isSelected ? "bg-blue-50" : ""}`}>
                                 <select
                                   value={selectedValue}
                                   disabled={!canEdit || savingCellKey === cellKey}
-                                  className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 text-[12px]"
+                                  className={`h-8 w-full rounded border px-2 text-[12px] ${isSelected ? "border-blue-400 ring-1 ring-blue-200" : "border-[#d6dce6]"}`}
                                   onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
                                   onChange={(event) =>
                                     void commitCell(row, fieldKey, event.target.value)
@@ -1328,45 +1331,77 @@ export default function ProjectTestSheetPlaceholder({
                           }
 
                           if (column.key === "status") {
+                            const isResolved = row.status === "resolved";
+                            const isSelected = selectedCell?.caseId === row.id && selectedCell?.field === "status";
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
-                                <select
-                                  value={row.status}
+                              <td key={column.key} style={columnStyle} className={`border border-[#d6dce6] px-1 py-1 transition-colors ${isSelected ? "bg-blue-50" : ""}`}>
+                                <button
+                                  type="button"
                                   disabled={!canEdit || savingCellKey === cellKey}
-                                  className={`h-8 w-full rounded border px-2 text-[12px] ${
-                                    row.status === "resolved"
-                                      ? "border-green-300 bg-green-50 text-green-700"
-                                      : "border-amber-300 bg-amber-50 text-amber-700"
-                                  }`}
-                                  onFocus={() => setSelectedCell({ caseId: row.id, field: "status" })}
-                                  onChange={(event) =>
-                                    void commitCell(row, "status", event.target.value)
+                                  onClick={() =>
+                                    void commitCell(row, "status", isResolved ? "pending" : "resolved")
                                   }
+                                  className={`h-8 w-full rounded border px-2 text-[12px] font-medium cursor-pointer transition-colors ${
+                                    isResolved
+                                      ? "border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
+                                      : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                  } disabled:opacity-60 disabled:cursor-not-allowed ${
+                                    isSelected ? "ring-1 ring-blue-200" : ""
+                                  }`}
+                                  title={isResolved ? "Click to mark as Pending" : "Click to mark as Resolved"}
                                 >
-                                  <option value="pending">Pending</option>
-                                  <option value="resolved">Resolved</option>
-                                </select>
+                                  {isResolved ? "✓ Resolved" : "○ Pending"}
+                                </button>
                               </td>
                             );
                           }
 
-                          const value = String(readCaseFieldValue(row, column.key as BaseColumnKey) || "");
+                          const baseValue = String(readCaseFieldValue(row, column.key as BaseColumnKey) || "");
                           const fieldKey = column.key as Exclude<
                             EditableField,
                             "status" | "qaUserId" | "developerUserId"
                           >;
+                          const editKey = `${row.id}:${fieldKey}`;
+                          const editValue = cellEditValues[editKey] ?? baseValue;
+                          const isSelected = selectedCell?.caseId === row.id && selectedCell?.field === fieldKey;
 
                           return (
-                            <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                            <td
+                              key={column.key}
+                              style={columnStyle}
+                              className={`border border-[#d6dce6] px-1 py-1 transition-colors ${
+                                isSelected ? "bg-blue-50" : ""
+                              }`}
+                            >
                               <Input
-                                key={`${row.id}:${column.key}:${row.updatedAt}`}
-                                defaultValue={value}
+                                value={editValue}
                                 disabled={!canEdit || savingCellKey === cellKey}
-                                className="h-8 border-[#d6dce6] text-[12px]"
-                                onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
-                                onBlur={(event) =>
-                                  void commitCell(row, fieldKey, event.target.value)
+                                className={`h-8 border-[#d6dce6] text-[12px] ${
+                                  isSelected ? "border-blue-400 ring-1 ring-blue-200" : ""
+                                }`}
+                                placeholder={
+                                  fieldKey === "title"
+                                    ? "Enter test case title..."
+                                    : fieldKey === "steps"
+                                      ? "Describe the steps to execute..."
+                                      : fieldKey === "expectedResult"
+                                        ? "What should happen?"
+                                        : fieldKey === "actualResult"
+                                          ? "What actually happened?"
+                                          : `Enter ${column.key}...`
                                 }
+                                onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
+                                onChange={(event) =>
+                                  setCellEditValues((prev) => ({ ...prev, [editKey]: event.target.value }))
+                                }
+                                onBlur={(event) => {
+                                  void commitCell(row, fieldKey, event.target.value);
+                                  setCellEditValues((prev) => {
+                                    const next = { ...prev };
+                                    delete next[editKey];
+                                    return next;
+                                  });
+                                }}
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
                                     (event.currentTarget as HTMLInputElement).blur();

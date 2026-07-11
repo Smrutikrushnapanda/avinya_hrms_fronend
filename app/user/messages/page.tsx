@@ -9,10 +9,25 @@ import {
   getEmployees,
   getProfile,
   sendChatMessage,
+  markChatRead,
   apiBaseURL,
 } from "@/app/api/api";
 import { useProfilePhotoStore } from "@/stores/profilePhotoStore";
 import { createMessageSocket } from "@/lib/socket";
+import {
+  formatTime as fmtTime,
+  formatDate as fmtDate,
+  formatChatTime,
+  getMeetingSystemLabel as getMeetingLabel,
+  extractMeetingUrlFromText as extractMeetingUrl,
+  resolveAttachmentUrl as resolveUrl,
+  toChatMessage as toMsg,
+  toConversation as toConv,
+  toChatAttachment,
+  sortMessages as sortMsgs,
+  getErrorMessage as getApiError,
+  normalizeEmployee,
+} from "@/lib/chat-utils";
 import {
   ArrowLeft,
   ImageIcon,
@@ -101,111 +116,13 @@ type ChatSocketPayload = {
   message?: Partial<ChatMessage>;
 };
 
-type ApiErrorLike = {
-  response?: {
-    data?: {
-      message?: string;
-    };
-  };
-};
+const formatTime = fmtTime;
+const formatDate = fmtDate;
 
-const formatTime = (value?: string) => {
-  if (!value) return "";
-  return new Date(value).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-const formatDate = (value?: string) => {
-  if (!value) return "";
-  return new Date(value).toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
-
-const normalizeSystemText = (text?: string) => (text || "").trim().toLowerCase();
-
-const getMeetingSystemLabel = (text?: string) => {
-  const normalized = normalizeSystemText(text);
-  if (normalized === "meeting started" || normalized === "you entered") return "You entered";
-  if (normalized === "meeting ended" || normalized === "you left") return "You left";
-  return null;
-};
-
-const extractMeetingUrlFromText = (text?: string) => {
-  if (!text) return null;
-  const match = text.match(/Join meeting:\s*(https?:\/\/\S+)/i);
-  if (!match?.[1]) return null;
-  return match[1].trim();
-};
-
-const resolveAttachmentUrl = (url?: string) => {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  return `${apiBaseURL}${url}`;
-};
-
-const getErrorMessage = (error: unknown, fallback: string) =>
-  (error as ApiErrorLike)?.response?.data?.message || fallback;
-
-const toConversation = (item: unknown): Conversation => {
-  const data = (item || {}) as {
-    id?: string;
-    type?: string;
-    title?: string;
-    participants?: ConversationParticipant[];
-    lastMessage?: {
-      id: string;
-      text?: string;
-      senderId: string;
-      createdAt: string;
-      attachments?: ChatAttachment[];
-    };
-    unreadCount?: number | string;
-    updatedAt?: string;
-  };
-
-  return {
-    id: data.id || "",
-    type: data.type === "GROUP" ? "GROUP" : "DIRECT",
-    title: data.title || undefined,
-    participants: Array.isArray(data.participants)
-      ? data.participants.map((participant) => ({
-          userId: participant?.userId || "",
-          firstName: participant?.firstName || "",
-          lastName: participant?.lastName || "",
-        }))
-      : [],
-    lastMessage: data.lastMessage
-      ? {
-          id: data.lastMessage.id,
-          text: data.lastMessage.text || "",
-          senderId: data.lastMessage.senderId,
-          createdAt: data.lastMessage.createdAt,
-          attachments: data.lastMessage.attachments || [],
-        }
-      : null,
-    unreadCount: Number(data.unreadCount || 0),
-    updatedAt: data.updatedAt || new Date().toISOString(),
-  };
-};
-
-const toChatMessage = (item: unknown): ChatMessage => {
-  const data = (item || {}) as ChatMessage;
-  return {
-    id: data.id || "",
-    conversationId: data.conversationId || "",
-    senderId: data.senderId || "",
-    text: data.text || "",
-    createdAt: data.createdAt || new Date().toISOString(),
-    readByAll: Boolean(data.readByAll),
-    attachments: Array.isArray(data.attachments) ? data.attachments : [],
-    sender: data.sender,
-  };
-};
+const resolveAttachmentUrl = resolveUrl;
+const getErrorMessage = (error: unknown, fallback: string) => getApiError(error, fallback);
+const toConversation = (item: unknown): Conversation => toConv(item) as Conversation;
+const toChatMessage = (item: unknown): ChatMessage => toMsg(item);
 
 export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
@@ -440,8 +357,11 @@ export default function MessagesPage() {
     if (!conversationId) return;
     setConversationLoading(true);
     try {
-      const response = await getChatMessages(conversationId, { limit: 100 });
-      const items = Array.isArray(response.data) ? response.data.map(toChatMessage) : [];
+      const [msgResponse] = await Promise.all([
+        getChatMessages(conversationId, { limit: 200 }),
+        markChatRead(conversationId).catch(() => undefined),
+      ]);
+      const items = Array.isArray(msgResponse.data) ? msgResponse.data.map(toChatMessage) : [];
       setMessages(items);
       setConversations((prev) =>
         prev.map((conversation) =>
@@ -1469,11 +1389,29 @@ export default function MessagesPage() {
                             ) : null}
 
                             <div
-                              className={`mt-1 text-right text-[11px] ${
+                              className={`mt-1 text-right text-[11px] flex items-center justify-end gap-1 ${
                                 isMine ? "text-white/80" : "text-slate-500"
                               }`}
                             >
                               {formatTime(message.createdAt)}
+                              {isMine ? (
+                                <span
+                                  className={`inline-block w-[7px] h-[7px] rounded-full border ${
+                                    message.readByAll
+                                      ? "bg-sky-300 border-sky-300"
+                                      : message.pending
+                                        ? "bg-transparent border-white/70"
+                                        : "bg-white/80 border-white/80"
+                                  }`}
+                                />
+                              ) : null}
+                              {message.pending ? (
+                                <Loader2
+                                  className={`inline-block w-3 h-3 animate-spin ${
+                                    isMine ? "text-white/80" : "text-slate-500"
+                                  }`}
+                                />
+                              ) : null}
                             </div>
                           </div>
                         </div>

@@ -1,7 +1,8 @@
 "use client";
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { usePlanAccess } from "@/components/plan-access-provider";
+import { getMenuItems } from "@/app/api/api";
 import PwaInstallPrompt from "@/components/pwa-install-prompt";
 import {
   Home,
@@ -49,13 +50,72 @@ const serviceItems = [
   { name: "Notifications", href: "/user/dashboard/mobile/notifications", icon: Bell },
 ];
 
+// This bottom-sheet grid is a separate, hand-built nav surface from the
+// admin-configurable desktop sidebar (which renders GET /menu-items). It
+// can't just render that tree directly — its routes live under a different
+// namespace (/user/dashboard/mobile/*, a curated subset of desktop pages)
+// and the API's route field points at the desktop equivalents. To avoid the
+// two silently drifting (e.g. admin disables "Messages" for a plan tier but
+// this sheet keeps showing it regardless), each item here is mapped to its
+// desktop-route equivalent and cross-checked against what /menu-items
+// currently allows for this viewer. Items with no mapping (e.g. "Settings",
+// which has no admin-managed equivalent) always stay visible.
+const SERVICE_ITEM_DESKTOP_ROUTE: Record<string, string> = {
+  Profile: "/user/profile",
+  Timesheet: "/user/timesheet",
+  WFH: "/user/wfh",
+  Payroll: "/user/payroll",
+  Messages: "/user/messages",
+  Polls: "/user/polls",
+  Posts: "/user/posts",
+  Notifications: "/user/notifications",
+};
+
 export default function MobileLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isBasicPlan } = usePlanAccess();
+  const { isBasicPlan, planType } = usePlanAccess();
   const [sheetOpen, setSheetOpen] = useState(false);
   const tabs = isBasicPlan ? basicTabs : defaultTabs;
   const hasServicesCenter = !isBasicPlan;
+
+  // Cross-check the static service grid against what the admin currently
+  // allows via /menu-items (role + plan tier). null = not loaded yet or the
+  // fetch failed — fail open and show the full static list rather than risk
+  // hiding something over a network hiccup.
+  const [allowedDesktopRoutes, setAllowedDesktopRoutes] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!hasServicesCenter) return;
+    let cancelled = false;
+
+    const flattenRoutes = (items: any[]): string[] =>
+      items.flatMap((item) => [
+        ...(item.route ? [item.route] : []),
+        ...(item.children ? flattenRoutes(item.children) : []),
+      ]);
+
+    getMenuItems("EMPLOYEE", planType || undefined)
+      .then((res) => {
+        if (cancelled) return;
+        setAllowedDesktopRoutes(new Set(flattenRoutes(res.data || [])));
+      })
+      .catch(() => {
+        if (!cancelled) setAllowedDesktopRoutes(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasServicesCenter, planType]);
+
+  const visibleServiceItems = useMemo(() => {
+    if (!allowedDesktopRoutes) return serviceItems;
+    return serviceItems.filter((item) => {
+      const desktopRoute = SERVICE_ITEM_DESKTOP_ROUTE[item.name];
+      return !desktopRoute || allowedDesktopRoutes.has(desktopRoute);
+    });
+  }, [allowedDesktopRoutes]);
 
   const getActiveTab = () => {
     if (pathname === "/user/dashboard/mobile") return 0;
@@ -131,7 +191,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
 
         {/* Service Grid */}
         <div className="grid grid-cols-3 gap-4 px-5 pb-8 pt-2">
-          {serviceItems.map((item) => {
+          {visibleServiceItems.map((item) => {
             const Icon = item.icon;
             return (
               <button

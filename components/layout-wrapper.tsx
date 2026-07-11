@@ -10,7 +10,7 @@ export default function LayoutWrapper({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isUserPath = pathname.startsWith("/user") || pathname.startsWith("/admin");
+  const isUserPath = pathname.startsWith("/user") || pathname.startsWith("/admin") || pathname.startsWith("/superadmin");
   const hidePublicChrome = isUserPath || pathname === "/logout" || pathname === "/session-expired";
 
   return (

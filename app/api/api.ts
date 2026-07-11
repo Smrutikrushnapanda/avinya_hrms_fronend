@@ -92,6 +92,14 @@ export const deleteHoliday = (id: number) => api.delete(`/attendance/holidays/${
 // 🔑 Authentication APIs
 export const login = (data: any) =>
   api.post("/auth/login", data, { timeout: LOGIN_API_TIMEOUT_MS });
+export const requestPasswordResetOtp = (data: { identifier: string }) =>
+  api.post("/auth/forgot-password", data);
+export const resetAdminCredentials = (data: {
+  identifier: string;
+  otp: string;
+  newUserName: string;
+  newPassword: string;
+}) => api.post("/auth/reset-password", data);
 export const logout = () => api.post("/auth/logout");
 export const getProfile = () => api.get("/auth/profile");
 
@@ -195,8 +203,12 @@ export const getTodayAnomalies = () => api.get("/attendance/anomalies/today");
 
 // 📝 Timesheet APIs
 export const createTimesheet = (data: any) => api.post("/timesheets", data);
+export const createTimesheetBatch = (data: any) => api.post("/timesheets/batch", data);
 export const getTimesheets = (params: any) => api.get("/timesheets", { params });
-export const addTimesheetRemark = (id: string, data: any) => api.patch(`/timesheets/${id}/remark`, data);
+export const getManagerTimesheets = (params: any) => api.get("/timesheets/manager", { params });
+export const updateTimesheetEntry = (id: string, data: any) => api.patch(`/timesheets/${id}`, data);
+export const deleteTimesheetEntry = (id: string) => api.delete(`/timesheets/${id}`);
+export const approveTimesheetDay = (data: any) => api.post("/timesheets/day-approval", data);
 
 // 🧑‍💼 Client & Project APIs
 export const getClients = (params: any) => api.get("/clients", { params });
@@ -793,6 +805,8 @@ export const sendChatMessage = (conversationId: string, data: FormData) =>
   api.post(`/chat/conversations/${conversationId}/messages`, data, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+export const markChatRead = (conversationId: string) =>
+  api.post(`/chat/conversations/${conversationId}/read`);
 
 // 📡 WFH Monitoring APIs
 export const wfhHeartbeat = (data: { mouseEvents: number; keyboardEvents: number; tabSwitches: number }) =>
@@ -806,6 +820,12 @@ export const getTeamWfhActivity = (date?: string) =>
   api.get('/wfh-monitoring/team', { params: { date } });
 export const getWfhChartData = (date?: string) =>
   api.get('/wfh-monitoring/chart', { params: { date } });
+export const getTeamDesktopActivity = (date?: string) =>
+  api.get('/wfh-monitoring/team/app-summary', { params: { date } });
+export const getTeamCurrentActivity = () =>
+  api.get('/wfh-monitoring/team/current-activity');
+export const getEmployeeAppSummary = (userId: string, date?: string) =>
+  api.get(`/wfh-monitoring/employee/${userId}/app-summary`, { params: { date } });
 
 // 📋 Company Policy APIs
 export const getPolicies = () => api.get('/policy');
@@ -920,6 +940,28 @@ export const updateMeetingStatus = (id: string, status: string) =>
 // 📋 Menu Items API
 export const getMenuItems = (role?: string, planType?: string) =>
   api.get('/menu-items', { params: { role, planType } });
+export const getAllMenuItemsForAdmin = () => api.get('/menu-items/admin/all');
+export const createMenuItem = (data: any) => api.post('/menu-items', data);
+export const updateMenuItem = (id: string, data: any) => api.put(`/menu-items/${id}`, data);
+export const deleteMenuItem = (id: string) => api.delete(`/menu-items/${id}`);
+
+// 🚀 Superadmin APIs
+export const getSuperadminStats = () => api.get('/superadmin/stats');
+export const getSuperadminOrganizations = () => api.get('/superadmin/organizations');
+export const getSuperadminSubscriptions = () => api.get('/superadmin/subscriptions');
+export const getSuperadminLogs = (limit = 100, offset = 0) =>
+  api.get('/superadmin/logs', { params: { limit, offset } });
+
+// 💰 Pricing APIs
+export const getPricingPlans = () => api.get('/api/pricing/plans?includeInactive=true');
+export const createPricingPlan = (data: any) => api.post('/api/pricing/plans', data);
+export const updatePricingPlan = (id: string, data: any) => api.put(`/api/pricing/plans/${id}`, data);
+export const deletePricingPlan = (id: string) => api.delete(`/api/pricing/plans/${id}`);
+
+export const createSubscription = (data: any) => api.post('/api/pricing/subscriptions', data);
+export const updateSubscription = (id: string, data: any) => api.put(`/api/pricing/subscriptions/${id}`, data);
+export const cancelSubscription = (id: string) => api.post(`/api/pricing/subscriptions/${id}/cancel`);
+export const renewSubscription = (id: string) => api.post(`/api/pricing/subscriptions/${id}/renew`);
 
 // Export the axios instance as default and named export
 export { api, apiBaseURL };

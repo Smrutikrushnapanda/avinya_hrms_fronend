@@ -230,12 +230,12 @@ function mapClientProject(cp: ClientProjectApi, currentUserId: string): Project 
   const today = new Date().toISOString().split("T")[0];
   const endDate: string | null = cp.endDate ?? null;
   const startDate: string | null = cp.startDate ?? null;
-  const isOverdue = !!endDate && endDate < today && cp.status !== "INACTIVE";
+  const isOverdue = !!endDate && endDate < today && cp.status !== "COMPLETED";
   const daysRemaining = endDate
     ? Math.ceil((new Date(endDate).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24))
     : null;
   const statusMap: Record<string, ProjectStatus> = {
-    ACTIVE: "active", INACTIVE: "on_hold", COMPLETED: "completed",
+    ACTIVE: "active", ON_HOLD: "on_hold", COMPLETED: "completed",
   };
   const mgr = cp.manager ?? null;
   const managerUserId = mgr?.userId ?? mgr?.user?.id ?? "";
@@ -555,8 +555,11 @@ export default function UserProjectsPage() {
       priority: "medium",
     });
     setTaskDialogOpen(true);
-    if (project._isManager && project._source === "client") {
-      loadTasks(project.id);
+    if (project._isManager) {
+      if (project._source === "client") {
+        loadTasks(project.id);
+      }
+      loadProjectEmployees(project);
     }
   };
 

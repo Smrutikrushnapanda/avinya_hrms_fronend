@@ -11,6 +11,7 @@ import {
   Send,
   Loader2,
   Trash2,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -318,19 +319,29 @@ export default function UserWfhPage() {
         header: "Actions",
         enableSorting: false,
         cell: ({ row }) => (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleDeleteWfhRequest(row.original)}
-            disabled={!canDeleteWfhRequest(row.original)}
-            title="Delete request"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => router.push("/user/wfh-monitor")}
+              title="View monitoring details"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleDeleteWfhRequest(row.original)}
+              disabled={!canDeleteWfhRequest(row.original)}
+              title="Delete request"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         ),
       },
     ],
-    [canDeleteWfhRequest, handleDeleteWfhRequest]
+    [canDeleteWfhRequest, handleDeleteWfhRequest, router]
   );
 
   useEffect(() => {

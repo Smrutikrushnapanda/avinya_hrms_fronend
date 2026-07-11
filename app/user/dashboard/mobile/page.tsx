@@ -25,6 +25,13 @@ import {
   WifiOff,
   Newspaper,
   Home,
+  Fingerprint,
+  RefreshCw,
+  CalendarDays,
+  CalendarIcon,
+  ArrowRight,
+  ArrowLeft,
+  Clock,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -239,7 +246,6 @@ export default function MobileDashboardPage() {
   const [breakLoading, setBreakLoading] = useState(false);
 
   // ── Device signals
-  const [wifiConnected, setWifiConnected] = useState(true);
   const [locationStatus, setLocationStatus] = useState<"pending" | "available" | "denied">("pending");
   const [cameraStatus, setCameraStatus] = useState<"pending" | "available" | "denied">("pending");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -276,19 +282,6 @@ export default function MobileDashboardPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [isCheckedIn, punchInTimestamp]);
-
-  // ── WiFi online/offline monitor
-  useEffect(() => {
-    setWifiConnected(navigator.onLine);
-    const onOnline = () => setWifiConnected(true);
-    const onOffline = () => setWifiConnected(false);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
 
   // ── Parse today logs and update state
   const parseTodayLogs = useCallback((payload: any) => {
@@ -565,7 +558,7 @@ export default function MobileDashboardPage() {
           // doesn't flash "Fetching..." and re-request GPS every time.
           if (fetchedSettings.enableGpsValidation) {
             const cached = readCachedLocation();
-            if (cached) {
+            if (cached && Date.now() - cached.timestamp < 60000) {
               setCoords({ latitude: cached.latitude, longitude: cached.longitude });
               setGpsLocationName(cached.locationName);
               setLocationStatus("available");
@@ -754,8 +747,14 @@ export default function MobileDashboardPage() {
 
     try {
       let activeCoords = coordsRef.current;
-      if (settings.enableWifiValidation && !wifiConnected) {
-        toast.error("Internet/WiFi is required because admin WiFi validation is enabled.");
+      if (settings.enableWifiValidation) {
+        // Browsers have no API to read the connected WiFi's SSID/BSSID, so
+        // web can never actually satisfy admin-configured WiFi validation —
+        // block here instead of submitting a punch the backend will always
+        // flag as an anomaly.
+        toast.error(
+          "Your organization requires WiFi network validation for attendance, which isn't supported from the web. Please check in using the mobile app."
+        );
         return;
       }
       if (settings.enableGpsValidation && !activeCoords) {
@@ -766,11 +765,12 @@ export default function MobileDashboardPage() {
         }
       }
 
-      // Get server timestamp
+      // Get server timestamp (IST)
       let timestamp = new Date().toISOString();
       try {
         const timeRes = await getCurrentTime();
         timestamp =
+          timeRes.data?.isoTime ??
           timeRes.data?.datetime ??
           timeRes.data?.now ??
           timeRes.data?.time ??
@@ -784,9 +784,8 @@ export default function MobileDashboardPage() {
       formData.append("userId", user.userId);
       formData.append("source", "web");
       formData.append("timestamp", timestamp);
-      formData.append("enableFaceValidation", String(settings.enableFaceValidation));
-      formData.append("enableWifiValidation", String(settings.enableWifiValidation));
-      formData.append("enableGPSValidation", String(settings.enableGpsValidation));
+      // These validation fields are deprecated by the server (ignored).
+      // Validation is always enforced using the org's stored AttendanceSettings.
       formData.append(
         "deviceInfo",
         typeof navigator !== "undefined" ? navigator.userAgent : "web"
@@ -862,15 +861,40 @@ export default function MobileDashboardPage() {
       : "Good Night";
   const isPunchDisabled =
     isLoading ||
-    (settings.enableWifiValidation && !wifiConnected) ||
+    settings.enableWifiValidation ||
     (settings.enableGpsValidation && locationStatus !== "available");
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
+  // Calculate next holiday
+  const nextHoliday = useMemo(() => {
+    if (!holidays.length) return null;
+    const todayStr = new Date().toISOString().split("T")[0];
+    const upcoming = holidays
+      .filter((h) => h.date && h.date >= todayStr)
+      .sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
+    return upcoming[0] || null;
+  }, [holidays]);
+
+  // Format time without seconds
+  const clockDisplayNoSeconds = clockTime.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const getDaysDiffStr = (dateStr?: string) => {
+    if (!dateStr) return "";
+    const diffTime = new Date(dateStr).getTime() - new Date().getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return "Today";
+    if (diffDays === 1) return "Tomorrow";
+    if (diffDays < 7) return `In ${diffDays} Days`;
+    return `In ${Math.floor(diffDays / 7)} Weeks`;
+  };
+
   return (
-    <div
-      className="min-h-screen bg-white flex flex-col"
-    >
+    <div className="min-h-screen bg-slate-50/30 flex flex-col pb-24 text-slate-800">
       {/* ── Header ── */}
       <MobileHomeHeader
         user={user}
@@ -878,93 +902,47 @@ export default function MobileDashboardPage() {
         onBrandingChange={setHasCustomHeaderBranding}
       />
 
-      {/* ── Date + Time + Punch Card ── */}
-      <Card
-        className={`mx-4 ${hasCustomHeaderBranding ? "-mt-10" : "mt-1"} border-0 shadow-lg bg-primary text-primary-foreground overflow-hidden relative`}
-      >
-        {clockTime.getHours() >= 17 || clockTime.getHours() < 5 ? (
-          <Moon className="absolute -top-2 right-2 w-16 h-16 text-white/15" />
-        ) : (
-          <Sun className="absolute -top-2 right-2 w-16 h-16 text-white/15" />
-        )}
-        <CardContent className="p-5 relative">
-          <p className="text-xs font-medium opacity-90">{dateDisplay}</p>
-          <p className="text-3xl font-bold mt-1">{clockDisplay}</p>
-          <p className="text-sm mt-1.5 opacity-85">
-            👋 {greeting} {user.name.split(" ")[0]}
-          </p>
+      {/* ── Punch Card ── */}
+      <div className="px-4 mt-2">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 p-5 text-white shadow-md flex items-center justify-between">
+          <div className="space-y-1 relative z-10">
+            <span className="text-[11px] font-semibold text-blue-100/90 tracking-wide block uppercase">
+              {clockTime.toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+            <span className="text-3xl font-black block tracking-tight">{clockDisplayNoSeconds}</span>
+            <span className="text-xs text-blue-100/90 block font-medium mt-1">
+              👋 {greeting} {user.name.split(" ")[0]}
+            </span>
+          </div>
 
-          {/* Status badges — only show if admin has enabled them */}
-          {(settings.enableWifiValidation || settings.enableGpsValidation) && (
-            <div className="flex justify-between items-center mt-3.5 pt-3 border-t border-white/25 text-xs">
-              {settings.enableWifiValidation && (
-                <p className={wifiConnected ? "text-green-300" : "text-red-300"}>
-                  {wifiConnected ? (
-                    <>
-                      <Wifi className="w-3 h-3 inline mr-1" />
-                      WiFi: Connected
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 inline mr-1" />
-                      WiFi: Offline
-                    </>
-                  )}
-                </p>
-              )}
-              {settings.enableGpsValidation && (
-                <p
-                  className={
-                    locationStatus === "available"
-                      ? "text-green-300"
-                      : locationStatus === "denied"
-                      ? "text-red-300"
-                      : "text-yellow-300"
-                  }
-                >
-                  {locationStatus === "available" ? (
-                    <>
-                      <MapPin className="w-3 h-3 inline mr-1" />
-                      Location: Available
-                    </>
-                  ) : locationStatus === "denied" ? (
-                    <>
-                      <MapPin className="w-3 h-3 inline mr-1" />
-                      Location: Denied
-                    </>
-                  ) : (
-                    <>
-                      <MapPin className="w-3 h-3 inline mr-1" />
-                      Location: Fetching…
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
-          )}
+          {/* Floating background shape */}
+          <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
 
           {/* Punch button */}
           <Button
             onClick={() => setOpen(true)}
             disabled={isPunchDisabled}
-            className={`mt-4 rounded-full ${
-              isPunchDisabled ? "bg-white/60 text-muted-foreground" : "bg-white text-primary hover:bg-white/90"
-            } flex items-center justify-center gap-2 w-fit px-6`}
+            className={`relative z-10 rounded-2xl h-14 px-5 shadow-lg border-0 transition-transform active:scale-95 flex items-center gap-2 bg-white text-blue-600 hover:bg-white/95 disabled:bg-white/60 disabled:text-blue-400`}
           >
             {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading...
-              </>
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                <Camera className="w-4 h-4" />
-                {hasPunchedInToday ? "Last Punch" : "Punch In"}
+                <Fingerprint className="w-6 h-6 shrink-0" />
+                <span className="font-extrabold text-sm tracking-wide">
+                  {hasPunchedInToday ? "Punch Out" : "Punch In"}
+                </span>
               </>
             )}
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+        {settings.enableWifiValidation && (
+          <div className="mt-2 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700">
+            <WifiOff className="w-4 h-4 shrink-0" />
+            <span>WiFi validation is required by your organization — punch in from the mobile app.</span>
+          </div>
+        )}
+      </div>
 
       {/* ── Punch Dialog ── */}
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setCapturedImage(null); }}>
@@ -973,7 +951,7 @@ export default function MobileDashboardPage() {
           className="!fixed !inset-0 !translate-x-0 !translate-y-0 !w-screen !h-[100svh] !min-h-[100dvh] !max-w-none !rounded-none !border-0 !p-0 !gap-0 bg-black overflow-hidden"
         >
           <DialogHeader className="sr-only">
-            <DialogTitle>{hasPunchedInToday ? "Last Punch" : "Punch In"}</DialogTitle>
+            <DialogTitle>{hasPunchedInToday ? "Punch Out" : "Punch In"}</DialogTitle>
           </DialogHeader>
 
           {!capturedImage ? (
@@ -989,7 +967,7 @@ export default function MobileDashboardPage() {
 
               <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),1rem)]">
                 <div className="rounded-full bg-black/45 px-3 py-1 text-xs font-semibold tracking-wide text-white/90 backdrop-blur-sm">
-                  {hasPunchedInToday ? "Last Punch" : "Punch In"}
+                  {hasPunchedInToday ? "Punch Out" : "Punch In"}
                 </div>
                 <button
                   type="button"
@@ -1057,7 +1035,7 @@ export default function MobileDashboardPage() {
                       Submitting…
                     </>
                   ) : hasPunchedInToday ? (
-                    "Confirm Last Punch"
+                    "Confirm Punch Out"
                   ) : (
                     "Confirm Punch In"
                   )}
@@ -1071,90 +1049,110 @@ export default function MobileDashboardPage() {
       </Dialog>
 
       {/* ── Today's Overview ── */}
-      <div className="px-4 mt-4">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="font-semibold text-base">Today&apos;s Overview</h3>
+      <div className="px-4 mt-5">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-bold text-base text-slate-800 dark:text-slate-200">Today&apos;s Overview</h3>
           <p
-            className="text-sm text-primary cursor-pointer"
+            className="text-xs text-blue-600 font-bold cursor-pointer"
             onClick={() => router.push("/user/dashboard/mobile/attendance")}
           >
-            View all
+            View all &gt;
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl p-3.5 bg-blue-50 dark:bg-blue-500/10">
-            <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/25 flex items-center justify-center mb-2.5">
-              <LogIn className="w-[18px] h-[18px] text-blue-600 dark:text-blue-400" />
+          {/* Punch In Card */}
+          <div className="rounded-3xl p-4 bg-blue-50/70 dark:bg-blue-500/10 flex flex-col justify-between h-36">
+            <div>
+              <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/25 flex items-center justify-center">
+                <ArrowRight className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <p className="text-xs font-bold text-slate-400 mt-2.5">Punch In</p>
+              <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{punchInTimeStr}</p>
             </div>
-            <p className="text-[13px] font-semibold">Punch In</p>
-            <p className="text-lg font-bold mt-1 mb-2">{punchInTimeStr}</p>
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] text-muted-foreground">{shortDateDisplay}</p>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/25 dark:text-blue-300">
+            <div className="flex items-center justify-between border-t border-blue-100/50 pt-2 mt-2">
+              <p className="text-[10px] text-slate-400 font-medium">{shortDateDisplay}</p>
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${hasPunchedInToday ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>
                 {hasPunchedInToday ? "Completed" : "Not done"}
               </span>
             </div>
           </div>
 
-          <div className="rounded-2xl p-3.5 bg-red-50 dark:bg-red-500/10">
-            <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-500/25 flex items-center justify-center mb-2.5">
-              <LogOut className="w-[18px] h-[18px] text-red-600 dark:text-red-400" />
+          {/* Last Punch Card */}
+          <div className="rounded-3xl p-4 bg-red-50/50 dark:bg-red-500/10 flex flex-col justify-between h-36">
+            <div>
+              <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-500/25 flex items-center justify-center">
+                <ArrowLeft className="w-4 h-4 text-red-600 dark:text-red-400" />
+              </div>
+              <p className="text-xs font-bold text-slate-400 mt-2.5">Last Punch</p>
+              <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{punchOutTimeStr}</p>
             </div>
-            <p className="text-[13px] font-semibold">Last Punch</p>
-            <p className="text-lg font-bold mt-1 mb-2">{punchOutTimeStr}</p>
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] text-muted-foreground">{shortDateDisplay}</p>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-500/25 dark:text-red-300">
+            <div className="flex items-center justify-between border-t border-red-100/50 pt-2 mt-2">
+              <p className="text-[10px] text-slate-400 font-medium">{shortDateDisplay}</p>
+              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${punchOutTimeStr !== "--:-- --" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
                 {punchOutTimeStr !== "--:-- --" ? "Completed" : "Not done"}
               </span>
             </div>
           </div>
 
-          <div className="rounded-2xl p-3.5 bg-emerald-50 dark:bg-emerald-500/10">
-            <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-500/25 flex items-center justify-center mb-2.5">
-              <Timer className="w-[18px] h-[18px] text-emerald-600 dark:text-emerald-400" />
+          {/* Working Hours Card */}
+          <div className="rounded-3xl p-4 bg-emerald-50/40 dark:bg-emerald-500/10 flex flex-col justify-between h-36 relative">
+            <div>
+              <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-500/25 flex items-center justify-center">
+                <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <p className="text-xs font-bold text-slate-400 mt-2.5">Working Hours</p>
+              <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">
+                {workingSeconds > 0 ? formatWorkingTime(workingSeconds).replace(" hrs", "") : "0:00:00"}
+                <span className="text-xs font-bold text-slate-400 ml-1">hrs</span>
+              </p>
             </div>
-            <p className="text-[13px] font-semibold">Working Hours</p>
-            <p className="text-lg font-bold mt-1 mb-2">
-              {workingSeconds > 0 ? formatWorkingTime(workingSeconds) : "0:00:00 hrs"}
-            </p>
-            <p className="text-[11px] text-muted-foreground">{shortDateDisplay}</p>
+            <div className="flex items-center justify-between border-t border-emerald-100/50 pt-2 mt-2">
+              <p className="text-[10px] text-slate-400 font-medium">{shortDateDisplay}</p>
+              <button onClick={() => fetchTodayLogs(user.organizationId, user.userId)} className="text-emerald-600 active:scale-90 transition-transform">
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
-          <div className={`rounded-2xl p-3.5 ${isOnBreak ? "bg-amber-50 dark:bg-amber-500/10" : "bg-emerald-50 dark:bg-emerald-500/10"}`}>
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-2.5 ${isOnBreak ? "bg-amber-100 dark:bg-amber-500/25" : "bg-emerald-100 dark:bg-emerald-500/25"}`}>
-              <Coffee className={`w-[18px] h-[18px] ${isOnBreak ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} />
+          {/* Break Card */}
+          <div className={`rounded-3xl p-4 flex flex-col justify-between h-36 ${isOnBreak ? "bg-amber-50/50 dark:bg-amber-500/10" : "bg-emerald-50/40 dark:bg-emerald-500/10"}`}>
+            <div>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center ${isOnBreak ? "bg-amber-100 dark:bg-amber-500/25" : "bg-emerald-100 dark:bg-emerald-500/25"}`}>
+                <Coffee className={`w-4 h-4 ${isOnBreak ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} />
+              </div>
+              <p className="text-xs font-bold text-slate-400 mt-2.5">Break</p>
+              <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-0.5 truncate">
+                {isOnBreak ? "On break" : "Available for work"}
+              </p>
             </div>
-            <p className="text-[13px] font-semibold">Break</p>
-            <p className="text-xs text-muted-foreground mt-1 mb-2.5">
-              {isOnBreak ? "Currently on break" : "Available for work"}
-            </p>
-            <Button
-              onClick={handleBreakToggle}
-              disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
-              className={`h-8 w-full text-xs ${
-                !isCheckedIn && !isOnBreak
-                  ? "bg-gray-400 hover:bg-gray-400"
-                  : isOnBreak
-                  ? "bg-amber-500 hover:bg-amber-600"
-                  : "bg-emerald-500 hover:bg-emerald-600"
-              } text-white`}
-            >
-              {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
-            </Button>
-            {!isCheckedIn && !isOnBreak && (
-              <p className="text-[11px] text-muted-foreground mt-1.5 text-center">Check in first</p>
-            )}
+            <div className="mt-2">
+              <Button
+                onClick={handleBreakToggle}
+                disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
+                className={`h-8 w-full text-xs font-extrabold rounded-xl ${
+                  !isCheckedIn && !isOnBreak
+                    ? "bg-slate-200 text-slate-400 hover:bg-slate-200 cursor-not-allowed shadow-none"
+                    : isOnBreak
+                    ? "bg-amber-500 hover:bg-amber-600 text-white"
+                    : "bg-emerald-500 hover:bg-emerald-600 text-white"
+                }`}
+              >
+                {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
+              </Button>
+              {!isCheckedIn && !isOnBreak && (
+                <p className="text-[9px] text-slate-400 mt-1 text-center font-medium">Check in first</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* ── Calendar ── */}
-      <div className="px-4 mt-4 mb-20">
-        <h3 className="font-semibold text-base mb-2">Calendar</h3>
-        <Card>
-          <CardContent>
+      <div className="px-4 mt-5">
+        <h3 className="font-bold text-base text-slate-800 dark:text-slate-200 mb-3">Calendar</h3>
+        <Card className="border border-slate-100 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden">
+          <CardContent className="p-4">
             <AttendanceCalendar
               currentMonth={currentMonth}
               setCurrentMonth={setCurrentMonth}
@@ -1164,16 +1162,98 @@ export default function MobileDashboardPage() {
         </Card>
       </div>
 
+      {/* ── Upcoming Holiday ── */}
+      <div className="px-4 mt-5">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-bold text-base text-slate-800 dark:text-slate-200">Upcoming Holiday</h3>
+          <p
+            className="text-xs text-blue-600 font-bold cursor-pointer"
+            onClick={() => router.push("/user/dashboard/mobile/holidays")}
+          >
+            View All &gt;
+          </p>
+        </div>
+        {nextHoliday ? (
+          <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm hover:shadow transition-shadow">
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col items-center justify-center w-14 h-14 bg-blue-600 text-white rounded-2xl shrink-0 shadow-sm">
+                <span className="text-xl font-black leading-none">{new Date(nextHoliday.date!).getDate()}</span>
+                <span className="text-[10px] font-black uppercase tracking-wider mt-1">
+                  {new Date(nextHoliday.date!).toLocaleDateString('en-US', { month: 'short' })}
+                </span>
+              </div>
+              <div>
+                <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-100">{nextHoliday.name}</h4>
+                <span className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 text-[9px] font-extrabold text-blue-600 dark:text-blue-400 mt-1 uppercase">
+                  {nextHoliday.holidayType || 'PUBLIC HOLIDAY'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded-xl">
+              <Clock className="w-3.5 h-3.5" />
+              <span>{getDaysDiffStr(nextHoliday.date)}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-6 border border-dashed rounded-3xl text-slate-400 text-xs">
+            No upcoming holidays listed
+          </div>
+        )}
+      </div>
+
+      {/* ── Bottom Navigation Bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex justify-around items-center h-16 shadow-lg px-2">
+        <button
+          onClick={() => router.push("/user/dashboard/mobile")}
+          className="flex flex-col items-center justify-center w-14 h-full text-blue-600"
+        >
+          <Home className="w-5 h-5 shrink-0" />
+          <span className="text-[10px] font-extrabold mt-1">Home</span>
+        </button>
+
+        <button
+          onClick={() => router.push("/user/dashboard/mobile/attendance")}
+          className="flex flex-col items-center justify-center w-14 h-full text-slate-400 hover:text-blue-600 transition-colors"
+        >
+          <CalendarDays className="w-5 h-5 shrink-0" />
+          <span className="text-[10px] font-bold mt-1">Attendance</span>
+        </button>
+
+        <button
+          onClick={() => router.push("/user/dashboard/mobile/leave")}
+          className="flex flex-col items-center justify-center w-14 h-full text-slate-400 hover:text-blue-600 transition-colors"
+        >
+          <CalendarIcon className="w-5 h-5 shrink-0" />
+          <span className="text-[10px] font-bold mt-1">Leave</span>
+        </button>
+
+        <button
+          onClick={() => router.push("/user/dashboard/mobile/wfh")}
+          className="flex flex-col items-center justify-center w-14 h-full text-slate-400 hover:text-blue-600 transition-colors"
+        >
+          <Home className="w-5 h-5 shrink-0 rotate-180" />
+          <span className="text-[10px] font-bold mt-1">WFH</span>
+        </button>
+
+        <button
+          onClick={() => router.push("/user/dashboard/mobile/timeslips")}
+          className="flex flex-col items-center justify-center w-14 h-full text-slate-400 hover:text-blue-600 transition-colors"
+        >
+          <Clock className="w-5 h-5 shrink-0" />
+          <span className="text-[10px] font-bold mt-1">Time Slip</span>
+        </button>
+      </div>
+
       {/* ── Sidebar Drawer ── */}
       {isSidebarOpen && (
         <div className="fixed inset-0 z-[60] flex">
           <div
-            className="fixed inset-0 bg-black/50"
+            className="fixed inset-0 bg-black/55 backdrop-blur-sm"
             onClick={() => setIsSidebarOpen(false)}
           />
-          <div className="relative bg-white w-72 h-full shadow-2xl flex flex-col">
+          <div className="relative bg-white dark:bg-slate-900 w-72 h-full shadow-2xl flex flex-col">
             {/* Sidebar Header */}
-            <div className="p-5 bg-[#0077b6] text-white">
+            <div className="p-5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
               <div className="flex justify-between items-start mb-4">
                 <Avatar className="w-14 h-14 border-2 border-white">
                   <AvatarImage src={user.avatar} alt={user.name} />

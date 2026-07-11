@@ -113,7 +113,9 @@ export default function AdminTimesheetsPage() {
           title={selectedName ? `${selectedName}'s Timesheet` : "Timesheet"}
           description="Daily work entries submitted by the employee"
           organizationId={organizationId}
+          mode="admin"
           employeeId={selectedEmployeeId}
+          allowApproval
         />
       ) : (
         <Card>

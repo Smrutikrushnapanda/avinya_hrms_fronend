@@ -15,7 +15,7 @@ export default function MobileTabHeader({
   backLabel = "Back",
   showBell = true,
   compact = false,
-  className = "bg-primary",
+  className = "",
 }: {
   title: string;
   backHref?: string;
@@ -29,54 +29,50 @@ export default function MobileTabHeader({
   const router = useRouter();
   const { isBasicPlan } = usePlanAccess();
   const unreadCount = useUnreadMessages();
-  const containerPaddingClass = compact ? "py-4" : "pt-5 pb-16";
+  const containerPaddingClass = compact ? "py-3" : "pt-4 pb-10";
 
   return (
-    <div className={`${className} text-primary-foreground px-4 ${containerPaddingClass} flex items-center justify-between`}>
+    <div className={`bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-100 px-4 ${containerPaddingClass} flex items-center justify-between shadow-sm ${className}`}>
       {backHref ? (
         <div className="flex items-center space-x-2">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => router.push(backHref)}
-            className="text-white hover:text-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/60"
+            className="text-slate-800 dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800"
             aria-label="Back"
           >
-            <ArrowLeft className="w-5 h-5 text-white" />
+            <ArrowLeft className="w-5 h-5" />
           </Button>
           {showBackLabel && (
             <button
               onClick={() => router.push(backHref)}
-              className="text-sm font-semibold text-white/90"
+              className="text-sm font-semibold text-slate-800 dark:text-slate-100"
             >
               {backLabel}
             </button>
           )}
           <div>
-            <h2 className="text-lg font-semibold">{title}</h2>
-            {subtitle && <p className="text-xs text-primary-foreground/80">{subtitle}</p>}
+            <h2 className="text-base font-extrabold tracking-tight">{title}</h2>
+            {subtitle && <p className="text-[10px] text-slate-400 font-medium">{subtitle}</p>}
           </div>
         </div>
       ) : (
         <div className="flex items-center">
-          <div className="bg-white/20 rounded-full px-4 py-2">
-            <h2 className="text-xl font-bold">{title}</h2>
-          </div>
+          <h2 className="text-base font-extrabold tracking-tight text-slate-800 dark:text-slate-100 px-1 py-0.5">{title}</h2>
         </div>
       )}
       {showBell && !isBasicPlan && (
         <div className="flex items-center gap-2">
-          <PwaInstallButton className="rounded-md p-1 hover:bg-white/10 transition-colors text-white" />
+          <PwaInstallButton className="rounded-md p-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-800 dark:text-slate-100" />
           <button
-            className="relative rounded-md p-1 hover:bg-white/10 transition-colors"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 shadow-sm active:scale-95 transition-transform"
             onClick={() => router.push("/user/dashboard/mobile/notifications")}
             aria-label="Notifications"
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
+              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
             )}
           </button>
         </div>

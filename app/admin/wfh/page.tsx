@@ -172,14 +172,6 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
-// ------- Helper: get employee full name -------
-function getFullName(
-  user?: { firstName: string; lastName: string } | null
-): string {
-  if (!user) return "Unknown";
-  return `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown";
-}
-
 const EMPLOYMENT_TYPE_OPTIONS = [
   { value: "FULL_TIME", label: "Full Time" },
   { value: "PART_TIME", label: "Part Time" },
@@ -601,10 +593,22 @@ export default function WfhManagementPage() {
     (r) => r.status?.toUpperCase() === "REJECTED"
   ).length;
 
-  // ------- Employee lookup helpers for assignments -------
-  const getEmployeeName = (userId: string): string => {
-    const emp = employees.find((e) => e.userId === userId);
-    if (emp) return `${emp.firstName} ${emp.lastName || ""}`.trim();
+  // ------- Employee lookup: always prefer the employees table (HR profile,
+  // kept accurate via the Employees admin form) over the raw `users` login
+  // identity, which is often left at its account-creation default. -------
+  const getEmployeeName = (
+    userId?: string,
+    fallbackUser?: { firstName: string; lastName: string } | null
+  ): string => {
+    const emp = userId ? employees.find((e) => e.userId === userId) : undefined;
+    if (emp) {
+      const name = `${emp.firstName} ${emp.lastName || ""}`.trim();
+      if (name) return name;
+    }
+    if (fallbackUser) {
+      const name = `${fallbackUser.firstName || ""} ${fallbackUser.lastName || ""}`.trim();
+      if (name) return name;
+    }
     return "Unknown";
   };
 
@@ -789,7 +793,7 @@ export default function WfhManagementPage() {
                         <TableRow key={request.id}>
                           <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">
-                            {getFullName(request.user)}
+                            {getEmployeeName(request.userId, request.user)}
                           </TableCell>
                           <TableCell>
                             {request.startDate || request.date
@@ -947,9 +951,7 @@ export default function WfhManagementPage() {
                         <TableRow key={assignment.id}>
                           <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">
-                            {assignment.user
-                              ? getFullName(assignment.user)
-                              : getEmployeeName(assignment.userId)}
+                            {getEmployeeName(assignment.userId, assignment.user)}
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="outline">
@@ -961,9 +963,7 @@ export default function WfhManagementPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {assignment.approver
-                              ? getFullName(assignment.approver)
-                              : getEmployeeName(assignment.approverId)}
+                            {getEmployeeName(assignment.approverId, assignment.approver)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
@@ -1171,7 +1171,7 @@ export default function WfhManagementPage() {
             <DialogDescription>
               Provide remarks for rejecting the WFH request from{" "}
               <span className="font-medium text-foreground">
-                {getFullName(rejectTarget?.user)}
+                {getEmployeeName(rejectTarget?.userId, rejectTarget?.user)}
               </span>
               .
             </DialogDescription>

@@ -22,124 +22,18 @@ import {
   Users,
   Download,
 } from "lucide-react";
-import { getChatMessages, getProfile, sendChatMessage } from "@/app/api/api";
+import { getChatMessages, getProfile, sendChatMessage, markChatRead } from "@/app/api/api";
 import { createMessageSocket } from "@/lib/socket";
-
-type ChatAttachment = {
-  id: string;
-  url: string;
-  fileName?: string;
-  type: "image" | "file";
-};
-
-type ChatMessage = {
-  id: string;
-  conversationId: string;
-  senderId: string;
-  text?: string;
-  createdAt: string;
-  readByAll?: boolean;
-  pending?: boolean;
-  attachments?: ChatAttachment[];
-};
-
-type ProfileLike = {
-  id?: string;
-  userId?: string;
-};
-
-type RawChatAttachment = {
-  id?: string;
-  url?: string;
-  fileName?: string;
-  type?: string;
-};
-
-type RawChatMessage = {
-  id?: string;
-  conversationId?: string;
-  senderId?: string;
-  text?: string;
-  createdAt?: string;
-  readByAll?: boolean;
-  pending?: boolean;
-  attachments?: RawChatAttachment[];
-};
-
-type ChatSocketPayload = {
-  conversationId?: string;
-  message?: RawChatMessage;
-};
-
-type PresencePayload = {
-  userId?: string;
-  status?: "online" | "offline";
-};
-
-const formatTime = (value?: string) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-};
-
-const formatDate = (value?: string) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
-};
-
-const normalizeSystemText = (text?: string) => (text || "").trim().toLowerCase();
-
-const getMeetingSystemLabel = (text?: string) => {
-  const normalized = normalizeSystemText(text);
-  if (normalized === "meeting started" || normalized === "you entered") return "You entered";
-  if (normalized === "meeting ended" || normalized === "you left") return "You left";
-  return null;
-};
-
-const extractMeetingUrlFromText = (text?: string) => {
-  if (!text) return null;
-  const match = text.match(/Join meeting:\s*(https?:\/\/\S+)/i);
-  if (!match?.[1]) return null;
-  return match[1].trim();
-};
-
-const sortMessages = (messages: ChatMessage[]) =>
-  [...messages].sort(
-    (a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime(),
-  );
-
-const toChatMessage = (item: RawChatMessage): ChatMessage => ({
-  id: item.id || "",
-  conversationId: item.conversationId || "",
-  senderId: item.senderId || "",
-  text: item.text || "",
-  createdAt: item.createdAt || new Date().toISOString(),
-  readByAll: Boolean(item.readByAll),
-  pending: Boolean(item.pending),
-  attachments: Array.isArray(item.attachments)
-    ? item.attachments
-        .filter((attachment) => Boolean(attachment?.id) && Boolean(attachment?.url))
-        .map((attachment) => ({
-          id: attachment.id as string,
-          url: attachment.url as string,
-          fileName: attachment.fileName,
-          type: attachment.type === "image" ? "image" : "file",
-        }))
-    : [],
-});
-
-const resolveAttachmentUrl = (url?: string) => {
-  if (!url) return "";
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
-  const base =
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_LOCAL_API_BASE_URL ||
-    "https://avinyahrms.duckdns.org";
-  return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
-};
+import { ChatMessage, ProfileLike, ChatSocketPayload, PresencePayload } from "@/types/chat";
+import {
+  formatTime,
+  formatDate,
+  getMeetingSystemLabel,
+  extractMeetingUrlFromText,
+  resolveAttachmentUrl,
+  toChatMessage,
+  sortMessages,
+} from "@/lib/chat-utils";
 
 export default function MobileChatPage() {
   const params = useParams<{ id: string }>();
@@ -323,9 +217,12 @@ export default function MobileChatPage() {
   const loadMessages = useCallback(async () => {
     if (!conversationId) return;
     try {
-      const response = await getChatMessages(conversationId, { limit: 200 });
+      const [response] = await Promise.all([
+        getChatMessages(conversationId, { limit: 200 }),
+        markChatRead(conversationId).catch(() => undefined),
+      ]);
       const list = Array.isArray(response.data) ? response.data : [];
-      const normalized = list.map((item: unknown) => toChatMessage((item as RawChatMessage) || {}));
+      const normalized = list.map((item: unknown) => toChatMessage((item as any) || {}));
       setMessages(sortMessages(normalized));
     } finally {
       setLoading(false);
@@ -419,7 +316,7 @@ export default function MobileChatPage() {
     setSending(true);
     try {
       const response = await sendChatMessage(conversationId, formData);
-      const saved = toChatMessage((response.data || {}) as RawChatMessage);
+      const saved = toChatMessage((response.data || {}) as any);
 
       setMessages((prev) => {
         const withoutTemp = prev.filter((item) => item.id !== tempId);
@@ -981,18 +878,19 @@ export default function MobileChatPage() {
             <Smile className="w-4.5 h-4.5" />
           </button>
 
-          <input
+          <textarea
             value={composerText}
             onChange={(event) => setComposerText(event.target.value)}
             onFocus={() => setShowEmojiMenu(false)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") {
+              if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 void sendMessage();
               }
             }}
+            rows={1}
             placeholder="Type a message..."
-            className="flex-1 h-9 px-3 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            className="flex-1 max-h-20 min-h-[36px] px-3 py-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none resize-none"
           />
 
           <button

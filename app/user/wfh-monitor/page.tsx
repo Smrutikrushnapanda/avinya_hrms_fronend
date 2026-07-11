@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useWfhMonitor } from "@/hooks/useWfhMonitor";
 import { getWfhToday, wfhToggleLunch, wfhToggleWork } from "@/app/api/api";
 import { toast } from "sonner";
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
+  ArrowLeft,
   UtensilsCrossed,
   Activity,
   Clock,
@@ -46,6 +48,7 @@ interface ActivityData {
 }
 
 export default function WfhMonitorPage() {
+  const router = useRouter();
   const [activity, setActivity] = useState<ActivityData>({
     mouseEvents: 0,
     keyboardEvents: 0,
@@ -198,15 +201,20 @@ export default function WfhMonitorPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-green-500" />
-            <h1 className="text-2xl font-bold text-foreground">WFH Activity Monitor</h1>
-          </div>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => router.push("/user/wfh")} className="shrink-0">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-green-500" />
+              <h1 className="text-2xl font-bold text-foreground">WFH Activity Monitor</h1>
+            </div>
           <p className="text-sm text-muted-foreground mt-1">
             Your activity is monitored to track productivity during work-from-home.
           </p>
         </div>
+      </div>
 
         <div className="flex items-center gap-2">
           {/* Lunch toggle — only when working */}

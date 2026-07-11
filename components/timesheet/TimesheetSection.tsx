@@ -1,88 +1,110 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
+import type { DateRange } from "react-day-picker";
 import {
   CalendarDays,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  MessageSquarePlus,
+  Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 
-import { addTimesheetRemark, getTimesheets } from "@/app/api/api";
+import {
+  approveTimesheetDay,
+  deleteTimesheetEntry,
+  getManagerTimesheets,
+  getMyClientProjects,
+  getMyProjects,
+  getTimesheets,
+  updateTimesheetEntry,
+} from "@/app/api/api";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import DateRangePicker from "./DateRangePicker";
+import TimesheetRowForm from "./TimesheetRowForm";
+import {
+  formatMinutes,
+  TimesheetApprovalStatus,
+  TimesheetProjectOption,
+  TimesheetRowDraft,
+} from "./types";
 
 const monthNames = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
-type TimesheetRow = {
-  id: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  hours: string;
-  projectName: string;
-  workDescription: string;
-  employeeRemark: string;
-  managerRemark: string;
-  employeeName?: string;
-  employeeCode?: string;
-};
+type TimesheetSectionMode = "self" | "team" | "project" | "admin";
 
-type TimesheetApiEntry = {
+interface DirectReportOption {
+  id: string;
+  userId: string;
+  name: string;
+  employeeCode?: string;
+}
+
+interface TimesheetEntry {
   id: string;
   date: string;
   startTime: string;
   endTime: string;
-  workingMinutes?: number;
-  projectName?: string | null;
-  workDescription?: string | null;
-  employeeRemark?: string | null;
-  managerRemark?: string | null;
+  workingMinutes: number;
+  projectName: string | null;
+  moduleFeature: string | null;
+  pageScreen: string | null;
+  workDescription: string;
+  workStatus: "COMPLETED" | "IN_PROGRESS" | "BLOCKED";
+  employeeRemark: string | null;
+  approvalStatus: TimesheetApprovalStatus;
+  managerRemark: string | null;
+  employeeId: string;
   employee?: {
     firstName?: string;
     middleName?: string;
     lastName?: string;
     employeeCode?: string;
   } | null;
-};
+}
 
-type TimesheetSectionProps = {
+interface TimesheetSectionProps {
   title: string;
   description?: string;
   organizationId: string;
+  mode: TimesheetSectionMode;
   employeeId?: string;
+  directReports?: DirectReportOption[];
   showEmployee?: boolean;
-  canRemark?: boolean;
-  managerId?: string;
-  allowEdit?: boolean;
+  allowApproval?: boolean;
   projectFilterEnabled?: boolean;
+}
+
+const WORK_STATUS_BADGE: Record<string, string> = {
+  COMPLETED: "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300",
+  IN_PROGRESS: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+  BLOCKED: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300",
 };
 
-function formatDisplayDate(dateStr?: string): string {
-  if (!dateStr) return "--";
-  const date = new Date(dateStr);
+const APPROVAL_BADGE: Record<string, string> = {
+  PENDING: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
+  APPROVED: "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300",
+  REJECTED: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300",
+};
+
+function formatDisplayDate(dateStr: string): string {
+  const date = new Date(`${dateStr}T00:00:00`);
   if (Number.isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
 
 function formatTime(isoStr?: string): string {
@@ -92,344 +114,269 @@ function formatTime(isoStr?: string): string {
   return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatMinutes(minutes?: number): string {
-  if (!minutes || minutes <= 0) return "--";
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h}h ${m}m`;
+function toTimeInput(isoStr: string): string {
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+function entryToDraft(entry: TimesheetEntry): TimesheetRowDraft {
+  return {
+    key: entry.id,
+    id: entry.id,
+    startTime: toTimeInput(entry.startTime),
+    endTime: toTimeInput(entry.endTime),
+    projectId: "",
+    projectName: entry.projectName || "",
+    moduleFeature: entry.moduleFeature || "",
+    pageScreen: entry.pageScreen || "",
+    workDescription: entry.workDescription,
+    workingMinutes: entry.workingMinutes,
+    minutesTouched: true,
+    workStatus: entry.workStatus,
+    employeeRemark: entry.employeeRemark || "",
+  };
 }
 
 export default function TimesheetSection({
   title,
   description,
   organizationId,
+  mode,
   employeeId,
+  directReports = [],
   showEmployee = false,
-  canRemark = false,
-  managerId,
-  allowEdit = false,
+  allowApproval = false,
   projectFilterEnabled = false,
 }: TimesheetSectionProps) {
-  const router = useRouter();
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth());
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
-  const [rows, setRows] = useState<TimesheetRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [tableState, setTableState] = useState({
-    page: 0,
-    pageSize: 10,
-    search: "",
-    sorting: [] as Array<{ id: string; desc: boolean }>,
-  });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [selectedProjectName, setSelectedProjectName] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
 
-  const [remarkDialogOpen, setRemarkDialogOpen] = useState(false);
-  const [remarkTarget, setRemarkTarget] = useState<TimesheetRow | null>(null);
-  const [remarkText, setRemarkText] = useState("");
-  const [remarkSaving, setRemarkSaving] = useState(false);
+  const [entries, setEntries] = useState<TimesheetEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set([todayIso()]));
+
+  const [projects, setProjects] = useState<TimesheetProjectOption[]>([]);
+  const [editTarget, setEditTarget] = useState<TimesheetEntry | null>(null);
+  const [editDraft, setEditDraft] = useState<TimesheetRowDraft | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+
+  const [approveTarget, setApproveTarget] = useState<{ employeeId: string; date: string; employeeName: string } | null>(null);
+  const [approveRemark, setApproveRemark] = useState("");
+  const [approveSaving, setApproveSaving] = useState(false);
+
+  const isTeam = mode === "team";
+  const isNextDisabled = selectedMonth === currentDate.getMonth() && selectedYear === currentDate.getFullYear();
 
   const handlePrevMonth = () => {
     if (selectedMonth === 0) {
       setSelectedMonth(11);
       setSelectedYear((y) => y - 1);
-    } else {
-      setSelectedMonth((m) => m - 1);
-    }
+    } else setSelectedMonth((m) => m - 1);
   };
-
-  const isNextDisabled = useMemo(() => {
-    const now = new Date();
-    return selectedMonth === now.getMonth() && selectedYear === now.getFullYear();
-  }, [selectedMonth, selectedYear]);
-
   const handleNextMonth = () => {
     if (isNextDisabled) return;
     if (selectedMonth === 11) {
       setSelectedMonth(0);
       setSelectedYear((y) => y + 1);
-    } else {
-      setSelectedMonth((m) => m + 1);
+    } else setSelectedMonth((m) => m + 1);
+  };
+
+  useEffect(() => {
+    if (mode !== "self") return;
+    Promise.allSettled([getMyProjects(), getMyClientProjects()]).then(([standaloneRes, clientRes]) => {
+      const standaloneRows = standaloneRes.status === "fulfilled" && Array.isArray(standaloneRes.value.data) ? standaloneRes.value.data : [];
+      const clientRows = clientRes.status === "fulfilled" && Array.isArray(clientRes.value.data) ? clientRes.value.data : [];
+      setProjects([
+        ...standaloneRows.map((p: any) => ({ id: p.id, name: p.name || p.projectName || "Untitled", source: "standalone" as const })),
+        ...clientRows.map((p: any) => ({ id: p.id, name: p.projectName || p.projectCode || p.name || "Untitled", source: "client" as const })),
+      ]);
+    });
+  }, [mode]);
+
+  const fetchEntries = useCallback(async () => {
+    if (!organizationId) {
+      setLoading(false);
+      setEntries([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      let fromDate: string;
+      let toDate: string;
+      if (isTeam && dateRange?.from) {
+        fromDate = dateRange.from.toISOString().split("T")[0];
+        toDate = (dateRange.to || dateRange.from).toISOString().split("T")[0];
+      } else {
+        fromDate = new Date(selectedYear, selectedMonth, 1).toISOString().split("T")[0];
+        toDate = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split("T")[0];
+      }
+
+      const status = selectedStatus === "all" ? undefined : selectedStatus;
+      const projectName = selectedProjectName === "all" ? undefined : selectedProjectName;
+
+      if (isTeam) {
+        const res = await getManagerTimesheets({
+          employeeId: selectedEmployeeId || undefined,
+          fromDate,
+          toDate,
+          status,
+          projectName,
+          page: 1,
+          limit: 500,
+        });
+        setEntries(res.data?.results || []);
+      } else {
+        const res = await getTimesheets({
+          organizationId,
+          employeeId: mode === "self" ? employeeId : undefined,
+          fromDate,
+          toDate,
+          status,
+          projectName,
+          page: 1,
+          limit: 500,
+        });
+        setEntries(res.data?.results || []);
+      }
+    } catch (error) {
+      console.error("Failed to load timesheets:", error);
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId, employeeId, mode, isTeam, dateRange, selectedMonth, selectedYear, selectedEmployeeId, selectedStatus, selectedProjectName]);
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
+
+  const groupedByDate = useMemo(() => {
+    const map = new Map<string, TimesheetEntry[]>();
+    for (const entry of entries) {
+      const list = map.get(entry.date) || [];
+      list.push(entry);
+      map.set(entry.date, list);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
+    return Array.from(map.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  }, [entries]);
+
+  const projectOptions = useMemo(
+    () => Array.from(new Set(entries.map((e) => e.projectName).filter(Boolean))) as string[],
+    [entries],
+  );
+
+  const overallTotalMinutes = entries.reduce((sum, e) => sum + e.workingMinutes, 0);
+
+  const toggleDate = (date: string) => {
+    setExpandedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  };
+
+  const employeeName = (entry: TimesheetEntry) =>
+    [entry.employee?.firstName, entry.employee?.middleName, entry.employee?.lastName].filter(Boolean).join(" ") || "--";
+
+  const openEdit = (entry: TimesheetEntry) => {
+    setEditTarget(entry);
+    setEditDraft(entryToDraft(entry));
+  };
+
+  const saveEdit = async () => {
+    if (!editTarget || !editDraft) return;
+    if (!editDraft.workDescription.trim()) {
+      toast.error("Task description is required");
+      return;
+    }
+    if (editDraft.endTime <= editDraft.startTime) {
+      toast.error("End time must be after start time");
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await updateTimesheetEntry(editTarget.id, {
+        startTime: new Date(`${editTarget.date}T${editDraft.startTime}:00`).toISOString(),
+        endTime: new Date(`${editTarget.date}T${editDraft.endTime}:00`).toISOString(),
+        projectName: editDraft.projectName || undefined,
+        moduleFeature: editDraft.moduleFeature.trim() || undefined,
+        pageScreen: editDraft.pageScreen.trim() || undefined,
+        workDescription: editDraft.workDescription.trim(),
+        workStatus: editDraft.workStatus,
+        workingMinutes: editDraft.workingMinutes,
+        employeeRemark: editDraft.employeeRemark.trim() || undefined,
+      });
+      toast.success("Entry updated");
+      setEditTarget(null);
+      setEditDraft(null);
+      fetchEntries();
+    } catch (error: unknown) {
+      const message =
+        typeof error === "object" && error !== null && "response" in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      toast.error(message || "Failed to update entry");
+    } finally {
+      setEditSaving(false);
     }
   };
 
-  const fetchTimesheets = useCallback(async () => {
-    if (!organizationId) {
-      setLoading(false);
-      setRows([]);
-      return;
-    }
-
-    setIsRefreshing(true);
+  const handleDelete = async (entry: TimesheetEntry) => {
+    if (!window.confirm("Delete this timesheet entry?")) return;
     try {
-      const fromDate = new Date(selectedYear, selectedMonth, 1);
-      const toDate = new Date(selectedYear, selectedMonth + 1, 0);
-      const params: {
-        organizationId: string;
-        fromDate: string;
-        toDate: string;
-        page: number;
-        limit: number;
-        employeeId?: string;
-      } = {
-        organizationId,
-        fromDate: fromDate.toISOString().split("T")[0],
-        toDate: toDate.toISOString().split("T")[0],
-        page: 1,
-        limit: 500,
-      };
-      if (employeeId) {
-        params.employeeId = employeeId;
-      }
-      const res = await getTimesheets(params);
-      const list = res.data?.results || [];
-
-      const mapped: TimesheetRow[] = (list as TimesheetApiEntry[]).map((entry) => {
-        const employee = entry.employee || {};
-        const employeeName = [employee.firstName, employee.middleName, employee.lastName]
-          .filter(Boolean)
-          .join(" ");
-        return {
-          id: entry.id,
-          date: entry.date,
-          startTime: entry.startTime,
-          endTime: entry.endTime,
-          hours: formatMinutes(entry.workingMinutes),
-          projectName: entry.projectName || "--",
-          workDescription: entry.workDescription || "--",
-          employeeRemark: entry.employeeRemark || "--",
-          managerRemark: entry.managerRemark || "--",
-          employeeName,
-          employeeCode: employee.employeeCode || "",
-        };
-      });
-
-      setRows(mapped);
-      setTableState((prev) => ({ ...prev, page: 0 }));
-    } catch (error) {
-      console.error("Failed to load timesheets:", error);
-      setRows([]);
-    } finally {
-      setIsRefreshing(false);
-      setLoading(false);
-    }
-  }, [organizationId, employeeId, selectedMonth, selectedYear]);
-
-  useEffect(() => {
-    setLoading(true);
-    fetchTimesheets();
-  }, [fetchTimesheets]);
-
-  const projectOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        rows
-          .map((row) => row.projectName)
-          .filter((name) => Boolean(name && name !== "--")),
-      ),
-    ).sort((a, b) => a.localeCompare(b));
-  }, [rows]);
-
-  useEffect(() => {
-    if (selectedProjectName === "all") return;
-    if (!projectOptions.includes(selectedProjectName)) {
-      setSelectedProjectName("all");
-    }
-  }, [projectOptions, selectedProjectName]);
-
-  const filteredRows = useMemo(() => {
-    const q = tableState.search.toLowerCase().trim();
-    if (!q) return rows;
-    return rows.filter((row) => {
-      const projectMatches =
-        selectedProjectName === "all" || row.projectName === selectedProjectName;
-      if (!projectMatches) return false;
-      return (
-        row.date.toLowerCase().includes(q) ||
-        row.projectName.toLowerCase().includes(q) ||
-        row.workDescription.toLowerCase().includes(q) ||
-        row.employeeRemark.toLowerCase().includes(q) ||
-        row.managerRemark.toLowerCase().includes(q) ||
-        (row.employeeName || "").toLowerCase().includes(q)
-      );
-    });
-  }, [rows, tableState.search, selectedProjectName]);
-
-  const finalRows = useMemo(() => {
-    if (selectedProjectName === "all") return filteredRows;
-    return filteredRows.filter((row) => row.projectName === selectedProjectName);
-  }, [filteredRows, selectedProjectName]);
-
-  const paginatedData = useMemo(() => {
-    const start = tableState.page * tableState.pageSize;
-    return finalRows.slice(start, start + tableState.pageSize);
-  }, [finalRows, tableState.page, tableState.pageSize]);
-
-  const pageCount = Math.max(1, Math.ceil(finalRows.length / tableState.pageSize));
-
-  const columns = useMemo<ColumnDef<TimesheetRow>[]>(() => {
-    const base: ColumnDef<TimesheetRow>[] = [
-      {
-        accessorKey: "date",
-        header: "Date",
-        cell: ({ row }) => <span className="text-sm font-medium">{formatDisplayDate(row.original.date)}</span>,
-      },
-      {
-        accessorKey: "startTime",
-        header: "Start",
-        cell: ({ row }) => <span className="text-sm">{formatTime(row.original.startTime)}</span>,
-      },
-      {
-        accessorKey: "endTime",
-        header: "End",
-        cell: ({ row }) => <span className="text-sm">{formatTime(row.original.endTime)}</span>,
-      },
-      {
-        accessorKey: "hours",
-        header: "Hours",
-        cell: ({ row }) => <span className="text-sm font-semibold">{row.original.hours}</span>,
-      },
-      {
-        accessorKey: "projectName",
-        header: "Project",
-        cell: ({ row }) => <span className="text-sm">{row.original.projectName}</span>,
-      },
-      {
-        accessorKey: "workDescription",
-        header: "Work Summary",
-        cell: ({ row }) => (
-          <div className="max-w-[260px] text-sm text-muted-foreground">
-            {row.original.workDescription}
-          </div>
-        ),
-      },
-      {
-        accessorKey: "employeeRemark",
-        header: "Employee Remark",
-        cell: ({ row }) => (
-          <div className="max-w-[200px] text-sm text-muted-foreground">
-            {row.original.employeeRemark}
-          </div>
-        ),
-      },
-      {
-        accessorKey: "managerRemark",
-        header: "Manager Remark",
-        cell: ({ row }) => (
-          <div className="max-w-[200px] text-sm text-muted-foreground">
-            {row.original.managerRemark}
-          </div>
-        ),
-      },
-    ];
-
-    if (showEmployee) {
-      base.unshift({
-        accessorKey: "employeeName",
-        header: "Employee",
-        cell: ({ row }) => (
-          <div className="text-sm">
-            <div className="font-medium">{row.original.employeeName || "--"}</div>
-            {row.original.employeeCode ? (
-              <div className="text-xs text-muted-foreground">{row.original.employeeCode}</div>
-            ) : null}
-          </div>
-        ),
-      });
-    }
-
-    if (canRemark) {
-      base.push({
-        id: "actions",
-        header: "Action",
-        cell: ({ row }) => (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            disabled={!managerId}
-            onClick={() => {
-              setRemarkTarget(row.original);
-              setRemarkText(row.original.managerRemark === "--" ? "" : row.original.managerRemark);
-              setRemarkDialogOpen(true);
-            }}
-          >
-            <MessageSquarePlus className="h-4 w-4" />
-            {row.original.managerRemark === "--" ? "Add Remark" : "Edit Remark"}
-          </Button>
-        ),
-      });
-    }
-
-    if (allowEdit) {
-      base.push({
-        id: "edit",
-        header: "Edit",
-        cell: ({ row }) => (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const params = new URLSearchParams();
-              params.set("date", row.original.date);
-              params.set("startTime", row.original.startTime);
-              params.set("endTime", row.original.endTime);
-              if (row.original.projectName && row.original.projectName !== "--") {
-                params.set("projectName", row.original.projectName);
-              }
-              if (row.original.workDescription && row.original.workDescription !== "--") {
-                params.set("workDescription", row.original.workDescription);
-              }
-              if (row.original.employeeRemark && row.original.employeeRemark !== "--") {
-                params.set("employeeRemark", row.original.employeeRemark);
-              }
-              router.push(`/user/timesheet/add?${params.toString()}`);
-            }}
-          >
-            Edit
-          </Button>
-        ),
-      });
-    }
-
-    return base;
-  }, [showEmployee, canRemark, managerId, allowEdit, router]);
-
-  const handleSaveRemark = async () => {
-    if (!remarkTarget || !managerId) return;
-    if (!remarkText.trim()) {
-      toast.error("Please enter a remark");
-      return;
-    }
-    setRemarkSaving(true);
-    try {
-      await addTimesheetRemark(remarkTarget.id, {
-        managerId,
-        remark: remarkText.trim(),
-      });
-      setRows((prev) =>
-        prev.map((row) =>
-          row.id === remarkTarget.id
-            ? { ...row, managerRemark: remarkText.trim() }
-            : row
-        )
-      );
-      toast.success("Remark saved");
-      setRemarkDialogOpen(false);
-      setRemarkTarget(null);
-      setRemarkText("");
+      await deleteTimesheetEntry(entry.id);
+      toast.success("Entry deleted");
+      fetchEntries();
     } catch (error: unknown) {
       const message =
-        typeof error === "object" &&
-        error !== null &&
-        "response" in error &&
-        typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+        typeof error === "object" && error !== null && "response" in error
           ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
-          : "Failed to save remark";
-      toast.error(message);
+          : undefined;
+      toast.error(message || "Failed to delete entry");
+    }
+  };
+
+  const openApprove = (date: string, dayEntries: TimesheetEntry[]) => {
+    setApproveTarget({ employeeId: dayEntries[0].employeeId, date, employeeName: employeeName(dayEntries[0]) });
+    setApproveRemark("");
+  };
+
+  const submitApproval = async (status: "APPROVED" | "REJECTED") => {
+    if (!approveTarget) return;
+    setApproveSaving(true);
+    try {
+      await approveTimesheetDay({
+        employeeId: approveTarget.employeeId,
+        date: approveTarget.date,
+        approvalStatus: status,
+        remark: approveRemark.trim() || undefined,
+      });
+      toast.success(status === "APPROVED" ? "Timesheet approved" : "Timesheet rejected");
+      setApproveTarget(null);
+      setApproveRemark("");
+      fetchEntries();
+    } catch (error: unknown) {
+      const message =
+        typeof error === "object" && error !== null && "response" in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      toast.error(message || "Failed to submit approval");
     } finally {
-      setRemarkSaving(false);
+      setApproveSaving(false);
     }
   };
 
@@ -446,82 +393,250 @@ export default function TimesheetSection({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-semibold text-foreground">{title}</h2>
-          {description ? (
-            <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
-          ) : null}
+          {description ? <p className="text-sm text-muted-foreground mt-0.5">{description}</p> : null}
         </div>
 
-        <div className="flex items-center gap-3">
-          {projectFilterEnabled && (
-            <select
-              value={selectedProjectName}
-              onChange={(e) => setSelectedProjectName(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="all">All Projects</option>
-              {projectOptions.map((projectName) => (
-                <option key={projectName} value={projectName}>
-                  {projectName}
-                </option>
-              ))}
-            </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          {isTeam && directReports.length > 0 && (
+            <Select value={selectedEmployeeId || "all"} onValueChange={(v) => setSelectedEmployeeId(v === "all" ? "" : v)}>
+              <SelectTrigger className="w-[190px]">
+                <SelectValue placeholder="All employees" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All employees</SelectItem>
+                {directReports.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={handlePrevMonth}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center gap-2 px-4 py-2 border rounded-lg bg-background text-sm font-semibold min-w-[160px] justify-center">
-              <CalendarDays className="w-4 h-4 text-muted-foreground" />
-              {monthNames[selectedMonth]} {selectedYear}
+
+          {(projectFilterEnabled || isTeam) && (
+            <Select value={selectedProjectName} onValueChange={setSelectedProjectName}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="All projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All projects</SelectItem>
+                {projectOptions.map((p) => (
+                  <SelectItem key={p} value={p}>{p}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {isTeam && (
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="REJECTED">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+
+          {isTeam ? (
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={handlePrevMonth}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-2 px-4 py-2 border rounded-lg bg-background text-sm font-semibold min-w-[160px] justify-center">
+                <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                {monthNames[selectedMonth]} {selectedYear}
+              </div>
+              <Button variant="outline" size="icon" onClick={handleNextMonth} disabled={isNextDisabled}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-            <Button variant="outline" size="icon" onClick={handleNextMonth} disabled={isNextDisabled}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          {isRefreshing ? <span className="text-xs text-muted-foreground">Refreshing...</span> : null}
+          )}
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Timesheet Entries</CardTitle>
-          <CardDescription>
-            {finalRows.length > 0
-              ? `Showing ${finalRows.length} record${finalRows.length !== 1 ? "s" : ""} for ${monthNames[selectedMonth]} ${selectedYear}`
-              : `No timesheet records found for ${monthNames[selectedMonth]} ${selectedYear}`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={columns}
-            data={paginatedData}
-            pageCount={pageCount}
-            state={tableState}
-            setState={(s) => setTableState(s)}
-          />
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
+        <span className="text-sm font-medium text-muted-foreground">
+          {entries.length} {entries.length === 1 ? "entry" : "entries"} across {groupedByDate.length} {groupedByDate.length === 1 ? "day" : "days"}
+        </span>
+        <span className="text-sm font-bold">Total: {formatMinutes(overallTotalMinutes)}</span>
+      </div>
 
-      <Dialog open={remarkDialogOpen} onOpenChange={setRemarkDialogOpen}>
-        <DialogContent>
+      {groupedByDate.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            No timesheet entries found for this range.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {groupedByDate.map(([date, dayEntries]) => {
+            const dayMinutes = dayEntries.reduce((sum, e) => sum + e.workingMinutes, 0);
+            const isToday = date === todayIso();
+            const canEditDay = mode === "self" && isToday;
+            const dayStatuses = new Set(dayEntries.map((e) => e.approvalStatus));
+            const dayStatus = dayStatuses.size === 1 ? [...dayStatuses][0] : "MIXED";
+            const isOpen = expandedDates.has(date);
+
+            return (
+              <Card key={date}>
+                <Collapsible open={isOpen} onOpenChange={() => toggleDate(date)}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer flex-row items-center justify-between space-y-0 py-4">
+                      <div className="flex items-center gap-3">
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                        <CardTitle className="text-base font-semibold">
+                          {formatDisplayDate(date)} {isToday && <Badge variant="outline" className="ml-2 text-[10px]">Today</Badge>}
+                        </CardTitle>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {allowApproval && (
+                          <Badge variant="outline" className={`text-[11px] ${APPROVAL_BADGE[dayStatus] || ""}`}>
+                            {dayStatus}
+                          </Badge>
+                        )}
+                        <span className="text-sm font-semibold">{formatMinutes(dayMinutes)}</span>
+                        {allowApproval && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openApprove(date, dayEntries);
+                            }}
+                          >
+                            Review
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="pt-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            {showEmployee && <TableHead>Employee</TableHead>}
+                            <TableHead>Start</TableHead>
+                            <TableHead>End</TableHead>
+                            <TableHead>Project</TableHead>
+                            <TableHead>Module</TableHead>
+                            <TableHead>Page/Screen</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Time</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Remarks</TableHead>
+                            {canEditDay && <TableHead className="text-right">Actions</TableHead>}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {dayEntries.map((entry) => (
+                            <TableRow key={entry.id}>
+                              {showEmployee && (
+                                <TableCell className="text-sm font-medium">{employeeName(entry)}</TableCell>
+                              )}
+                              <TableCell className="text-sm">{formatTime(entry.startTime)}</TableCell>
+                              <TableCell className="text-sm">{formatTime(entry.endTime)}</TableCell>
+                              <TableCell className="text-sm">{entry.projectName || "--"}</TableCell>
+                              <TableCell className="text-sm">{entry.moduleFeature || "--"}</TableCell>
+                              <TableCell className="text-sm">{entry.pageScreen || "--"}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-[220px]">{entry.workDescription}</TableCell>
+                              <TableCell className="text-sm font-medium">{formatMinutes(entry.workingMinutes)}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={`text-[11px] ${WORK_STATUS_BADGE[entry.workStatus] || ""}`}>
+                                  {entry.workStatus.replace("_", " ")}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground max-w-[180px]">
+                                {entry.employeeRemark || "--"}
+                                {entry.managerRemark && (
+                                  <div className="text-xs mt-1 italic">Manager: {entry.managerRemark}</div>
+                                )}
+                              </TableCell>
+                              {canEditDay && (
+                                <TableCell className="text-right whitespace-nowrap">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(entry)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => handleDelete(entry)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Edit entry dialog (today's own entries only) */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) { setEditTarget(null); setEditDraft(null); } }}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Manager Remark</DialogTitle>
+            <DialogTitle>Edit Entry</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <Input value={remarkTarget?.employeeName || ""} disabled />
-            <Textarea
-              rows={4}
-              placeholder="Add your remark for this day's work"
-              value={remarkText}
-              onChange={(e) => setRemarkText(e.target.value)}
-            />
-          </div>
+          {editDraft && (
+            <TimesheetRowForm row={editDraft} onChange={setEditDraft} projects={projects} compact />
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRemarkDialogOpen(false)}>
+            <Button variant="outline" onClick={() => { setEditTarget(null); setEditDraft(null); }}>
               Cancel
             </Button>
-            <Button onClick={handleSaveRemark} disabled={remarkSaving}>
-              {remarkSaving ? "Saving..." : "Save Remark"}
+            <Button onClick={saveEdit} disabled={editSaving}>
+              {editSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve/reject day dialog */}
+      <Dialog open={!!approveTarget} onOpenChange={(open) => { if (!open) setApproveTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Review Timesheet — {approveTarget?.employeeName}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {approveTarget && formatDisplayDate(approveTarget.date)}
+            </p>
+            <Textarea
+              rows={4}
+              placeholder="Add an optional comment for this day's work"
+              value={approveRemark}
+              onChange={(e) => setApproveRemark(e.target.value)}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setApproveTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="gap-2"
+              onClick={() => submitApproval("REJECTED")}
+              disabled={approveSaving}
+            >
+              <X className="h-4 w-4" />
+              Reject
+            </Button>
+            <Button className="gap-2" onClick={() => submitApproval("APPROVED")} disabled={approveSaving}>
+              <Check className="h-4 w-4" />
+              Approve
             </Button>
           </DialogFooter>
         </DialogContent>

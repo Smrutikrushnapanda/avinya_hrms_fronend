@@ -60,6 +60,9 @@ type ProfileData = {
 type EmployeeData = {
   employeeCode?: string;
   employee_code?: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
   phone?: string;
   mobile?: string;
   joiningDate?: string;
@@ -239,13 +242,22 @@ export default function UserProfilePage() {
     loadProfile();
   }, []);
 
-  const fullName = useMemo(
-    () =>
+  // Prefer the employees table's name (the HR profile, kept up to date via the
+  // Employees admin form) over the users table's name (the raw login identity,
+  // which is often left at its account-creation default and can drift out of
+  // sync — that mismatch is what caused this page to show "Admin" instead of
+  // the employee's real name).
+  const fullName = useMemo(() => {
+    const employeeName = [employee?.firstName, employee?.middleName, employee?.lastName]
+      .filter(Boolean)
+      .join(" ");
+    if (employeeName) return employeeName;
+    return (
       [profile?.firstName, profile?.middleName, profile?.lastName]
         .filter(Boolean)
-        .join(" ") || "User",
-    [profile]
-  );
+        .join(" ") || "User"
+    );
+  }, [profile, employee]);
 
   const primaryRole = useMemo(() => {
     const roles = (profile?.roles || [])
@@ -258,14 +270,13 @@ export default function UserProfilePage() {
     return roles[0] || "EMPLOYEE";
   }, [profile]);
 
-  const initials = useMemo(
-    () =>
-      [profile?.firstName?.[0], profile?.lastName?.[0]]
-        .filter(Boolean)
-        .join("")
-        .toUpperCase() || "U",
-    [profile]
-  );
+  const initials = useMemo(() => {
+    const source =
+      employee?.firstName || employee?.lastName
+        ? [employee?.firstName?.[0], employee?.lastName?.[0]]
+        : [profile?.firstName?.[0], profile?.lastName?.[0]];
+    return source.filter(Boolean).join("").toUpperCase() || "U";
+  }, [profile, employee]);
 
   const employeeCode = employee?.employeeCode || employee?.employee_code || "—";
   const department =

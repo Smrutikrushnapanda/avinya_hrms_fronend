@@ -501,7 +501,7 @@ getHolidays({ organizationId: orgId }),
       return [
         { name: 'Present', value: presentCount, color: '#10b981' },
         { name: 'On Break', value: onBreakCount, color: '#f59e0b' },
-        { name: 'Half Day', value: 0, color: '#3b82f6' },
+        { name: 'Half Day', value: dailyStats.notPresentSummary?.halfDay || 0, color: '#3b82f6' },
         { name: 'Absent', value: absentCount, color: '#ef4444' },
       ].filter(item => item.value > 0);
     }

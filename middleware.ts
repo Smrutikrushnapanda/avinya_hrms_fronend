@@ -11,21 +11,25 @@ export function middleware(req: NextRequest) {
   // Protected routes
   const isUserRoute = pathname.startsWith("/user");
   const isAdminRoute = pathname.startsWith("/admin");
+  const isSuperadminRoute = pathname.startsWith("/superadmin");
 
   // If already authenticated and visiting signin, redirect to the appropriate dashboard.
   if (isSigninRoute && userCookie && userRoleCookie) {
     const role = userRoleCookie.toUpperCase();
+    const isSuperadminSideRole = role === "SUPERADMIN";
     const isAdminSideRole = role === "ADMIN" || role === "HR";
     const isEmployeeRole = role === "EMPLOYEE";
 
-    if (isAdminSideRole || isEmployeeRole) {
+    if (isSuperadminSideRole || isAdminSideRole || isEmployeeRole) {
       const ua = req.headers.get("user-agent") || "";
       const isMobile =
         /Android|webOS|iPhone|iPad|iPod|BlackBerry|Opera Mini|IEMobile|WPDesktop|Mobile/i.test(
           ua
-      );
+        );
       const url = req.nextUrl.clone();
-      if (isAdminSideRole) {
+      if (isSuperadminSideRole) {
+        url.pathname = "/superadmin/dashboard";
+      } else if (isAdminSideRole) {
         url.pathname = mustChangePassword ? "/admin/settings" : "/admin/dashboard";
         if (mustChangePassword) {
           url.searchParams.set("force_credentials", "1");
@@ -47,7 +51,7 @@ export function middleware(req: NextRequest) {
 
   // If not authenticated and trying to access protected routes, redirect to signin
   if (!userCookie || !userRoleCookie) {
-    if (isUserRoute || isAdminRoute) {
+    if (isUserRoute || isAdminRoute || isSuperadminRoute) {
       const url = req.nextUrl.clone();
       url.pathname = "/signin";
       return NextResponse.redirect(url);
@@ -57,19 +61,27 @@ export function middleware(req: NextRequest) {
 
   // Role-based access control using the user_role cookie
   const role = userRoleCookie.toUpperCase();
+  const isSuperadminSideRole = role === "SUPERADMIN";
   const isAdminSideRole = role === "ADMIN" || role === "HR";
 
-  // Admin route: must have ADMIN role
+  // Superadmin route: must have SUPERADMIN role
+  if (isSuperadminRoute && !isSuperadminSideRole) {
+    const url = req.nextUrl.clone();
+    url.pathname = isAdminSideRole ? "/admin/dashboard" : "/user/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  // Admin route: must have ADMIN or HR role
   if (isAdminRoute && !isAdminSideRole) {
     const url = req.nextUrl.clone();
-    url.pathname = "/user/dashboard";
+    url.pathname = isSuperadminSideRole ? "/superadmin/dashboard" : "/user/dashboard";
     return NextResponse.redirect(url);
   }
 
   // User route: must have EMPLOYEE role
-  if (isUserRoute && isAdminSideRole) {
+  if (isUserRoute && (isAdminSideRole || isSuperadminSideRole)) {
     const url = req.nextUrl.clone();
-    url.pathname = "/admin/dashboard";
+    url.pathname = isSuperadminSideRole ? "/superadmin/dashboard" : "/admin/dashboard";
     return NextResponse.redirect(url);
   }
 
@@ -103,5 +115,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/signin", "/user/:path*", "/admin/:path*"],
+  matcher: ["/signin", "/user/:path*", "/admin/:path*", "/superadmin/:path*"],
 };

@@ -30,7 +30,10 @@ export default function LoginPage() {
     return mobileUa || narrowViewport;
   };
 
-  const getPostLoginRoute = (role: "ADMIN" | "EMPLOYEE", userParams?: any) => {
+  const getPostLoginRoute = (role: "ADMIN" | "EMPLOYEE" | "SUPERADMIN", userParams?: any) => {
+    if (role === "SUPERADMIN") {
+      return "/superadmin/dashboard";
+    }
     if (role === "ADMIN") {
       if (Boolean(userParams?.mustChangePassword)) {
         return "/admin/settings?force_credentials=1";
@@ -42,7 +45,7 @@ export default function LoginPage() {
 
   const writeAuthCookies = (
     userParams: any,
-    chosenRole: "ADMIN" | "EMPLOYEE",
+    chosenRole: "ADMIN" | "EMPLOYEE" | "SUPERADMIN",
     cookieMaxAge: number
   ) => {
     const mustChangePassword = Boolean(userParams?.mustChangePassword);
@@ -62,8 +65,8 @@ export default function LoginPage() {
       const rawRole = localStorage.getItem("user_role");
       if (!token || !rawUser || !rawRole) return;
 
-      const normalizedRole = rawRole.toUpperCase();
-      if (normalizedRole !== "ADMIN" && normalizedRole !== "EMPLOYEE") return;
+      const normalizedRole = rawRole.toUpperCase() as "ADMIN" | "EMPLOYEE" | "SUPERADMIN";
+      if (normalizedRole !== "ADMIN" && normalizedRole !== "EMPLOYEE" && normalizedRole !== "SUPERADMIN") return;
 
       const parsedUser = JSON.parse(rawUser);
       writeAuthCookies(parsedUser, normalizedRole, 2592000);
@@ -73,7 +76,7 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  const finalizeLogin = (userParams: any, token: string, cookieMaxAge: number, chosenRole: "ADMIN" | "EMPLOYEE") => {
+  const finalizeLogin = (userParams: any, token: string, cookieMaxAge: number, chosenRole: "ADMIN" | "EMPLOYEE" | "SUPERADMIN") => {
     localStorage.setItem("access_token", token);
     localStorage.setItem("user", JSON.stringify(userParams));
     localStorage.setItem("user_role", chosenRole);
@@ -121,12 +124,13 @@ export default function LoginPage() {
       if (responseUser.type) roleNames.push(responseUser.type.toUpperCase());
 
       const normalizedRoles = roleNames.map((role) => String(role).toUpperCase());
-      const adminSideRoles = new Set(["ADMIN", "HR", "SUPER_ADMIN", "ORG_ADMIN"]);
+      const adminSideRoles = new Set(["ADMIN", "HR", "SUPER_ADMIN", "ORG_ADMIN", "SUPERADMIN"]);
+      const hasSuperadminRole = normalizedRoles.includes("SUPERADMIN");
       const hasAdminSideRole = normalizedRoles.some((role) => adminSideRoles.has(role));
       const hasEmployeeRole = normalizedRoles.includes("EMPLOYEE");
-      const hasBothAdminAndEmployeeRole = hasAdminSideRole && hasEmployeeRole;
+      const hasBothAdminAndEmployeeRole = hasAdminSideRole && hasEmployeeRole && !hasSuperadminRole;
 
-      if (!hasAdminSideRole && !hasEmployeeRole) {
+      if (!hasAdminSideRole && !hasEmployeeRole && !hasSuperadminRole) {
         setError("Access denied. No valid role assigned to this account.");
         setLoading(false);
         return;
@@ -141,8 +145,8 @@ export default function LoginPage() {
         return;
       }
 
-      const redirectToAdmin = hasAdminSideRole;
-      finalizeLogin(responseUser, access_token, cookieMaxAge, redirectToAdmin ? "ADMIN" : "EMPLOYEE");
+      const redirectToRole = hasSuperadminRole ? "SUPERADMIN" : (hasAdminSideRole ? "ADMIN" : "EMPLOYEE");
+      finalizeLogin(responseUser, access_token, cookieMaxAge, redirectToRole);
     } catch (error: any) {
       const isTimeout = error?.code === "ECONNABORTED" || String(error?.message || "").toLowerCase().includes("timeout");
       if (isTimeout) {
@@ -642,7 +646,7 @@ export default function LoginPage() {
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
                       <label className="form-label" htmlFor="password" style={{ margin: 0 }}>Password</label>
-                      <Link href="/forgot-password" className="forgot-link" style={{ fontSize: 12, fontWeight: 600, textDecoration: "none" }}
+                      <Link href={`/forgot-password${userId.trim() ? `?identifier=${encodeURIComponent(userId.trim())}` : ""}`} className="forgot-link" style={{ fontSize: 12, fontWeight: 600, textDecoration: "none" }}
                         onMouseEnter={e => (e.currentTarget.style.textDecoration = "underline")}
                         onMouseLeave={e => (e.currentTarget.style.textDecoration = "none")}
                       >Forgot password?</Link>

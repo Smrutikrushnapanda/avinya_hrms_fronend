@@ -43,25 +43,6 @@ const LogoutPage = () => {
       let ip = "Unknown";
       let location = "Unknown";
 
-      try {
-        const geoRes = await fetch("https://ipapi.co/json/");
-        if (!geoRes.ok) throw new Error("ipapi.co failed");
-        const geoData = await geoRes.json();
-        ip = geoData.ip;
-        location = `${geoData.city}, ${geoData.region}, ${geoData.country_name}`;
-      } catch (geoError) {
-        console.error("ipapi.co failed:", geoError);
-        try {
-          const fallbackRes = await fetch("https://ipwhois.pro/json/?key=HNUNKTZyjaSrTh");
-          if (!fallbackRes.ok) throw new Error("ipwho.is failed");
-          const fallbackData = await fallbackRes.json();
-          ip = fallbackData.ip;
-          location = `${fallbackData.city}, ${fallbackData.region}, ${fallbackData.country}`;
-        } catch (fallbackError) {
-          console.error("Both IP lookups failed:", fallbackError);
-        }
-      }
-
       const clientInfo = {
         ip,
         location,

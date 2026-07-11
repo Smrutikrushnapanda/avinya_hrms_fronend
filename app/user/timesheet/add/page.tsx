@@ -1,11 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CalendarCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, CalendarCheck, Plus } from "lucide-react";
 
 import {
-  createTimesheet,
+  createTimesheetBatch,
   getEmployeeByUserId,
   getMyClientProjects,
   getMyProjects,
@@ -13,82 +13,39 @@ import {
 } from "@/app/api/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import TimesheetRowForm from "@/components/timesheet/TimesheetRowForm";
+import { formatMinutes, newDraftRow, TimesheetProjectOption, TimesheetRowDraft } from "@/components/timesheet/types";
+
+type StandaloneProjectApi = { id: string; name?: string; projectName?: string };
+type ClientProjectApi = { id: string; projectName?: string; projectCode?: string; name?: string };
 
 export default function AddTimesheetPage() {
-  return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
-      <AddTimesheetContent />
-    </Suspense>
-  );
-}
-
-type TimesheetProjectOption = {
-  id: string;
-  name: string;
-  source: "standalone" | "client";
-};
-
-type StandaloneProjectApi = {
-  id: string;
-  name?: string;
-  projectName?: string;
-};
-
-type ClientProjectApi = {
-  id: string;
-  projectName?: string;
-  projectCode?: string;
-  name?: string;
-};
-
-function AddTimesheetContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const today = useMemo(() => new Date(), []);
+  const today = new Date();
+  const todayLabel = today.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const todayIso = today.toISOString().split("T")[0];
+
   const [organizationId, setOrganizationId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState<TimesheetProjectOption[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState("");
-
-  const [form, setForm] = useState({
-    date: today.toISOString().split("T")[0],
-    startTime: "09:30",
-    endTime: "18:30",
-    projectName: "",
-    workDescription: "",
-    employeeRemark: "",
-  });
-
-  const formatDateOnly = (date: Date) => date.toISOString().split("T")[0];
-  const todayStr = formatDateOnly(today);
-  const yesterday = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return d;
-  }, []);
-  const yesterdayStr = formatDateOnly(yesterday);
-
-  const toTimeValue = (iso?: string | null) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    return d.toISOString().substring(11, 16);
-  };
+  const [rows, setRows] = useState<TimesheetRowDraft[]>([newDraftRow()]);
 
   useEffect(() => {
     const init = async () => {
       try {
         const profileRes = await getProfile();
         const profile = profileRes.data || {};
-        const orgId = profile.organizationId ?? "";
-        const uid = profile.id ?? profile.userId ?? "";
-        setOrganizationId(orgId);
+        setOrganizationId(profile.organizationId ?? "");
 
+        const uid = profile.id ?? profile.userId ?? "";
         if (uid) {
           const employeeRes = await getEmployeeByUserId(uid);
           setEmployeeId(employeeRes.data?.id ?? "");
@@ -107,13 +64,9 @@ function AddTimesheetContent() {
             ? clientRes.value.data
             : [];
 
-        const standaloneProjects: TimesheetProjectOption[] = (
-          standaloneRows as StandaloneProjectApi[]
-        ).map((p) => ({
-          id: p.id,
-          name: p.name || p.projectName || "Untitled",
-          source: "standalone",
-        }));
+        const standaloneProjects: TimesheetProjectOption[] = (standaloneRows as StandaloneProjectApi[]).map(
+          (p) => ({ id: p.id, name: p.name || p.projectName || "Untitled", source: "standalone" }),
+        );
         const clientProjects: TimesheetProjectOption[] = (clientRows as ClientProjectApi[]).map((p) => ({
           id: p.id,
           name: p.projectName || p.projectCode || p.name || "Untitled",
@@ -130,58 +83,36 @@ function AddTimesheetContent() {
     init();
   }, []);
 
-  useEffect(() => {
-    const date = searchParams.get("date");
-    const startTime = searchParams.get("startTime");
-    const endTime = searchParams.get("endTime");
-    const projectName = searchParams.get("projectName");
-    const workDescription = searchParams.get("workDescription");
-    const employeeRemark = searchParams.get("employeeRemark");
+  const updateRow = (key: string, next: TimesheetRowDraft) => {
+    setRows((prev) => prev.map((r) => (r.key === key ? next : r)));
+  };
 
-    if (date || startTime || endTime || projectName || workDescription || employeeRemark) {
-      setForm((prev) => ({
-        ...prev,
-        date: date || prev.date,
-        startTime: startTime ? toTimeValue(startTime) || prev.startTime : prev.startTime,
-        endTime: endTime ? toTimeValue(endTime) || prev.endTime : prev.endTime,
-        projectName: projectName || prev.projectName,
-        workDescription: workDescription || prev.workDescription,
-        employeeRemark: employeeRemark || prev.employeeRemark,
-      }));
+  const removeRow = (key: string) => {
+    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.key !== key) : prev));
+  };
+
+  const addRow = () => setRows((prev) => [...prev, newDraftRow()]);
+
+  const totalMinutes = rows.reduce((sum, r) => sum + r.workingMinutes, 0);
+
+  const validate = (): string => {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const label = `Row ${i + 1}`;
+      if (!r.startTime || !r.endTime) return `${label}: start and end time are required`;
+      if (!r.projectName.trim()) return `${label}: please select a project`;
+      if (!r.workDescription.trim()) return `${label}: please add a task description`;
+      if (r.endTime <= r.startTime) return `${label}: end time must be after start time`;
     }
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (projects.length > 0 && form.projectName && !selectedProjectId) {
-      const match = projects.find((p) => p.name === form.projectName);
-      if (match) setSelectedProjectId(match.id);
+    for (let i = 0; i < rows.length; i++) {
+      for (let j = i + 1; j < rows.length; j++) {
+        const a = rows[i];
+        const b = rows[j];
+        if (a.startTime < b.endTime && a.endTime > b.startTime) {
+          return `Row ${i + 1} and row ${j + 1} have overlapping time ranges`;
+        }
+      }
     }
-  }, [projects, form.projectName, selectedProjectId]);
-
-  const validate = () => {
-    if (!form.date) return "Please select a date";
-    if (!form.startTime || !form.endTime) return "Please enter start and end time";
-    if (!form.projectName.trim()) return "Please select a project";
-    if (!form.workDescription.trim()) return "Please add your work summary";
-
-    const selectedDate = new Date(form.date);
-    selectedDate.setHours(0, 0, 0, 0);
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-
-    if (selectedDate.getTime() > todayDate.getTime()) {
-      return "Timesheet date cannot be in the future";
-    }
-
-    const diffDays = Math.floor((todayDate.getTime() - selectedDate.getTime()) / (24 * 60 * 60 * 1000));
-    if (diffDays > 1) {
-      return "Only today or yesterday is allowed";
-    }
-
-    const start = new Date(`${form.date}T${form.startTime}:00`);
-    const end = new Date(`${form.date}T${form.endTime}:00`);
-    if (end <= start) return "End time must be after start time";
-
     return "";
   };
 
@@ -194,21 +125,24 @@ function AddTimesheetContent() {
 
     setSubmitting(true);
     try {
-      const start = new Date(`${form.date}T${form.startTime}:00`).toISOString();
-      const end = new Date(`${form.date}T${form.endTime}:00`).toISOString();
-
-      await createTimesheet({
+      await createTimesheetBatch({
         organizationId,
         employeeId,
-        date: form.date,
-        startTime: start,
-        endTime: end,
-        projectName: form.projectName.trim() || undefined,
-        workDescription: form.workDescription.trim(),
-        employeeRemark: form.employeeRemark.trim() || undefined,
+        date: todayIso,
+        entries: rows.map((r) => ({
+          startTime: new Date(`${todayIso}T${r.startTime}:00`).toISOString(),
+          endTime: new Date(`${todayIso}T${r.endTime}:00`).toISOString(),
+          projectName: r.projectName || undefined,
+          moduleFeature: r.moduleFeature.trim() || undefined,
+          pageScreen: r.pageScreen.trim() || undefined,
+          workDescription: r.workDescription.trim(),
+          workStatus: r.workStatus,
+          workingMinutes: r.workingMinutes,
+          employeeRemark: r.employeeRemark.trim() || undefined,
+        })),
       });
 
-      toast.success("Daily work saved");
+      toast.success(`Saved ${rows.length} ${rows.length === 1 ? "entry" : "entries"} for today`);
       router.push("/user/timesheet");
     } catch (err: unknown) {
       const message =
@@ -234,15 +168,13 @@ function AddTimesheetContent() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold">Add Daily Work</h1>
-            <p className="text-sm text-muted-foreground">Log your work for today or recent days</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-semibold">Add Daily Work</h1>
+          <p className="text-sm text-muted-foreground">Log every task you worked on today</p>
         </div>
       </div>
 
@@ -250,91 +182,39 @@ function AddTimesheetContent() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarCheck className="h-5 w-5 text-primary" />
-            Timesheet Entry
+            {todayLabel}
           </CardTitle>
           <CardDescription>
-            Only today or yesterday is allowed. Future dates are not allowed.
+            Add a row per task. You can only log and edit entries for today — once the day passes
+            they become read-only.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Date</label>
-              <Input
-                type="date"
-                min={yesterdayStr}
-                max={todayStr}
-                value={form.date}
-                onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Project</label>
-              <select
-                className="w-full border rounded-md px-3 py-2 text-sm bg-background"
-                value={selectedProjectId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setSelectedProjectId(id);
-                  const project = projects.find((p) => p.id === id);
-                  setForm((prev) => ({ ...prev, projectName: project?.name || "" }));
-                }}
-              >
-                <option value="">Select project</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Start Time</label>
-              <Input
-                type="time"
-                value={form.startTime}
-                onChange={(e) => setForm((prev) => ({ ...prev, startTime: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">End Time</label>
-              <Input
-                type="time"
-                value={form.endTime}
-                onChange={(e) => setForm((prev) => ({ ...prev, endTime: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Work Summary</label>
-            <Textarea
-              rows={4}
-              placeholder="What did you work on today?"
-              value={form.workDescription}
-              onChange={(e) => setForm((prev) => ({ ...prev, workDescription: e.target.value }))}
+        <CardContent className="space-y-5">
+          {rows.map((row) => (
+            <TimesheetRowForm
+              key={row.key}
+              row={row}
+              onChange={(next) => updateRow(row.key, next)}
+              projects={projects}
+              onRemove={() => removeRow(row.key)}
             />
-          </div>
+          ))}
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Remark (optional)</label>
-            <Textarea
-              rows={3}
-              placeholder="Add any note for your manager"
-              value={form.employeeRemark}
-              onChange={(e) => setForm((prev) => ({ ...prev, employeeRemark: e.target.value }))}
-            />
+          <Button variant="outline" onClick={addRow} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Row
+          </Button>
+
+          <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
+            <span className="text-sm font-medium text-muted-foreground">Total hours worked today</span>
+            <span className="text-lg font-bold">{formatMinutes(totalMinutes)}</span>
           </div>
 
           <div className="flex items-center gap-3">
             <Button onClick={handleSubmit} disabled={submitting} className="gap-2">
-              {submitting ? "Saving..." : "Save Daily Work"}
+              {submitting ? "Saving..." : `Save ${rows.length > 1 ? `${rows.length} Entries` : "Entry"}`}
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => router.push("/user/timesheet")}
-              disabled={submitting}
-            >
+            <Button variant="outline" onClick={() => router.push("/user/timesheet")} disabled={submitting}>
               Cancel
             </Button>
           </div>

@@ -81,6 +81,7 @@ function resolveDisplayRole(
     : [];
 
   if (isEmployeeRoute) return "Employee";
+  if (normalizedRoles.includes("SUPERADMIN")) return "Superadmin";
   if (
     normalizedRoles.includes("ADMIN") ||
     normalizedRoles.includes("SUPER_ADMIN") ||

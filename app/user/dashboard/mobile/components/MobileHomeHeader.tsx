@@ -12,6 +12,7 @@ import { getOrganization } from "@/app/api/api";
 type UserInfo = {
   name: string;
   role: string;
+  designation?: string;
   avatar: string;
   organizationId?: string;
 };
@@ -87,19 +88,13 @@ export default function MobileHomeHeader({
         }`}
       />
       <button
-        className={`relative flex h-10 w-10 items-center justify-center rounded-full border ${
-          hasCustomBranding
-            ? "border-white/30 bg-white/10 text-white"
-            : "border-border bg-card text-foreground shadow-sm"
-        }`}
+        className={`relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all active:scale-95 shadow-sm border border-slate-100 bg-white text-slate-800`}
         onClick={() => router.push("/user/dashboard/mobile/notifications")}
         aria-label="Notifications"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
+          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
         )}
       </button>
     </div>
@@ -107,16 +102,16 @@ export default function MobileHomeHeader({
 
   if (!hasCustomBranding) {
     return (
-      <div className="bg-background text-foreground px-4 pt-5 pb-4 flex items-center justify-between">
+      <div className="bg-slate-50/50 dark:bg-slate-900/10 text-foreground px-5 pt-6 pb-4 flex items-center justify-between">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={onOpenSidebar}>
-          <Avatar className="w-12 h-12 border border-border">
+          <Avatar className="w-12 h-12 border border-slate-200 shadow-sm">
             <AvatarImage src={user.avatar} alt={user.name} />
-            <AvatarFallback>{user.name?.[0] || "U"}</AvatarFallback>
+            <AvatarFallback className="bg-blue-50 text-blue-600 font-bold">{user.name?.[0] || "U"}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="text-xs text-muted-foreground">{getGreeting()},</p>
-            <h2 className="text-base font-bold leading-tight">{user.name}</h2>
-            <p className="text-xs text-muted-foreground">{user.role}</p>
+            <p className="text-xs text-slate-400 font-medium">{getGreeting()},</p>
+            <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 leading-tight mt-0.5">{user.name}</h2>
+            <p className="text-xs text-slate-400 font-normal mt-0.5">{user.designation || user.role}</p>
           </div>
         </div>
         {notificationButton}
@@ -126,7 +121,7 @@ export default function MobileHomeHeader({
 
   return (
     <div
-      className="text-white px-4 pt-5 pb-16 flex items-center justify-between"
+      className="text-white px-5 pt-6 pb-16 flex items-center justify-between"
       style={{
         backgroundColor: headerColor || undefined,
         backgroundImage: headerMediaUrl ? `url(${headerMediaUrl})` : undefined,
@@ -134,14 +129,14 @@ export default function MobileHomeHeader({
         backgroundPosition: "center",
       }}
     >
-      <div className="flex items-center space-x-2 cursor-pointer" onClick={onOpenSidebar}>
-        <Avatar className="w-12 h-12 border-2 border-white transition-transform active:scale-95">
+      <div className="flex items-center space-x-3 cursor-pointer" onClick={onOpenSidebar}>
+        <Avatar className="w-12 h-12 border-2 border-white transition-transform active:scale-95 shadow-sm">
           <AvatarImage src={user.avatar} alt={user.name} />
-          <AvatarFallback>{user.name?.[0] || "U"}</AvatarFallback>
+          <AvatarFallback className="bg-blue-50 text-blue-600 font-bold">{user.name?.[0] || "U"}</AvatarFallback>
         </Avatar>
         <div>
-          <h2 className="text-l font-semibold">{user.name}</h2>
-          <p className="text-sm opacity-90">{user.role}</p>
+          <h2 className="text-base font-bold text-white leading-tight">{user.name}</h2>
+          <p className="text-xs text-blue-100/90 mt-0.5">{user.designation || user.role}</p>
         </div>
       </div>
       {notificationButton}

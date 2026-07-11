@@ -89,8 +89,15 @@ export default function AdminMessagesPage() {
 
       if (profileRes.data?.organizationId) {
         const empRes = await getEmployees(profileRes.data.organizationId);
-        const empList = empRes.data?.employees || empRes.data || [];
-        setEmployees(Array.isArray(empList) ? empList : []);
+        const empData = empRes.data;
+        const empList = Array.isArray(empData)
+          ? empData
+          : Array.isArray(empData?.employees)
+            ? empData.employees
+            : Array.isArray(empData?.data)
+              ? empData.data
+              : [];
+        setEmployees(empList);
       }
     } catch (err) {
       console.error("Failed to load messages:", err);

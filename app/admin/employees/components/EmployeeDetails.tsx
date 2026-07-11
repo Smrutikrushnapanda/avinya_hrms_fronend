@@ -26,9 +26,7 @@ import { format, isValid, parseISO } from "date-fns";
 import { Employee } from "./types";
 import {
   getEmployee,
-  getAttendanceSummary,
   getLeaveBalance,
-  getAttendanceReport2,
   getAttendanceSettings,
   getProfile,
   getMonthlyAttendance,
@@ -516,16 +514,6 @@ function LeaveTab({ employeeId, employee }: { employeeId: string; employee: Empl
     }
   };
 
-  const handleEditLeave = (leaveType: string) => {
-    // Implement edit leave logic here
-    console.log("Edit leave type:", leaveType);
-  };
-
-  const handleDeleteLeave = (leaveType: string) => {
-    // Implement delete leave logic here
-    console.log("Delete leave type:", leaveType);
-  };
-
   if (loading) {
     return <div className="text-center py-8">Loading leave data...</div>;
   }
@@ -546,28 +534,12 @@ function LeaveTab({ employeeId, employee }: { employeeId: string; employee: Empl
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {leaveData.map((leave: any) => (
           <div key={leave.type} className="p-4 bg-white rounded-lg shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-md font-semibold">{leave.type}</h4>
-                <p className="text-sm text-gray-500">{leave.balance} days remaining</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-md font-semibold">{leave.type}</h4>
+                  <p className="text-sm text-gray-500">{leave.balance} days remaining</p>
+                </div>
               </div>
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEditLeave(leave.type)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleDeleteLeave(leave.type)}
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
           </div>
         ))}
       </div>
