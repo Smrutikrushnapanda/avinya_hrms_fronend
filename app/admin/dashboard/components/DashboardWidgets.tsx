@@ -767,7 +767,7 @@ export function DepartmentChart({ departmentData }: { departmentData: any[] }) {
                 <XAxis dataKey="name" fontSize={12} angle={-45} textAnchor="end" height={60} />
                 <YAxis allowDecimals={false} fontSize={12} />
                 <Tooltip formatter={(value, name) => [value, 'Active Employees']}
-                  labelFormatter={(label) => `Department: ${label}`} />
+                  labelFormatter={(label) => `Department: ${String(label ?? "")}`} />
                 <Bar dataKey="employees" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Active Employees" />
               </BarChart>
             </ResponsiveContainer>

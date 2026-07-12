@@ -429,11 +429,11 @@ export default function EmployeeWfhDetailPage() {
                         ))}
                       </Pie>
                       <Tooltip
-                        formatter={(value: number) => formatDuration(value)}
-                        labelFormatter={(name: string) => name}
+                        formatter={(value) => formatDuration(Number(value ?? 0))}
+                        labelFormatter={(name) => String(name ?? "")}
                       />
                       <Legend
-                        formatter={(value: string) => (
+                        formatter={(value) => (
                           <span className="text-xs text-muted-foreground">{value}</span>
                         )}
                       />
@@ -503,7 +503,7 @@ export default function EmployeeWfhDetailPage() {
                     <YAxis tick={{ fontSize: 11 }} className="text-muted-foreground" />
                     <Tooltip
                       contentStyle={{ fontSize: 12 }}
-                      labelFormatter={(label: string) => `Time: ${label}`}
+                      labelFormatter={(label) => `Time: ${String(label ?? "")}`}
                     />
                     <Bar dataKey="keyboard" name="Keyboard" fill="#6366f1" radius={[2, 2, 0, 0]} />
                     <Bar dataKey="mouse" name="Mouse" fill="#22c55e" radius={[2, 2, 0, 0]} />

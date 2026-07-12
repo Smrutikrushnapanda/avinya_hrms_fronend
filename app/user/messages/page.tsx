@@ -18,8 +18,8 @@ import {
   formatTime as fmtTime,
   formatDate as fmtDate,
   formatChatTime,
-  getMeetingSystemLabel as getMeetingLabel,
-  extractMeetingUrlFromText as extractMeetingUrl,
+  getMeetingSystemLabel,
+  extractMeetingUrlFromText,
   resolveAttachmentUrl as resolveUrl,
   toChatMessage as toMsg,
   toConversation as toConv,
@@ -73,6 +73,7 @@ type ChatMessage = {
   text?: string;
   createdAt: string;
   readByAll?: boolean;
+  pending?: boolean;
   attachments?: ChatAttachment[];
   sender?: {
     id?: string;

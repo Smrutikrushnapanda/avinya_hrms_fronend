@@ -158,9 +158,10 @@ export default function MessageList() {
         updated[idx] = {
           ...target,
           lastMessage: {
+            id: payload?.message?.id || "",
             text: payload?.message?.text || "",
-            createdAt: payload?.message?.createdAt,
-            senderId: payload?.message?.senderId,
+            createdAt: payload?.message?.createdAt || new Date().toISOString(),
+            senderId: payload?.message?.senderId || "",
             attachments: payload?.message?.attachments || [],
           },
           updatedAt: payload?.message?.createdAt || new Date().toISOString(),
