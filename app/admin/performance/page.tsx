@@ -332,7 +332,7 @@ export default function AdminPerformancePage() {
             variant={isEnabled ? "default" : "outline"}
             className="flex items-center gap-2"
             onClick={handleToggleEnabled}
-            disabled={toggling}
+            loading={toggling}
           >
             {isEnabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
             {isEnabled ? "Enabled" : "Disabled"}
@@ -356,7 +356,7 @@ export default function AdminPerformancePage() {
             variant={requireHrApproval ? "default" : "outline"}
             className="flex items-center gap-2 flex-shrink-0"
             onClick={handleToggleHrApproval}
-            disabled={togglingHr}
+            loading={togglingHr}
           >
             {requireHrApproval ? (
               <ToggleRight className="w-5 h-5" />
@@ -382,7 +382,7 @@ export default function AdminPerformancePage() {
               if (e.key === "Enter") handleAddQuestion();
             }}
           />
-          <Button onClick={handleAddQuestion} disabled={addingQ || !newQuestion.trim()}>
+          <Button onClick={handleAddQuestion} loading={addingQ} disabled={!newQuestion.trim()}>
             <Plus className="w-4 h-4" />
           </Button>
         </div>

@@ -144,6 +144,8 @@ export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
 export const getEmployeeByUserId = (userId: string) => api.get(`/employees/by-user/${userId}`);
 export const getEmployeeHierarchy = (organizationId: string, employeeId?: string) =>
   api.get("/employees/hierarchy", { params: { organizationId, employeeId } });
+export const validateEmployee = (data: { organizationId: string; employeeId?: string; reportingTo: string }) =>
+  api.post("/employees/validate", data);
 
 // 🎂 Birthday APIs (Updated - Real API)
 export const getEmployeeBirthdays = (organizationId: string, days: number = 30) => 
@@ -611,6 +613,21 @@ export const updateEmployeeWfhLimit = (userId: string, data: any) =>
 export const deleteEmployeeWfhLimit = (userId: string) =>
   api.delete(`/wfh/employee-limits/${userId}`);
 
+// 🏢 Employee Work Arrangement APIs (Office / Hybrid / Permanent Remote)
+export const getMyWorkArrangement = () => api.get('/wfh/work-arrangement/me');
+export const getMyWorkArrangementStatus = () =>
+  api.get('/wfh/work-arrangement/me/status');
+export const getWorkArrangementsByOrg = (organizationId: string) =>
+  api.get(`/wfh/work-arrangement/org/${organizationId}`);
+export const getEmployeeWorkArrangement = (userId: string) =>
+  api.get(`/wfh/work-arrangement/${userId}`);
+export const setEmployeeWorkArrangement = (data: any) =>
+  api.post('/wfh/work-arrangement', data);
+export const updateEmployeeWorkArrangement = (userId: string, data: any) =>
+  api.put(`/wfh/work-arrangement/${userId}`, data);
+export const deleteEmployeeWorkArrangement = (userId: string) =>
+  api.delete(`/wfh/work-arrangement/${userId}`);
+
 // ✈️ Enhanced leave report fetcher
 export const getLeaveReport = async (params: {
   organizationId: string;
@@ -899,6 +916,16 @@ export const getAllExpenses = (organizationId: string) => api.get('/expenses/all
 export const updateExpenseStatus = (id: string, data: { status: string; adminRemarks?: string }) =>
   api.put(`/expenses/${id}/status`, data);
 export const deleteExpense = (id: string, userId: string) => api.delete(`/expenses/${id}/${userId}`);
+
+// ✈️ Office Trip / Client Visit APIs
+export const createOfficeTrip = (userId: string, data: any) => api.post(`/office-trips/${userId}`, data);
+export const getMyOfficeTrips = (userId: string) => api.get(`/office-trips/my/${userId}`);
+export const getAllOfficeTrips = (organizationId: string, params?: any) =>
+  api.get('/office-trips/all', { params: { organizationId, ...params } });
+export const getOfficeTripById = (id: string) => api.get(`/office-trips/${id}`);
+export const updateOfficeTripStatus = (id: string, approverId: string, data: { status: string; adminRemarks?: string }) =>
+  api.put(`/office-trips/${id}/status/${approverId}`, data);
+export const deleteOfficeTrip = (id: string, userId: string) => api.delete(`/office-trips/${id}/${userId}`);
 
 // Credit earned leave (admin → employee who worked on weekend/holiday)
 export const creditEarnedLeave = (userId: string, data: { days: number; organizationId: string }) =>

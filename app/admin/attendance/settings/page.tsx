@@ -857,8 +857,8 @@ export default function AttendanceSettingsPage() {
           <p className="text-muted-foreground">Configure office timing, location, and validation settings</p>
         </div>
         {["timing", "location", "validation"].includes(activeTab) ? (
-          <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          <Button onClick={handleSave} loading={saving} className="flex items-center gap-2">
+            <Save className="h-4 w-4" />
             {activeTab === "timing" && selectedTimingBranch ? "Save Branch Timing" : "Save Changes"}
           </Button>
         ) : null}
@@ -1677,8 +1677,7 @@ export default function AttendanceSettingsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setWifiDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveWifi} disabled={wifiSaving}>
-              {wifiSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <Button onClick={handleSaveWifi} loading={wifiSaving}>
               {editingWifi ? "Update" : "Add Network"}
             </Button>
           </DialogFooter>
@@ -1735,8 +1734,7 @@ export default function AttendanceSettingsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBranchDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleBranchSave} disabled={branchSaving}>
-              {branchSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <Button onClick={handleBranchSave} loading={branchSaving}>
               {editingBranch ? "Update" : "Add Branch"}
             </Button>
           </DialogFooter>
@@ -1894,8 +1892,7 @@ export default function AttendanceSettingsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShiftDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveShift} disabled={shiftSaving}>
-              {shiftSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <Button onClick={handleSaveShift} loading={shiftSaving}>
               {editingShift ? "Update Shift" : "Add Shift"}
             </Button>
           </DialogFooter>

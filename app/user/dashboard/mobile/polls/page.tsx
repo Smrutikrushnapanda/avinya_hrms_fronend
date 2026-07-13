@@ -335,16 +335,9 @@ export default function MobilePollsPage() {
                   <Button
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                     onClick={() => void handleSubmit()}
-                    disabled={submitting}
+                    loading={submitting}
                   >
-                    {submitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Submitting...
-                      </>
-                    ) : (
-                      "Submit Response"
-                    )}
+                    Submit Response
                   </Button>
                 </motion.div>
               )}

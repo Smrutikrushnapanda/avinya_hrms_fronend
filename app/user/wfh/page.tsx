@@ -51,6 +51,7 @@ import {
   getPendingWfh,
   applyWfh,
   deleteWfhRequest,
+  getMyWorkArrangementStatus,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -68,6 +69,21 @@ interface WfhBalance {
   openingBalance: number;
   consumed: number;
   closingBalance: number;
+}
+
+type ArrangementType = "OFFICE" | "HYBRID" | "PERMANENT_REMOTE";
+
+interface WorkArrangementStatus {
+  arrangementType: ArrangementType;
+  autoApproveWfh: boolean;
+  mandatoryOfficeDaysPerMonth: number | null;
+  quota: {
+    workingDaysInMonth: number;
+    mandatoryOfficeDays: number;
+    monthlyQuota: number;
+    usedThisMonth: number;
+    remaining: number;
+  } | null;
 }
 
 interface TableState {
@@ -216,6 +232,10 @@ export default function UserWfhPage() {
     closingBalance: 0,
   });
   const [balanceLoading, setBalanceLoading] = useState(false);
+
+  const [arrangement, setArrangement] = useState<WorkArrangementStatus | null>(
+    null,
+  );
 
   const [wfhRequests, setWfhRequests] = useState<WfhRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
@@ -434,11 +454,22 @@ export default function UserWfhPage() {
     }
   }, [userId]);
 
+  const fetchArrangement = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const res = await getMyWorkArrangementStatus();
+      setArrangement((res.data || null) as WorkArrangementStatus | null);
+    } catch {
+      // Non-critical — page still works without arrangement info (defaults to Office).
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (!profile) return;
     fetchBalance();
     fetchWfhRequests();
-  }, [profile, fetchBalance, fetchWfhRequests]);
+    fetchArrangement();
+  }, [profile, fetchBalance, fetchWfhRequests, fetchArrangement]);
 
   useEffect(() => {
     setTableState((prev) => ({ ...prev, page: 0 }));
@@ -477,6 +508,7 @@ export default function UserWfhPage() {
       });
       fetchWfhRequests();
       fetchBalance();
+      fetchArrangement();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "Failed to submit WFH request."));
     } finally {
@@ -487,6 +519,7 @@ export default function UserWfhPage() {
   const handleRefresh = () => {
     fetchWfhRequests();
     fetchBalance();
+    fetchArrangement();
   };
 
   const filtered = useMemo(
@@ -585,6 +618,51 @@ export default function UserWfhPage() {
           </Button>
         </div>
       </div>
+
+      {arrangement && arrangement.arrangementType !== "OFFICE" && (
+        <Card>
+          <CardContent className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Badge
+                className={
+                  arrangement.arrangementType === "PERMANENT_REMOTE"
+                    ? "bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-100"
+                    : "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-100"
+                }
+              >
+                {arrangement.arrangementType === "PERMANENT_REMOTE"
+                  ? "Permanent Remote"
+                  : "Hybrid"}
+              </Badge>
+              {arrangement.arrangementType === "HYBRID" && arrangement.quota && (
+                <p className="text-sm text-muted-foreground">
+                  WFH quota this month:{" "}
+                  <span className="font-medium text-foreground">
+                    {arrangement.quota.usedThisMonth}/{arrangement.quota.monthlyQuota}
+                  </span>{" "}
+                  used ({arrangement.quota.mandatoryOfficeDays} office days required
+                  out of {arrangement.quota.workingDaysInMonth} working days) —{" "}
+                  <span className="font-medium text-foreground">
+                    {arrangement.quota.remaining}
+                  </span>{" "}
+                  remaining
+                </p>
+              )}
+              {arrangement.arrangementType === "PERMANENT_REMOTE" && (
+                <p className="text-sm text-muted-foreground">
+                  Every working day is WFH-approved automatically — remember to
+                  start your WFH Monitor session each day.
+                </p>
+              )}
+            </div>
+            {arrangement.autoApproveWfh && arrangement.arrangementType === "HYBRID" && (
+              <span className="text-xs text-muted-foreground">
+                Requests within your quota are auto-approved instantly.
+              </span>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 p-0 md:grid-cols-3 gap-4">
         {[{
@@ -700,6 +778,15 @@ export default function UserWfhPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {arrangement?.arrangementType === "HYBRID" &&
+              arrangement.autoApproveWfh &&
+              arrangement.quota && (
+                <p className="text-xs rounded-md bg-blue-50 text-blue-700 px-3 py-2">
+                  You have {arrangement.quota.remaining} WFH day(s) left this
+                  month within your Hybrid quota — requests inside that quota
+                  are approved instantly.
+                </p>
+              )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Start Date</Label>
@@ -750,14 +837,10 @@ export default function UserWfhPage() {
             <Button
               type="button"
               onClick={handleApplySubmit}
-              disabled={applySubmitting}
+              loading={applySubmitting}
               className="gap-2"
             >
-              {applySubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+              <Send className="h-4 w-4" />
               Submit Request
             </Button>
           </DialogFooter>

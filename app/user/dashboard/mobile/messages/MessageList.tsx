@@ -318,7 +318,7 @@ export default function MessageList() {
                     (item.unreadCount || 0) > 0 ? "bg-muted/50" : "bg-transparent"
                   }`}
                   onClick={() => {
-                    if (item.type === "DIRECT" && avatar) {
+                    if (avatar) {
                       try { sessionStorage.setItem(`chat_avatar_${item.id}`, avatar); } catch { /* ignore */ }
                     }
                     router.push(`/user/dashboard/mobile/messages/${item.id}?${params.toString()}`);

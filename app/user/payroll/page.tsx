@@ -182,14 +182,10 @@ export default function PayrollPage() {
               <Badge className={getStatusBadgeClass(currentSlip.status)}>{currentSlip.status.toUpperCase()}</Badge>
               <Button
                 onClick={() => handleDownload(currentSlip.id)}
-                disabled={downloadingId === currentSlip.id}
+                loading={downloadingId === currentSlip.id}
                 size="sm"
               >
-                {downloadingId === currentSlip.id ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4 mr-2" />
-                )}
+                <Download className="h-4 w-4 mr-2" />
                 Download Current Slip
               </Button>
             </div>
@@ -247,13 +243,9 @@ export default function PayrollPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleDownload(record.id)}
-                          disabled={downloadingId === record.id}
+                          loading={downloadingId === record.id}
                         >
-                          {downloadingId === record.id ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4 mr-2" />
-                          )}
+                          <Download className="h-4 w-4 mr-2" />
                           Download
                         </Button>
                       </td>

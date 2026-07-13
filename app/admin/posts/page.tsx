@@ -528,20 +528,12 @@ export default function PostsPage() {
                 </Button>
                 <Button
                   onClick={handleCreatePost}
-                  disabled={isSubmitting || !newPostContent.trim()}
+                  loading={isSubmitting}
+                  disabled={!newPostContent.trim()}
                   className="bg-[#184a8c] hover:bg-[#184a8c]/90"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Publishing...
-                    </>
-                  ) : (
-                    <>
-                      <MessageSquarePlus className="mr-2 h-4 w-4" />
-                      Publish Post
-                    </>
-                  )}
+                  <MessageSquarePlus className="mr-2 h-4 w-4" />
+                  Publish Post
                 </Button>
               </div>
             </CardContent>

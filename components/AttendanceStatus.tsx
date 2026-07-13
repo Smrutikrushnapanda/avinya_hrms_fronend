@@ -12,31 +12,6 @@ interface AttendanceStatusProps {
   organizationId?: string;
 }
 
-const parsePositiveMinutes = (value: unknown): number => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return 0;
-  return Math.floor(parsed);
-};
-
-const getLateFromStatus = (status: unknown): boolean | null => {
-  if (typeof status !== "string" || !status.trim()) return null;
-  const normalized = status.trim().toLowerCase();
-  return normalized === "late";
-};
-
-const getLateCutoffTime = (checkInTime: Date, workStartTime: unknown, lateAllowanceMinutes: number): Date | null => {
-  if (typeof workStartTime !== "string" || !workStartTime.trim()) return null;
-  const parts = workStartTime.trim().split(":");
-  const hours = Number(parts[0]);
-  const minutes = Number(parts[1] ?? 0);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
-
-  const cutoff = new Date(checkInTime);
-  cutoff.setHours(hours, minutes, 0, 0);
-  cutoff.setMinutes(cutoff.getMinutes() + Math.max(0, lateAllowanceMinutes));
-  return cutoff;
-};
-
 export default function AttendanceStatus({ userId, organizationId }: AttendanceStatusProps) {
   const [attendanceState, setAttendanceState] = useState<AttendanceState>("loading");
   const [loginTime, setLoginTime] = useState<string>("");
@@ -69,17 +44,11 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
 
         const payload = response.data || {};
 
-        // API returns { logs: [...], punchInTime: Date|null, lastPunch: Date|null }
         const punchInTime: string | null = payload.punchInTime ?? payload?.data?.punchInTime ?? null;
         const logs: any[] = payload.logs ?? payload?.data?.logs ?? payload?.results ?? [];
         const attendanceStatus: string | null =
           payload.attendanceStatus ?? payload?.data?.attendanceStatus ?? null;
-        const lateAllowanceMinutes = parsePositiveMinutes(
-          payload.graceMinutes ?? payload?.data?.graceMinutes ?? payload.lateThresholdMinutes ?? payload?.data?.lateThresholdMinutes
-        );
-        const workStartTime = payload.workStartTime ?? payload?.data?.workStartTime ?? null;
 
-        // Prefer punchInTime (may be timeslip-corrected); fall back to first check-in log
         let firstCheckIn: Date | null = null;
         if (punchInTime) {
           firstCheckIn = new Date(punchInTime);
@@ -97,16 +66,20 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
 
           setLoginTime(timeStr);
 
-          const lateFromStatus = getLateFromStatus(attendanceStatus);
-          const lateCutoff = getLateCutoffTime(firstCheckIn, workStartTime, lateAllowanceMinutes);
-          const isLate =
-            lateFromStatus ?? (lateCutoff ? firstCheckIn.getTime() > lateCutoff.getTime() : false);
-
-          if (isLate) {
+          // Backend determines late/on-time status with full timezone awareness (luxon/Asia/Kolkata).
+          // Trust it as the source of truth — the frontend fallback would use the browser's local
+          // timezone (setHours/setMinutes) and produce wrong results when browser TZ ≠ org TZ.
+          if (attendanceStatus === "late") {
             setAttendanceState("late");
-          } else {
+          } else if (attendanceStatus === "present" || attendanceStatus === "half-day") {
             setAttendanceState("on-time");
             setTimeout(() => setShowBlast(true), 500);
+          } else if (attendanceStatus === null || attendanceStatus === undefined) {
+            // No Attendance summary yet — safe default (don't assume late)
+            setAttendanceState("on-time");
+          } else {
+            // Any other status (absent, on-leave, holiday, weekend, wfh)
+            setAttendanceState("on-time");
           }
         } else {
           setAttendanceState("no-record");
@@ -249,7 +222,7 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
         </div>
         <div className="ml-auto text-right">
           <p className="text-xs text-muted-foreground">Status</p>
-          <p className="text-sm font-bold text-emerald-500 dark:text-emerald-400">On Time! 🎉</p>
+          <p className="text-sm font-bold text-emerald-500 dark:text-emerald-400">On Time</p>
         </div>
       </motion.div>
     </div>

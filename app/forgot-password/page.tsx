@@ -7,6 +7,7 @@ import { Eye, EyeOff, KeyRound, Mail, ShieldCheck, UserRound, ArrowLeft, Chevron
 import { toast } from "sonner";
 import { requestPasswordResetOtp, resetAdminCredentials } from "../api/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -298,10 +299,10 @@ export default function ForgotPasswordPage() {
                   </p>
                 </div>
 
-                <button type="submit" className="fp-submit-btn" disabled={loading}>
+                <Button type="submit" className="fp-submit-btn" loading={loading}>
                   <KeyRound size={16} />
-                  {loading ? "Sending OTP..." : "Send OTP"}
-                </button>
+                  Send OTP
+                </Button>
 
                 <div className="flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                   <ShieldCheck size={12} />
@@ -389,10 +390,10 @@ export default function ForgotPasswordPage() {
                   />
                 </div>
 
-                <button type="submit" className="fp-submit-btn" disabled={loading}>
+                <Button type="submit" className="fp-submit-btn" loading={loading}>
                   <ShieldCheck size={16} />
-                  {loading ? "Updating..." : "Update admin credentials"}
-                </button>
+                  Update admin credentials
+                </Button>
               </motion.form>
             )}
           </AnimatePresence>

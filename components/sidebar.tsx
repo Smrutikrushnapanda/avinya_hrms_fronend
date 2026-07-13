@@ -33,6 +33,7 @@ import {
   UserRound,
   MessageSquarePlus,
   Bell,
+  Plane,
 } from "lucide-react";
 import {
   Tooltip,
@@ -117,6 +118,7 @@ const iconMap: Record<string, LucideIcon> = {
   FileText,
   UserRound,
   Bell,
+  Plane,
 };
 
 function mapApiItem(item: ApiMenuItem): MenuItem {

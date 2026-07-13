@@ -502,8 +502,8 @@ export default function PayrollPage() {
                   </>
                 )}
               </div>
-              <Button onClick={fetchRecords} disabled={loading}>
-                {loading ? "Loading..." : "Apply Filters"}
+              <Button onClick={fetchRecords} loading={loading}>
+                Apply Filters
               </Button>
             </CardContent>
           </Card>
@@ -547,13 +547,9 @@ export default function PayrollPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              disabled={sendingId === r.id}
+                              loading={sendingId === r.id}
                             >
-                              {sendingId === r.id ? (
-                                <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full inline-block" />
-                              ) : (
-                                <Send className="w-4 h-4" />
-                              )}
+                              <Send className="w-4 h-4" />
                               <ChevronDown className="w-3 h-3 ml-1" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -665,8 +661,8 @@ export default function PayrollPage() {
                   </div>
                 )}
               </div>
-              <Button onClick={handleSaveSettings} disabled={savingSettings}>
-                {savingSettings ? "Saving..." : "Save Configuration"}
+              <Button onClick={handleSaveSettings} loading={savingSettings}>
+                Save Configuration
               </Button>
             </CardContent>
           </Card>
@@ -819,8 +815,8 @@ export default function PayrollPage() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsBankDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveBankDetail} disabled={savingBankDetail || loadingBankDetail}>
-              {savingBankDetail ? "Saving..." : "Save"}
+            <Button onClick={handleSaveBankDetail} loading={savingBankDetail} disabled={loadingBankDetail}>
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

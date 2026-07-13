@@ -904,20 +904,11 @@ export default function UserLeavePage() {
             </Button>
             <Button
               onClick={handleApplySubmit}
-              disabled={applySubmitting}
+              loading={applySubmitting}
               className="gap-2"
             >
-              {applySubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Submit Application
-                </>
-              )}
+              <Send className="h-4 w-4" />
+              Submit Application
             </Button>
           </DialogFooter>
         </DialogContent>

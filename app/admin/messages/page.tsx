@@ -551,24 +551,11 @@ export default function AdminMessagesPage() {
             </Button>
             <Button
               onClick={handleSendMessage}
-              disabled={
-                sending ||
-                !composeForm.title.trim() ||
-                !composeForm.body.trim() ||
-                selectedRecipients.length === 0
-              }
+              loading={sending}
+              disabled={!composeForm.title.trim() || !composeForm.body.trim() || selectedRecipients.length === 0}
             >
-              {sending ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4 mr-2" />
-                  Send Message
-                </>
-              )}
+              <Send className="w-4 h-4 mr-2" />
+              Send Message
             </Button>
           </DialogFooter>
         </DialogContent>

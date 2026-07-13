@@ -7,6 +7,7 @@ import { ShieldAlert, KeyRound, ShieldCheck, ArrowLeft, ChevronRight, Mail } fro
 import { toast } from "sonner";
 import { requestSuperadminOtp, verifySuperadminOtp } from "../api/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24; // 1 day — kept short for a high-privilege account
@@ -319,10 +320,10 @@ export default function SuperadminLoginPage() {
                   </p>
                 </div>
 
-                <button type="submit" className="sa-submit-btn" disabled={loading}>
+                <Button type="submit" className="sa-submit-btn" loading={loading}>
                   <KeyRound size={16} />
-                  {loading ? "Sending OTP..." : "Send OTP"}
-                </button>
+                  Send OTP
+                </Button>
 
                 <div className="flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                   <ShieldCheck size={12} />
@@ -359,10 +360,10 @@ export default function SuperadminLoginPage() {
                   </p>
                 </div>
 
-                <button type="submit" className="sa-submit-btn" disabled={loading}>
+                <Button type="submit" className="sa-submit-btn" loading={loading}>
                   <ShieldCheck size={16} />
-                  {loading ? "Verifying..." : "Verify & Sign In"}
-                </button>
+                  Verify & Sign In
+                </Button>
 
                 <button
                   type="button"

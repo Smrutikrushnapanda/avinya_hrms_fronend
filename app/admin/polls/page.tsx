@@ -441,8 +441,8 @@ function PollManagement({ onPollCreated, currentUser }: { onPollCreated: () => v
         <DialogFooter>
           <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
           <Button onClick={handleCreatePoll}
-            disabled={creating || !pollData.title || !pollData.start_time || !pollData.end_time}>
-            {creating ? 'Creating...' : 'Create Poll'}
+            loading={creating} disabled={!pollData.title || !pollData.start_time || !pollData.end_time}>
+            Create Poll
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1062,7 +1062,7 @@ export default function PollsPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditPollOpen(false)}>Cancel</Button>
-              <Button onClick={handleUpdatePoll} disabled={updating}>{updating ? 'Updating...' : 'Save Changes'}</Button>
+              <Button onClick={handleUpdatePoll} loading={updating}>Save Changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

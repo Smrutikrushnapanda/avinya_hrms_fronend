@@ -211,8 +211,8 @@ export default function AddTimesheetPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Button onClick={handleSubmit} disabled={submitting} className="gap-2">
-              {submitting ? "Saving..." : `Save ${rows.length > 1 ? `${rows.length} Entries` : "Entry"}`}
+            <Button onClick={handleSubmit} loading={submitting} className="gap-2">
+              Save {rows.length > 1 ? `${rows.length} Entries` : "Entry"}
             </Button>
             <Button variant="outline" onClick={() => router.push("/user/timesheet")} disabled={submitting}>
               Cancel

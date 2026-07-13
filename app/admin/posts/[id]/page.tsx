@@ -302,7 +302,7 @@ export default function PostDetailPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleLike} disabled={likingPost}>
+              <Button variant="outline" size="sm" onClick={handleLike} loading={likingPost}>
                 <Heart
                   className={`h-4 w-4 mr-1 ${hasLiked ? "fill-red-500 text-red-500" : ""}`}
                 />
@@ -372,14 +372,11 @@ export default function PostDetailPage() {
                 <div className="flex justify-end">
                   <Button
                     onClick={handleComment}
-                    disabled={submittingComment || !newComment.trim()}
+                    loading={submittingComment}
+                    disabled={!newComment.trim()}
                     className="bg-[#184a8c] hover:bg-[#184a8c]/90"
                   >
-                    {submittingComment ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4 mr-2" />
-                    )}
+                    <Send className="h-4 w-4 mr-2" />
                     Post Comment
                   </Button>
                 </div>

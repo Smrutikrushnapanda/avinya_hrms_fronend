@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, FileText, Download, Calendar, Filter } from 'lucide-react';
 import { getAttendanceReport2 } from '@/app/api/api'
 import { exportAttendanceReport } from '@/utils/exportToExcel'
+import { Button } from '@/components/ui/button'
 
 interface AttendanceReportModalProps {
   isOpen: boolean;
@@ -369,18 +370,19 @@ const formatDataForExport = (data: ReportData) => {
 
               {/* Single Export Button */}
               <div className="pt-4">
-                <button
+                <Button
                   onClick={handleExport}
-                  disabled={!hasData || loading}
-                  className={`w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                  loading={loading}
+                  disabled={!hasData}
+                  className={`w-full py-3 px-6 rounded-lg font-medium transition-all duration-200 ${
                     hasData && !loading
                       ? `bg-green-600 dark:bg-green-700 hover:bg-green-700 dark:hover:bg-green-800 text-white ${showAnimation ? 'animate-vibrate' : ''}`
                       : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                   }`}
                 >
                   <Download className="h-5 w-5" />
-                  {loading ? 'Loading...' : !hasData ? 'No Data to Export' : 'Export'}
-                </button>
+                  {!hasData ? 'No Data to Export' : 'Export'}
+                </Button>
               </div>
             </div>
           </div>

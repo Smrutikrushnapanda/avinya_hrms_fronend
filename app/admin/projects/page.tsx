@@ -848,7 +848,7 @@ export default function AdminProjectsPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={saving}>{saving ? "Creating..." : "Create Project"}</Button>
+              <Button onClick={handleCreate} loading={saving}>Create Project</Button>
             </div>
           </div>
         </DialogContent>
@@ -924,7 +924,7 @@ export default function AdminProjectsPage() {
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-              <Button onClick={handleEdit} disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
+              <Button onClick={handleEdit} loading={saving}>Save Changes</Button>
             </div>
           </div>
         </DialogContent>
@@ -1090,8 +1090,8 @@ export default function AdminProjectsPage() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
-              <Button onClick={handleAssign} disabled={saving || assignUserIds.length === 0}>
-                {saving ? "Assigning..." : `Assign ${assignUserIds.length > 0 ? `(${assignUserIds.length})` : ""}`}
+              <Button onClick={handleAssign} loading={saving} disabled={assignUserIds.length === 0}>
+                Assign {assignUserIds.length > 0 ? `(${assignUserIds.length})` : ""}
               </Button>
             </div>
           </div>

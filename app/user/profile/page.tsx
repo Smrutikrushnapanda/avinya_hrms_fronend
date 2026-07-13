@@ -605,10 +605,11 @@ export default function UserProfilePage() {
                 <Button
                   className="w-full"
                   onClick={handleSendResignation}
-                  disabled={sendingResignation || !organization?.hrMail}
+                  loading={sendingResignation}
+                  disabled={!organization?.hrMail}
                 >
                   <Send className="h-4 w-4 mr-2" />
-                  {sendingResignation ? "Sending..." : "Send To HR"}
+                  Send To HR
                 </Button>
               </div>
             </div>

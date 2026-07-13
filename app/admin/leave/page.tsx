@@ -874,13 +874,9 @@ export default function LeaveManagementPage() {
                                   size="sm"
                                   className="gap-1"
                                   onClick={() => handleApprove(req)}
-                                  disabled={actionLoading === req.id}
+                                  loading={actionLoading === req.id}
                                 >
-                                  {actionLoading === req.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Check className="h-4 w-4" />
-                                  )}
+                                  <Check className="h-4 w-4" />
                                   Approve
                                 </Button>
                                 <Button
@@ -973,13 +969,9 @@ export default function LeaveManagementPage() {
                               variant="destructive"
                               className="gap-1"
                               onClick={() => handleDeleteAssignment(as.id)}
-                              disabled={deleteLoading === as.id}
+                              loading={deleteLoading === as.id}
                             >
-                              {deleteLoading === as.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
+                              <Trash2 className="h-4 w-4" />
                               Delete
                             </Button>
                           </div>
@@ -1082,9 +1074,10 @@ export default function LeaveManagementPage() {
                 </div>
                 <Button
                   onClick={handleApplyBalances}
-                  disabled={applyingBalances || !selectedEmploymentType || loadingTemplates}
+                  loading={applyingBalances}
+                  disabled={!selectedEmploymentType || loadingTemplates}
                 >
-                  {applyingBalances ? "Applying..." : "Apply to Employees"}
+                  Apply to Employees
                 </Button>
               </div>
             </CardContent>
@@ -1146,13 +1139,10 @@ export default function LeaveManagementPage() {
                 </p>
                 <Button
                   onClick={handleApplyMonthlyLeaveLimit}
-                  disabled={
-                    applyingMonthlyLeaveLimit ||
-                    !selectedEmploymentType ||
-                    !selectedLimitLeaveTypeId
-                  }
+                  loading={applyingMonthlyLeaveLimit}
+                  disabled={!selectedEmploymentType || !selectedLimitLeaveTypeId}
                 >
-                  {applyingMonthlyLeaveLimit ? "Applying..." : "Apply Monthly Limit"}
+                  Apply Monthly Limit
                 </Button>
               </div>
             </CardContent>
@@ -1305,13 +1295,9 @@ export default function LeaveManagementPage() {
                               variant="destructive"
                               className="gap-1"
                               onClick={() => handleDeleteLeaveType(lt.id)}
-                              disabled={ltDeleteLoading === lt.id}
+                              loading={ltDeleteLoading === lt.id}
                             >
-                              {ltDeleteLoading === lt.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
+                              <Trash2 className="h-4 w-4" />
                               Delete
                             </Button>
                           </div>
@@ -1350,13 +1336,9 @@ export default function LeaveManagementPage() {
             <Button
               variant="destructive"
               onClick={handleReject}
-              disabled={actionLoading === rejectTarget?.id}
+              loading={actionLoading === rejectTarget?.id}
             >
-              {actionLoading === rejectTarget?.id ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Reject"
-              )}
+              Reject
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1434,12 +1416,8 @@ export default function LeaveManagementPage() {
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateAssignment} disabled={createLoading}>
-              {createLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Create"
-              )}
+            <Button onClick={handleCreateAssignment} loading={createLoading}>
+              Create
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1491,12 +1469,8 @@ export default function LeaveManagementPage() {
             <Button variant="outline" onClick={() => setEditAssignmentOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEditAssignment} disabled={editAssignmentLoading}>
-              {editAssignmentLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Update"
-              )}
+            <Button onClick={handleEditAssignment} loading={editAssignmentLoading}>
+              Update
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1572,8 +1546,8 @@ export default function LeaveManagementPage() {
             <Button variant="outline" onClick={() => setLtDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateLeaveType} disabled={ltCreating} className="gap-2">
-              {ltCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            <Button onClick={handleCreateLeaveType} loading={ltCreating} className="gap-2">
+              <Plus className="h-4 w-4" />
               Create
             </Button>
           </DialogFooter>
@@ -1655,8 +1629,8 @@ export default function LeaveManagementPage() {
             <Button variant="outline" onClick={() => setLtEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEditLeaveType} disabled={ltEditLoading} className="gap-2">
-              {ltEditLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+            <Button onClick={handleEditLeaveType} loading={ltEditLoading} className="gap-2">
+              <Pencil className="h-4 w-4" />
               Update
             </Button>
           </DialogFooter>

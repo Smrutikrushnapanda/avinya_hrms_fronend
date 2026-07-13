@@ -412,8 +412,8 @@ export default function AdminPolicyPage() {
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : editTarget ? "Update" : "Create"}
+              <Button onClick={handleSave} loading={saving}>
+                {editTarget ? "Update" : "Create"}
               </Button>
             </div>
           </div>

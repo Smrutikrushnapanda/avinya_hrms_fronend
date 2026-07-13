@@ -910,20 +910,15 @@ export default function MobileDashboardPage() {
                 👋 {greeting} {user.name.split(" ")[0]}
               </span>
             </div>
-            <button
+            <Button
               onClick={() => setOpen(true)}
               disabled={isPunchDisabled}
+              loading={isLoading}
               className="rounded-2xl bg-white text-primary px-5 py-3.5 font-extrabold text-xs tracking-wide shadow-md flex items-center gap-1.5 disabled:opacity-60 active:scale-95 transition-transform"
             >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Fingerprint className="w-5 h-5" />
-                  {hasPunchedInToday ? "Punch Out" : "Punch In"}
-                </>
-              )}
-            </button>
+              <Fingerprint className="w-5 h-5" />
+              {hasPunchedInToday ? "Punch Out" : "Punch In"}
+            </Button>
           </div>
           {settings.enableWifiValidation && (
             <div className="mt-3.5 pt-2.5 border-t border-white/20 flex items-center gap-2">
@@ -1014,21 +1009,12 @@ export default function MobileDashboardPage() {
                 </Button>
                 <Button
                   onClick={submitPhoto}
-                  disabled={isSubmitting}
+                  loading={isSubmitting}
                   className={`h-12 ${
                     hasPunchedInToday ? "bg-red-500 hover:bg-red-600" : "bg-green-600 hover:bg-green-700"
                   } text-white`}
                 >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Submitting…
-                    </>
-                  ) : hasPunchedInToday ? (
-                    "Confirm Punch Out"
-                  ) : (
-                    "Confirm Punch In"
-                  )}
+                  {hasPunchedInToday ? "Confirm Punch Out" : "Confirm Punch In"}
                 </Button>
               </div>
             </div>

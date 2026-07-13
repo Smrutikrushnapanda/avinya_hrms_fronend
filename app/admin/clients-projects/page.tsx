@@ -527,14 +527,10 @@ export default function ClientsProjectsPage() {
                 <Button
                   onClick={editClientId ? handleUpdateClient : handleCreateClient}
                   className="gap-2"
-                  disabled={clientSubmitting}
+                  loading={clientSubmitting}
                 >
                   <PlusCircle className="h-4 w-4" />
-                  {clientSubmitting
-                    ? "Saving..."
-                    : editClientId
-                      ? "Save Client"
-                      : "Add Client"}
+                  {editClientId ? "Save Client" : "Add Client"}
                 </Button>
                 {editClientId ? (
                   <Button
@@ -748,14 +744,10 @@ export default function ClientsProjectsPage() {
                 <Button
                   onClick={editProjectId ? handleUpdateProject : handleCreateProject}
                   className="gap-2"
-                  disabled={projectSubmitting}
+                  loading={projectSubmitting}
                 >
                   <Briefcase className="h-4 w-4" />
-                  {projectSubmitting
-                    ? "Saving..."
-                    : editProjectId
-                      ? "Save Project"
-                      : "Add Project"}
+                  {editProjectId ? "Save Project" : "Add Project"}
                 </Button>
                 {editProjectId ? (
                   <Button

@@ -597,8 +597,8 @@ export default function TimesheetSection({
             <Button variant="outline" onClick={() => { setEditTarget(null); setEditDraft(null); }}>
               Cancel
             </Button>
-            <Button onClick={saveEdit} disabled={editSaving}>
-              {editSaving ? "Saving..." : "Save Changes"}
+            <Button onClick={saveEdit} loading={editSaving}>
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -629,12 +629,12 @@ export default function TimesheetSection({
               variant="destructive"
               className="gap-2"
               onClick={() => submitApproval("REJECTED")}
-              disabled={approveSaving}
+              loading={approveSaving}
             >
               <X className="h-4 w-4" />
               Reject
             </Button>
-            <Button className="gap-2" onClick={() => submitApproval("APPROVED")} disabled={approveSaving}>
+            <Button className="gap-2" onClick={() => submitApproval("APPROVED")} loading={approveSaving}>
               <Check className="h-4 w-4" />
               Approve
             </Button>

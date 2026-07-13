@@ -229,9 +229,9 @@ export default function LogReportPage() {
                     setAppliedFilters(filters);
                     setTableState((prev) => ({ ...prev, page: 0 }));
                   }}
-                  disabled={loading}
+                  loading={loading}
                 >
-                  {loading ? "Loading..." : "Apply Filters"}
+                  Apply Filters
                 </Button>
               </div>
               <div className="flex gap-2 md:justify-end md:col-span-2">

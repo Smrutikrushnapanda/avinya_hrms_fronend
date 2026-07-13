@@ -11,6 +11,8 @@ import {
   Users,
   ClipboardList,
   Filter,
+  Building2,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +68,9 @@ import {
   getWfhBalanceTemplates,
   initializeWfhBalance,
   setEmployeeWfhLimit,
+  getWorkArrangementsByOrg,
+  setEmployeeWorkArrangement,
+  deleteEmployeeWorkArrangement,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -112,6 +117,46 @@ interface WfhAssignment {
     firstName: string;
     lastName: string;
   };
+}
+
+type ArrangementType = "OFFICE" | "HYBRID" | "PERMANENT_REMOTE";
+
+interface WorkArrangement {
+  id: string;
+  arrangementType: ArrangementType;
+  mandatoryOfficeDaysPerMonth: number | null;
+  autoApproveWfh: boolean;
+  isActive: boolean;
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
+const ARRANGEMENT_TYPE_LABELS: Record<ArrangementType, string> = {
+  OFFICE: "Office",
+  HYBRID: "Hybrid",
+  PERMANENT_REMOTE: "Permanent Remote",
+};
+
+function ArrangementTypeBadge({ type }: { type: ArrangementType }) {
+  switch (type) {
+    case "PERMANENT_REMOTE":
+      return (
+        <Badge className="bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-100">
+          Permanent Remote
+        </Badge>
+      );
+    case "HYBRID":
+      return (
+        <Badge className="bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-100">
+          Hybrid
+        </Badge>
+      );
+    default:
+      return <Badge variant="outline">Office</Badge>;
+  }
 }
 
 // ------- Loading Skeleton -------
@@ -226,6 +271,31 @@ export default function WfhManagementPage() {
   const [monthlyWfhLimitInput, setMonthlyWfhLimitInput] = useState(0);
   const [applyingMonthlyWfhLimit, setApplyingMonthlyWfhLimit] = useState(false);
 
+  // Work Arrangements tab state
+  const [workArrangements, setWorkArrangements] = useState<WorkArrangement[]>([]);
+  const [workArrangementsLoading, setWorkArrangementsLoading] = useState(false);
+  const [arrangementDialogOpen, setArrangementDialogOpen] = useState(false);
+  const [arrangementTarget, setArrangementTarget] = useState<Employee | null>(null);
+  const [arrangementForm, setArrangementForm] = useState<{
+    arrangementType: ArrangementType;
+    mandatoryOfficeDaysPerMonth: string;
+    autoApproveWfh: boolean;
+  }>({
+    arrangementType: "HYBRID",
+    mandatoryOfficeDaysPerMonth: "",
+    autoApproveWfh: true,
+  });
+  const [savingArrangement, setSavingArrangement] = useState(false);
+
+  // Org-wide Hybrid/Reminder defaults
+  const [orgDefaults, setOrgDefaults] = useState({
+    hybridDefaultMandatoryOfficeDays: 15,
+    wfhMonitorReminderEnabled: true,
+    wfhMonitorReminderIntervalMinutes: 30,
+    wfhMonitorReminderEmailCutoffMinutes: 120,
+  });
+  const [savingOrgDefaults, setSavingOrgDefaults] = useState(false);
+
   // ------- Fetch profile on mount -------
   useEffect(() => {
     const fetchProfile = async () => {
@@ -237,6 +307,16 @@ export default function WfhManagementPage() {
           const mode = (orgRes.data?.wfhApprovalMode || "MANAGER").toUpperCase();
           setWfhApprovalMode(mode === "ADMIN" ? "ADMIN" : "MANAGER");
           setWfhCarryForwardEnabled(Boolean(orgRes.data?.wfhCarryForwardEnabled));
+          setOrgDefaults({
+            hybridDefaultMandatoryOfficeDays:
+              Number(orgRes.data?.hybridDefaultMandatoryOfficeDays) || 15,
+            wfhMonitorReminderEnabled:
+              orgRes.data?.wfhMonitorReminderEnabled ?? true,
+            wfhMonitorReminderIntervalMinutes:
+              Number(orgRes.data?.wfhMonitorReminderIntervalMinutes) || 30,
+            wfhMonitorReminderEmailCutoffMinutes:
+              Number(orgRes.data?.wfhMonitorReminderEmailCutoffMinutes) || 120,
+          });
         }
       } catch (error: any) {
         console.error("Failed to fetch profile:", error);
@@ -309,6 +389,22 @@ export default function WfhManagementPage() {
     }
   }, [profile?.organizationId]);
 
+  // ------- Fetch work arrangements -------
+  const fetchWorkArrangements = useCallback(async () => {
+    if (!profile?.organizationId) return;
+    setWorkArrangementsLoading(true);
+    try {
+      const res = await getWorkArrangementsByOrg(profile.organizationId);
+      const data = res.data?.data || res.data || [];
+      setWorkArrangements(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      console.error("Failed to fetch work arrangements:", error);
+      toast.error("Failed to load work arrangements");
+    } finally {
+      setWorkArrangementsLoading(false);
+    }
+  }, [profile?.organizationId]);
+
   // ------- Load data on profile ready -------
   useEffect(() => {
     if (profile?.organizationId) {
@@ -329,6 +425,12 @@ export default function WfhManagementPage() {
       fetchWfhTemplates();
     }
   }, [activeTab, fetchWfhTemplates]);
+
+  useEffect(() => {
+    if (activeTab === "work-arrangements") {
+      fetchWorkArrangements();
+    }
+  }, [activeTab, fetchWorkArrangements]);
 
   useEffect(() => {
     if (!selectedEmploymentType) return;
@@ -557,6 +659,88 @@ export default function WfhManagementPage() {
     }
   };
 
+  const handleSaveOrgDefaults = async () => {
+    if (!profile?.organizationId) return;
+    setSavingOrgDefaults(true);
+    try {
+      await updateOrganization(profile.organizationId, {
+        hybridDefaultMandatoryOfficeDays:
+          orgDefaults.hybridDefaultMandatoryOfficeDays,
+        wfhMonitorReminderEnabled: orgDefaults.wfhMonitorReminderEnabled,
+        wfhMonitorReminderIntervalMinutes:
+          orgDefaults.wfhMonitorReminderIntervalMinutes,
+        wfhMonitorReminderEmailCutoffMinutes:
+          orgDefaults.wfhMonitorReminderEmailCutoffMinutes,
+      });
+      toast.success("Organization defaults saved");
+    } catch (error: any) {
+      console.error("Failed to save org defaults:", error);
+      toast.error("Failed to save organization defaults");
+    } finally {
+      setSavingOrgDefaults(false);
+    }
+  };
+
+  // ------- Work Arrangement handlers -------
+  const getArrangementForEmployee = (userId: string) =>
+    workArrangements.find((a) => a.user?.id === userId);
+
+  const openArrangementDialog = (employee: Employee) => {
+    const existing = getArrangementForEmployee(employee.userId);
+    setArrangementTarget(employee);
+    setArrangementForm({
+      arrangementType: existing?.arrangementType || "HYBRID",
+      mandatoryOfficeDaysPerMonth:
+        existing?.mandatoryOfficeDaysPerMonth != null
+          ? String(existing.mandatoryOfficeDaysPerMonth)
+          : "",
+      autoApproveWfh: existing?.autoApproveWfh ?? true,
+    });
+    setArrangementDialogOpen(true);
+  };
+
+  const handleSaveArrangement = async () => {
+    if (!arrangementTarget) return;
+    setSavingArrangement(true);
+    try {
+      await setEmployeeWorkArrangement({
+        userId: arrangementTarget.userId,
+        arrangementType: arrangementForm.arrangementType,
+        mandatoryOfficeDaysPerMonth:
+          arrangementForm.arrangementType === "HYBRID" &&
+          arrangementForm.mandatoryOfficeDaysPerMonth !== ""
+            ? Number(arrangementForm.mandatoryOfficeDaysPerMonth)
+            : undefined,
+        autoApproveWfh: arrangementForm.autoApproveWfh,
+      });
+      toast.success("Work arrangement saved");
+      setArrangementDialogOpen(false);
+      setArrangementTarget(null);
+      await fetchWorkArrangements();
+    } catch (error: any) {
+      console.error("Failed to save work arrangement:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to save work arrangement"
+      );
+    } finally {
+      setSavingArrangement(false);
+    }
+  };
+
+  const handleResetArrangement = async (userId: string) => {
+    setSavingArrangement(true);
+    try {
+      await deleteEmployeeWorkArrangement(userId);
+      toast.success("Reverted to Office arrangement");
+      await fetchWorkArrangements();
+    } catch (error: any) {
+      console.error("Failed to reset work arrangement:", error);
+      toast.error("Failed to reset work arrangement");
+    } finally {
+      setSavingArrangement(false);
+    }
+  };
+
   // ------- Delete assignment handler -------
   const handleDeleteAssignment = async (id: string) => {
     setDeleteLoading(id);
@@ -657,6 +841,10 @@ export default function WfhManagementPage() {
             <ClipboardList className="h-4 w-4" />
             Balances
           </TabsTrigger>
+          <TabsTrigger value="work-arrangements" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Work Arrangements
+          </TabsTrigger>
         </TabsList>
 
         {/* ========== Tab 1: Requests ========== */}
@@ -674,13 +862,9 @@ export default function WfhManagementPage() {
                   variant="outline"
                   size="sm"
                   onClick={fetchWfhRequests}
-                  disabled={requestsLoading}
+                  loading={requestsLoading}
                 >
-                  {requestsLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Refresh"
-                  )}
+                  Refresh
                 </Button>
               </div>
             </CardHeader>
@@ -696,14 +880,14 @@ export default function WfhManagementPage() {
                   <Button
                     variant={wfhApprovalMode === "ADMIN" ? "default" : "outline"}
                     onClick={() => handleApprovalModeChange("ADMIN")}
-                    disabled={savingApprovalMode}
+                    loading={savingApprovalMode}
                   >
                     Admin Approves
                   </Button>
                   <Button
                     variant={wfhApprovalMode === "MANAGER" ? "default" : "outline"}
                     onClick={() => handleApprovalModeChange("MANAGER")}
-                    disabled={savingApprovalMode}
+                    loading={savingApprovalMode}
                   >
                     Manager Approves
                   </Button>
@@ -829,14 +1013,10 @@ export default function WfhManagementPage() {
                                   size="sm"
                                   variant="outline"
                                   className="text-green-600 border-green-300 hover:bg-green-50 hover:text-green-700"
-                                  disabled={actionLoading === request.id}
+                                  loading={actionLoading === request.id}
                                   onClick={() => handleApprove(request)}
                                 >
-                                  {actionLoading === request.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <Check className="h-3.5 w-3.5 mr-1" />
-                                  )}
+                                  <Check className="h-3.5 w-3.5 mr-1" />
                                   Approve
                                 </Button>
                                 <Button
@@ -970,16 +1150,12 @@ export default function WfhManagementPage() {
                               size="sm"
                               variant="outline"
                               className="text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
-                              disabled={deleteLoading === assignment.id}
+                              loading={deleteLoading === assignment.id}
                               onClick={() =>
                                 handleDeleteAssignment(assignment.id)
                               }
                             >
-                              {deleteLoading === assignment.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3.5 w-3.5 mr-1" />
-                              )}
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
                               Delete
                             </Button>
                           </TableCell>
@@ -1058,9 +1234,10 @@ export default function WfhManagementPage() {
                 </div>
                 <Button
                   onClick={handleApplyWfhBalance}
-                  disabled={applyingBalance || !selectedEmploymentType}
+                  loading={applyingBalance}
+                  disabled={!selectedEmploymentType}
                 >
-                  {applyingBalance ? "Applying..." : "Apply to Employees"}
+                  Apply to Employees
                 </Button>
               </div>
             </CardContent>
@@ -1113,9 +1290,10 @@ export default function WfhManagementPage() {
               <div className="flex justify-end">
                 <Button
                   onClick={handleApplyMonthlyWfhLimit}
-                  disabled={applyingMonthlyWfhLimit || !selectedEmploymentType}
+                  loading={applyingMonthlyWfhLimit}
+                  disabled={!selectedEmploymentType}
                 >
-                  {applyingMonthlyWfhLimit ? "Applying..." : "Apply Monthly Limit"}
+                  Apply Monthly Limit
                 </Button>
               </div>
             </CardContent>
@@ -1161,6 +1339,210 @@ export default function WfhManagementPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ========== Tab 4: Work Arrangements ========== */}
+        <TabsContent value="work-arrangements" className="mt-6 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Organization Defaults</CardTitle>
+              <CardDescription>
+                Default settings applied unless overridden per employee.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Default Mandatory Office Days / Month (Hybrid)</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={String(orgDefaults.hybridDefaultMandatoryOfficeDays)}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                      setOrgDefaults((prev) => ({
+                        ...prev,
+                        hybridDefaultMandatoryOfficeDays:
+                          digitsOnly === "" ? 0 : Number(digitsOnly),
+                      }));
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Monitor Reminder Interval (Minutes)</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={String(orgDefaults.wfhMonitorReminderIntervalMinutes)}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                      setOrgDefaults((prev) => ({
+                        ...prev,
+                        wfhMonitorReminderIntervalMinutes:
+                          digitsOnly === "" ? 0 : Number(digitsOnly),
+                      }));
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email Fallback Cutoff (Minutes after shift start)</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={String(orgDefaults.wfhMonitorReminderEmailCutoffMinutes)}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                      setOrgDefaults((prev) => ({
+                        ...prev,
+                        wfhMonitorReminderEmailCutoffMinutes:
+                          digitsOnly === "" ? 0 : Number(digitsOnly),
+                      }));
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">WFH Monitor Reminders</p>
+                  <p className="text-xs text-muted-foreground">
+                    Nudge employees with approved WFH to start their monitoring
+                    session (in-app + desktop banner + email fallback).
+                  </p>
+                </div>
+                <Switch
+                  checked={orgDefaults.wfhMonitorReminderEnabled}
+                  onCheckedChange={(checked) =>
+                    setOrgDefaults((prev) => ({
+                      ...prev,
+                      wfhMonitorReminderEnabled: checked,
+                    }))
+                  }
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveOrgDefaults} loading={savingOrgDefaults}>
+                  Save Defaults
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Employee Work Arrangements</CardTitle>
+                  <CardDescription>
+                    Classify each employee as Office, Hybrid (mandatory office days per
+                    month, employee picks the actual days), or Permanent Remote.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchWorkArrangements}
+                  loading={workArrangementsLoading}
+                >
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {workArrangementsLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-4 flex-1" />
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-8 w-20" />
+                    </div>
+                  ))}
+                </div>
+              ) : employees.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p className="text-lg font-medium">No employees found</p>
+                </div>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Sl#</TableHead>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Arrangement</TableHead>
+                        <TableHead className="text-center">
+                          Mandatory Office Days / Month
+                        </TableHead>
+                        <TableHead className="text-center">Auto-Approve WFH</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employees.map((employee, index) => {
+                        const arrangement = getArrangementForEmployee(employee.userId);
+                        return (
+                          <TableRow key={employee.userId}>
+                            <TableCell className="font-medium">{index + 1}</TableCell>
+                            <TableCell className="font-medium">
+                              {employee.firstName} {employee.lastName || ""}
+                            </TableCell>
+                            <TableCell>
+                              <ArrangementTypeBadge
+                                type={arrangement?.arrangementType || "OFFICE"}
+                              />
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {arrangement?.arrangementType === "HYBRID"
+                                ? arrangement.mandatoryOfficeDaysPerMonth ??
+                                  "Org default"
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {arrangement && arrangement.arrangementType !== "OFFICE"
+                                ? arrangement.autoApproveWfh
+                                  ? "Yes"
+                                  : "No"
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openArrangementDialog(employee)}
+                                >
+                                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                                  Edit
+                                </Button>
+                                {arrangement && arrangement.arrangementType !== "OFFICE" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
+                                    disabled={savingArrangement}
+                                    onClick={() =>
+                                      handleResetArrangement(employee.userId)
+                                    }
+                                  >
+                                    Reset to Office
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* ========== Reject Dialog ========== */}
@@ -1200,12 +1582,9 @@ export default function WfhManagementPage() {
             </Button>
             <Button
               variant="destructive"
-              disabled={actionLoading === rejectTarget?.id}
+              loading={actionLoading === rejectTarget?.id}
               onClick={handleReject}
             >
-              {actionLoading === rejectTarget?.id ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
               Reject Request
             </Button>
           </DialogFooter>
@@ -1292,17 +1671,117 @@ export default function WfhManagementPage() {
               Cancel
             </Button>
             <Button
+              loading={createLoading}
               disabled={
-                createLoading ||
                 !newAssignment.userId ||
                 !newAssignment.approverId
               }
               onClick={handleCreateAssignment}
             >
-              {createLoading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : null}
               Create Assignment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========== Work Arrangement Dialog ========== */}
+      <Dialog open={arrangementDialogOpen} onOpenChange={setArrangementDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Work Arrangement</DialogTitle>
+            <DialogDescription>
+              Set the work arrangement for{" "}
+              <span className="font-medium text-foreground">
+                {arrangementTarget?.firstName} {arrangementTarget?.lastName || ""}
+              </span>
+              .
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Arrangement Type</Label>
+              <Select
+                value={arrangementForm.arrangementType}
+                onValueChange={(val) =>
+                  setArrangementForm((prev) => ({
+                    ...prev,
+                    arrangementType: val as ArrangementType,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(ARRANGEMENT_TYPE_LABELS) as ArrangementType[]).map(
+                    (type) => (
+                      <SelectItem key={type} value={type}>
+                        {ARRANGEMENT_TYPE_LABELS[type]}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {arrangementForm.arrangementType === "HYBRID" && (
+              <div className="space-y-2">
+                <Label>Mandatory Office Days / Month</Label>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder={`Org default (${orgDefaults.hybridDefaultMandatoryOfficeDays})`}
+                  value={arrangementForm.mandatoryOfficeDaysPerMonth}
+                  onChange={(e) => {
+                    const digitsOnly = e.target.value.replace(/[^0-9]/g, "");
+                    setArrangementForm((prev) => ({
+                      ...prev,
+                      mandatoryOfficeDaysPerMonth: digitsOnly,
+                    }));
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to inherit the organization&apos;s default. The
+                  employee&apos;s allowed WFH days each month = working days in that
+                  month minus this number, and they can freely pick which days.
+                </p>
+              </div>
+            )}
+
+            {arrangementForm.arrangementType !== "OFFICE" && (
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Auto-Approve WFH Requests</p>
+                  <p className="text-xs text-muted-foreground">
+                    Approve instantly when within quota, skipping the manager
+                    approval chain.
+                  </p>
+                </div>
+                <Switch
+                  checked={arrangementForm.autoApproveWfh}
+                  onCheckedChange={(checked) =>
+                    setArrangementForm((prev) => ({
+                      ...prev,
+                      autoApproveWfh: checked,
+                    }))
+                  }
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setArrangementDialogOpen(false);
+                setArrangementTarget(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button loading={savingArrangement} onClick={handleSaveArrangement}>
+              Save Arrangement
             </Button>
           </DialogFooter>
         </DialogContent>

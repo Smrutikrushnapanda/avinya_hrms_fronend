@@ -22,6 +22,7 @@ import {
   getOrganization,
   createUserActivity,
   createMessage,
+  validateEmployee,
 } from "@/app/api/api";
 import { exportEmployeesToExcel, ExportFields } from "@/utils/exportToExcel";
 import { format } from "date-fns";
@@ -649,6 +650,20 @@ export default function EmployeesPage() {
     try {
       setIsCreatingEmployee(true);
       const cleanData = prepareEmployeeData(formData, true);
+
+      if (cleanData.reportingTo) {
+        const validationResult = await validateEmployee({
+          organizationId,
+          reportingTo: cleanData.reportingTo,
+        });
+        if (!validationResult.data?.isValid) {
+          const errMsg = validationResult.data?.errors?.join(". ") || "Invalid manager assignment";
+          toast.error(errMsg);
+          setIsCreatingEmployee(false);
+          return;
+        }
+      }
+
       await createEmployee(cleanData);
 
       await logActivity(
@@ -683,6 +698,20 @@ export default function EmployeesPage() {
     try {
       setIsUpdatingEmployee(true);
       const cleanData = prepareEmployeeData(formData, false);
+
+      if (cleanData.reportingTo) {
+        const validationResult = await validateEmployee({
+          organizationId: editEmployee.organizationId,
+          employeeId: selectedEmployee.id,
+          reportingTo: cleanData.reportingTo,
+        });
+        if (!validationResult.data?.isValid) {
+          const errMsg = validationResult.data?.errors?.join(". ") || "Invalid manager assignment";
+          toast.error(errMsg);
+          setIsUpdatingEmployee(false);
+          return;
+        }
+      }
       
       // Check payload size before sending
       const payloadSize = new Blob([JSON.stringify(cleanData)]).size;

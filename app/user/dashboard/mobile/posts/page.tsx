@@ -334,16 +334,12 @@ export default function MobilePostsPage() {
                             <div className="flex justify-end">
                               <Button
                                 onClick={() => handleComment(post.id)}
-                                disabled={submittingComments[post.id] || !newComments[post.id]?.trim()}
+                                disabled={!newComments[post.id]?.trim()}
+                                loading={submittingComments[post.id]}
                                 size="sm"
                                 className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm"
                               >
-                                {submittingComments[post.id] ? (
-                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                ) : (
-                                  <Send className="h-3 w-3 mr-1" />
-                                )}
-                                Post
+                                <Send className="h-3 w-3 mr-1" />Post
                               </Button>
                             </div>
                           </div>

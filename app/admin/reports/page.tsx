@@ -957,13 +957,9 @@ export default function ReportsPage() {
                               size="sm" 
                               className="w-full"
                               onClick={() => generateReport('attendance')}
-                              disabled={reportLoading === 'attendance'}
+                              loading={reportLoading === 'attendance'}
                             >
-                              {reportLoading === 'attendance' ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <Download className="w-4 h-4 mr-2" />
-                              )}
+                              <Download className="w-4 h-4 mr-2" />
                               Generate
                             </Button>
                           </div>
@@ -999,13 +995,9 @@ export default function ReportsPage() {
                               size="sm" 
                               className="w-full"
                               onClick={() => generateReport('employee')}
-                              disabled={reportLoading === 'employee'}
+                              loading={reportLoading === 'employee'}
                             >
-                              {reportLoading === 'employee' ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <Download className="w-4 h-4 mr-2" />
-                              )}
+                              <Download className="w-4 h-4 mr-2" />
                               Generate
                             </Button>
                           </div>
@@ -1039,13 +1031,9 @@ export default function ReportsPage() {
                               size="sm" 
                               className="w-full"
                               onClick={() => generateReport('leave')}
-                              disabled={reportLoading === 'leave'}
+                              loading={reportLoading === 'leave'}
                             >
-                              {reportLoading === 'leave' ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <Download className="w-4 h-4 mr-2" />
-                              )}
+                              <Download className="w-4 h-4 mr-2" />
                               Generate
                             </Button>
                           </div>
@@ -1079,13 +1067,9 @@ export default function ReportsPage() {
                               size="sm" 
                               className="w-full"
                               onClick={() => generateReport('payroll')}
-                              disabled={reportLoading === 'payroll'}
+                              loading={reportLoading === 'payroll'}
                             >
-                              {reportLoading === 'payroll' ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <Download className="w-4 h-4 mr-2" />
-                              )}
+                              <Download className="w-4 h-4 mr-2" />
                               Generate
                             </Button>
                           </div>
@@ -1119,13 +1103,9 @@ export default function ReportsPage() {
                               size="sm" 
                               className="w-full"
                               onClick={() => generateReport('performance')}
-                              disabled={reportLoading === 'performance'}
+                              loading={reportLoading === 'performance'}
                             >
-                              {reportLoading === 'performance' ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <Download className="w-4 h-4 mr-2" />
-                              )}
+                              <Download className="w-4 h-4 mr-2" />
                               Generate
                             </Button>
                           </div>
@@ -1159,13 +1139,9 @@ export default function ReportsPage() {
                               size="sm" 
                               className="w-full"
                               onClick={() => generateReport('custom')}
-                              disabled={reportLoading === 'custom'}
+                              loading={reportLoading === 'custom'}
                             >
-                              {reportLoading === 'custom' ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <Filter className="w-4 h-4 mr-2" />
-                              )}
+                              <Filter className="w-4 h-4 mr-2" />
                               Configure
                             </Button>
                           </div>

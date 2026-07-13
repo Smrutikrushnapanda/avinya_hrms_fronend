@@ -343,15 +343,8 @@ export default function PollsPage() {
                 })}
               </div>
 
-              <Button onClick={handleSubmit} disabled={submitting}>
-                {submitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  "Submit Response"
-                )}
+              <Button onClick={handleSubmit} loading={submitting}>
+                Submit Response
               </Button>
             </div>
           )}

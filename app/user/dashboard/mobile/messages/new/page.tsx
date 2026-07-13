@@ -70,6 +70,9 @@ export default function NewChatPage() {
         peerId: employee.userId,
       });
 
+      if (employee.photoUrl) {
+        try { sessionStorage.setItem(`chat_avatar_${conversationId}`, employee.photoUrl); } catch { /* ignore */ }
+      }
       router.push(`/user/dashboard/mobile/messages/${conversationId}?${params.toString()}`);
     } catch {
       // ignore

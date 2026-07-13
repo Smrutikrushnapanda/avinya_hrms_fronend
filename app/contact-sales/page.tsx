@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
   Mail,
@@ -326,13 +327,9 @@ export default function ContactSalesPage() {
                 </div>
               )}
 
-              <button type="submit" className="submit-btn" disabled={loading}>
-                {loading ? (
-                  <>Sending…</>
-                ) : (
-                  <>Send Message <ArrowRight size={16} /></>
-                )}
-              </button>
+              <Button type="submit" className="submit-btn" loading={loading}>
+                Send Message <ArrowRight size={16} />
+              </Button>
             </form>
 
             {/* Trust row */}

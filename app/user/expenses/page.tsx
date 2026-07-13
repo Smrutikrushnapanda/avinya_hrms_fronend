@@ -11,12 +11,15 @@ import {
   RefreshCw,
   Trash2,
   ExternalLink,
+  Plane,
+  Paperclip,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardContent,
@@ -39,6 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
@@ -49,6 +53,9 @@ import {
   deleteExpense,
   uploadFile,
   getClientProjects,
+  getMyOfficeTrips,
+  createOfficeTrip,
+  deleteOfficeTrip,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -82,6 +89,32 @@ const EXPENSE_TYPES = [
 
 const CURRENCIES = ["INR", "USD", "EUR", "GBP", "AED", "SGD", "AUD", "CAD"];
 
+const TRIP_TYPE_OPTIONS = [
+  { value: "OFFICE_TRIP", label: "Office Trip" },
+  { value: "CLIENT_VISIT", label: "Client Visit" },
+  { value: "OTHER", label: "Other" },
+];
+
+const TRIP_TYPE_LABELS: Record<string, string> = {
+  OFFICE_TRIP: "Office Trip",
+  CLIENT_VISIT: "Client Visit",
+  OTHER: "Other",
+};
+
+const ATTACHMENT_TYPE_OPTIONS = [
+  { value: "TRAVEL_TICKET", label: "Travel Ticket" },
+  { value: "APPROVAL_LETTER", label: "Approval Letter" },
+  { value: "CLIENT_INVITATION", label: "Client Invitation" },
+  { value: "OTHER", label: "Other Document" },
+];
+
+const ATTACHMENT_TYPE_LABELS: Record<string, string> = {
+  TRAVEL_TICKET: "Travel Ticket",
+  APPROVAL_LETTER: "Approval Letter",
+  CLIENT_INVITATION: "Client Invitation",
+  OTHER: "Other Document",
+};
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Expense {
@@ -95,6 +128,30 @@ interface Expense {
   amount: number;
   receiptUrl?: string | null;
   status: string;
+  createdAt: string;
+}
+
+interface OfficeTripAttachment {
+  type: string;
+  url: string;
+  fileName: string;
+}
+
+interface OfficeTrip {
+  id: string;
+  tripType: string;
+  tripTypeOther?: string | null;
+  fromDate: string;
+  toDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  clientOfficeName: string;
+  location: string;
+  purpose: string;
+  description?: string | null;
+  attachments: OfficeTripAttachment[];
+  status: string;
+  adminRemarks?: string | null;
   createdAt: string;
 }
 
@@ -137,6 +194,9 @@ export default function UserExpensesPage() {
   const [loading, setLoading] = useState(true);
   const userId = profile?.userId ?? profile?.id;
 
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  // ═══ Expenses tab state ═══
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -148,11 +208,8 @@ export default function UserExpensesPage() {
     sorting: [],
   });
 
-  // Projects for dropdown
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
 
-  // Submit dialog
-  const today = format(new Date(), "yyyy-MM-dd");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
@@ -169,6 +226,37 @@ export default function UserExpensesPage() {
     currency: "INR",
     amount: "",
     receiptUrl: "",
+  });
+
+  // ═══ Office Trip / Client Visit tab state ═══
+  const [officeTrips, setOfficeTrips] = useState<OfficeTrip[]>([]);
+  const [officeTripsLoading, setOfficeTripsLoading] = useState(false);
+  const [tripStatusFilter, setTripStatusFilter] = useState("all");
+
+  const [tripTableState, setTripTableState] = useState<TableState>({
+    page: 0,
+    pageSize: 10,
+    search: "",
+    sorting: [],
+  });
+
+  const [tripDialogOpen, setTripDialogOpen] = useState(false);
+  const [tripSubmitting, setTripSubmitting] = useState(false);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [pendingAttachmentType, setPendingAttachmentType] = useState("TRAVEL_TICKET");
+
+  const [tripForm, setTripForm] = useState({
+    tripType: "",
+    tripTypeOther: "",
+    fromDate: today,
+    toDate: today,
+    startTime: "",
+    endTime: "",
+    clientOfficeName: "",
+    location: "",
+    purpose: "",
+    description: "",
+    attachments: [] as OfficeTripAttachment[],
   });
 
   // ─── Fetch profile ──────────────────────────────────────────────────────
@@ -217,6 +305,25 @@ export default function UserExpensesPage() {
   useEffect(() => {
     if (profile) fetchExpenses();
   }, [profile, fetchExpenses]);
+
+  // ─── Fetch office trips ─────────────────────────────────────────────────
+
+  const fetchOfficeTrips = useCallback(async () => {
+    if (!userId) return;
+    setOfficeTripsLoading(true);
+    try {
+      const res = await getMyOfficeTrips(userId);
+      setOfficeTrips(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      toast.error("Failed to load office trip requests");
+    } finally {
+      setOfficeTripsLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (profile) fetchOfficeTrips();
+  }, [profile, fetchOfficeTrips]);
 
   // ─── Upload receipt ─────────────────────────────────────────────────────
 
@@ -313,7 +420,117 @@ export default function UserExpensesPage() {
     }
   };
 
-  // ─── Table columns ──────────────────────────────────────────────────────
+  // ─── Upload trip attachment ─────────────────────────────────────────────
+
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Attachment must be under 10MB");
+      return;
+    }
+    setUploadingAttachment(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await uploadFile(fd, { path: "office-trips", public: "true" });
+      setTripForm((prev) => ({
+        ...prev,
+        attachments: [
+          ...prev.attachments,
+          { type: pendingAttachmentType, url: res.data.url, fileName: file.name },
+        ],
+      }));
+      toast.success("Attachment uploaded");
+    } catch {
+      toast.error("Failed to upload attachment");
+    } finally {
+      setUploadingAttachment(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setTripForm((prev) => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index),
+    }));
+  };
+
+  // ─── Submit office trip ─────────────────────────────────────────────────
+
+  const resetTripForm = () => {
+    setTripForm({
+      tripType: "",
+      tripTypeOther: "",
+      fromDate: today,
+      toDate: today,
+      startTime: "",
+      endTime: "",
+      clientOfficeName: "",
+      location: "",
+      purpose: "",
+      description: "",
+      attachments: [],
+    });
+    setPendingAttachmentType("TRAVEL_TICKET");
+  };
+
+  const handleTripSubmit = async () => {
+    if (!tripForm.tripType) { toast.error("Please select a trip type"); return; }
+    if (tripForm.tripType === "OTHER" && !tripForm.tripTypeOther.trim()) {
+      toast.error("Please specify the trip type");
+      return;
+    }
+    if (!tripForm.fromDate) { toast.error("Please select a From Date"); return; }
+    if (!tripForm.toDate) { toast.error("Please select a To Date"); return; }
+    if (tripForm.toDate < tripForm.fromDate) {
+      toast.error("To Date cannot be before From Date");
+      return;
+    }
+    if (!tripForm.clientOfficeName.trim()) { toast.error("Please enter the Client/Office Name"); return; }
+    if (!tripForm.location.trim()) { toast.error("Please enter the Location/City"); return; }
+    if (!tripForm.purpose.trim()) { toast.error("Please enter the Purpose of Visit"); return; }
+
+    setTripSubmitting(true);
+    try {
+      await createOfficeTrip(userId, {
+        tripType: tripForm.tripType,
+        tripTypeOther: tripForm.tripType === "OTHER" ? tripForm.tripTypeOther.trim() : undefined,
+        fromDate: tripForm.fromDate,
+        toDate: tripForm.toDate,
+        startTime: tripForm.startTime || undefined,
+        endTime: tripForm.endTime || undefined,
+        clientOfficeName: tripForm.clientOfficeName.trim(),
+        location: tripForm.location.trim(),
+        purpose: tripForm.purpose.trim(),
+        description: tripForm.description.trim() || undefined,
+        attachments: tripForm.attachments,
+        organizationId: profile.organizationId,
+      });
+      toast.success("Office trip / client visit request submitted");
+      setTripDialogOpen(false);
+      resetTripForm();
+      fetchOfficeTrips();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to submit request");
+    } finally {
+      setTripSubmitting(false);
+    }
+  };
+
+  const handleTripDelete = async (id: string) => {
+    if (!confirm("Delete this office trip / client visit request?")) return;
+    try {
+      await deleteOfficeTrip(id, userId);
+      toast.success("Request deleted");
+      fetchOfficeTrips();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to delete request");
+    }
+  };
+
+  // ─── Expense table columns ──────────────────────────────────────────────
 
   const columns = useMemo<ColumnDef<Expense>[]>(
     () => [
@@ -420,7 +637,100 @@ export default function UserExpensesPage() {
     [userId]
   );
 
-  // ─── Filter & paginate ──────────────────────────────────────────────────
+  // ─── Office trip table columns ──────────────────────────────────────────
+
+  const tripColumns = useMemo<ColumnDef<OfficeTrip>[]>(
+    () => [
+      {
+        id: "tripType",
+        header: "Trip Type",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Badge variant="outline" className="gap-1">
+            <Plane className="h-3 w-3" />
+            {row.original.tripType === "OTHER"
+              ? row.original.tripTypeOther || "Other"
+              : TRIP_TYPE_LABELS[row.original.tripType] || row.original.tripType}
+          </Badge>
+        ),
+      },
+      {
+        id: "clientOfficeName",
+        accessorKey: "clientOfficeName",
+        header: "Client / Office",
+        enableSorting: false,
+        cell: ({ row }) => row.original.clientOfficeName,
+      },
+      {
+        id: "location",
+        accessorKey: "location",
+        header: "Location",
+        enableSorting: false,
+        cell: ({ row }) => row.original.location,
+      },
+      {
+        id: "dates",
+        header: "From – To",
+        enableSorting: false,
+        cell: ({ row }) => {
+          try {
+            const from = format(new Date(row.original.fromDate), "dd MMM yyyy");
+            const to = format(new Date(row.original.toDate), "dd MMM yyyy");
+            return from === to ? from : `${from} – ${to}`;
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "purpose",
+        header: "Purpose",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground line-clamp-1 max-w-[220px] block">
+            {row.original.purpose}
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        accessorKey: "status",
+        header: "Status",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="space-y-1">
+            <StatusBadge status={row.original.status} />
+            {row.original.adminRemarks && (
+              <p className="text-xs text-muted-foreground max-w-[180px]">
+                {row.original.adminRemarks}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.status === "PENDING" ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleTripDelete(row.original.id)}
+              className="h-7 w-7 text-red-500 hover:text-red-700"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          ) : null,
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userId]
+  );
+
+  // ─── Filter & paginate: expenses ────────────────────────────────────────
 
   const filtered = useMemo(
     () =>
@@ -450,6 +760,35 @@ export default function UserExpensesPage() {
     (tableState.page + 1) * tableState.pageSize
   );
 
+  // ─── Filter & paginate: office trips ────────────────────────────────────
+
+  const tripFiltered = useMemo(
+    () =>
+      tripStatusFilter === "all"
+        ? officeTrips
+        : officeTrips.filter(
+            (t) => t.status?.toLowerCase() === tripStatusFilter.toLowerCase()
+          ),
+    [officeTrips, tripStatusFilter]
+  );
+
+  const tripSearched = useMemo(() => {
+    const q = tripTableState.search.toLowerCase().trim();
+    if (!q) return tripFiltered;
+    return tripFiltered.filter(
+      (t) =>
+        t.clientOfficeName.toLowerCase().includes(q) ||
+        t.location.toLowerCase().includes(q) ||
+        t.purpose.toLowerCase().includes(q)
+    );
+  }, [tripFiltered, tripTableState.search]);
+
+  const tripPageCount = Math.max(1, Math.ceil(tripSearched.length / tripTableState.pageSize));
+  const tripPageData = tripSearched.slice(
+    tripTableState.page * tripTableState.pageSize,
+    (tripTableState.page + 1) * tripTableState.pageSize
+  );
+
   // ─── Summary stats ──────────────────────────────────────────────────────
 
   const totalAmount = expenses
@@ -457,6 +796,10 @@ export default function UserExpensesPage() {
     .reduce((sum, e) => sum + Number(e.amount), 0);
   const pending = expenses.filter((e) => e.status === "PENDING").length;
   const approved = expenses.filter((e) => e.status === "APPROVED").length;
+
+  const tripPending = officeTrips.filter((t) => t.status === "PENDING").length;
+  const tripApproved = officeTrips.filter((t) => t.status === "APPROVED").length;
+  const tripRejected = officeTrips.filter((t) => t.status === "REJECTED").length;
 
   if (loading) {
     return (
@@ -473,91 +816,177 @@ export default function UserExpensesPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Receipt className="h-7 w-7 text-primary" />
-          <div>
-            <h1 className="text-2xl font-semibold">Expenses & Travels</h1>
-            <p className="text-xs text-muted-foreground">
-              Submit and track your expense claims
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={fetchExpenses} title="Refresh">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button onClick={() => setDialogOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Expense
-          </Button>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-5">
-          <p className="text-xs text-muted-foreground mb-1">Total Claimed</p>
-          <p className="text-2xl font-bold text-primary">
-            {totalAmount.toLocaleString()}
+      <div className="flex items-center gap-3">
+        <Receipt className="h-7 w-7 text-primary" />
+        <div>
+          <h1 className="text-2xl font-semibold">Expenses & Travels</h1>
+          <p className="text-xs text-muted-foreground">
+            Submit and track your expense claims and office trip / client visit requests
           </p>
-          <p className="text-xs text-muted-foreground">across all currencies</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-xs text-muted-foreground mb-1">Pending</p>
-          <p className="text-2xl font-bold text-amber-600">{pending}</p>
-          <p className="text-xs text-muted-foreground">awaiting approval</p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-xs text-muted-foreground mb-1">Approved</p>
-          <p className="text-2xl font-bold text-green-600">{approved}</p>
-          <p className="text-xs text-muted-foreground">this period</p>
-        </Card>
+        </div>
       </div>
 
-      {/* Expense Table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              My Expenses
-            </CardTitle>
-            <CardDescription>All your submitted expense claims</CardDescription>
+      <Tabs defaultValue="expenses" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="office-trips">Office Trip / Client Visit</TabsTrigger>
+        </TabsList>
+
+        {/* ═══════════════════════ Expenses Tab ═══════════════════════ */}
+        <TabsContent value="expenses" className="space-y-6">
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="icon" onClick={fetchExpenses} title="Refresh">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button onClick={() => setDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Expense
+            </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="p-5">
+              <p className="text-xs text-muted-foreground mb-1">Total Claimed</p>
+              <p className="text-2xl font-bold text-primary">
+                {totalAmount.toLocaleString()}
+              </p>
+              <p className="text-xs text-muted-foreground">across all currencies</p>
+            </Card>
+            <Card className="p-5">
+              <p className="text-xs text-muted-foreground mb-1">Pending</p>
+              <p className="text-2xl font-bold text-amber-600">{pending}</p>
+              <p className="text-xs text-muted-foreground">awaiting approval</p>
+            </Card>
+            <Card className="p-5">
+              <p className="text-xs text-muted-foreground mb-1">Approved</p>
+              <p className="text-2xl font-bold text-green-600">{approved}</p>
+              <p className="text-xs text-muted-foreground">this period</p>
+            </Card>
           </div>
-        </CardHeader>
-        <CardContent>
-          {expensesLoading ? (
-            <div className="space-y-3">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={pageData}
-              pageCount={pageCount}
-              state={tableState}
-              setState={setTableState}
-            />
-          )}
-        </CardContent>
-      </Card>
+
+          {/* Expense Table */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  My Expenses
+                </CardTitle>
+                <CardDescription>All your submitted expense claims</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {expensesLoading ? (
+                <div className="space-y-3">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <DataTable
+                  columns={columns}
+                  data={pageData}
+                  pageCount={pageCount}
+                  state={tableState}
+                  setState={setTableState}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ═══════════════════ Office Trip / Client Visit Tab ═══════════════════ */}
+        <TabsContent value="office-trips" className="space-y-6">
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="icon" onClick={fetchOfficeTrips} title="Refresh">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+            <Button onClick={() => setTripDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Trip Request
+            </Button>
+          </div>
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="p-5">
+              <p className="text-xs text-muted-foreground mb-1">Pending</p>
+              <p className="text-2xl font-bold text-amber-600">{tripPending}</p>
+              <p className="text-xs text-muted-foreground">awaiting admin decision</p>
+            </Card>
+            <Card className="p-5">
+              <p className="text-xs text-muted-foreground mb-1">Approved</p>
+              <p className="text-2xl font-bold text-green-600">{tripApproved}</p>
+              <p className="text-xs text-muted-foreground">attendance validation bypassed</p>
+            </Card>
+            <Card className="p-5">
+              <p className="text-xs text-muted-foreground mb-1">Rejected</p>
+              <p className="text-2xl font-bold text-red-600">{tripRejected}</p>
+              <p className="text-xs text-muted-foreground">no bypass applied</p>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Plane className="h-5 w-5" />
+                  My Office Trip / Client Visit Requests
+                </CardTitle>
+                <CardDescription>
+                  While approved, punches are allowed from any location for the trip window
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={tripStatusFilter} onValueChange={setTripStatusFilter}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="Filter" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {officeTripsLoading ? (
+                <div className="space-y-3">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <DataTable
+                  columns={tripColumns}
+                  data={tripPageData}
+                  pageCount={tripPageCount}
+                  state={tripTableState}
+                  setState={setTripTableState}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Submit Expense Dialog */}
       <Dialog
@@ -784,20 +1213,265 @@ export default function UserExpensesPage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={submitting || uploadingReceipt}
+              loading={submitting}
+              disabled={uploadingReceipt}
               className="gap-2"
             >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Submit Expense
-                </>
+              <Send className="h-4 w-4" />
+              Submit Expense
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Submit Office Trip / Client Visit Dialog */}
+      <Dialog
+        open={tripDialogOpen}
+        onOpenChange={(open) => {
+          setTripDialogOpen(open);
+          if (!open) resetTripForm();
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex flex-col items-center text-center gap-2 pb-2">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Plane className="w-5 h-5 text-primary" />
+              </div>
+              <DialogTitle>Office Trip / Client Visit Request</DialogTitle>
+              <DialogDescription>
+                Attendance validation (location, Wi-Fi) is bypassed for the dates below once submitted
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Trip Type */}
+            <div className="space-y-2">
+              <Label>Trip Type</Label>
+              <Select
+                value={tripForm.tripType}
+                onValueChange={(v) => setTripForm((p) => ({ ...p, tripType: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select trip type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRIP_TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {tripForm.tripType === "OTHER" && (
+                <Input
+                  placeholder="Please specify"
+                  value={tripForm.tripTypeOther}
+                  onChange={(e) =>
+                    setTripForm((p) => ({ ...p, tripTypeOther: e.target.value }))
+                  }
+                />
               )}
+            </div>
+
+            {/* From / To Date */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>From Date</Label>
+                <Input
+                  type="date"
+                  value={tripForm.fromDate}
+                  onChange={(e) =>
+                    setTripForm((p) => ({ ...p, fromDate: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>To Date</Label>
+                <Input
+                  type="date"
+                  value={tripForm.toDate}
+                  min={tripForm.fromDate}
+                  onChange={(e) =>
+                    setTripForm((p) => ({ ...p, toDate: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Start / End Time */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>
+                  Start Time{" "}
+                  <span className="text-muted-foreground text-xs">(optional)</span>
+                </Label>
+                <Input
+                  type="time"
+                  value={tripForm.startTime}
+                  onChange={(e) =>
+                    setTripForm((p) => ({ ...p, startTime: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>
+                  End Time{" "}
+                  <span className="text-muted-foreground text-xs">(optional)</span>
+                </Label>
+                <Input
+                  type="time"
+                  value={tripForm.endTime}
+                  onChange={(e) =>
+                    setTripForm((p) => ({ ...p, endTime: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Client/Office Name */}
+            <div className="space-y-2">
+              <Label>Client / Office Name</Label>
+              <Input
+                placeholder="e.g. Acme Corp HQ"
+                value={tripForm.clientOfficeName}
+                onChange={(e) =>
+                  setTripForm((p) => ({ ...p, clientOfficeName: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Location */}
+            <div className="space-y-2">
+              <Label>Location / City</Label>
+              <Input
+                placeholder="e.g. Mumbai"
+                value={tripForm.location}
+                onChange={(e) =>
+                  setTripForm((p) => ({ ...p, location: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Purpose */}
+            <div className="space-y-2">
+              <Label>Purpose of Visit</Label>
+              <Textarea
+                placeholder="Briefly describe the purpose of the trip"
+                value={tripForm.purpose}
+                onChange={(e) =>
+                  setTripForm((p) => ({ ...p, purpose: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label>
+                Description / Remarks{" "}
+                <span className="text-muted-foreground text-xs">(optional)</span>
+              </Label>
+              <Textarea
+                placeholder="Any additional details"
+                value={tripForm.description}
+                onChange={(e) =>
+                  setTripForm((p) => ({ ...p, description: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Attachments */}
+            <div className="space-y-2">
+              <Label>
+                Attachments{" "}
+                <span className="text-muted-foreground text-xs">
+                  (optional, max 10MB each — travel ticket, approval letter, client invitation, etc.)
+                </span>
+              </Label>
+
+              {tripForm.attachments.length > 0 && (
+                <div className="space-y-1">
+                  {tripForm.attachments.map((a, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 p-2 border rounded-md bg-green-50 dark:bg-green-950"
+                    >
+                      <Paperclip className="h-4 w-4 text-green-600 shrink-0" />
+                      <span className="text-xs text-green-700 shrink-0">
+                        {ATTACHMENT_TYPE_LABELS[a.type] || a.type}:
+                      </span>
+                      <span className="text-sm text-green-700 flex-1 truncate">
+                        {a.fileName}
+                      </span>
+                      <a
+                        href={a.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 text-xs hover:underline shrink-0"
+                      >
+                        View
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(i)}
+                        className="text-red-500 text-xs hover:underline shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Select
+                  value={pendingAttachmentType}
+                  onValueChange={setPendingAttachmentType}
+                >
+                  <SelectTrigger className="w-[170px] shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ATTACHMENT_TYPE_OPTIONS.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1">
+                  <Input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={handleAttachmentUpload}
+                    disabled={uploadingAttachment}
+                    className="cursor-pointer"
+                  />
+                  {uploadingAttachment && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background/60 rounded-md">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTripDialogOpen(false);
+                resetTripForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleTripSubmit}
+              loading={tripSubmitting}
+              disabled={uploadingAttachment}
+              className="gap-2"
+            >
+              <Send className="h-4 w-4" />
+              Submit Request
             </Button>
           </DialogFooter>
         </DialogContent>

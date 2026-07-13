@@ -985,9 +985,9 @@ export default function ProjectTestSheetPlaceholder({
                 {projectName} Test Sheet
               </div>
               <div className="flex items-center gap-2">
-                <Button size="sm" onClick={() => void handleAddRow()} disabled={!canEdit || addingRow || !activeTab}>
+                <Button size="sm" onClick={() => void handleAddRow()} loading={addingRow} disabled={!canEdit || !activeTab}>
                   <Plus className="w-4 h-4 mr-1" />
-                  {addingRow ? "Adding..." : "Add Row"}
+                  Add Row
                 </Button>
               </div>
             </div>
@@ -1497,9 +1497,9 @@ export default function ProjectTestSheetPlaceholder({
                     size="sm"
                     variant="outline"
                     onClick={() => void handleCreateTab()}
-                    disabled={creatingTab}
+                    loading={creatingTab}
                   >
-                    {creatingTab ? "Creating..." : "Add Tab"}
+                    Add Tab
                   </Button>
                 </div>
               ) : null}

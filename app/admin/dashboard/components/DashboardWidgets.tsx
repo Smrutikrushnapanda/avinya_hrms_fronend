@@ -416,8 +416,8 @@ export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[];
                   </div>
                 ))}
                 <Button onClick={handleResponseSubmit}
-                  disabled={submitting || Object.keys(responses).length === 0} className="w-full">
-                  {submitting ? 'Submitting...' : 'Submit Response'}
+                  loading={submitting} disabled={Object.keys(responses).length === 0} className="w-full">
+                  Submit Response
                 </Button>
               </div>
             ) : (
@@ -496,7 +496,7 @@ export function PollWidget({ polls, currentUser, onPollUpdate }: { polls: any[];
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditPollOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpdatePoll} disabled={updating}>{updating ? 'Updating...' : 'Save Changes'}</Button>
+            <Button onClick={handleUpdatePoll} loading={updating}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1254,8 +1254,8 @@ export default function ProjectWorkspace({
             />
           </div>
           {canEditProgress ? (
-            <Button size="sm" onClick={handleSaveProgress} disabled={savingProgress}>
-              {savingProgress ? "Saving..." : "Save Progress"}
+            <Button size="sm" onClick={handleSaveProgress} loading={savingProgress}>
+              Save Progress
             </Button>
           ) : (
             <p className="text-xs text-muted-foreground">
@@ -1310,10 +1310,11 @@ export default function ProjectWorkspace({
               />
               <Button
                 className="md:col-span-1"
-                disabled={savingLink || !linkForm.title.trim() || !linkForm.url.trim()}
+                loading={savingLink}
+                disabled={!linkForm.title.trim() || !linkForm.url.trim()}
                 onClick={handleAddQuickLink}
               >
-                {savingLink ? "Saving..." : "Save"}
+                Save
               </Button>
             </div>
           ) : null}
@@ -1343,7 +1344,7 @@ export default function ProjectWorkspace({
                       <Button
                         size="sm"
                         variant="ghost"
-                        disabled={deletingLinkId === link.id}
+                        loading={deletingLinkId === link.id}
                         onClick={() => handleDeleteQuickLink(link.id)}
                       >
                         <Trash2 className="w-3.5 h-3.5 text-red-500" />
@@ -1701,9 +1702,10 @@ export default function ProjectWorkspace({
             <Button
               size="sm"
               onClick={handleAssignQa}
-              disabled={assigning || !selectedQaUserId}
+              loading={assigning}
+              disabled={!selectedQaUserId}
             >
-              {assigning ? "Assigning..." : "Assign as QA/Tester"}
+              Assign as QA/Tester
             </Button>
           </div>
         )}
@@ -1767,9 +1769,10 @@ export default function ProjectWorkspace({
             <Button
               size="sm"
               onClick={handleAssignMembers}
-              disabled={assigning || selectedIds.length === 0}
+              loading={assigning}
+              disabled={selectedIds.length === 0}
             >
-              {assigning ? "Assigning..." : `Assign ${selectedIds.length} Member(s)`}
+              Assign {selectedIds.length} Member(s)
             </Button>
           </div>
         )}
@@ -1932,18 +1935,18 @@ export default function ProjectWorkspace({
                       e.currentTarget.value = "";
                     }}
                   />
-                  <Button type="button" size="sm" variant="outline" disabled={uploadingIssueImage} asChild>
+                  <Button type="button" size="sm" variant="outline" loading={uploadingIssueImage} asChild>
                     <span>
                       <Upload className="w-4 h-4 mr-1" />
-                      {uploadingIssueImage ? "Uploading..." : "Upload"}
+                      Upload
                     </span>
                   </Button>
                 </label>
               </div>
               <div className="md:col-span-2 flex justify-end">
-                <Button onClick={handleCreateIssue} disabled={savingIssue}>
+                <Button onClick={handleCreateIssue} loading={savingIssue}>
                   <Plus className="w-4 h-4 mr-1" />
-                  {savingIssue ? "Assigning..." : "Assign Work"}
+                  Assign Work
                 </Button>
               </div>
             </div>
@@ -2081,10 +2084,11 @@ export default function ProjectWorkspace({
                 />
                 <Button
                   className="md:col-span-1"
-                  disabled={clientTaskSaving || !clientTaskForm.title.trim()}
+                  loading={clientTaskSaving}
+                  disabled={!clientTaskForm.title.trim()}
                   onClick={handleCreateClientTask}
                 >
-                  {clientTaskSaving ? "Creating..." : "Create Task"}
+                  Create Task
                 </Button>
                 <Textarea
                   className="md:col-span-6 min-h-[70px]"
@@ -2329,7 +2333,8 @@ function IssueRow({
         <Button
           size="sm"
           variant="outline"
-          disabled={saving || !canEditFields}
+          loading={saving}
+          disabled={!canEditFields}
           onClick={async () => {
             if (!canEditFields) return;
             try {

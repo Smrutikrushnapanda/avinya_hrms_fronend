@@ -221,7 +221,8 @@ export default function WfhMonitorPage() {
           {activity.isWorking && (
             <Button
               onClick={handleLunchToggle}
-              disabled={lunchLoading || lunchCompleted}
+              loading={lunchLoading}
+              disabled={lunchCompleted}
               variant={activity.isLunch ? "destructive" : "outline"}
               size="sm"
               className="flex items-center gap-2"
@@ -238,7 +239,7 @@ export default function WfhMonitorPage() {
           {/* Work session toggle */}
           <Button
             onClick={handleWorkToggle}
-            disabled={workLoading}
+            loading={workLoading}
             variant={activity.isWorking ? "destructive" : "default"}
             className="flex items-center gap-2"
           >

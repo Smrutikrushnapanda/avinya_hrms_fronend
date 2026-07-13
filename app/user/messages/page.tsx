@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
+import { Button } from "@/components/ui/button";
 
 type ConversationParticipant = {
   userId: string;
@@ -465,18 +466,6 @@ export default function MessagesPage() {
     loadMessages(selectedConversationId);
   }, [selectedConversationId, loadMessages]);
 
-  const syncMessagesForConversation = useCallback(async (conversationId: string) => {
-    if (!conversationId) return;
-    try {
-      const response = await getChatMessages(conversationId, { limit: 100 });
-      const items = Array.isArray(response.data) ? response.data.map(toChatMessage) : [];
-      setMessages(items);
-      requestAnimationFrame(() => scrollToBottom("smooth"));
-    } catch {
-      // silent fallback
-    }
-  }, [scrollToBottom]);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("access_token");
@@ -549,8 +538,6 @@ export default function MessagesPage() {
           requestAnimationFrame(() => scrollToBottom("smooth"));
           return next;
         });
-        // Keep state aligned with server ordering and read flags
-        void syncMessagesForConversation(conversationId);
       }
     });
 
@@ -561,7 +548,6 @@ export default function MessagesPage() {
     loadConversations,
     playIncomingMessageSound,
     scrollToBottom,
-    syncMessagesForConversation,
   ]);
 
   useEffect(() => {
@@ -1191,25 +1177,28 @@ export default function MessagesPage() {
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
+                <Button
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
                     void startMeeting("create");
                   }}
-                  disabled={meetingLoading}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0b7ebd] text-white hover:bg-[#06659a] disabled:opacity-60"
+                  loading={meetingLoading}
+                  size="icon"
+                  className="rounded-full bg-[#0b7ebd] text-white hover:bg-[#06659a]"
                   title={meetingLoading ? "Preparing..." : "Create meeting"}
                   aria-label="Create meeting"
                 >
-                  {meetingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                </button>
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
                     void startMeeting("join");
                   }}
-                  disabled={meetingLoading || !hasActiveMeeting}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0b7ebd] text-white hover:bg-[#06659a] disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!hasActiveMeeting}
+                  loading={meetingLoading}
+                  size="icon"
+                  className="rounded-full bg-[#0b7ebd] text-white hover:bg-[#06659a]"
                   title={
                     meetingLoading
                       ? "Preparing..."
@@ -1219,8 +1208,8 @@ export default function MessagesPage() {
                   }
                   aria-label="Join meeting"
                 >
-                  {meetingLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Video className="h-4 w-4" />}
-                </button>
+                  <Video className="h-4 w-4" />
+                </Button>
                 <button
                   onClick={(event) => {
                     event.stopPropagation();
@@ -1492,17 +1481,15 @@ export default function MessagesPage() {
                     className="max-h-32 min-h-[26px] flex-1 resize-y bg-transparent text-sm text-slate-900 dark:text-gray-100 outline-none placeholder:text-slate-400"
                   />
 
-                  <button
+                  <Button
                     onClick={sendMessage}
-                    disabled={sending || (!composerText.trim() && selectedFiles.length === 0)}
-                    className="rounded-md bg-messages-primary p-2 text-white disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-gray-600"
+                    disabled={!composerText.trim() && selectedFiles.length === 0}
+                    loading={sending}
+                    size="icon"
+                    className="bg-messages-primary text-white hover:bg-messages-primary/90"
                   >
-                    {sending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </button>
+                    <Send className="h-4 w-4" />
+                  </Button>
                 </div>
 
                 <input

@@ -663,8 +663,8 @@ const loadOrganization = async () => {
       
       <Tabs defaultValue="organization" className="w-full">
         <TabsList className="flex h-auto w-full flex-wrap gap-2">
-          <TabsTrigger value="office-config">Office Config</TabsTrigger>
           <TabsTrigger value="organization">Organization</TabsTrigger>
+          <TabsTrigger value="office-config">Office Config</TabsTrigger>
           <TabsTrigger value="organization-settings">Organization Configuration</TabsTrigger>
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="designations">Designations</TabsTrigger>
@@ -672,9 +672,6 @@ const loadOrganization = async () => {
           <TabsTrigger value="roles">Roles</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="office-config">
-          <AttendanceSettingsPage />
-        </TabsContent>
         <TabsContent value="organization">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -737,6 +734,10 @@ const loadOrganization = async () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="office-config">
+          <AttendanceSettingsPage />
         </TabsContent>
 
         <TabsContent value="organization-settings" className="space-y-4">

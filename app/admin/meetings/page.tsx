@@ -403,14 +403,10 @@ export default function MeetingManagementPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleSendNotification(meeting.id)}
-                        disabled={actionLoading === meeting.id}
+                        loading={actionLoading === meeting.id}
                         className="h-8 gap-1"
                       >
-                        {actionLoading === meeting.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Send className="h-3 w-3" />
-                        )}
+                        <Send className="h-3 w-3" />
                         Notify
                       </Button>
                     )}
@@ -418,14 +414,10 @@ export default function MeetingManagementPage() {
                       size="sm"
                       variant="destructive"
                       onClick={() => handleDeleteMeeting(meeting.id)}
-                      disabled={actionLoading === meeting.id}
+                      loading={actionLoading === meeting.id}
                       className="h-8 gap-1"
                     >
-                      {actionLoading === meeting.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3 w-3" />
-                      )}
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
@@ -572,20 +564,11 @@ export default function MeetingManagementPage() {
             </Button>
             <Button
               onClick={handleCreateMeeting}
-              disabled={creating}
+              loading={creating}
               className="gap-2"
             >
-              {creating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4" />
-                  Schedule Meeting
-                </>
-              )}
+              <Plus className="h-4 w-4" />
+              Schedule Meeting
             </Button>
           </DialogFooter>
         </DialogContent>

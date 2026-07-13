@@ -242,8 +242,8 @@ function SelfReviewSection({
                   <Button variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleSubmit} disabled={submitting}>
-                    {submitting ? "Submitting..." : "Submit Review"}
+                  <Button onClick={handleSubmit} loading={submitting}>
+                    Submit Review
                   </Button>
                 </div>
               </div>
@@ -492,8 +492,8 @@ function TeamReviewSection({
               <Button variant="outline" onClick={() => setRatingDialogFor(null)}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} disabled={submitting}>
-                {submitting ? "Submitting..." : "Submit Rating"}
+              <Button onClick={handleSubmit} loading={submitting}>
+                Submit Rating
               </Button>
             </div>
           </div>
@@ -656,8 +656,8 @@ function HrRateSection({
               <Button variant="outline" onClick={() => setRatingDialogFor(null)}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} disabled={submitting}>
-                {submitting ? "Submitting..." : "Submit HR Rating"}
+              <Button onClick={handleSubmit} loading={submitting}>
+                Submit HR Rating
               </Button>
             </div>
           </div>

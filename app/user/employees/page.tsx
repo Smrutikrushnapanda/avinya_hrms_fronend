@@ -5,34 +5,44 @@ import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import axios from "axios";
+import { Skeleton } from "@/components/ui/skeleton";
+import { getProfile, getEmployees } from "@/app/api/api";
 
 interface Employee {
-  employee_code: string;
-  first_name: string;
-  middle_name?: string;
-  last_name: string;
-  gender: string;
-  designation?: string;
+  employeeCode: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  gender?: string;
+  designation?: { id: string; name: string } | null;
 }
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchEmployees = async () => {
       try {
-        const res = await axios.get("/employees");
+        const profileRes = await getProfile();
+        const organizationId = profileRes.data?.organizationId;
+        if (!organizationId) return;
+
+        const res = await getEmployees(organizationId);
+        const data = res.data?.data || res.data || [];
+        setEmployees(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Failed to fetch employees", err);
+      } finally {
+        setLoading(false);
       }
     };
     fetchEmployees();
   }, []);
 
   const filteredEmployees = employees.filter((emp) =>
-    `${emp.first_name} ${emp.last_name} ${emp.employee_code}`
+    `${emp.firstName} ${emp.lastName} ${emp.employeeCode}`
       .toLowerCase()
       .includes(search.toLowerCase())
   );
@@ -64,13 +74,13 @@ export default function EmployeesPage() {
       <Card className="p-4 text-center">
         <h2 className="text-lg font-semibold">Male</h2>
         <p className="text-2xl font-bold">
-          {employees.filter((e) => e.gender === "Male").length}
+          {employees.filter((e) => e.gender?.toUpperCase() === "MALE").length}
         </p>
       </Card>
       <Card className="p-4 text-center">
         <h2 className="text-lg font-semibold">Female</h2>
         <p className="text-2xl font-bold">
-          {employees.filter((e) => e.gender === "Female").length}
+          {employees.filter((e) => e.gender?.toUpperCase() === "FEMALE").length}
         </p>
       </Card>
     </div>
@@ -93,28 +103,40 @@ export default function EmployeesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEmployees.map((emp, i) => (
-                <TableRow key={i} className="hover:bg-muted/50">
-                  <TableCell className="font-medium">{i + 1}</TableCell>
-                  <TableCell>{emp.employee_code}</TableCell>
-                  <TableCell>
-                    {emp.first_name}{" "}
-                    {emp.middle_name ? emp.middle_name + " " : ""}
-                    {emp.last_name}
-                  </TableCell>
-                  <TableCell>{emp.gender}</TableCell>
-                  <TableCell>{emp.designation ?? "—"}</TableCell>
-                </TableRow>
-              ))}
-              {filteredEmployees.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-center text-muted-foreground py-6"
-                  >
-                    🚫 No employees found. Try adjusting your search.
-                  </TableCell>
-                </TableRow>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={5}>
+                      <Skeleton className="h-6 w-full" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <>
+                  {filteredEmployees.map((emp, i) => (
+                    <TableRow key={emp.employeeCode || i} className="hover:bg-muted/50">
+                      <TableCell className="font-medium">{i + 1}</TableCell>
+                      <TableCell>{emp.employeeCode}</TableCell>
+                      <TableCell>
+                        {emp.firstName}{" "}
+                        {emp.middleName ? emp.middleName + " " : ""}
+                        {emp.lastName}
+                      </TableCell>
+                      <TableCell>{emp.gender ?? "—"}</TableCell>
+                      <TableCell>{emp.designation?.name ?? "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredEmployees.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        className="text-center text-muted-foreground py-6"
+                      >
+                        🚫 No employees found. Try adjusting your search.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               )}
             </TableBody>
           </Table>

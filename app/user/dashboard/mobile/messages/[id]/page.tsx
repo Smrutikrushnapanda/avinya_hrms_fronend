@@ -22,6 +22,7 @@ import {
   Users,
   Download,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { getChatMessages, getProfile, sendChatMessage, markChatRead } from "@/app/api/api";
 import { createMessageSocket } from "@/lib/socket";
 import { ChatMessage, ProfileLike, ChatSocketPayload, PresencePayload } from "@/types/chat";
@@ -594,24 +595,26 @@ export default function MobileChatPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <button
+          <Button
             onClick={(event) => {
               event.stopPropagation();
               void startMeeting("create");
             }}
-            disabled={meetingLoading}
+            loading={meetingLoading}
             className="h-9 w-9 rounded-full bg-white/15 flex items-center justify-center text-white hover:bg-white/20 disabled:opacity-60"
             title={meetingLoading ? "Preparing..." : "Create meeting"}
             aria-label="Create meeting"
+            size="icon"
           >
-            {meetingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          </button>
-          <button
+            <Plus className="w-4 h-4" />
+          </Button>
+          <Button
             onClick={(event) => {
               event.stopPropagation();
               void startMeeting("join");
             }}
-            disabled={meetingLoading || !hasActiveMeeting}
+            disabled={!hasActiveMeeting}
+            loading={meetingLoading}
             className="h-9 w-9 rounded-full bg-white/15 flex items-center justify-center text-white hover:bg-white/20 disabled:opacity-40"
             title={
               meetingLoading
@@ -621,9 +624,10 @@ export default function MobileChatPage() {
                   : "No meeting created yet"
             }
             aria-label="Join meeting"
+            size="icon"
           >
-            {meetingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Video className="w-4 h-4" />}
-          </button>
+            <Video className="w-4 h-4" />
+          </Button>
           <button
             onClick={(event) => {
               event.stopPropagation();
@@ -893,14 +897,16 @@ export default function MobileChatPage() {
             className="flex-1 max-h-20 min-h-[36px] px-3 py-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none resize-none"
           />
 
-          <button
+          <Button
             onClick={() => void sendMessage()}
-            disabled={sending || (!composerText.trim() && selectedFiles.length === 0)}
+            disabled={!composerText.trim() && selectedFiles.length === 0}
+            loading={sending}
             className="w-9 h-9 rounded-full bg-messages-primary-dark text-white flex items-center justify-center disabled:bg-muted/60 disabled:text-muted-foreground transition-colors"
             aria-label="Send"
+            size="icon"
           >
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
+            <Send className="w-4 h-4" />
+          </Button>
         </div>
 
         <input ref={fileInputRef} type="file" multiple onChange={pickFiles} className="hidden" />

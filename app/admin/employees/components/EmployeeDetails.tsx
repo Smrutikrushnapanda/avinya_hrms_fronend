@@ -478,9 +478,9 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
                     <div className="flex justify-end">
                       <Button
                         onClick={handleUpdateCredentials}
-                        disabled={isUpdatingCredentials}
+                        loading={isUpdatingCredentials}
                       >
-                        {isUpdatingCredentials ? "Updating..." : "Update Credentials"}
+                        Update Credentials
                       </Button>
                     </div>
                   </CardContent>

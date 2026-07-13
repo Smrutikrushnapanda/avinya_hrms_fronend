@@ -800,15 +800,8 @@ export default function EmployeeDialogs({
             >
               Cancel
             </Button>
-            <Button onClick={onCreateEmployee} disabled={isCreatingEmployee}>
-              {isCreatingEmployee ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                "Create Employee"
-              )}
+            <Button onClick={onCreateEmployee} loading={isCreatingEmployee}>
+              Create Employee
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1153,15 +1146,18 @@ export default function EmployeeDialogs({
                         <SelectValue placeholder={managers.length === 0 ? "No managers available" : "Select manager"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {managers.length === 0 ? (
-                          <SelectItem value="none" disabled>No managers available yet</SelectItem>
-                        ) : (
-                          managers.map((mgr: any) => (
-                            <SelectItem key={mgr.id} value={mgr.id}>
-                              {`${mgr.firstName} ${mgr.lastName || ''}`}
-                            </SelectItem>
-                          ))
-                        )}
+                        {(() => {
+                          const filtered = managers.filter((mgr: any) => mgr.id !== selectedEmployee?.id);
+                          return filtered.length === 0 ? (
+                            <SelectItem value="none" disabled>No managers available yet</SelectItem>
+                          ) : (
+                            filtered.map((mgr: any) => (
+                              <SelectItem key={mgr.id} value={mgr.id}>
+                                {`${mgr.firstName} ${mgr.lastName || ''}`}
+                              </SelectItem>
+                            ))
+                          );
+                        })()}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1370,15 +1366,8 @@ export default function EmployeeDialogs({
             }}>
               Cancel
             </Button>
-            <Button onClick={onUpdateEmployee} disabled={isUpdatingEmployee}>
-              {isUpdatingEmployee ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                "Update Employee"
-              )}
+            <Button onClick={onUpdateEmployee} loading={isUpdatingEmployee}>
+              Update Employee
             </Button>
           </DialogFooter>
         </DialogContent>

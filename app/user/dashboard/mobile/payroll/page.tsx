@@ -16,6 +16,7 @@ import {
   getPayrollRecords,
   getProfile,
 } from "@/app/api/api";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import MobileTabHeader from "../components/MobileTabHeader";
@@ -150,15 +151,16 @@ export default function MobilePayrollPage() {
         </MobileCard>
 
         <div className="flex justify-end">
-          <motion.button
-            whileTap={{ scale: 0.97 }}
+          <Button
             onClick={handleRefresh}
-            disabled={refreshing || loading}
-            className="inline-flex items-center gap-2 text-sm font-medium text-primary disabled:opacity-60"
+            disabled={loading}
+            loading={refreshing}
+            variant="ghost"
+            className="inline-flex items-center gap-2 text-sm font-medium text-primary active:scale-95 transition-transform"
           >
-            <RotateCcw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </motion.button>
+            <RotateCcw className="w-4 h-4" />
+            Refresh
+          </Button>
         </div>
 
         {loading ? (
@@ -204,19 +206,15 @@ export default function MobilePayrollPage() {
                           </span>
                         </div>
                       </div>
-                      <motion.button
-                        whileTap={{ scale: 0.97 }}
-                        className="w-full h-9 border border-primary/30 rounded-xl inline-flex items-center justify-center gap-2 text-primary text-sm font-semibold disabled:opacity-60"
+                      <Button
                         onClick={() => handleDownload(record)}
-                        disabled={isDownloading}
+                        loading={isDownloading}
+                        variant="outline"
+                        className="w-full h-9 border-primary/30 rounded-xl inline-flex items-center justify-center gap-2 text-primary text-sm font-semibold active:scale-95 transition-transform"
                       >
-                        {isDownloading ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Download className="w-4 h-4" />
-                        )}
-                        {isDownloading ? "Downloading..." : "Download Payslip"}
-                      </motion.button>
+                        <Download className="w-4 h-4" />
+                        Download Payslip
+                      </Button>
                     </div>
                   </StaggerItem>
                 );

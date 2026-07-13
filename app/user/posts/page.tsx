@@ -379,7 +379,7 @@ export default function EmployeePostsPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleLike(post.id, post)}
-                      disabled={likingPosts[post.id]}
+                      loading={likingPosts[post.id]}
                       className={hasLiked ? "text-red-500" : "text-gray-500"}
                     >
                       <Heart
@@ -456,18 +456,12 @@ export default function EmployeePostsPage() {
                           <div className="flex justify-end">
                             <Button
                               onClick={() => handleComment(post.id)}
-                              disabled={
-                                submittingComments[post.id] ||
-                                !newComments[post.id]?.trim()
-                              }
+                              loading={submittingComments[post.id]}
+                              disabled={!newComments[post.id]?.trim()}
                               size="sm"
                               className="bg-[#184a8c] hover:bg-[#184a8c]/90"
                             >
-                              {submittingComments[post.id] ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              ) : (
-                                <Send className="h-4 w-4 mr-2" />
-                              )}
+                              <Send className="h-4 w-4 mr-2" />
                               Post
                             </Button>
                           </div>

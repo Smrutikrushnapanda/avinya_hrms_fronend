@@ -169,8 +169,8 @@ export default function AdminWfhMonitorPage() {
         </div>
         <div className="flex items-center gap-2">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40 text-sm" />
-          <Button variant="outline" size="icon" onClick={() => fetchAll(false)} disabled={loading || refreshing}>
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          <Button variant="outline" size="icon" onClick={() => fetchAll(false)} disabled={loading} loading={refreshing}>
+            <RefreshCw className="w-4 h-4" />
           </Button>
         </div>
       </div>

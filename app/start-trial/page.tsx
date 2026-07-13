@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { ArrowRight, CheckCircle, Shield, Users, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { startTrialSignup } from "@/app/api/api";
 
 type TrialFormData = {
@@ -793,9 +794,9 @@ export default function StartTrialPage() {
               {error ? <p className="error-text">{error}</p> : null}
               {successMessage ? <p className="success-text">{successMessage}</p> : null}
 
-              <button type="submit" className="submit-btn" disabled={isSubmitting}>
-                {isSubmitting ? "Starting Trial..." : `Start ${selectedPlan.name} Trial`} <ArrowRight size={16} />
-              </button>
+              <Button type="submit" className="submit-btn" loading={isSubmitting}>
+                Start {selectedPlan.name} Trial <ArrowRight size={16} />
+              </Button>
             </form>
           </motion.div>
         </section>

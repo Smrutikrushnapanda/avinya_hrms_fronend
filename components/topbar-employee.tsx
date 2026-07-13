@@ -158,6 +158,17 @@ export default function TopbarEmployee() {
     if (!token) return;
     const socket = createMessageSocket(token);
     socket.on("message:new", (payload: any) => {
+      if (payload?.type === "wfh:monitor_reminder") {
+        toast(payload.title || "Start WFH Monitoring", {
+          description: payload.message,
+          duration: 20000,
+          action: {
+            label: "Open Monitor",
+            onClick: () => router.push(payload.deepLink || "/user/wfh-monitor"),
+          },
+        });
+        return;
+      }
       const incoming = payload?.message;
       if (!incoming?.id) return;
       setMessages((prev) => {
@@ -166,7 +177,7 @@ export default function TopbarEmployee() {
       });
     });
     return () => { socket.disconnect(); };
-  }, []);
+  }, [router]);
 
   const unreadCount = useMemo(() => messages.filter((m) => m.status === "UNREAD").length, [messages]);
   const recentMessages = useMemo(() => messages.slice(0, 5), [messages]);

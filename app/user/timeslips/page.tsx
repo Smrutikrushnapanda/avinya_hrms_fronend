@@ -745,15 +745,8 @@ export default function UserTimeslipsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "Submit Request"
-              )}
+            <Button onClick={handleSubmit} loading={submitting}>
+              Submit Request
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -782,16 +775,9 @@ export default function UserTimeslipsPage() {
             <Button
               variant="destructive"
               onClick={handleDelete}
-              disabled={deleting}
+              loading={deleting}
             >
-              {deleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Withdrawing...
-                </>
-              ) : (
-                "Withdraw"
-              )}
+              Withdraw
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -211,20 +211,11 @@ export default function MobileApplyLeavePage() {
 
             <Button
               onClick={handleSubmit}
-              disabled={submitting}
+              loading={submitting}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
             >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Submit Application
-                </>
-              )}
+              <Send className="h-4 w-4" />
+              Submit Application
             </Button>
           </div>
         </div>

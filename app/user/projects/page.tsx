@@ -1181,8 +1181,8 @@ export default function UserProjectsPage() {
               <Button variant="outline" className="flex-1" onClick={() => setProgressOpen(false)}>
                 Cancel
               </Button>
-              <Button className="flex-1" onClick={saveProgress} disabled={progressSaving}>
-                {progressSaving ? "Saving..." : "Save Progress"}
+              <Button className="flex-1" onClick={saveProgress} loading={progressSaving}>
+                Save Progress
               </Button>
             </div>
           </div>
@@ -1325,9 +1325,10 @@ export default function UserProjectsPage() {
                     setAssigning(false);
                   }
                 }}
-                disabled={assigning || selectedEmployeeIds.length === 0}
+                loading={assigning}
+                disabled={selectedEmployeeIds.length === 0}
               >
-                {assigning ? "Assigning..." : `Assign ${selectedEmployeeIds.length > 0 ? `(${selectedEmployeeIds.length})` : ""}`}
+                Assign {selectedEmployeeIds.length > 0 ? `(${selectedEmployeeIds.length})` : ""}
               </Button>
             </div>
           </div>
@@ -1406,9 +1407,10 @@ export default function UserProjectsPage() {
               <Button
                 className="flex-1"
                 onClick={handleCreateTask}
-                disabled={taskSaving || !taskForm.title.trim()}
+                loading={taskSaving}
+                disabled={!taskForm.title.trim()}
               >
-                {taskSaving ? "Creating..." : "Create Task"}
+                Create Task
               </Button>
             </div>
           </div>

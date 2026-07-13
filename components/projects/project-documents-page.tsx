@@ -429,8 +429,8 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
             onChange={(e) => setDocumentDraft((prev) => ({ ...prev, fileUrl: e.target.value }))}
           />
           <div className="md:col-span-2 flex justify-end">
-            <Button onClick={handleCreateDocument} disabled={savingDocument}>
-              {savingDocument ? "Saving..." : editingDocumentId ? "Update Document" : "Add Document"}
+            <Button onClick={handleCreateDocument} loading={savingDocument}>
+              {editingDocumentId ? "Update Document" : "Add Document"}
             </Button>
           </div>
           <Textarea
@@ -456,12 +456,12 @@ export default function ProjectDocumentsPage({ mode }: { mode: "user" | "admin" 
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={uploadingDocumentFile}
+                loading={uploadingDocumentFile}
                 asChild
               >
                 <span>
                   <Upload className="w-4 h-4 mr-1" />
-                  {uploadingDocumentFile ? "Uploading..." : "Upload File"}
+                  Upload File
                 </span>
               </Button>
             </label>

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { login } from "../api/api";
 import { Eye, EyeOff, ArrowRight, Shield, Zap, Users, BarChart3, CheckCircle, Lock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 
 export default function LoginPage() {
@@ -700,19 +701,9 @@ export default function LoginPage() {
                     </motion.div>
                   )}
 
-                  <button type="submit" className="submit-btn" disabled={loading}>
-                    {loading ? (
-                      <>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: "spin 1s linear infinite" }}>
-                          <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.3)" strokeWidth="3"/>
-                          <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round"/>
-                        </svg>
-                        Signing in…
-                      </>
-                    ) : (
-                      <>Sign In <ArrowRight size={16} /></>
-                    )}
-                  </button>
+                  <Button type="submit" className="submit-btn" loading={loading}>
+                    Sign In <ArrowRight size={16} />
+                  </Button>
                   <div className="security-note">
                     <Shield size={12} />
                     Protected with enterprise-grade security

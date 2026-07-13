@@ -271,7 +271,7 @@ export default function UserWfhApprovePage() {
                         size="sm"
                         variant="outline"
                         className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                        disabled={isActing}
+                        loading={isActing}
                         onClick={() => handleAction(request, false)}
                       >
                         <XCircle className="h-4 w-4" />
@@ -280,7 +280,7 @@ export default function UserWfhApprovePage() {
                       <Button
                         size="sm"
                         className="gap-1.5 bg-green-600 hover:bg-green-700"
-                        disabled={isActing}
+                        loading={isActing}
                         onClick={() => handleAction(request, true)}
                       >
                         <CheckCircle2 className="h-4 w-4" />

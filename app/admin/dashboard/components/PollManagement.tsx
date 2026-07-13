@@ -221,8 +221,8 @@ export function PollManagement({ onPollCreated, currentUser }: { onPollCreated: 
         <DialogFooter>
           <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
           <Button onClick={handleCreatePoll}
-            disabled={creating || !pollData.title || !pollData.start_time || !pollData.end_time}>
-            {creating ? 'Creating...' : 'Create Poll'}
+            loading={creating} disabled={!pollData.title || !pollData.start_time || !pollData.end_time}>
+            Create Poll
           </Button>
         </DialogFooter>
       </DialogContent>

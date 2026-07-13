@@ -151,20 +151,11 @@ export default function MobileApplyWfhPage() {
 
             <Button
               onClick={handleSubmit}
-              disabled={submitting}
+              loading={submitting}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
             >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Submit Request
-                </>
-              )}
+              <Send className="h-4 w-4" />
+              Submit Request
             </Button>
           </div>
         </div>

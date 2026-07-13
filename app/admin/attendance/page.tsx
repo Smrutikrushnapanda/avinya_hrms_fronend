@@ -54,6 +54,8 @@ type Attendance = {
   outWifiSsid?: string;
   anomalyFlag?: boolean;
   anomalyReason?: string;
+  officeTripId?: string | null;
+  tripType?: string | null;
 };
 
 const statusGradientMap: Record<string, string> = {
@@ -79,6 +81,12 @@ const statusLabelMap: Record<string, string> = {
   holiday: "Holiday",
   weekend: "Weekend",
   "work-from-home": "Work From Home",
+};
+
+const tripTypeLabelMap: Record<string, string> = {
+  OFFICE_TRIP: "Office Trip",
+  CLIENT_VISIT: "Client Visit",
+  OTHER: "Trip",
 };
 
 const parseTime = (timeStr: string) =>
@@ -453,13 +461,24 @@ function buildColumns(
       const status = row.original.status;
       const label = statusLabelMap[status] || status;
       const gradientClass = statusGradientMap[status] || "bg-gradient-to-r from-gray-200 to-gray-100 text-gray-800";
+      const tripType = row.original.tripType;
 
       return (
-        <span
-          className={`text-xs px-3 py-1 rounded-full font-semibold shadow-sm ${gradientClass}`}
-        >
-          {label}
-        </span>
+        <div className="flex flex-wrap items-center gap-1">
+          <span
+            className={`text-xs px-3 py-1 rounded-full font-semibold shadow-sm ${gradientClass}`}
+          >
+            {label}
+          </span>
+          {tripType && (
+            <span
+              className="text-xs px-3 py-1 rounded-full font-semibold shadow-sm bg-gradient-to-r from-sky-200 to-sky-100 text-sky-800"
+              title="Attendance validation was bypassed due to an approved/pending office trip request"
+            >
+              {tripTypeLabelMap[tripType] || "Trip"}
+            </span>
+          )}
+        </div>
       );
     },
   },
