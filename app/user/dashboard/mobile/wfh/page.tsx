@@ -80,7 +80,7 @@ function parseRow(r: WfhResponseRow): WfhRequest {
 
 const tabs = ["All", "Pending", "Approved", "Rejected"];
 
-const statusBadgeVariant = (s: string) => {
+const statusBadgeVariant = (s: string | undefined) => {
   const n = normalizeStatus(s);
   if (n === "Approved") return "success" as const;
   if (n === "Pending") return "warning" as const;
@@ -97,13 +97,14 @@ export default function MobileWfhPage() {
   const [selectedTab, setSelectedTab] = useState("All");
   const [isApprover, setIsApprover] = useState(false);
   const [approvePendingCount, setApprovePendingCount] = useState(0);
+  const [userWfhId, setUserWfhId] = useState<string>("");
 
   const fetchData = useCallback(async () => {
-    if (!wfhRequests.length && !loading) return;
+    if (!userWfhId) return;
     try {
       const [balanceRes, requestsRes] = await Promise.all([
-        getWfhBalance(),
-        getWfhRequests().catch(() => ({ data: [] })),
+        getWfhBalance(userWfhId),
+        getWfhRequests(userWfhId).catch(() => ({ data: [] })),
       ]);
       const balanceData = balanceRes.data;
       setWfhBalance(balanceData || null);
@@ -125,13 +126,15 @@ export default function MobileWfhPage() {
     } finally {
       setLoading(false);
     }
-  }, [loading, wfhRequests.length]);
+  }, [userWfhId]);
 
   useEffect(() => {
     const init = async () => {
       try {
         const profileRes = await getProfile();
         const profile = profileRes.data || {};
+        const uid = profile.userId || profile.id || "";
+        setUserWfhId(uid);
         setIsApprover(Boolean(profile.isApprover));
       } catch {
         // ignore
@@ -143,8 +146,8 @@ export default function MobileWfhPage() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (userWfhId) fetchData();
+  }, [fetchData, userWfhId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

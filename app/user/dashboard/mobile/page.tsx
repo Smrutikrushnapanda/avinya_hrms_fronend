@@ -748,14 +748,9 @@ export default function MobileDashboardPage() {
     try {
       let activeCoords = coordsRef.current;
       if (settings.enableWifiValidation) {
-        // Browsers have no API to read the connected WiFi's SSID/BSSID, so
-        // web can never actually satisfy admin-configured WiFi validation —
-        // block here instead of submitting a punch the backend will always
-        // flag as an anomaly.
-        toast.error(
-          "Your organization requires WiFi network validation for attendance, which isn't supported from the web. Please check in using the mobile app."
+        toast.warning(
+          "WiFi validation isn't supported from the web. Your attendance will be marked as anomaly and requires admin review."
         );
-        return;
       }
       if (settings.enableGpsValidation && !activeCoords) {
         activeCoords = await requestGeolocation();

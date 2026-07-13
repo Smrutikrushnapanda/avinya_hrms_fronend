@@ -13,6 +13,16 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { getProfile, getTimeslipsByApprover, approveTimeslip } from "@/app/api/api";
 import { format } from "date-fns";
@@ -65,6 +75,10 @@ export default function UserTimeslipApprovePage() {
   const [employeeId, setEmployeeId] = useState("");
   const [timeslips, setTimeslips] = useState<TimeslipApprovalRow[]>([]);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [remarksDialogOpen, setRemarksDialogOpen] = useState(false);
+  const [actionTarget, setActionTarget] = useState<TimeslipApprovalRow | null>(null);
+  const [actionType, setActionType] = useState<"APPROVED" | "REJECTED">("APPROVED");
+  const [remarks, setRemarks] = useState("");
 
   const fetchApprovals = useCallback(async (approverEmpId: string) => {
     try {
@@ -110,26 +124,35 @@ export default function UserTimeslipApprovePage() {
     init();
   }, [fetchApprovals, router]);
 
-  const handleAction = async (
+  const openRemarksDialog = (
     row: TimeslipApprovalRow,
     action: "APPROVED" | "REJECTED"
   ) => {
-    if (!employeeId) return;
-    setActionLoadingId(row.id);
+    setActionTarget(row);
+    setActionType(action);
+    setRemarks("");
+    setRemarksDialogOpen(true);
+  };
+
+  const handleConfirmAction = async () => {
+    if (!employeeId || !actionTarget) return;
+    setActionLoadingId(actionTarget.id);
+    setRemarksDialogOpen(false);
     try {
-      await approveTimeslip(row.id, {
+      await approveTimeslip(actionTarget.id, {
         approverId: employeeId,
-        action,
-        remarks: action === "APPROVED" ? "Approved" : "Rejected",
+        action: actionType,
+        remarks: remarks.trim() || undefined,
       });
       toast.success(
-        action === "APPROVED" ? "Time slip approved" : "Time slip rejected"
+        actionType === "APPROVED" ? "Time slip approved" : "Time slip rejected"
       );
       await fetchApprovals(employeeId);
     } catch {
       toast.error("Failed to update time slip");
     } finally {
       setActionLoadingId(null);
+      setActionTarget(null);
     }
   };
 
@@ -263,7 +286,7 @@ export default function UserTimeslipApprovePage() {
                         variant="outline"
                         className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                         disabled={isActing}
-                        onClick={() => handleAction(row, "REJECTED")}
+                        onClick={() => openRemarksDialog(row, "REJECTED")}
                       >
                         <XCircle className="h-4 w-4" />
                         Reject
@@ -272,7 +295,7 @@ export default function UserTimeslipApprovePage() {
                         size="sm"
                         className="gap-1.5 bg-green-600 hover:bg-green-700"
                         disabled={isActing}
-                        onClick={() => handleAction(row, "APPROVED")}
+                        onClick={() => openRemarksDialog(row, "APPROVED")}
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         Approve
@@ -285,6 +308,43 @@ export default function UserTimeslipApprovePage() {
           )}
         </CardContent>
       </Card>
+      {/* Remarks Dialog */}
+      <Dialog open={remarksDialogOpen} onOpenChange={setRemarksDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {actionType === "APPROVED" ? "Approve" : "Reject"} Time Slip
+            </DialogTitle>
+            <DialogDescription>
+              Add a remark for your decision (optional).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label htmlFor="remarks">Remarks</Label>
+            <Textarea
+              id="remarks"
+              placeholder="Enter your remarks..."
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRemarksDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={actionType === "APPROVED" ? "default" : "destructive"}
+              onClick={handleConfirmAction}
+            >
+              {actionType === "APPROVED" ? "Approve" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

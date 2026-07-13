@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { format, isBefore, parse } from "date-fns";
 import { ColumnDef, SortingState } from "@tanstack/react-table";
 import {
@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import AttendanceReportModal from "./components/AttendanceReportModal";
-import api, { getProfile } from "../../api/api";
+import api, { getProfile, getAttendanceSettings } from "../../api/api";
 
 type Attendance = {
   userId: string;
@@ -239,7 +239,13 @@ function PhotoDialog({
   );
 }
 
-const columns: ColumnDef<Attendance>[] = [
+function buildColumns(
+  shiftStart: string,
+  shiftEnd: string,
+  graceMinutes: number
+): ColumnDef<Attendance>[] {
+  const lateThresholdMinutes = 60;
+  return [
   {
     id: "serial",
     header: () => <span>Sr. No.</span>,
@@ -293,27 +299,31 @@ const columns: ColumnDef<Attendance>[] = [
       const inDate = parseTime(inTime ?? "00:00");
       const outDate = parseTime(outTime ?? "00:00");
 
+      const lateThreshold = lateThresholdMinutes;
+      const graceTime = new Date(inDate.getTime() + graceMinutes * 60000);
+      const lateCutoff = new Date(inDate.getTime() + lateThreshold * 60000);
+      const earlyCutoff = parse(`${shiftEnd}:00`, "HH:mm", new Date());
+
       const getInTimeColor = () => {
-        if (isBefore(inDate, parse("10:00 AM", "hh:mm a", new Date())))
-          return "text-green-600";
-        if (isBefore(inDate, parse("11:00 AM", "hh:mm a", new Date())))
-          return "text-orange-600";
+        if (isBefore(inDate, graceTime)) return "text-green-600";
+        if (isBefore(inDate, lateCutoff)) return "text-orange-600";
         return "text-red-600";
       };
 
       const getOutTimeColor = () => {
-        if (isBefore(outDate, parse("06:30 PM", "hh:mm a", new Date())))
-          return "text-orange-600";
+        if (!outDate || isBefore(outDate, earlyCutoff)) return "text-orange-600";
         return "text-green-600";
       };
 
       const getDurationColor = () => {
         if (typeof workingMinutes !== "number") return "text-gray-400";
-        if (workingMinutes < 240) return "text-red-500";
-        if (workingMinutes < 360) return "text-orange-500";
-        if (workingMinutes < 480) return "text-yellow-500";
-        if (workingMinutes < 600) return "text-lime-500";
-        if (workingMinutes < 720) return "text-green-500";
+        const fullShift = (parseInt(shiftEnd.split(":")[0]) - parseInt(shiftStart.split(":")[0])) * 60;
+        const halfShift = Math.floor(fullShift / 2);
+        if (workingMinutes < halfShift / 2) return "text-red-500";
+        if (workingMinutes < halfShift) return "text-orange-500";
+        if (workingMinutes < fullShift * 0.85) return "text-yellow-500";
+        if (workingMinutes < fullShift) return "text-lime-500";
+        if (workingMinutes < fullShift * 1.15) return "text-green-500";
         return "text-emerald-600";
       };
 
@@ -454,6 +464,7 @@ const columns: ColumnDef<Attendance>[] = [
     },
   },
 ];
+}
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date());
@@ -463,6 +474,13 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [organizationId, setOrganizationId] = useState<string>("");
+  const [shiftStart, setShiftStart] = useState("09:00");
+  const [shiftEnd, setShiftEnd] = useState("18:00");
+  const [graceMinutes, setGraceMinutes] = useState(15);
+  const columns = useMemo(
+    () => buildColumns(shiftStart, shiftEnd, graceMinutes),
+    [shiftStart, shiftEnd, graceMinutes]
+  );
   const [state, setState] = useState<{
     page: number;
     pageSize: number;
@@ -477,9 +495,20 @@ export default function AttendancePage() {
 
   useEffect(() => {
     getProfile()
-      .then((res) => {
+      .then(async (res) => {
         const orgId = res.data?.organizationId;
-        if (orgId) setOrganizationId(orgId);
+        if (orgId) {
+          setOrganizationId(orgId);
+          try {
+            const settingsRes = await getAttendanceSettings(orgId);
+            const s = settingsRes.data || {};
+            if (s.workStartTime) setShiftStart(s.workStartTime.slice(0, 5));
+            if (s.workEndTime) setShiftEnd(s.workEndTime.slice(0, 5));
+            if (s.graceMinutes != null) setGraceMinutes(s.graceMinutes);
+          } catch {
+            // fall back to defaults
+          }
+        }
       })
       .catch((err) => console.error("Failed to fetch profile:", err));
   }, []);

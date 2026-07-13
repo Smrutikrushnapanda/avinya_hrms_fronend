@@ -756,7 +756,8 @@ export const deleteWorkflowAssignment = (id: string) => api.delete(`/workflows/a
 
 // 🕐 Timeslip APIs
 export const createTimeslip = (data: any) => api.post("/timeslips", data);
-export const getTimeslips = () => api.get("/timeslips");
+export const getTimeslips = (params?: { page?: number; limit?: number }) =>
+  api.get("/timeslips", { params });
 export const getTimeslipsByEmployee = (employeeId: string, params?: any) => 
   api.get(`/timeslips/employee/${employeeId}`, { params });
 export const getTimeslip = (id: string) => api.get(`/timeslips/${id}`);

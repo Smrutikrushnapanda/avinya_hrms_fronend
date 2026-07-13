@@ -83,16 +83,25 @@ export default function TimeslipsApprovalPage() {
     setLoading(true);
     try {
       if (adminOverride) {
-        const res = await getTimeslips();
-        const all = (res.data || []) as TimeslipRow[];
-        const filtered = statusFilter
-          ? all.filter((t) => t.status === statusFilter)
-          : all;
-        const total = filtered.length;
-        const start = (page - 1) * limit;
-        const data = filtered.slice(start, start + limit);
-        setTimeslips(data);
-        setTotalPages(Math.max(1, Math.ceil(total / limit)));
+        const res = await getTimeslips({ page, limit });
+        if (res.data?.data) {
+          const all = (res.data.data || []) as TimeslipRow[];
+          const filtered = statusFilter
+            ? all.filter((t) => t.status === statusFilter)
+            : all;
+          setTimeslips(filtered);
+          setTotalPages(res.data.pagination?.totalPages || 1);
+        } else {
+          const all = (res.data || []) as TimeslipRow[];
+          const filtered = statusFilter
+            ? all.filter((t) => t.status === statusFilter)
+            : all;
+          const total = filtered.length;
+          const start = (page - 1) * limit;
+          const data = filtered.slice(start, start + limit);
+          setTimeslips(data);
+          setTotalPages(Math.max(1, Math.ceil(total / limit)));
+        }
       } else {
         const res = await getTimeslipsByApprover(approverEmployeeId, {
           status: statusFilter,
