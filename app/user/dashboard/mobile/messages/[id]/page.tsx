@@ -550,7 +550,7 @@ export default function MobileChatPage() {
 
       {/* ── STICKY HEADER (never scrolls) ── */}
       <div
-        className="sticky top-0 z-20 shrink-0 cursor-pointer bg-[#005F90] px-4 pb-3 pt-[max(32px,env(safe-area-inset-top))] flex items-center gap-2.5"
+        className="sticky top-0 z-20 shrink-0 cursor-pointer bg-messages-primary-dark px-4 pb-3 pt-[max(32px,env(safe-area-inset-top))] flex items-center gap-2.5"
         onClick={() => setShowChatDetails(true)}
       >
         <button
@@ -653,7 +653,7 @@ export default function MobileChatPage() {
           <button
             onClick={() => void startMeeting("join")}
             disabled={meetingLoading}
-            className="h-9 px-3 rounded-full bg-[#005F90] text-white text-xs font-bold shadow-sm disabled:bg-muted"
+            className="h-9 px-3 rounded-full bg-messages-primary-dark text-white text-xs font-bold shadow-sm disabled:bg-muted"
           >
             {meetingLoading ? "Loading..." : "Join"}
           </button>
@@ -695,7 +695,7 @@ export default function MobileChatPage() {
                     <div
                       className={`max-w-[80%] px-3 py-2 rounded-xl text-[13px] ${
                         isMine
-                          ? "bg-[#005F90] text-white rounded-tr-none"
+                          ? "bg-messages-primary-dark text-white rounded-tr-none"
                           : "bg-card border border-border text-foreground rounded-tl-none"
                       }`}
                     >
@@ -896,7 +896,7 @@ export default function MobileChatPage() {
           <button
             onClick={() => void sendMessage()}
             disabled={sending || (!composerText.trim() && selectedFiles.length === 0)}
-            className="w-9 h-9 rounded-full bg-[#005F90] text-white flex items-center justify-center disabled:bg-muted/60 disabled:text-muted-foreground transition-colors"
+            className="w-9 h-9 rounded-full bg-messages-primary-dark text-white flex items-center justify-center disabled:bg-muted/60 disabled:text-muted-foreground transition-colors"
             aria-label="Send"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

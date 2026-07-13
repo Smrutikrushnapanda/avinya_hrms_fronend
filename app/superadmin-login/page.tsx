@@ -300,7 +300,7 @@ export default function SuperadminLoginPage() {
                     Authorized email
                   </label>
                   <div className="relative">
-                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       id="sa-email"
                       type="email"

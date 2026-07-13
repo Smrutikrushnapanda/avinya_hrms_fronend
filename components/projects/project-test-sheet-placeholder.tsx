@@ -979,9 +979,9 @@ export default function ProjectTestSheetPlaceholder({
         </div>
 
         <div className={`flex gap-4 ${sidebarOpen ? 'xl:grid xl:grid-cols-[1fr_380px]' : ''}`}>
-          <div className="rounded-xl border border-border overflow-hidden bg-[#f4f6fb] flex-1">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[#d6dce6] bg-[#e9edf4]">
-              <div className="text-xs font-semibold uppercase tracking-wide text-[#213047]">
+          <div className="rounded-xl border border-border overflow-hidden bg-muted/50 dark:bg-gray-900 flex-1">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted dark:bg-gray-800">
+              <div className="text-xs font-semibold uppercase tracking-wide text-foreground">
                 {projectName} Test Sheet
               </div>
               <div className="flex items-center gap-2">
@@ -992,7 +992,7 @@ export default function ProjectTestSheetPlaceholder({
               </div>
             </div>
 
-            <div className="border-b border-[#d6dce6] bg-white px-3 py-2">
+            <div className="border-b border-border bg-card px-3 py-2">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Columns
@@ -1019,8 +1019,8 @@ export default function ProjectTestSheetPlaceholder({
                       onDragEnd={() => setDraggedColumnKey(null)}
                       className={`rounded border px-2 py-1 text-xs transition ${
                         columnSettingKey === column.key
-                          ? "border-[#217346] bg-[#e8f4ed] text-[#1d5f39]"
-                          : "border-[#d6dce6] bg-[#f8fafc] text-[#334155] hover:bg-[#eef3fb]"
+                          ? "border-test-sheet-green bg-green-50 dark:bg-green-950 text-test-sheet-green"
+                          : "border-border bg-muted/50 dark:bg-gray-900 text-muted-foreground dark:text-gray-300 hover:bg-accent"
                       }`}
                     >
                       {column.letter} - {getColumnTitle(column)}
@@ -1044,7 +1044,7 @@ export default function ProjectTestSheetPlaceholder({
                         [columnSettingKey]: event.target.value as ColumnInputType,
                       }))
                     }
-                    className="h-8 min-w-[140px] rounded border border-[#d6dce6] bg-[#f8fafc] px-2 text-xs"
+                    className="h-8 min-w-[140px] rounded border border-border bg-muted/50 dark:bg-gray-900 px-2 text-xs"
                   >
                     <option value="text">Text</option>
                     <option value="dropdown">Dropdown</option>
@@ -1058,7 +1058,7 @@ export default function ProjectTestSheetPlaceholder({
                         value={dropdownOptionsDraft}
                         onChange={(event) => setDropdownOptionsDraft(event.target.value)}
                         placeholder="Dropdown options (comma separated)"
-                        className="h-8 w-[280px] bg-[#f8fafc] text-xs"
+                        className="h-8 w-[280px] bg-muted/50 dark:bg-gray-900 text-xs"
                       />
                       <Button size="sm" variant="outline" onClick={saveDropdownOptions}>
                         Save Options
@@ -1077,14 +1077,14 @@ export default function ProjectTestSheetPlaceholder({
               ) : null}
             </div>
 
-            <div className="max-h-[70vh] overflow-auto bg-white">
+            <div className="max-h-[70vh] overflow-auto bg-card">
               <table
                 className="border-separate border-spacing-0 text-[12px]"
                 style={{ minWidth: `${visibleTableMinWidth}px` }}
               >
                 <thead>
                   <tr>
-                    <th className="sticky top-0 left-0 z-20 w-[74px] border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-[11px] font-semibold text-white">
+                    <th className="sticky top-0 left-0 z-20 w-[74px] border border-border bg-test-sheet-green px-2 py-1.5 text-[11px] font-semibold text-white">
                       Row
                     </th>
                     {visibleColumns.map((column) => (
@@ -1095,7 +1095,7 @@ export default function ProjectTestSheetPlaceholder({
                         onDragOver={handleColumnDragOver}
                         onDrop={(event) => handleColumnDrop(event, column.key)}
                         onDragEnd={() => setDraggedColumnKey(null)}
-                        className={`sticky top-0 z-10 border border-[#d6dce6] bg-[#217346] px-2 py-1.5 text-left text-[11px] font-semibold text-white relative ${
+                        className={`sticky top-0 z-10 border border-border bg-test-sheet-green px-2 py-1.5 text-left text-[11px] font-semibold text-white relative ${
                           draggedColumnKey === column.key ? "opacity-80" : ""
                         }`}
                         style={{
@@ -1127,7 +1127,7 @@ export default function ProjectTestSheetPlaceholder({
                             }}
                             autoFocus
                             disabled={savingColumnHeaders}
-                            className="h-5 bg-white text-black font-semibold mt-1"
+                            className="h-5 bg-card text-foreground font-semibold mt-1"
                           />
                         ) : (
                           <div className="flex items-center justify-between gap-2">
@@ -1149,20 +1149,20 @@ export default function ProjectTestSheetPlaceholder({
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={visibleColumns.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
+                      <td colSpan={visibleColumns.length + 1} className="border border-border px-3 py-4 text-muted-foreground">
                         Loading test sheet...
                       </td>
                     </tr>
                   ) : !activeTab || activeTab.cases.length === 0 ? (
                     <tr>
-                      <td colSpan={visibleColumns.length + 1} className="border border-[#d6dce6] px-3 py-4 text-muted-foreground">
+                      <td colSpan={visibleColumns.length + 1} className="border border-border px-3 py-4 text-muted-foreground">
                         No test cases yet. Use <span className="font-medium text-foreground">Add Row</span> to start.
                       </td>
                     </tr>
                   ) : (
                     paginatedCases.map((row, rowIndex) => (
                       <tr key={row.id} className="align-top">
-                        <td className="sticky left-0 z-[5] border border-[#d6dce6] bg-[#f0f4f9] px-2 py-1.5 text-[#31435b]">
+                        <td className="sticky left-0 z-[5] border border-border bg-muted dark:bg-gray-800 px-2 py-1.5 text-muted-foreground">
                           <div className="flex items-center justify-between gap-1">
                             <span className="font-semibold">
                               {(currentPage - 1) * rowsPerPage + rowIndex + 1}
@@ -1197,11 +1197,11 @@ export default function ProjectTestSheetPlaceholder({
 
                             if (type === "dropdown") {
                               return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                                <td key={column.key} style={columnStyle} className="border border-border px-1 py-1">
                                   <select
                                     value={customValue}
                                     disabled={!canEdit}
-                                    className="h-8 w-full rounded border border-[#d6dce6] bg-white px-2 text-[12px]"
+                                    className="h-8 w-full rounded border border-border bg-card px-2 text-[12px]"
                                     onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
                                     onChange={(event) => setCustomValue(row, column.key, event.target.value)}
                                   >
@@ -1218,13 +1218,13 @@ export default function ProjectTestSheetPlaceholder({
 
                             if (type === "color") {
                               return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                                <td key={column.key} style={columnStyle} className="border border-border px-1 py-1">
                                   <div className="flex items-center gap-2">
                                     <input
                                       type="color"
                                       value={customValue || "#2563eb"}
                                       disabled={!canEdit}
-                                      className="h-8 w-10 rounded border border-[#d6dce6] bg-white p-1"
+                                      className="h-8 w-10 rounded border border-border bg-card p-1"
                                       onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
                                       onChange={(event) => setCustomValue(row, column.key, event.target.value)}
                                     />
@@ -1241,9 +1241,9 @@ export default function ProjectTestSheetPlaceholder({
 
                             if (type === "image") {
                               return (
-                                <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-1 py-1">
+                                <td key={column.key} style={columnStyle} className="border border-border px-1 py-1">
                                   <div
-                                    className="rounded border border-dashed border-[#c8d2e1] p-1"
+                                    className="rounded border border-dashed border-border dark:border-gray-600 p-1"
                                     onDragOver={(event) => event.preventDefault()}
                                     onDrop={(event) => handleImageDrop(event, row, column.key)}
                                     onPaste={(event) => handleImagePaste(event, row, column.key)}
@@ -1256,11 +1256,11 @@ export default function ProjectTestSheetPlaceholder({
                                         className="h-16 w-full rounded object-cover"
                                       />
                                     ) : (
-                                      <div className="h-16 w-full rounded bg-[#f8fafc] text-[10px] text-muted-foreground flex items-center justify-center text-center px-2">
+                                      <div className="h-16 w-full rounded bg-muted/50 dark:bg-gray-900 text-[10px] text-muted-foreground flex items-center justify-center text-center px-2">
                                         Paste, drag-drop, or upload image
                                       </div>
                                     )}
-                                    <label className="mt-1 flex cursor-pointer items-center justify-center gap-1 rounded border border-[#d6dce6] bg-white px-2 py-1 text-[10px]">
+                                    <label className="mt-1 flex cursor-pointer items-center justify-center gap-1 rounded border border-border bg-card px-2 py-1 text-[10px]">
                                       <Upload className="h-3 w-3" />
                                       {uploadingImageCellKey === customKey ? "Uploading..." : "Upload"}
                                       <input
@@ -1284,11 +1284,11 @@ export default function ProjectTestSheetPlaceholder({
 
                             const isSelected = selectedCell?.caseId === row.id && selectedCell?.field === column.key;
                             return (
-                              <td key={column.key} style={columnStyle} className={`border border-[#d6dce6] px-1 py-1 text-[11px] transition-colors ${isSelected ? "bg-blue-50" : ""}`}>
+                              <td key={column.key} style={columnStyle} className={`border border-border px-1 py-1 text-[11px] transition-colors ${isSelected ? "bg-blue-50 dark:bg-blue-950" : ""}`}>
                                 <Input
                                   value={customValue}
                                   disabled={!canEdit}
-                                  className={`h-8 border-[#d6dce6] text-[12px] ${isSelected ? "border-blue-400 ring-1 ring-blue-200" : ""}`}
+                                  className={`h-8 border-border text-[12px] ${isSelected ? "border-blue-400 ring-1 ring-blue-200" : ""}`}
                                   onFocus={() => setSelectedCell({ caseId: row.id, field: column.key })}
                                   onChange={(event) => setCustomValue(row, column.key, event.target.value)}
                                 />
@@ -1298,7 +1298,7 @@ export default function ProjectTestSheetPlaceholder({
 
                           if (column.key === "updatedAt") {
                             return (
-                              <td key={column.key} style={columnStyle} className="border border-[#d6dce6] px-2 py-1.5 text-[11px] text-muted-foreground">
+                              <td key={column.key} style={columnStyle} className="border border-border px-2 py-1.5 text-[11px] text-muted-foreground">
                                 {formatDateTime(row.updatedAt)}
                               </td>
                             );
@@ -1309,11 +1309,11 @@ export default function ProjectTestSheetPlaceholder({
                             const selectedValue = String(readCaseFieldValue(row, column.key) || "");
                             const isSelected = selectedCell?.caseId === row.id && selectedCell?.field === fieldKey;
                             return (
-                              <td key={column.key} style={columnStyle} className={`border border-[#d6dce6] px-1 py-1 transition-colors ${isSelected ? "bg-blue-50" : ""}`}>
+                              <td key={column.key} style={columnStyle} className={`border border-border px-1 py-1 transition-colors ${isSelected ? "bg-blue-50 dark:bg-blue-950" : ""}`}>
                                 <select
                                   value={selectedValue}
                                   disabled={!canEdit || savingCellKey === cellKey}
-                                  className={`h-8 w-full rounded border px-2 text-[12px] ${isSelected ? "border-blue-400 ring-1 ring-blue-200" : "border-[#d6dce6]"}`}
+                                  className={`h-8 w-full rounded border px-2 text-[12px] ${isSelected ? "border-blue-400 ring-1 ring-blue-200" : "border-border"}`}
                                   onFocus={() => setSelectedCell({ caseId: row.id, field: fieldKey })}
                                   onChange={(event) =>
                                     void commitCell(row, fieldKey, event.target.value)
@@ -1334,7 +1334,7 @@ export default function ProjectTestSheetPlaceholder({
                             const isResolved = row.status === "resolved";
                             const isSelected = selectedCell?.caseId === row.id && selectedCell?.field === "status";
                             return (
-                              <td key={column.key} style={columnStyle} className={`border border-[#d6dce6] px-1 py-1 transition-colors ${isSelected ? "bg-blue-50" : ""}`}>
+                              <td key={column.key} style={columnStyle} className={`border border-border px-1 py-1 transition-colors ${isSelected ? "bg-blue-50 dark:bg-blue-950" : ""}`}>
                                 <button
                                   type="button"
                                   disabled={!canEdit || savingCellKey === cellKey}
@@ -1369,14 +1369,14 @@ export default function ProjectTestSheetPlaceholder({
                             <td
                               key={column.key}
                               style={columnStyle}
-                              className={`border border-[#d6dce6] px-1 py-1 transition-colors ${
-                                isSelected ? "bg-blue-50" : ""
+                              className={`border border-border px-1 py-1 transition-colors ${
+                                isSelected ? "bg-blue-50 dark:bg-blue-950" : ""
                               }`}
                             >
                               <Input
                                 value={editValue}
                                 disabled={!canEdit || savingCellKey === cellKey}
-                                className={`h-8 border-[#d6dce6] text-[12px] ${
+                                className={`h-8 border-border text-[12px] ${
                                   isSelected ? "border-blue-400 ring-1 ring-blue-200" : ""
                                 }`}
                                 placeholder={
@@ -1419,7 +1419,7 @@ export default function ProjectTestSheetPlaceholder({
 
               {/* Pagination Controls */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between px-3 py-2 border-t border-[#d6dce6] bg-white">
+                <div className="flex items-center justify-between px-3 py-2 border-t border-border bg-card">
                   <div className="text-xs text-muted-foreground">
                     Showing {((currentPage - 1) * rowsPerPage) + 1} to {Math.min(currentPage * rowsPerPage, activeTab?.cases?.length || 0)} of {activeTab?.cases?.length || 0} rows
                   </div>
@@ -1468,16 +1468,16 @@ export default function ProjectTestSheetPlaceholder({
               )}
             </div>
 
-            <div className="border-t border-[#d6dce6] bg-[#eef2f7] px-3 py-2 flex flex-wrap items-center gap-2">
+            <div className="border-t border-border bg-muted/50 dark:bg-gray-900 px-3 py-2 flex flex-wrap items-center gap-2">
               {(tabs || []).map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTabId(tab.id)}
                   className={`rounded-md border px-3 py-1 text-xs font-medium transition ${
-                    activeTab?.id === tab.id
-                      ? "border-[#217346] bg-[#217346] text-white"
-                      : "border-[#c8d2e1] bg-white text-[#34485f] hover:bg-[#f8fbff]"
+                      activeTab?.id === tab.id
+                        ? "border-test-sheet-green bg-test-sheet-green text-white"
+                        : "border-border dark:border-gray-600 bg-card text-muted-foreground dark:text-gray-300 hover:bg-accent"
                   }`}
                 >
                   {tab.name}
@@ -1490,7 +1490,7 @@ export default function ProjectTestSheetPlaceholder({
                     value={newTabName}
                     onChange={(event) => setNewTabName(event.target.value)}
                     placeholder="New tab name"
-                    className="h-8 w-[170px] bg-white"
+                    className="h-8 w-[170px] bg-card"
                   />
                   <Button
                     type="button"

@@ -265,7 +265,7 @@ export default function MeetingManagementPage() {
       case "IN_PROGRESS":
         return <Badge className="bg-green-100 text-green-700">In Progress</Badge>;
       case "COMPLETED":
-        return <Badge className="bg-gray-100 text-gray-700">Completed</Badge>;
+        return <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">Completed</Badge>;
       case "CANCELLED":
         return <Badge className="bg-red-100 text-red-700">Cancelled</Badge>;
       default:

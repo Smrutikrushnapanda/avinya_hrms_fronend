@@ -243,7 +243,7 @@ export default function EmployeePostsPage() {
       new_joiner: "bg-green-100 text-green-800",
       celebration: "bg-purple-100 text-purple-800",
       event: "bg-orange-100 text-orange-800",
-      general: "bg-gray-100 text-gray-800",
+      general: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
     };
     
     return (
@@ -405,7 +405,7 @@ export default function EmployeePostsPage() {
                     <div className="flex items-center gap-2 mb-4 flex-wrap">
                       <div className="flex -space-x-2">
                         {post.likes.slice(0, 5).map((like) => (
-                          <Avatar key={like.id} className="h-6 w-6 border-2 border-white">
+                          <Avatar key={like.id} className="h-6 w-6 border-2 border-white dark:border-gray-900">
                             <AvatarImage src={like.user?.passportPhotoUrl || like.user?.avatar} />
                             <AvatarFallback className="text-[10px] bg-[#184a8c] text-white">
                               {like.user?.firstName?.[0] || "U"}
@@ -413,7 +413,7 @@ export default function EmployeePostsPage() {
                           </Avatar>
                         ))}
                         {post.likes.length > 5 && (
-                          <div className="h-6 w-6 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] font-medium">
+                          <div className="h-6 w-6 rounded-full bg-gray-200 border-2 border-white dark:bg-gray-700 dark:border-gray-900 flex items-center justify-center text-[10px] font-medium">
                             +{post.likes.length - 5}
                           </div>
                         )}

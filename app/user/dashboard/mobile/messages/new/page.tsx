@@ -82,10 +82,10 @@ export default function NewChatPage() {
      * `h-[100dvh] flex flex-col overflow-hidden` — full dynamic viewport,
      * flex column so header is locked and only the list scrolls.
      */
-    <div className="h-[100dvh] bg-[#f8fbff] flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-[#f8fbff] dark:bg-gray-900 flex flex-col overflow-hidden">
 
       {/* ── STICKY HEADER + SEARCH (never scrolls) ── */}
-      <div className="sticky top-0 z-20 shrink-0 bg-[#f8fbff]">
+      <div className="sticky top-0 z-20 shrink-0 bg-[#f8fbff] dark:bg-gray-900">
         {/* Top bar */}
         <div className="bg-[#005F90] pt-[max(32px,env(safe-area-inset-top))] pb-3 px-5 flex items-center gap-2.5">
           <button
@@ -99,7 +99,7 @@ export default function NewChatPage() {
         </div>
 
         {/* Search bar — pinned, never scrolls */}
-        <div className="mx-4 -mt-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 flex items-center gap-2">
+        <div className="mx-4 -mt-3 bg-white border border-slate-200 dark:bg-gray-900 dark:border-gray-700 rounded-xl px-3 py-2.5 flex items-center gap-2">
           <Search className="w-4.5 h-4.5 text-slate-500" />
           <input
             value={search}
@@ -168,7 +168,7 @@ export default function NewChatPage() {
               <button
                 key={employee.id}
                 onClick={() => void startChatWith(employee)}
-                className="w-full flex items-center px-4 py-3 border-b border-slate-100 text-left active:bg-slate-50 transition-colors"
+                className="w-full flex items-center px-4 py-3 border-b border-slate-100 dark:border-gray-700 text-left active:bg-slate-50 dark:active:bg-gray-800 transition-colors"
               >
                 {/* Avatar */}
                 <div className="w-[42px] h-[42px] rounded-full bg-[#E0F2FE] flex items-center justify-center mr-3 shrink-0">

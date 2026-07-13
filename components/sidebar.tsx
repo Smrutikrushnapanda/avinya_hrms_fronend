@@ -199,7 +199,7 @@ export default function Sidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const sidebarIconGradientClass =
-    "bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent";
+    "bg-gradient-to-r from-accent-brand-from to-accent-brand-to bg-clip-text text-transparent";
   const isExpanded = mode === "expanded";
 
   useEffect(() => {
@@ -280,7 +280,7 @@ export default function Sidebar() {
                 height={28}
                 className="h-7 w-7 rounded-md object-contain shrink-0"
               />
-              <span className="font-semibold text-sm bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent truncate">
+              <span className="font-semibold text-sm bg-gradient-to-r from-accent-brand-from to-accent-brand-to bg-clip-text text-transparent truncate">
                 Avinya HRMS
               </span>
             </div>

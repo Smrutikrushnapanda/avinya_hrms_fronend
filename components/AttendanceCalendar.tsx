@@ -53,20 +53,20 @@ function getDayCircleClass(
   const base =
     "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold mx-auto relative transition-colors";
   if (status === "present")
-    return cn(base, "bg-green-100 border-2 border-green-500 text-green-800");
+    return cn(base, "bg-green-100 dark:bg-green-900/30 border-2 border-green-500 dark:border-green-600 text-green-800 dark:text-green-300");
   if (status === "absent")
-    return cn(base, "bg-red-100 border-2 border-red-500 text-red-800");
+    return cn(base, "bg-red-100 dark:bg-red-900/30 border-2 border-red-500 dark:border-red-600 text-red-800 dark:text-red-300");
   if (status === "weekend")
-    return cn(base, "bg-blue-100 border-2 border-blue-500 text-blue-800");
+    return cn(base, "bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 dark:border-blue-600 text-blue-800 dark:text-blue-300");
   if (status === "leave")
-    return cn(base, "bg-yellow-100 border-2 border-yellow-500 text-yellow-800");
+    return cn(base, "bg-yellow-100 dark:bg-yellow-900/30 border-2 border-yellow-500 dark:border-yellow-600 text-yellow-800 dark:text-yellow-300");
   if (status === "holiday")
-    return cn(base, "bg-blue-100 border-2 border-blue-400 text-blue-800");
+    return cn(base, "bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-400 dark:border-blue-600 text-blue-800 dark:text-blue-300");
   if (status === "pending")
-    return cn(base, "bg-gray-100 border border-gray-300 text-gray-500");
+    return cn(base, "bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400");
   if (isCurrentDay)
-    return cn(base, "border-2 border-blue-500 text-blue-700 bg-blue-50");
-  return cn(base, "text-gray-700");
+    return cn(base, "border-2 border-blue-500 dark:border-blue-600 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950");
+  return cn(base, "text-gray-700 dark:text-gray-300");
 }
 
 export default function AttendanceCalendar({
@@ -95,18 +95,18 @@ export default function AttendanceCalendar({
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="p-1.5 rounded-full hover:bg-gray-100 transition-colors active:scale-95"
+          className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors active:scale-95"
         >
-          <ChevronLeft className="w-4 h-4 text-gray-600" />
+          <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
         </button>
-        <h2 className="text-sm font-semibold text-gray-800">
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
           {format(currentMonth, "MMMM yyyy")}
         </h2>
         <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="p-1.5 rounded-full hover:bg-gray-100 transition-colors active:scale-95"
+          className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors active:scale-95"
         >
-          <ChevronRight className="w-4 h-4 text-gray-600" />
+          <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
         </button>
       </div>
 
@@ -115,7 +115,7 @@ export default function AttendanceCalendar({
         {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
           <div
             key={i}
-            className="text-center text-xs font-semibold text-gray-400 py-1"
+            className="text-center text-xs font-semibold text-gray-400 dark:text-gray-500 py-1"
           >
             {d}
           </div>
@@ -155,8 +155,8 @@ export default function AttendanceCalendar({
                       className={cn(
                         "w-9 h-9 rounded-full mx-auto relative overflow-hidden border-2 flex items-center justify-center",
                         status === "half-day"
-                          ? "border-orange-400"
-                          : "border-yellow-400",
+                          ? "border-orange-400 dark:border-orange-600"
+                          : "border-yellow-400 dark:border-yellow-600",
                         isCurrentDay && "ring-2 ring-blue-500 ring-offset-1"
                       )}
                     >
@@ -164,11 +164,11 @@ export default function AttendanceCalendar({
                         className={cn(
                           "absolute left-0 top-0 w-1/2 h-full",
                           status === "half-day"
-                            ? "bg-orange-200"
-                            : "bg-yellow-200"
+                            ? "bg-orange-200 dark:bg-orange-900/30"
+                            : "bg-yellow-200 dark:bg-yellow-900/30"
                         )}
                       />
-                      <span className="relative z-10 text-xs font-semibold text-gray-700">
+                      <span className="relative z-10 text-xs font-semibold text-gray-700 dark:text-gray-300">
                         {format(day, "d")}
                       </span>
                     </div>
@@ -176,7 +176,7 @@ export default function AttendanceCalendar({
                     <div className={getDayCircleClass(status, isCurrentDay)}>
                       {format(day, "d")}
                       {status === "holiday" && (
-                        <span className="absolute -top-1.5 -right-1 text-[8px] font-bold text-blue-600 bg-white border border-blue-200 rounded px-0.5 leading-none">
+                        <span className="absolute -top-1.5 -right-1 text-[8px] font-bold text-blue-600 bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-900 rounded px-0.5 leading-none">
                           {dayData?.isOptional ? "RH" : "H"}
                         </span>
                       )}
@@ -236,7 +236,7 @@ export default function AttendanceCalendar({
       </div>
 
       {/* Legend */}
-      <div className="grid grid-cols-3 gap-x-2 gap-y-2 mt-4 pt-3 border-t border-gray-100 text-xs text-gray-500">
+      <div className="grid grid-cols-3 gap-x-2 gap-y-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
           <span>Present</span>
@@ -246,8 +246,8 @@ export default function AttendanceCalendar({
           <span>Absent</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full border-2 border-orange-400 overflow-hidden shrink-0">
-            <div className="w-1/2 h-full bg-orange-200" />
+          <div className="w-3 h-3 rounded-full border-2 border-orange-400 dark:border-orange-600 overflow-hidden shrink-0">
+            <div className="w-1/2 h-full bg-orange-200 dark:bg-orange-900/30" />
           </div>
           <span>Half-Day</span>
         </div>
@@ -256,8 +256,8 @@ export default function AttendanceCalendar({
           <span>Leave</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full border-2 border-yellow-400 overflow-hidden shrink-0">
-            <div className="w-1/2 h-full bg-yellow-200" />
+          <div className="w-3 h-3 rounded-full border-2 border-yellow-400 dark:border-yellow-600 overflow-hidden shrink-0">
+            <div className="w-1/2 h-full bg-yellow-200 dark:bg-yellow-900/30" />
           </div>
           <span>Half-Leave</span>
         </div>

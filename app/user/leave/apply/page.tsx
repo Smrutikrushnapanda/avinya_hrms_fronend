@@ -111,8 +111,8 @@ export default function ApplyLeavePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center gap-3">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="bg-messages-primary-dark text-white px-4 pt-5 pb-16 flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
@@ -127,12 +127,12 @@ export default function ApplyLeavePage() {
       </div>
 
       <div className="px-5 -mt-12 z-10 pb-10">
-        <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
+        <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 dark:bg-gray-900 dark:border-gray-700">
           <div className="flex flex-col items-center text-center gap-2 mb-6">
-            <div className="h-10 w-10 rounded-full bg-[#E6F4FA] flex items-center justify-center">
-              <FileText className="w-5 h-5 text-[#0077B6]" />
+            <div className="h-10 w-10 rounded-full bg-messages-primary/10 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-messages-primary" />
             </div>
-            <p className="text-sm font-bold text-[#0077B6]">Apply for Leave</p>
+            <p className="text-sm font-bold text-messages-primary">Apply for Leave</p>
             <p className="text-xs text-gray-500">Submit a new leave request</p>
             <p className="text-xs text-red-600">
               If balance is exhausted, request will be submitted as unpaid leave.
@@ -142,7 +142,7 @@ export default function ApplyLeavePage() {
           <div className="space-y-4">
             <div>
               <Label className="text-sm font-medium text-gray-700">Leave Type</Label>
-              <div className="mt-2 rounded-lg border border-gray-300 bg-[#F1F8FB]">
+              <div className="mt-2 rounded-lg border border-gray-300 bg-[#F1F8FB] dark:border-gray-600 dark:bg-gray-800">
                 <Select
                   value={form.leaveTypeId}
                   onValueChange={(value) =>
@@ -176,7 +176,7 @@ export default function ApplyLeavePage() {
                   type="date"
                   value={form.startDate}
                   min={today}
-                  className="mt-2 border-gray-300 bg-[#F1F8FB]"
+                  className="mt-2 border-gray-300 bg-[#F1F8FB] dark:border-gray-600 dark:bg-gray-800"
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, startDate: e.target.value }))
                   }
@@ -188,7 +188,7 @@ export default function ApplyLeavePage() {
                   type="date"
                   value={form.endDate}
                   min={form.startDate || today}
-                  className="mt-2 border-gray-300 bg-[#F1F8FB]"
+                  className="mt-2 border-gray-300 bg-[#F1F8FB] dark:border-gray-600 dark:bg-gray-800"
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, endDate: e.target.value }))
                   }
@@ -202,7 +202,7 @@ export default function ApplyLeavePage() {
                 rows={4}
                 placeholder="Enter reason for leave...(optional)"
                 value={form.reason}
-                className="mt-2 border-gray-300 bg-[#F1F8FB]"
+                className="mt-2 border-gray-300 bg-[#F1F8FB] dark:border-gray-600 dark:bg-gray-800"
                 onChange={(e) =>
                   setForm((prev) => ({ ...prev, reason: e.target.value }))
                 }
@@ -212,7 +212,7 @@ export default function ApplyLeavePage() {
             <Button
               onClick={handleSubmit}
               disabled={submitting}
-              className="w-full bg-[#0077B6] hover:bg-[#006494] text-white gap-2"
+              className="w-full bg-messages-primary hover:bg-messages-primary-dark text-white gap-2"
             >
               {submitting ? (
                 <>

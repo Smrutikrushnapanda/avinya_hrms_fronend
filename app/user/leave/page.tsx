@@ -115,7 +115,7 @@ function StatusBadge({ status }: { status?: string }) {
       );
     case "CANCELLED":
       return (
-        <Badge className="bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-100">
+        <Badge className="bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:bg-gray-700">
           Cancelled
         </Badge>
       );

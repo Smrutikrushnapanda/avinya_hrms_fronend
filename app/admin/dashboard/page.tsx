@@ -75,7 +75,7 @@ function AttendanceChart({
       </CardHeader>
       <CardContent>
         {attendanceChartData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-48 text-gray-500 dark:text-gray-400">
             <PieChart className="h-16 w-16 mb-4 opacity-30" />
             <p className="text-sm font-medium">No attendance data</p>
             <p className="text-xs opacity-70">Data will appear once employees check in</p>
@@ -132,7 +132,7 @@ function DepartmentChart({ departmentData }: { departmentData: any[] }) {
       </CardHeader>
       <CardContent>
         {departmentData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-48 text-gray-500 dark:text-gray-400">
             <BarChart3 className="h-16 w-16 mb-4 opacity-30" />
             <p className="text-sm font-medium">No department data</p>
           </div>
@@ -199,8 +199,8 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
                             {anomaly.anomalyReason || 'Attendance Anomaly'}
                           </h4>
                           <div className="flex flex-wrap gap-2 mb-2">
-                            <Badge variant="outline" className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200">{anomaly.type}</Badge>
-                            <Badge variant="outline" className="text-xs font-medium bg-purple-50 text-purple-700 border-purple-200">{anomaly.source}</Badge>
+                            <Badge variant="outline" className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-900">{anomaly.type}</Badge>
+                            <Badge variant="outline" className="text-xs font-medium bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-900">{anomaly.source}</Badge>
                           </div>
                         </div>
                         <div className="text-right">
@@ -250,13 +250,13 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                             {anomaly.wifiSsid && (
                               <div className="flex items-center gap-2">
-                                <span className="text-gray-500">SSID:</span>
+                                <span className="text-gray-500 dark:text-gray-400">SSID:</span>
                                 <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{anomaly.wifiSsid}</span>
                               </div>
                             )}
                             {anomaly.wifiBssid && (
                               <div className="flex items-center gap-2">
-                                <span className="text-gray-500">BSSID:</span>
+                                <span className="text-gray-500 dark:text-gray-400">BSSID:</span>
                                 <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{anomaly.wifiBssid}</span>
                               </div>
                             )}
@@ -282,7 +282,7 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
                   </div>
                 </div>
               )) : (
-                <div className="text-center py-6 text-gray-500">
+                <div className="text-center py-6 text-gray-500 dark:text-gray-400">
                   No anomalies detected today.
                 </div>
               )}
@@ -304,7 +304,7 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
                 <p className="text-xs text-red-600 dark:text-red-400 line-clamp-1 mt-0.5">
                   {anomaly.anomalyReason || 'Attendance Anomaly'}
                 </p>
-                <p className="text-[10px] text-gray-500 mt-1">
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
                   {format(new Date(anomaly.timestamp), 'MMM dd, HH:mm')}
                 </p>
               </div>
@@ -316,7 +316,7 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">No Anomalies</p>
-                <p className="text-xs text-gray-500 mt-1">All clear today</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">All clear today</p>
               </div>
             </div>
           )}
@@ -525,11 +525,11 @@ getHolidays({ organizationId: orgId }),
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent">Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-accent-brand-from to-accent-brand-to bg-clip-text text-transparent">Dashboard</h1>
           <LiveClock />
         </div>
         {!isBasicPlan && (
-          <Button variant="outline" size="sm" onClick={() => setShowWidgetSettings(!showWidgetSettings)} className="flex items-center gap-2 rounded-md border-[#184a8c]/30 hover:bg-gradient-to-r hover:from-[#184a8c]/10 hover:to-[#00b4db]/10">
+          <Button variant="outline" size="sm" onClick={() => setShowWidgetSettings(!showWidgetSettings)} className="flex items-center gap-2 rounded-md border-accent-brand-from/30 hover:bg-gradient-to-r hover:from-accent-brand-from/10 hover:to-accent-brand-to/10">
             <Settings className="h-4 w-4" />
             <span className="hidden sm:inline">Manage Widgets</span>
           </Button>
@@ -558,7 +558,7 @@ getHolidays({ organizationId: orgId }),
 
       {/* Widget Settings */}
       {showWidgetSettings && !isBasicPlan && (
-        <Card className="mb-6 border-2 border-[#184a8c]/30 bg-gradient-to-r from-[#184a8c]/5 to-[#00b4db]/5">
+        <Card className="mb-6 border-2 border-accent-brand-from/30 bg-gradient-to-r from-accent-brand-from/5 to-accent-brand-to/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -580,7 +580,7 @@ getHolidays({ organizationId: orgId }),
                           <Switch checked={widget.isEnabled} onCheckedChange={() => toggleWidget(widget.id)} />
                           <div>
                             <div className="font-medium text-sm">{widget.title}</div>
-                            <div className="text-xs text-gray-500 capitalize">{widget.category}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{widget.category}</div>
                           </div>
                         </div>
                         {widget.isEnabled ? <Eye className="h-4 w-4 text-green-600" /> : <EyeOff className="h-4 w-4 opacity-40" />}
@@ -638,12 +638,12 @@ getHolidays({ organizationId: orgId }),
                     <div key={post.id} className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-r from-[#184a8c] to-[#00b4db] rounded-full flex items-center justify-center text-white font-semibold">
+                          <div className="w-10 h-10 bg-gradient-to-r from-accent-brand-from to-accent-brand-to rounded-full flex items-center justify-center text-white font-semibold">
                             {post.author?.firstName?.[0] || 'A'}
                           </div>
                           <div>
                             <div className="font-medium">{post.author?.firstName} {post.author?.lastName}</div>
-                            <div className="text-xs text-gray-500">{format(new Date(post.createdAt), 'MMM dd, yyyy HH:mm')}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{format(new Date(post.createdAt), 'MMM dd, yyyy HH:mm')}</div>
                           </div>
                         </div>
                         <Link href={`/admin/posts/${post.id}`}>
@@ -656,7 +656,7 @@ getHolidays({ organizationId: orgId }),
                           <img src={post.imageUrl} alt="Post" className="h-32 w-auto rounded-lg object-cover" />
                         </div>
                       )}
-                      <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
+                      <div className="flex items-center gap-4 mt-3 text-sm text-gray-500 dark:text-gray-400">
                         <div className="flex items-center gap-1">
                           <Heart className="h-4 w-4" />
                           <span>{post.likeCount || 0}</span>
@@ -675,12 +675,12 @@ getHolidays({ organizationId: orgId }),
                   </div>
                 </div>
               ) : (
-                <div className="min-h-[200px] flex items-center justify-center text-gray-500 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-lg p-6">
+                <div className="min-h-[200px] flex items-center justify-center text-gray-500 dark:text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-lg p-6">
                   <div className="text-center">
                     <p className="text-lg font-medium opacity-50">No posts yet</p>
                     <p className="text-sm opacity-70 mt-1">Create your first post to get started!</p>
                     <Link href="/admin/posts">
-                      <Button className="mt-4 bg-[#184a8c] hover:bg-[#184a8c]/90">Go to Posts →</Button>
+                      <Button className="mt-4 bg-accent-brand-from hover:bg-accent-brand-from/90">Go to Posts →</Button>
                     </Link>
                   </div>
                 </div>

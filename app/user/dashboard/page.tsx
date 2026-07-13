@@ -363,7 +363,7 @@ function HolidayCalendarWidget({
               weekday: "text-muted-foreground w-7 sm:w-8 font-bold text-[0.65rem] sm:text-[0.7rem] tracking-wider uppercase flex items-center justify-center",
               week: "flex w-full justify-between mt-3 max-w-full gap-1.5",
               day: "relative p-0 text-center text-xs sm:text-sm focus-within:relative focus-within:z-20 w-7 sm:w-8 h-7 sm:h-8 flex items-center justify-center rounded-full overflow-hidden [&:has([aria-selected])]:bg-transparent aspect-square group",
-              today: "!bg-gradient-to-br !from-[#184a8c] !to-[#00b4db] !text-white rounded-full font-bold shadow-md shadow-[#00b4db]/20 scale-[1.1] ring-2 ring-white dark:ring-background z-10 transition-transform",
+              today: "!bg-gradient-to-br !from-accent-brand-from !to-accent-brand-to !text-white rounded-full font-bold shadow-md shadow-accent-brand-to/20 scale-[1.1] ring-2 ring-white dark:ring-background z-10 transition-transform",
             }}
           />
         </div>
@@ -380,7 +380,7 @@ function HolidayCalendarWidget({
           Off Day
         </span>
         <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors">
-          <span className="w-2 h-2 rounded-full bg-gradient-to-r from-[#184a8c] to-[#00b4db] shadow-[0_0_8px_rgba(0,180,219,0.6)]" />
+          <span className="w-2 h-2 rounded-full bg-gradient-to-r from-accent-brand-from to-accent-brand-to shadow-[0_0_8px_rgba(0,180,219,0.6)]" />
           Today
         </span>
       </div>
@@ -982,7 +982,7 @@ export default function UserDashboardPage() {
           <p className="text-sm text-muted-foreground font-medium">
             {getGreeting()}
           </p>
-          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent tracking-tight leading-tight">
+          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-accent-brand-from to-accent-brand-to bg-clip-text text-transparent tracking-tight leading-tight">
             {getUserName()}
           </h1>
         </div>
@@ -1003,7 +1003,7 @@ export default function UserDashboardPage() {
               key={card.label}
               className={`p-5 hover:-translate-y-1 transition-transform duration-200 cursor-pointer relative overflow-hidden border-l-4 ${card.borderColor} rounded-2xl`}
             >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-[#184a8c]/10 to-[#00b4db]/10 rounded-full blur-xl -mr-12 -mt-12" />
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-accent-brand-from/10 to-accent-brand-to/10 rounded-full blur-xl -mr-12 -mt-12" />
               <div className={`w-11 h-11 rounded-xl ${card.accent} flex items-center justify-center mb-3 relative z-10`}>
                 <Icon className="w-5 h-5" />
               </div>
@@ -1051,7 +1051,7 @@ export default function UserDashboardPage() {
         }`}
       >
         {/* ATTENDANCE DONUT */}
-        <Card className="p-5 min-w-0 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
+        <Card className="p-5 min-w-0 border-t-4 border-t-accent-brand-from/50 rounded-2xl h-full flex flex-col">
           <div className="flex items-start justify-between mb-2">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -1072,7 +1072,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* HOLIDAY CALENDAR */}
-        <Card className="p-5 min-w-0 border-t-4 border-t-[#00b4db]/50 rounded-2xl h-full flex flex-col">
+        <Card className="p-5 min-w-0 border-t-4 border-t-accent-brand-to/50 rounded-2xl h-full flex flex-col">
           <div className="flex items-start justify-between mb-3 shadow-sm pb-2 border-b border-border/40">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -1082,7 +1082,7 @@ export default function UserDashboardPage() {
                 Click a highlighted date to see details
               </p>
             </div>
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#00b4db]/10 to-[#184a8c]/10 flex items-center justify-center border border-[#00b4db]/20">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-brand-to/10 to-accent-brand-from/10 flex items-center justify-center border border-accent-brand-to/20">
               <CalendarDays className="w-4 h-4 text-[#00b4db]" />
             </div>
           </div>
@@ -1094,7 +1094,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {!effectiveBasicPlan && (
-          <Card className="p-5 min-w-0 border-t-4 border-t-[#184a8c]/50 rounded-2xl h-full flex flex-col">
+          <Card className="p-5 min-w-0 border-t-4 border-t-accent-brand-from/50 rounded-2xl h-full flex flex-col">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h2 className="text-sm font-bold text-foreground">
@@ -1119,13 +1119,13 @@ export default function UserDashboardPage() {
                   return (
                     <div
                       key={m.id}
-                      className="flex gap-3 p-3 rounded-xl bg-gradient-to-r from-[#184a8c]/5 to-[#00b4db]/5 border border-[#184a8c]/20 hover:border-[#00b4db] hover:shadow-md transition-all cursor-pointer"
+                      className="flex gap-3 p-3 rounded-xl bg-gradient-to-r from-accent-brand-from/5 to-accent-brand-to/5 border border-accent-brand-from/20 hover:border-accent-brand-to hover:shadow-md transition-all cursor-pointer"
                     >
                       <div className="flex flex-col items-center gap-1 min-w-[48px]">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-[#184a8c] to-[#00b4db] flex items-center justify-center shadow-sm">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-accent-brand-from to-accent-brand-to flex items-center justify-center shadow-sm">
                           <Clock className="w-4 h-4 text-white" />
                         </div>
-                        <span className="text-[10px] font-bold bg-gradient-to-r from-[#184a8c] to-[#00b4db] bg-clip-text text-transparent whitespace-nowrap">
+                        <span className="text-[10px] font-bold bg-gradient-to-r from-accent-brand-from to-accent-brand-to bg-clip-text text-transparent whitespace-nowrap">
                           {timeStr}
                         </span>
                       </div>
@@ -1182,7 +1182,7 @@ export default function UserDashboardPage() {
         }`}
       >
         {/* TODAY'S ATTENDANCE STATUS */}
-        <Card className="p-5 border-l-4 border-l-[#184a8c]/50 rounded-2xl">
+        <Card className="p-5 border-l-4 border-l-accent-brand-from/50 rounded-2xl">
           <div className="flex items-start justify-between mb-1">
             <div>
               <h2 className="text-sm font-bold text-foreground">
@@ -1240,7 +1240,7 @@ export default function UserDashboardPage() {
         </Card>
 
         {/* LEAVE BALANCE */}
-        <Card className="p-5 border-l-4 border-l-[#00b4db]/50 rounded-2xl">
+        <Card className="p-5 border-l-4 border-l-accent-brand-to/50 rounded-2xl">
           <div className="mb-4">
             <h2 className="text-sm font-bold text-foreground">Leave Balance</h2>
             <p className="text-xs text-muted-foreground">
@@ -1304,7 +1304,7 @@ export default function UserDashboardPage() {
 
         {/* EMPLOYEE LEADERBOARD */}
         {!effectiveBasicPlan && (
-        <Card className="p-5 border-l-4 border-l-[#184a8c]/50 rounded-2xl">
+        <Card className="p-5 border-l-4 border-l-accent-brand-from/50 rounded-2xl">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-sm font-bold text-foreground">Employee Leaderboard</h2>
@@ -1349,7 +1349,7 @@ export default function UserDashboardPage() {
                 const isMe = emp.userId === userData?.id;
                 const pct = Math.min(emp.score, 100);
                 return (
-                  <div key={emp.userId} className={`rounded-xl border p-2.5 ${bg} ${isMe ? 'ring-2 ring-[#184a8c]/40' : ''} animate-fade-in`}>
+                  <div key={emp.userId} className={`rounded-xl border p-2.5 ${bg} ${isMe ? 'ring-2 ring-accent-brand-from/40' : ''} animate-fade-in`}>
                     <div className="flex items-center gap-2.5">
                       <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-sm relative`}>
                         {emp.name.split(" ").map((n:string) => n[0]).slice(0, 2).join("").toUpperCase()}
@@ -1358,7 +1358,7 @@ export default function UserDashboardPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-1">
                           <span className="text-xs font-bold text-foreground truncate">{emp.name}</span>
-                          {isMe && <span className="text-[9px] font-bold text-[#184a8c] bg-[#184a8c]/10 px-1.5 py-0.5 rounded-full">You</span>}
+                          {isMe && <span className="text-[9px] font-bold text-accent-brand-from bg-accent-brand-from/10 px-1.5 py-0.5 rounded-full">You</span>}
                         </div>
                         <div className="h-1.5 bg-gray-200/60 dark:bg-gray-700/60 rounded-full overflow-hidden">
                           <div className={`h-full bg-gradient-to-r ${grad} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />

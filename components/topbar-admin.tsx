@@ -264,7 +264,7 @@ export default function TopbarAdmin() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
-            <div className="flex items-center justify-between p-3 border-b">
+            <div className="flex items-center justify-between p-3 border-b dark:border-gray-700">
               <p className="font-semibold text-sm">Notifications</p>
               <button className="text-xs text-primary hover:underline disabled:text-muted-foreground" onClick={handleMarkAllRead} disabled={unreadCount === 0}>
                 Mark all as read

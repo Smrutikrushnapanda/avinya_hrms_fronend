@@ -243,15 +243,15 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
     return (
       <div className="p-6 space-y-6">
         <div className="flex items-center space-x-4">
-          <div className="w-8 h-8 bg-gray-200 rounded animate-pulse" />
-          <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
+          <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-1">
-            <div className="h-64 bg-gray-200 rounded-lg animate-pulse" />
+            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           </div>
           <div className="md:col-span-2">
-            <div className="h-64 bg-gray-200 rounded-lg animate-pulse" />
+            <div className="h-64 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           </div>
         </div>
       </div>
@@ -268,7 +268,7 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Employee Details</h1>
-            <p className="text-gray-600">Complete profile and attendance information</p>
+            <p className="text-gray-600 dark:text-gray-400">Complete profile and attendance information</p>
           </div>
         </div>
       </div>
@@ -293,7 +293,7 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
                 <h3 className="text-xl font-semibold">
                   {`${employee.firstName} ${employee.lastName || ''}`}
                 </h3>
-                <p className="text-gray-600">{employee.designation?.name || 'No designation'}</p>
+                <p className="text-gray-600 dark:text-gray-400">{employee.designation?.name || 'No designation'}</p>
                 <Badge variant="outline">{employee.employeeCode}</Badge>
                 <Badge className={
                   employee.status === 'active' 
@@ -307,19 +307,19 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <div className="flex items-center space-x-3">
-                  <Mail className="h-4 w-4 text-gray-500" />
+                  <Mail className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm">{employee.workEmail}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Phone className="h-4 w-4 text-gray-500" />
+                  <Phone className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm">{employee.contactNumber || 'Not provided'}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Building className="h-4 w-4 text-gray-500" />
+                  <Building className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm">{employee.department?.name || 'Not assigned'}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm">Joined {safeFormatDate(employee.dateOfJoining)}</span>
                 </div>
               </div>
@@ -345,27 +345,27 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <div className="text-2xl font-bold text-blue-600">{attendanceStats.dayOff}</div>
-                  <div className="text-sm text-gray-600">Day off</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Day off</div>
                 </div>
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
                   <div className="text-2xl font-bold text-orange-600">{attendanceStats.lateClockIn}</div>
-                  <div className="text-sm text-gray-600">Late clock-in</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Late clock-in</div>
                 </div>
                 <div className="text-center p-4 bg-red-50 rounded-lg">
                   <div className="text-2xl font-bold text-red-600">{attendanceStats.lateClockOut}</div>
-                  <div className="text-sm text-gray-600">Late clock-out</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Late clock-out</div>
                 </div>
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
                   <div className="text-2xl font-bold text-purple-600">{attendanceStats.noClockOut}</div>
-                  <div className="text-sm text-gray-600">No clock-out</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">No clock-out</div>
                 </div>
                 <div className="text-center p-4 bg-green-50 rounded-lg">
                   <div className="text-2xl font-bold text-green-600">{attendanceStats.offTimeQuota}</div>
-                  <div className="text-sm text-gray-600">Off time quota</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Off time quota</div>
                 </div>
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <div className="text-2xl font-bold text-gray-600">{attendanceStats.absent}</div>
-                  <div className="text-sm text-gray-600">Absent</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Absent</div>
                 </div>
               </div>
             </CardContent>
@@ -520,8 +520,8 @@ function LeaveTab({ employeeId, employee }: { employeeId: string; employee: Empl
 
   if (!leaveData) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
         <p>No API available for leave data</p>
         <p className="text-sm mt-2">Please provide the leave management API endpoint</p>
       </div>
@@ -533,11 +533,11 @@ function LeaveTab({ employeeId, employee }: { employeeId: string; employee: Empl
       <h3 className="text-lg font-semibold">Leave Information</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {leaveData.map((leave: any) => (
-          <div key={leave.type} className="p-4 bg-white rounded-lg shadow">
+          <div key={leave.type} className="p-4 bg-white dark:bg-gray-900 rounded-lg shadow dark:shadow-none">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-md font-semibold">{leave.type}</h4>
-                  <p className="text-sm text-gray-500">{leave.balance} days remaining</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{leave.balance} days remaining</p>
                 </div>
               </div>
           </div>
@@ -549,8 +549,8 @@ function LeaveTab({ employeeId, employee }: { employeeId: string; employee: Empl
 
 function PayrollTab({ employeeId, employee }: { employeeId: string; employee: Employee }) {
   return (
-    <div className="text-center py-8 text-gray-500">
-      <CreditCard className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+      <CreditCard className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
       <p>No API available for payroll data</p>
       <p className="text-sm mt-2">Please provide the payroll API endpoint</p>
     </div>
@@ -575,38 +575,38 @@ function PersonalDetailsTab({ employee }: { employee: Employee }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-500">Full Name</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Full Name</label>
             <p className="text-base">{`${employee.firstName} ${employee.middleName || ''} ${employee.lastName || ''}`.trim()}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-500">Date of Birth</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date of Birth</label>
             <p className="text-base">{safeFormatDate(employee.dateOfBirth)}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-500">Gender</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Gender</label>
             <p className="text-base">{employee.gender || 'Not specified'}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-500">Blood Group</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Blood Group</label>
             <p className="text-base">{employee.bloodGroup || 'Not specified'}</p>
           </div>
         </div>
         
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-500">Work Email</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Work Email</label>
             <p className="text-base">{employee.workEmail}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-500">Personal Email</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Personal Email</label>
             <p className="text-base">{employee.personalEmail || 'Not provided'}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-500">Contact Number</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Contact Number</label>
             <p className="text-base">{employee.contactNumber || 'Not provided'}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-500">Employment Type</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Employment Type</label>
             <p className="text-base">{employee.employmentType || 'Not specified'}</p>
           </div>
         </div>
@@ -616,20 +616,20 @@ function PersonalDetailsTab({ employee }: { employee: Employee }) {
         <h4 className="text-md font-semibold mb-4">Emergency Contact</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="text-sm font-medium text-gray-500">Contact Name</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Contact Name</label>
             <p className="text-base">{employee.emergencyContactName || 'Not provided'}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-500">Relationship</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Relationship</label>
             <p className="text-base">{employee.emergencyContactRelationship || 'Not specified'}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-500">Phone Number</label>
+            <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Phone Number</label>
             <p className="text-base">{employee.emergencyContactPhone || 'Not provided'}</p>
           </div>
         </div>
         {!employee.emergencyContactName && !employee.emergencyContactPhone && (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
             <p>No emergency contact information available</p>
           </div>
         )}
@@ -640,8 +640,8 @@ function PersonalDetailsTab({ employee }: { employee: Employee }) {
 
 function DocumentsTab({ employeeId, employee }: { employeeId: string; employee: Employee }) {
   return (
-    <div className="text-center py-8 text-gray-500">
-      <FolderOpen className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+      <FolderOpen className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
       <p>No API available for documents data</p>
       <p className="text-sm mt-2">Please provide the documents management API endpoint</p>
     </div>

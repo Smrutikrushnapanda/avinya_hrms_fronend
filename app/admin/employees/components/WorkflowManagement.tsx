@@ -368,10 +368,10 @@ const handleSaveApprovers = async () => {
           {[1, 2, 3].map(i => (
             <Card key={i} className="animate-pulse">
               <CardHeader>
-                <div className="h-4 bg-gray-300 rounded w-1/4"></div>
+                <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/4"></div>
               </CardHeader>
               <CardContent>
-                <div className="h-20 bg-gray-200 rounded"></div>
+                <div className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
               </CardContent>
             </Card>
           ))}
@@ -385,8 +385,8 @@ const handleSaveApprovers = async () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Workflow Management</h1>
-          <p className="text-gray-600">Manage approval workflows and assign approvers</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Workflow Management</h1>
+          <p className="text-gray-600 dark:text-gray-400">Manage approval workflows and assign approvers</p>
         </div>
         <Button onClick={() => setIsWorkflowDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -399,9 +399,9 @@ const handleSaveApprovers = async () => {
         {workflows.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
-              <Settings className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No workflows found</h3>
-              <p className="text-gray-600">Create your first workflow to get started</p>
+              <Settings className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No workflows found</h3>
+              <p className="text-gray-600 dark:text-gray-400">Create your first workflow to get started</p>
             </CardContent>
           </Card>
         ) : (
@@ -412,7 +412,7 @@ const handleSaveApprovers = async () => {
                   className="w-full"
                   onClick={() => toggleWorkflowExpansion(workflow.id)}
                 >
-                  <CardHeader className="hover:bg-gray-50 transition-colors">
+                  <CardHeader className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         {expandedWorkflows.has(workflow.id) ? (
@@ -427,7 +427,7 @@ const handleSaveApprovers = async () => {
                             <Badge variant={workflow.isActive ? "default" : "secondary"}>
                               {workflow.isActive ? "Active" : "Inactive"}
                             </Badge>
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
                               {workflow.steps.length} step{workflow.steps.length !== 1 ? 's' : ''}
                             </span>
                           </div>
@@ -474,8 +474,8 @@ const handleSaveApprovers = async () => {
                 <CollapsibleContent>
                   <CardContent>
                     {workflow.steps.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">
-                        <Settings className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <Settings className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
                         <p>No steps configured. Add a step to get started.</p>
                       </div>
                     ) : (
@@ -483,15 +483,15 @@ const handleSaveApprovers = async () => {
                         {workflow.steps
                           .sort((a, b) => a.stepOrder - b.stepOrder)
                           .map((step, index) => (
-                            <div key={step.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                            <div key={step.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                               <div className="flex items-center space-x-4">
                                 <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
                                   {step.stepOrder}
                                 </div>
                                 <div>
-                                  <h4 className="font-medium text-gray-900">{step.name}</h4>
+                                  <h4 className="font-medium text-gray-900 dark:text-gray-100">{step.name}</h4>
                                   <div className="flex items-center space-x-4 mt-1">
-                                    <span className="text-sm text-gray-600">
+                                    <span className="text-sm text-gray-600 dark:text-gray-400">
                                       {step.assignments.length > 0 ? "1 approver" : "No approver assigned"}                                    </span>
                                     <div className="flex items-center space-x-2">
                                       {step.assignments.length > 0 && (
@@ -689,17 +689,20 @@ const handleSaveApprovers = async () => {
           ) : (
             <div className="space-y-3">
               {/* Employee selection area with proper scrolling */}
-              <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2 bg-gray-50">
+              <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2 bg-gray-50 dark:bg-gray-900">
+
+
+
                 {employees.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Users className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <Users className="h-8 w-8 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
                     <p>No employees found</p>
                   </div>
                 ) : (
                   employees.map((employee) => (
                     <label
                       key={employee.id}
-                      className={`flex items-center space-x-3 p-3 bg-white rounded-lg border cursor-pointer hover:bg-blue-50 transition-colors ${selectedApprovers.includes(employee.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                      className={`flex items-center space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg border cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors ${selectedApprovers.includes(employee.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''
                         }`}
                     >
                       <input
@@ -714,10 +717,10 @@ const handleSaveApprovers = async () => {
                         className="w-4 h-4 text-blue-600"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 truncate">
+                        <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
                           {employee.firstName} {employee.lastName}
                         </div>
-                        <div className="text-sm text-gray-500 truncate">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
                           {employee.employeeCode}
                           {employee.designation?.name && ` • ${employee.designation.name}`}
                           {employee.department?.name && ` • ${employee.department.name}`}
@@ -730,11 +733,11 @@ const handleSaveApprovers = async () => {
 
               {/* Selected approver display */}
               {selectedApprovers.length > 0 && (
-                <div className="p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
-                  <div className="text-sm font-medium text-blue-800">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border-l-4 border-blue-400">
+                  <div className="text-sm font-medium text-blue-800 dark:text-blue-200">
                     Selected Approver:
                   </div>
-                  <div className="text-sm text-blue-700">
+                  <div className="text-sm text-blue-700 dark:text-blue-300">
                     {employees.find(emp => emp.id === selectedApprovers[0])?.firstName} {employees.find(emp => emp.id === selectedApprovers[0])?.lastName}
                   </div>
                 </div>

@@ -1036,43 +1036,43 @@ export default function MessagesPage() {
   return (
     <div className="employee-messages-shell flex h-full min-h-0 bg-slate-100 dark:bg-slate-950">
       <aside className={`${selectedConversation ? "hidden md:flex" : "flex"} w-full md:w-[360px] md:min-w-[320px] flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900`}>
-        <div className="border-b border-slate-200 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h1 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-              <MessageSquare className="h-5 w-5 text-[#0077b6]" />
+          <div className="border-b border-slate-200 dark:border-gray-700 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h1 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-gray-100">
+              <MessageSquare className="h-5 w-5 text-messages-primary" />
               Messages
             </h1>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowGroupModal(true)}
-                className="rounded-md border border-slate-200 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                className="rounded-md border border-slate-200 dark:border-gray-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
               >
                 <Users className="mr-1 inline h-3.5 w-3.5" />
                 Group
               </button>
               <button
                 onClick={() => setShowNewChatModal(true)}
-                className="rounded-md bg-[#0077b6] px-2 py-1 text-xs font-medium text-white hover:bg-[#005f91]"
+                className="rounded-md bg-messages-primary px-2 py-1 text-xs font-medium text-white hover:bg-messages-primary/90"
               >
                 <Plus className="mr-1 inline h-3.5 w-3.5" />
                 New
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-3 py-2">
             <Search className="h-4 w-4 text-slate-400" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search chats"
-              className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+              className="w-full bg-transparent text-sm text-slate-700 dark:text-gray-300 outline-none placeholder:text-slate-400"
             />
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {filteredConversations.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-slate-500">
+            <div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-gray-400">
               No conversations yet
             </div>
           ) : (
@@ -1102,15 +1102,15 @@ export default function MessagesPage() {
                   key={conversation.id}
                   onClick={() => setSelectedConversationId(conversation.id)}
                   className={`mb-1 w-full rounded-lg border px-3 py-2.5 text-left transition ${
-                    isActive
-                      ? "border-[#0077b6] bg-[#e6f4fa]"
-                      : "border-transparent hover:bg-slate-100"
+                      isActive
+                        ? "border-messages-primary bg-messages-primary/10"
+                        : "border-transparent hover:bg-slate-100 dark:hover:bg-gray-800"
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     {/* Avatar */}
                     <div className="relative flex-shrink-0">
-                      <div className="h-11 w-11 overflow-hidden rounded-full bg-[#e6f4fa] flex items-center justify-center">
+                      <div className="h-11 w-11 overflow-hidden rounded-full bg-messages-primary/10 flex items-center justify-center">
                         {convPhoto ? (
                           <img
                             src={convPhoto}
@@ -1119,9 +1119,9 @@ export default function MessagesPage() {
                             onClick={(e) => { e.stopPropagation(); setViewPhotoUrl(convPhoto); }}
                           />
                         ) : conversation.type === "GROUP" ? (
-                          <Users className="h-5 w-5 text-[#0077b6]" />
+                          <Users className="h-5 w-5 text-messages-primary" />
                         ) : (
-                          <span className="text-sm font-semibold text-[#0077b6]">
+                          <span className="text-sm font-semibold text-messages-primary">
                             {title[0]?.toUpperCase() || "?"}
                           </span>
                         )}
@@ -1133,15 +1133,15 @@ export default function MessagesPage() {
                     {/* Text */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1">
-                        <p className="truncate text-sm font-semibold text-slate-900">{title}</p>
-                        <p className="flex-shrink-0 text-[11px] text-slate-500">
+                        <p className="truncate text-sm font-semibold text-slate-900 dark:text-gray-100">{title}</p>
+                        <p className="flex-shrink-0 text-[11px] text-slate-500 dark:text-gray-400">
                           {formatTime(conversation.lastMessage?.createdAt || conversation.updatedAt)}
                         </p>
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-1">
                         <p className="truncate text-xs text-slate-600">{preview}</p>
                         {(conversation.unreadCount || 0) > 0 ? (
-                          <span className="flex-shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0077b6] px-1 text-[11px] font-semibold text-white">
+                          <span className="flex-shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-messages-primary px-1 text-[11px] font-semibold text-white">
                             {conversation.unreadCount}
                           </span>
                         ) : null}
@@ -1157,14 +1157,14 @@ export default function MessagesPage() {
 
       <section className={`${selectedConversation ? "flex" : "hidden md:flex"} relative min-w-0 flex-1 flex-col`}>
         {!selectedConversation ? (
-          <div className="flex h-full flex-col items-center justify-center text-slate-500">
+          <div className="flex h-full flex-col items-center justify-center text-slate-500 dark:text-gray-400">
             <MessageSquare className="mb-3 h-12 w-12 text-slate-300" />
             <p className="text-sm">Select a conversation to start chatting</p>
           </div>
         ) : (
           <>
             <header 
-              className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3 cursor-pointer"
+              className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-5 py-3 cursor-pointer"
               onClick={() => setShowChatDetails(true)}
             >
               <div className="flex items-center gap-2">
@@ -1173,17 +1173,17 @@ export default function MessagesPage() {
                     event.stopPropagation();
                     setSelectedConversationId("");
                   }}
-                  className="md:hidden flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-100"
+                  className="md:hidden flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 dark:border-gray-700 text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
                   aria-label="Back to chat list"
                   title="Back"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <div>
-                  <h2 className="text-base font-semibold text-slate-900">
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-gray-100">
                     {getConversationTitle(selectedConversation)}
                   </h2>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-gray-400">
                     {selectedConversation.type === "GROUP"
                       ? `${selectedConversation.participants.length} members`
                       : "Direct conversation"}
@@ -1226,7 +1226,7 @@ export default function MessagesPage() {
                     event.stopPropagation();
                     setShowChatDetails(true);
                   }}
-                  className="flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-100"
+                  className="flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 dark:border-gray-700 text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
                   title="Chat Details"
                 >
                   <Info className="h-4 w-4" />
@@ -1236,7 +1236,7 @@ export default function MessagesPage() {
 
             <div
               ref={messageContainerRef}
-              className="min-h-0 flex-1 overflow-y-auto bg-[#efeae2] p-4"
+              className="min-h-0 flex-1 overflow-y-auto bg-[#efeae2] dark:bg-gray-900 p-4"
               onScroll={(event) => {
                 const target = event.currentTarget;
                 const distanceFromBottom =
@@ -1245,12 +1245,12 @@ export default function MessagesPage() {
               }}
             >
               {conversationLoading ? (
-                <div className="flex h-full items-center justify-center text-slate-500">
+                <div className="flex h-full items-center justify-center text-slate-500 dark:text-gray-400">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Loading messages...
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                <div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-gray-400">
                   No messages yet. Send the first message.
                 </div>
               ) : (
@@ -1266,12 +1266,12 @@ export default function MessagesPage() {
                     return (
                       <div key={message.id}>
                         {showDateLabel && !meetingSystemLabel ? (
-                          <div className="my-4 text-center text-xs text-slate-500">
+                          <div className="my-4 text-center text-xs text-slate-500 dark:text-gray-400">
                             {formatDate(message.createdAt)}
                           </div>
                         ) : null}
                         {meetingSystemLabel ? (
-                          <div className="my-2 text-center text-xs text-slate-500">
+                          <div className="my-2 text-center text-xs text-slate-500 dark:text-gray-400">
                             {meetingSystemLabel} • {formatDate(message.createdAt)}
                           </div>
                         ) : (
@@ -1282,13 +1282,13 @@ export default function MessagesPage() {
                             return (
                               <button
                                 onClick={() => sPhoto && setViewPhotoUrl(sPhoto)}
-                                className="mb-1 flex-shrink-0 h-7 w-7 overflow-hidden rounded-full bg-[#e6f4fa] flex items-center justify-center cursor-pointer"
+                                className="mb-1 flex-shrink-0 h-7 w-7 overflow-hidden rounded-full bg-messages-primary/10 flex items-center justify-center cursor-pointer"
                                 title={sName}
                               >
                                 {sPhoto ? (
                                   <img src={sPhoto} alt={sName} className="h-full w-full object-cover" />
                                 ) : (
-                                  <span className="text-[10px] font-semibold text-[#0077b6]">
+                                  <span className="text-[10px] font-semibold text-messages-primary">
                                     {sName[0]?.toUpperCase() || "?"}
                                   </span>
                                 )}
@@ -1298,12 +1298,12 @@ export default function MessagesPage() {
                           <div
                             className={`relative max-w-[75%] rounded-2xl px-3 py-2 shadow-sm ${
                               isMine
-                                ? "rounded-br-sm bg-[#0077b6] text-white"
-                                : "rounded-bl-sm bg-white text-slate-900"
+                                ? "rounded-br-sm bg-messages-primary text-white"
+                                : "rounded-bl-sm bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100"
                             }`}
                           >
                             {!isMine ? (
-                              <p className="mb-1 text-[11px] font-semibold text-slate-500">
+                              <p className="mb-1 text-[11px] font-semibold text-slate-500 dark:text-gray-400">
                                 {message.sender?.firstName || getParticipantName(message.senderId)}
                               </p>
                             ) : null}
@@ -1318,7 +1318,7 @@ export default function MessagesPage() {
                                     {hasLinks ? (
                                       <button
                                         onClick={() => void copyText(links.join(" "))}
-                                        className="w-fit text-[10px] text-slate-400 hover:text-slate-700 flex items-center gap-1"
+                                        className="w-fit text-[10px] text-slate-400 hover:text-slate-700 dark:hover:text-gray-300 flex items-center gap-1"
                                         title="Copy link"
                                       >
                                         <Clipboard className="h-3 w-3" />
@@ -1336,7 +1336,7 @@ export default function MessagesPage() {
                                   const isImage = attachment.type === "image";
                                   const url = resolveAttachmentUrl(attachment.url);
                                   return isImage ? (
-                                    <div key={attachment.id} className="relative group overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                    <div key={attachment.id} className="relative group overflow-hidden rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
                                       <a
                                         href={url}
                                         target="_blank"
@@ -1366,7 +1366,7 @@ export default function MessagesPage() {
                                         className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-xs flex-1 ${
                                           isMine
                                             ? "bg-white/20 text-white"
-                                            : "bg-slate-100 text-slate-700"
+                                            : "bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300"
                                         }`}
                                       >
                                         <Paperclip className="h-3.5 w-3.5 flex-shrink-0" />
@@ -1376,8 +1376,8 @@ export default function MessagesPage() {
                                         onClick={() => downloadFile(url, attachment.fileName || "file")}
                                         className={`ml-2 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
                                           isMine
-                                            ? "hover:bg-white/20 text-white"
-                                            : "hover:bg-slate-200 text-slate-700"
+                                              ? "hover:bg-white/20 text-white"
+                                              : "hover:bg-slate-200 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300"
                                         }`}
                                         title="Download file"
                                       >
@@ -1391,7 +1391,7 @@ export default function MessagesPage() {
 
                             <div
                               className={`mt-1 text-right text-[11px] flex items-center justify-end gap-1 ${
-                                isMine ? "text-white/80" : "text-slate-500"
+                                    isMine ? "text-white/80" : "text-slate-500 dark:text-gray-400"
                               }`}
                             >
                               {formatTime(message.createdAt)}
@@ -1409,7 +1409,7 @@ export default function MessagesPage() {
                               {message.pending ? (
                                 <Loader2
                                   className={`inline-block w-3 h-3 animate-spin ${
-                                    isMine ? "text-white/80" : "text-slate-500"
+                                isMine ? "text-white/80" : "text-slate-500 dark:text-gray-400"
                                   }`}
                                 />
                               ) : null}
@@ -1425,16 +1425,16 @@ export default function MessagesPage() {
               )}
             </div>
 
-            <footer className="border-t border-slate-200 bg-white px-4 py-3">
+            <footer className="border-t border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-3">
               {selectedFiles.length > 0 ? (
                 <div className="mb-2 flex flex-wrap gap-2">
                   {selectedFiles.map((file, index) => (
                     <div
                       key={`${file.name}-${index}`}
-                      className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+                      className="flex items-center gap-2 rounded-md border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-2 py-1 text-xs text-slate-700 dark:text-gray-300"
                     >
                       <span className="max-w-[180px] truncate">{file.name}</span>
-                      <button onClick={() => removeFile(index)} className="text-slate-500 hover:text-slate-800">
+                      <button onClick={() => removeFile(index)} className="text-slate-500 dark:text-gray-400 hover:text-slate-800">
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
@@ -1444,7 +1444,7 @@ export default function MessagesPage() {
 
               <div className="relative">
                 {showEmojiMenu ? (
-                  <div className="absolute bottom-12 left-0 z-20 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md">
+                  <div className="absolute bottom-12 left-0 z-20 overflow-hidden rounded-lg border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-md">
                     <EmojiPicker
                       lazyLoadEmojis
                       width={320}
@@ -1456,24 +1456,24 @@ export default function MessagesPage() {
                   </div>
                 ) : null}
 
-                <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="flex items-end gap-2 rounded-xl border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-3 py-2">
                   <button
                     onClick={() => setShowEmojiMenu((prev) => !prev)}
-                    className="mb-1 text-slate-500 hover:text-slate-800"
+                    className="mb-1 text-slate-500 dark:text-gray-400 hover:text-slate-800"
                   >
                     <Smile className="h-5 w-5" />
                   </button>
 
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="mb-1 text-slate-500 hover:text-slate-800"
+                    className="mb-1 text-slate-500 dark:text-gray-400 hover:text-slate-800"
                   >
                     <Paperclip className="h-5 w-5" />
                   </button>
 
                   <button
                     onClick={() => imageInputRef.current?.click()}
-                    className="mb-1 text-slate-500 hover:text-slate-800"
+                    className="mb-1 text-slate-500 dark:text-gray-400 hover:text-slate-800"
                   >
                     <ImageIcon className="h-5 w-5" />
                   </button>
@@ -1489,13 +1489,13 @@ export default function MessagesPage() {
                       }
                     }}
                     placeholder="Type a message..."
-                    className="max-h-32 min-h-[26px] flex-1 resize-y bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                    className="max-h-32 min-h-[26px] flex-1 resize-y bg-transparent text-sm text-slate-900 dark:text-gray-100 outline-none placeholder:text-slate-400"
                   />
 
                   <button
                     onClick={sendMessage}
                     disabled={sending || (!composerText.trim() && selectedFiles.length === 0)}
-                    className="rounded-md bg-[#0077b6] p-2 text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                    className="rounded-md bg-messages-primary p-2 text-white disabled:cursor-not-allowed disabled:bg-slate-300 dark:disabled:bg-gray-600"
                   >
                     {sending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1525,7 +1525,7 @@ export default function MessagesPage() {
             {showScrollToBottom ? (
               <button
                 onClick={() => scrollToBottom("smooth")}
-                className="absolute bottom-24 right-6 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-[#0077b6] text-white shadow-lg hover:bg-[#005f91]"
+                className="absolute bottom-24 right-6 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-messages-primary text-white shadow-lg dark:shadow-black/20 hover:bg-messages-primary/90"
                 aria-label="Go to bottom"
                 title="Go to latest message"
               >
@@ -1550,7 +1550,7 @@ export default function MessagesPage() {
             />
             <button
               onClick={() => setViewPhotoUrl(null)}
-              className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg hover:bg-slate-100"
+              className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-gray-900 text-slate-700 dark:text-gray-300 shadow-lg dark:shadow-black/20 hover:bg-slate-100 dark:hover:bg-gray-800"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1560,7 +1560,7 @@ export default function MessagesPage() {
 
       {showNewChatModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl dark:shadow-black/20">
             <div className="bg-gradient-to-r from-[#0077b6] to-[#0096c7] px-4 py-3 text-white">
               <div className="flex items-center justify-between">
                 <div>
@@ -1577,38 +1577,38 @@ export default function MessagesPage() {
                 value={participantFilter}
                 onChange={(event) => setParticipantFilter(event.target.value)}
                 placeholder="Search employees"
-                className="mb-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0077b6]"
+                className="mb-3 w-full rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-3 py-2 text-sm outline-none focus:border-messages-primary"
               />
               <div className="max-h-72 space-y-2 overflow-y-auto">
                 {filteredEmployees.map((employee) => (
                   <button
                     key={employee.id}
                     onClick={() => openDirectChat(employee.userId)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-left transition hover:border-[#0077b6] hover:bg-[#f2f9fd]"
+                    className="w-full rounded-xl border border-slate-200 dark:border-gray-700 px-3 py-2 text-left transition hover:border-messages-primary hover:bg-messages-primary/5"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e6f4fa] text-sm font-semibold text-[#0077b6]">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-messages-primary/10 text-sm font-semibold text-messages-primary">
                         {(employee.firstName?.[0] || "U").toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-slate-900">
+                        <p className="truncate text-sm font-medium text-slate-900 dark:text-gray-100">
                           {`${employee.firstName || ""} ${employee.lastName || ""}`.trim() ||
                             "Unknown"}
                         </p>
-                        <p className="truncate text-xs text-slate-500">{employee.workEmail}</p>
+                        <p className="truncate text-xs text-slate-500 dark:text-gray-400">{employee.workEmail}</p>
                       </div>
                     </div>
                   </button>
                 ))}
                 {filteredEmployees.length === 0 ? (
-                  <p className="text-sm text-slate-500">No employees found</p>
+                  <p className="text-sm text-slate-500 dark:text-gray-400">No employees found</p>
                 ) : null}
               </div>
             </div>
-            <div className="border-t border-slate-100 px-4 py-3 text-right">
+            <div className="border-t border-slate-100 dark:border-gray-700 px-4 py-3 text-right">
               <button
                 onClick={() => setShowNewChatModal(false)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                className="rounded-lg border border-slate-200 dark:border-gray-700 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-gray-800"
               >
                 Close
               </button>
@@ -1620,17 +1620,17 @@ export default function MessagesPage() {
       {meetingOpen && !meetingMinimized ? (
         <div className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm">
           <div className="absolute inset-0 flex items-center justify-center px-4 py-8">
-            <div className="flex w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <div className="flex w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl dark:shadow-black/20">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-700 px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Live Meeting</p>
-                  <p className="text-[11px] text-slate-500">Room: {roomName}</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-gray-100">Live Meeting</p>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400">Room: {roomName}</p>
                   {meetingError ? <p className="text-[11px] text-rose-600">{meetingError}</p> : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setMeetingMinimized(true)}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700"
                     title="Minimize"
                     aria-label="Minimize meeting"
                   >
@@ -1638,7 +1638,7 @@ export default function MessagesPage() {
                   </button>
                   <button
                     onClick={closeMeeting}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700"
                     title="End meeting"
                     aria-label="End meeting"
                   >
@@ -1646,7 +1646,7 @@ export default function MessagesPage() {
                   </button>
                 </div>
               </div>
-              <div className="relative h-[75vh] bg-slate-50">
+              <div className="relative h-[75vh] bg-slate-50 dark:bg-gray-900">
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/60 via-black/20 to-transparent z-10" />
                 <div
                   ref={jitsiContainerRef}
@@ -1660,21 +1660,21 @@ export default function MessagesPage() {
 
       {meetingOpen && meetingMinimized ? (
         <div
-          className="pointer-events-auto fixed z-[70] h-[210px] w-[320px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+          className="pointer-events-auto fixed z-[70] h-[210px] w-[320px] overflow-hidden rounded-xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl dark:shadow-black/20"
           style={{
             left: meetingMiniPosition?.x ?? 16,
             top: meetingMiniPosition?.y ?? 16,
           }}
         >
           <div
-            className={`flex cursor-move items-center justify-between border-b border-slate-200 bg-white px-3 py-2 ${meetingMiniDragging ? "select-none" : ""}`}
+            className={`flex cursor-move items-center justify-between border-b border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 ${meetingMiniDragging ? "select-none" : ""}`}
             onPointerDown={beginMiniDrag}
           >
-            <p className="text-xs font-semibold text-slate-800 truncate">Live Meeting</p>
+            <p className="text-xs font-semibold text-slate-800 dark:text-gray-200 truncate">Live Meeting</p>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setMeetingMinimized(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700"
                 title="Expand to full screen"
                 aria-label="Expand to full screen"
               >
@@ -1682,7 +1682,7 @@ export default function MessagesPage() {
               </button>
               <button
                 onClick={closeMeeting}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700"
                 title="End meeting"
                 aria-label="End meeting"
               >
@@ -1698,7 +1698,7 @@ export default function MessagesPage() {
 
       {showGroupModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-2xl dark:shadow-black/20">
             <div className="bg-gradient-to-r from-[#0077b6] to-[#0096c7] px-4 py-3 text-white">
               <div className="flex items-center justify-between">
                 <div>
@@ -1713,10 +1713,10 @@ export default function MessagesPage() {
 
             <div className="p-4">
               <div className="mb-2 flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-gray-400">
                   Group Name
                 </label>
-                <span className="rounded-full bg-[#e6f4fa] px-2 py-0.5 text-xs font-medium text-[#0077b6]">
+                <span className="rounded-full bg-messages-primary/10 px-2 py-0.5 text-xs font-medium text-messages-primary">
                   {groupMembers.length} selected
                 </span>
               </div>
@@ -1725,14 +1725,14 @@ export default function MessagesPage() {
                 value={groupTitle}
                 onChange={(event) => setGroupTitle(event.target.value)}
                 placeholder="Eg. Engineering Team"
-                className="mb-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0077b6]"
+                className="mb-3 w-full rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-3 py-2 text-sm outline-none focus:border-messages-primary"
               />
 
               <input
                 value={participantFilter}
                 onChange={(event) => setParticipantFilter(event.target.value)}
                 placeholder="Search members"
-                className="mb-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0077b6]"
+                className="mb-3 w-full rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-3 py-2 text-sm outline-none focus:border-messages-primary"
               />
 
               <div className="max-h-64 space-y-2 overflow-y-auto">
@@ -1743,20 +1743,20 @@ export default function MessagesPage() {
                       key={employee.id}
                       className={`flex cursor-pointer items-center justify-between rounded-xl border px-3 py-2 transition ${
                         checked
-                          ? "border-[#0077b6] bg-[#e6f4fa]"
-                          : "border-slate-200 hover:bg-slate-50"
+                          ? "border-messages-primary bg-messages-primary/10"
+                          : "border-slate-200 dark:border-gray-700 hover:bg-slate-50 dark:hover:bg-gray-800"
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-sm font-semibold text-[#0077b6]">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-sm font-semibold text-messages-primary">
                           {(employee.firstName?.[0] || "U").toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-slate-900">
+                          <p className="text-sm font-medium text-slate-900 dark:text-gray-100">
                             {`${employee.firstName || ""} ${employee.lastName || ""}`.trim() ||
                               "Unknown"}
                           </p>
-                          <p className="text-xs text-slate-500">{employee.workEmail}</p>
+                          <p className="text-xs text-slate-500 dark:text-gray-400">{employee.workEmail}</p>
                         </div>
                       </div>
                       <input
@@ -1768,18 +1768,18 @@ export default function MessagesPage() {
                   );
                 })}
               </div>
-              <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3">
+              <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 dark:border-gray-700 pt-3">
                 <button
                   onClick={() => setShowGroupModal(false)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                  className="rounded-lg border border-slate-200 dark:border-gray-700 px-3 py-2 text-sm text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={createGroup}
-                  className="rounded-lg bg-[#0077b6] px-3 py-2 text-sm text-white hover:bg-[#005f91]"
-                >
-                  Create Group
+                className="rounded-lg bg-messages-primary px-3 py-2 text-sm text-white hover:bg-messages-primary/90"
+              >
+                Create Group
                 </button>
               </div>
             </div>
@@ -1798,24 +1798,24 @@ export default function MessagesPage() {
             onClick={() => setShowChatDetails(false)}
           />
           {/* Slide-in Panel */}
-          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white dark:bg-gray-900 shadow-2xl dark:shadow-black/20 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
             {/* Header */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800">
               <button 
                 onClick={() => setShowChatDetails(false)}
-                className="p-1 rounded-full hover:bg-slate-200"
+                className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-gray-700"
               >
                 <X className="h-5 w-5 text-slate-600" />
               </button>
-              <h3 className="text-base font-semibold text-slate-900">Chat Details</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-gray-100">Chat Details</h3>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
               {/* Chat Info Section */}
-              <div className="p-4 border-b border-slate-200">
+              <div className="p-4 border-b border-slate-200 dark:border-gray-700">
                 <div className="flex flex-col items-center text-center">
-                  <div className="h-20 w-20 rounded-full bg-[#e6f4fa] flex items-center justify-center mb-3 overflow-hidden">
+                  <div className="h-20 w-20 rounded-full bg-messages-primary/10 flex items-center justify-center mb-3 overflow-hidden">
                     {selectedConversation.type === "DIRECT" ? (
                       (() => {
                         const directUser = selectedConversation.participants.find(
@@ -1825,19 +1825,19 @@ export default function MessagesPage() {
                         return photo ? (
                           <img src={photo} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <span className="text-2xl font-semibold text-[#0077b6]">
+                          <span className="text-2xl font-semibold text-messages-primary">
                             {getConversationTitle(selectedConversation)[0]?.toUpperCase()}
                           </span>
                         );
                       })()
                     ) : (
-                      <Users className="h-10 w-10 text-[#0077b6]" />
+                      <Users className="h-10 w-10 text-messages-primary" />
                     )}
                   </div>
-                  <h4 className="text-lg font-semibold text-slate-900">
+                  <h4 className="text-lg font-semibold text-slate-900 dark:text-gray-100">
                     {getConversationTitle(selectedConversation)}
                   </h4>
-                  <p className="text-sm text-slate-500 mt-1">
+                  <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
                     {selectedConversation.type === "GROUP"
                       ? `${selectedConversation.participants.length} participants`
                       : "Direct conversation"}
@@ -1847,8 +1847,8 @@ export default function MessagesPage() {
 
               {/* Participants Section (for Groups) */}
               {selectedConversation.type === "GROUP" && (
-                <div className="p-4 border-b border-slate-200">
-                  <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                <div className="p-4 border-b border-slate-200 dark:border-gray-700">
+                  <h5 className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-3">
                     Participants
                   </h5>
                   <div className="space-y-2">
@@ -1858,9 +1858,9 @@ export default function MessagesPage() {
                       const isOnline = onlineUsers.has(participant.userId);
                       
                       return (
-                        <div key={participant.userId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50">
+                        <div key={participant.userId} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-gray-800">
                           <div className="relative">
-                            <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                            <div className="h-10 w-10 rounded-full bg-slate-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
                               {photo ? (
                                 <img src={photo} alt="" className="h-full w-full object-cover" />
                               ) : (
@@ -1874,8 +1874,8 @@ export default function MessagesPage() {
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900 truncate">{name}</p>
-                            <p className="text-xs text-slate-500">{isOnline ? "Online" : "Offline"}</p>
+                            <p className="text-sm font-medium text-slate-900 dark:text-gray-100 truncate">{name}</p>
+                            <p className="text-xs text-slate-500 dark:text-gray-400">{isOnline ? "Online" : "Offline"}</p>
                           </div>
                         </div>
                       );
@@ -1886,7 +1886,7 @@ export default function MessagesPage() {
 
               {/* Shared Media Section - Placeholder */}
               <div className="p-4">
-                <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                <h5 className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wide mb-3">
                   Shared Media
                 </h5>
                 <div className="text-center py-8 text-slate-400">

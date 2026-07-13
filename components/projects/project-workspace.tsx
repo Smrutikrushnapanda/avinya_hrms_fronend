@@ -7,9 +7,12 @@ import {
   assignProjectEmployees,
   createProjectTask,
   createProjectIssue,
+  createClientProjectLink,
   deleteProjectTask,
+  deleteClientProjectLink,
   getClientProject,
   getClientProjectEmployees,
+  getClientProjectLinks,
   getClientProjectTimesheetsSummary,
   getAllOrgEmployees,
   getProfile,
@@ -59,6 +62,9 @@ import {
   CheckCircle2,
   ListTodo,
   ClipboardList,
+  Link2,
+  ExternalLink,
+  Trash2,
 } from "lucide-react";
 
 type ProjectStatus = "planning" | "active" | "on_hold" | "completed";
@@ -145,6 +151,17 @@ type ProjectTimesheet = {
   } | null;
 };
 
+type ProjectQuickLink = {
+  id: string;
+  projectId: string;
+  title: string;
+  url: string;
+  createdByUserId: string;
+  createdAt: string;
+};
+
+const MAX_PROJECT_QUICK_LINKS = 5;
+
 type ClientProjectApi = {
   id: string;
   projectName?: string | null;
@@ -222,6 +239,17 @@ function normalizeText(value?: string | null) {
 
 function normalizeRoleValue(value: unknown) {
   return String(value ?? "").trim().toUpperCase();
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  const message =
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error &&
+    typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+      ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+      : undefined;
+  return message || fallback;
 }
 
 function extractProfileRoles(profile: Record<string, unknown>): string[] {
@@ -423,6 +451,12 @@ export default function ProjectWorkspace({
   const [uploadingIssueImage, setUploadingIssueImage] = useState(false);
   const assignWorkSectionRef = useRef<HTMLDivElement | null>(null);
 
+  const [quickLinks, setQuickLinks] = useState<ProjectQuickLink[]>([]);
+  const [showLinkComposer, setShowLinkComposer] = useState(false);
+  const [linkForm, setLinkForm] = useState({ title: "", url: "" });
+  const [savingLink, setSavingLink] = useState(false);
+  const [deletingLinkId, setDeletingLinkId] = useState<string | null>(null);
+
   const hasAdminRole = useMemo(
     () => profileRoles.some((role) => normalizeRoleValue(role) === "ADMIN"),
     [profileRoles],
@@ -474,6 +508,13 @@ export default function ProjectWorkspace({
   const canCreateIssue = canManageTeam && !isClientProject;
   const canManageDocuments =
     hasAdminRole || hasManagerRole || isCurrentUserProjectManager;
+  const isAssignedProjectMember = useMemo(
+    () => projectEmployees.some((member) => member.userId === profileUserId),
+    [projectEmployees, profileUserId],
+  );
+  const canAddQuickLink =
+    hasAdminRole || hasManagerRole || isCurrentUserProjectManager || isAssignedProjectMember;
+  const quickLinkLimitReached = quickLinks.length >= MAX_PROJECT_QUICK_LINKS;
   const canAssignQa = canManageTeam;
   const currentProjectQaMember = useMemo(
     () => projectEmployees.find((member) => isQaTesterRole(member.role)) || null,
@@ -634,6 +675,15 @@ export default function ProjectWorkspace({
     }
   }, []);
 
+  const loadQuickLinks = useCallback(async (clientProjectId: string) => {
+    try {
+      const res = await getClientProjectLinks(clientProjectId);
+      setQuickLinks(Array.isArray(res.data) ? (res.data as ProjectQuickLink[]) : []);
+    } catch {
+      setQuickLinks([]);
+    }
+  }, []);
+
   const loadWorkspace = useCallback(async () => {
     try {
       setLoading(true);
@@ -709,6 +759,7 @@ export default function ProjectWorkspace({
       );
       if (workspaceData.source === "client") {
         await loadClientTaskBoard(workspaceData.project.id);
+        await loadQuickLinks(workspaceData.project.id);
         // Fetch P&L summary for client projects
         try {
           const pnlRes = await getClientProjectTimesheetsSummary(workspaceData.project.id);
@@ -726,6 +777,7 @@ export default function ProjectWorkspace({
         } catch { /* ignore - P&L is optional */ }
       } else {
         setClientTasks([]);
+        setQuickLinks([]);
       }
     } catch (error: unknown) {
       const message =
@@ -739,7 +791,7 @@ export default function ProjectWorkspace({
     } finally {
       setLoading(false);
     }
-  }, [loadClientTaskBoard, loadProjectTimesheetBoard, projectId, source]);
+  }, [loadClientTaskBoard, loadProjectTimesheetBoard, loadQuickLinks, projectId, source]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -908,6 +960,50 @@ export default function ProjectWorkspace({
       toast.error("Failed to create task");
     } finally {
       setClientTaskSaving(false);
+    }
+  };
+
+  const canDeleteQuickLink = (link: ProjectQuickLink) =>
+    hasAdminRole || hasManagerRole || isCurrentUserProjectManager || link.createdByUserId === profileUserId;
+
+  const handleAddQuickLink = async () => {
+    if (!project || !isClientProject) return;
+    const title = linkForm.title.trim();
+    const url = linkForm.url.trim();
+    if (!title || !url) {
+      toast.error("Title and URL are required");
+      return;
+    }
+    if (quickLinkLimitReached) {
+      toast.error(`Maximum of ${MAX_PROJECT_QUICK_LINKS} links per project reached`);
+      return;
+    }
+    try {
+      setSavingLink(true);
+      const res = await createClientProjectLink(project.id, { title, url });
+      setQuickLinks((prev) => [...prev, res.data as ProjectQuickLink]);
+      setLinkForm({ title: "", url: "" });
+      setShowLinkComposer(false);
+      toast.success("Link added");
+    } catch (error: unknown) {
+      toast.error(extractErrorMessage(error, "Failed to add link"));
+    } finally {
+      setSavingLink(false);
+    }
+  };
+
+  const handleDeleteQuickLink = async (linkId: string) => {
+    if (!project) return;
+    if (!confirm("Remove this link?")) return;
+    try {
+      setDeletingLinkId(linkId);
+      await deleteClientProjectLink(project.id, linkId);
+      setQuickLinks((prev) => prev.filter((link) => link.id !== linkId));
+      toast.success("Link removed");
+    } catch (error: unknown) {
+      toast.error(extractErrorMessage(error, "Failed to remove link"));
+    } finally {
+      setDeletingLinkId(null);
     }
   };
 
@@ -1168,6 +1264,104 @@ export default function ProjectWorkspace({
           )}
         </div>
       </div>
+
+      {isClientProject ? (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h3 className="font-semibold flex items-center gap-1.5">
+                <Link2 className="w-4 h-4" />
+                Quick Links
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Google Sheets and other reference links for this project — up to {MAX_PROJECT_QUICK_LINKS}.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">{quickLinks.length}/{MAX_PROJECT_QUICK_LINKS}</Badge>
+              {canAddQuickLink ? (
+                <Button
+                  size="sm"
+                  variant={showLinkComposer ? "outline" : "default"}
+                  disabled={quickLinkLimitReached && !showLinkComposer}
+                  onClick={() => setShowLinkComposer((prev) => !prev)}
+                  title={quickLinkLimitReached ? `Maximum of ${MAX_PROJECT_QUICK_LINKS} links reached` : undefined}
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Link
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          {canAddQuickLink && showLinkComposer ? (
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-2 p-3 border border-border rounded-lg">
+              <Input
+                className="md:col-span-2"
+                placeholder="Link title (e.g. Client Feedback Sheet)"
+                value={linkForm.title}
+                onChange={(e) => setLinkForm((prev) => ({ ...prev, title: e.target.value }))}
+              />
+              <Input
+                className="md:col-span-3"
+                placeholder="https://docs.google.com/spreadsheets/..."
+                value={linkForm.url}
+                onChange={(e) => setLinkForm((prev) => ({ ...prev, url: e.target.value }))}
+              />
+              <Button
+                className="md:col-span-1"
+                disabled={savingLink || !linkForm.title.trim() || !linkForm.url.trim()}
+                onClick={handleAddQuickLink}
+              >
+                {savingLink ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          ) : null}
+
+          {quickLinks.length > 0 ? (
+            <div className="space-y-2">
+              {quickLinks.map((link) => (
+                <div
+                  key={link.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border p-2.5"
+                >
+                  <div className="min-w-0 flex items-center gap-2">
+                    <Link2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{link.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">{link.url}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={link.url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                        Open
+                      </a>
+                    </Button>
+                    {canDeleteQuickLink(link) ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={deletingLinkId === link.id}
+                        onClick={() => handleDeleteQuickLink(link.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {canAddQuickLink
+                ? "No links yet — add a Google Sheet or reference link for the team."
+                : "No links have been added to this project yet."}
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {isReadOnlyAdminView ? (
         <div className="rounded-xl border border-border bg-card p-4 space-y-4">

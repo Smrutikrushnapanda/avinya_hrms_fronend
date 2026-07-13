@@ -81,19 +81,19 @@ function RespondentsListModal({ isOpen, onClose, optionText, respondents }: Resp
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle className="text-lg font-semibold text-gray-900 pr-6">
+          <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100 pr-6">
             Respondents for "{optionText}"
           </DialogTitle>
         </DialogHeader>
         <div className="flex-1 overflow-hidden mt-4">
           {respondents.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p>No respondents for this option</p>
             </div>
           ) : (
             <div className="h-full">
-              <div className="text-sm text-gray-600 mb-4">
+              <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Total: {respondents.length} respondent{respondents.length !== 1 ? 's' : ''}
               </div>
               <ScrollArea className="h-full pr-2">
@@ -101,7 +101,7 @@ function RespondentsListModal({ isOpen, onClose, optionText, respondents }: Resp
                   {respondents.map((respondent, index) => (
                     <div
                       key={respondent.user_id}
-                      className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 transition-all duration-300 hover:shadow-md hover:scale-[1.02]"
+                      className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-lg border border-blue-100 dark:border-blue-900 transition-all duration-300 hover:shadow-md hover:scale-[1.02]"
                       style={{
                         animationDelay: `${index * 50}ms`,
                         animation: `slideInFromLeft 0.4s ease-out forwards`
@@ -111,8 +111,8 @@ function RespondentsListModal({ isOpen, onClose, optionText, respondents }: Resp
                         <User className="h-5 w-5 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{respondent.employee_name}</p>
-                        <p className="text-xs text-gray-500">ID: {respondent.user_id.slice(-8)}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100 truncate">{respondent.employee_name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">ID: {respondent.user_id.slice(-8)}</p>
                       </div>
                       <div className="flex-shrink-0">
                         <Badge variant="outline" className="text-xs">
@@ -168,7 +168,7 @@ function PollListSkeleton() {
       <CardContent className="flex-1 overflow-hidden">
         <div className="space-y-4">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="p-5 border border-gray-200 rounded-xl">
+            <div key={index} className="p-5 border border-gray-200 dark:border-gray-700 rounded-xl">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
@@ -193,21 +193,21 @@ function PollListSkeleton() {
 
 function QuestionCardSkeleton() {
   return (
-    <Card className="mb-6 shadow-sm border border-gray-200">
+    <Card className="mb-6 shadow-sm border border-gray-200 dark:border-gray-700">
       <CardContent className="p-8">
         <Skeleton className="h-6 w-80 mb-8" />
         
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           <div className="space-y-4">
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="bg-gray-50 dark:bg-gray-900 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <div className="grid grid-cols-2 gap-4">
                   <Skeleton className="h-5 w-16" />
                   <Skeleton className="h-5 w-12" />
                 </div>
               </div>
               
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {Array.from({ length: 3 }).map((_, index) => (
                   <div key={index} className="px-6 py-4">
                     <div className="grid grid-cols-2 gap-4 items-center">
@@ -614,13 +614,13 @@ export default function PollsPage() {
   const getStatusBadge = (poll: Poll) => {
     if (poll.is_active) {
       return (
-        <Badge className="bg-green-100 text-green-700 border-green-300">
+        <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-600">
           Active
         </Badge>
       );
     } else {
       return (
-        <Badge variant="outline" className="text-gray-600 border-gray-300">
+        <Badge variant="outline" className="text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600">
           Inactive
         </Badge>
       );
@@ -630,15 +630,15 @@ export default function PollsPage() {
   const renderPollCard = (poll: Poll) => (
     <div
       key={poll.id}
-      className="group p-5 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 cursor-pointer transition-all duration-200 flex items-center"
+      className="group p-5 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950 cursor-pointer transition-all duration-200 flex items-center"
       onClick={() => handlePollClick(poll)}
     >
       <div className="flex flex-col flex-1 min-w-0">
-        <div className="text-base font-semibold text-gray-900 truncate">
+        <div className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate">
           {poll.title}
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-700">
+        <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-700 dark:text-gray-300">
           {/* Responses */}
           <span className="flex items-center" title="Total responses">
             <Users className="h-4 w-4 mr-1" />
@@ -677,24 +677,24 @@ export default function PollsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col items-end min-w-fit border-l border-dashed border-gray-200 pl-4 h-full justify-center ml-4 gap-2">
+      <div className="flex flex-col items-end min-w-fit border-l border-dashed border-gray-200 dark:border-gray-700 pl-4 h-full justify-center ml-4 gap-2">
         <div className="flex flex-col items-center space-y-2">
           {poll.is_active ? (
-            <Badge className="bg-green-100 text-green-700 border-green-300">
+            <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-600">
               Active
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-gray-600 border-gray-300">
+            <Badge variant="outline" className="text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600">
               Inactive
             </Badge>
           )}
         </div>
         
         <div className="flex items-center gap-1 mt-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 hover:text-blue-700 hover:bg-blue-50" onClick={(e) => openEditPoll(poll, e)} title="Edit Poll">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950" onClick={(e) => openEditPoll(poll, e)} title="Edit Poll">
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={(e) => handleDeletePoll(poll.id, e)} title="Delete Poll">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50" onClick={(e) => handleDeletePoll(poll.id, e)} title="Delete Poll">
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
@@ -705,10 +705,10 @@ export default function PollsPage() {
   const renderQuestionCard = (question: QuestionAnalytics) => {
     if (question.question_type !== 'single_choice' && question.question_type !== 'multiple_choice') {
       return (
-        <Card key={question.question_id} className="mb-6 shadow-sm border-l-4 border-l-gray-400">
+        <Card key={question.question_id} className="mb-6 shadow-sm border-l-4 border-l-gray-400 dark:border-l-gray-600">
           <CardContent className="p-6">
-            <h3 className="font-semibold text-lg text-gray-900 mb-4">{question.question_text}</h3>
-            <div className="text-center py-8 text-gray-500">
+            <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 mb-4">{question.question_text}</h3>
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <Badge variant="secondary" className="text-base px-3 py-1">
                 {question.total_responses} responses
               </Badge>
@@ -726,10 +726,10 @@ export default function PollsPage() {
     })) || [];
 
     return (
-      <Card key={question.question_id} className="mb-6 shadow-sm border border-gray-200">
+      <Card key={question.question_id} className="mb-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <CardContent className="p-8">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="font-semibold text-xl text-gray-900">{question.question_text}</h3>
+            <h3 className="font-semibold text-xl text-gray-900 dark:text-gray-100">{question.question_text}</h3>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-sm">
                 <BarChart3 className="h-3 w-3 mr-1" />
@@ -741,16 +741,16 @@ export default function PollsPage() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
             {/* Left side - Options and Votes */}
             <div className="space-y-4">
-              <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+              <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="font-semibold text-gray-800">Options</div>
-                    <div className="font-semibold text-gray-800 text-center">Votes</div>
-                    <div className="font-semibold text-gray-800 text-center">Actions</div>
+                    <div className="font-semibold text-gray-800 dark:text-gray-200">Options</div>
+                    <div className="font-semibold text-gray-800 dark:text-gray-200 text-center">Votes</div>
+                    <div className="font-semibold text-gray-800 dark:text-gray-200 text-center">Actions</div>
                   </div>
                 </div>
                 
-                <div className="divide-y divide-gray-100">
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
                   {question.options_breakdown?.map((option: OptionBreakdown, index: number) => {
                     const respondentData: { user_id: string; employee_name: string }[] = question.user_responses
                       ?.filter((response: UserResponse) => response.selected_options?.includes(option.option_id))
@@ -763,22 +763,22 @@ export default function PollsPage() {
                     const respondentNames = respondentData.map((r: { user_id: string; employee_name: string }) => r.employee_name);
                     
                     return (
-                      <div key={option.option_id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                      <div key={option.option_id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                         <div className="grid grid-cols-3 gap-4 items-center">
                           <div className="flex items-center gap-3">
                             <div 
                               className="w-4 h-4 rounded-full flex-shrink-0 border-2 border-white shadow-sm" 
                               style={{ backgroundColor: COLORS[index % COLORS.length] }}
                             />
-                            <span className="font-medium text-gray-900">{option.option_text}</span>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">{option.option_text}</span>
                           </div>
                           <div className="flex items-center justify-center gap-2">
                             <EmployeeTooltip userIds={respondentIds} employeeNames={respondentNames}>
-                              <span className="cursor-help hover:text-blue-600 transition-colors text-2xl font-bold text-gray-900">
+                              <span className="cursor-help hover:text-blue-600 transition-colors text-2xl font-bold text-gray-900 dark:text-gray-100">
                                 {option.count}
                               </span>
                             </EmployeeTooltip>
-                            <span className="text-sm text-gray-500 font-medium">
+                            <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
                               ({option.percentage}%)
                             </span>
                           </div>
@@ -791,7 +791,7 @@ export default function PollsPage() {
                                   e.stopPropagation();
                                   handleViewRespondents(option.option_text, respondentData);
                                 }}
-                                className="h-8 px-3 text-xs hover:bg-blue-50 hover:border-blue-300"
+                                className="h-8 px-3 text-xs hover:bg-blue-50 dark:hover:bg-blue-950 hover:border-blue-300 dark:hover:border-blue-700"
                               >
                                 <Eye className="h-3 w-3 mr-1" />
                                 View
@@ -807,8 +807,8 @@ export default function PollsPage() {
             </div>
 
             {/* Right side - Pie Chart */}
-            <div className="flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 rounded-lg p-6">
-              <h4 className="text-lg font-semibold text-gray-700 mb-6">Response Distribution</h4>
+            <div className="flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-950/30 rounded-lg p-6">
+              <h4 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-6">Response Distribution</h4>
               <div className="w-full h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -884,7 +884,7 @@ export default function PollsPage() {
         <div className="flex items-center justify-between mb-6 flex-shrink-0">
           <div className="flex items-center gap-3">
             <Vote className="h-7 w-7 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">All Polls</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">All Polls</h1>
           </div>
           <PollManagement onPollCreated={fetchPolls} currentUser={currentUser} />
         </div>
@@ -896,10 +896,10 @@ export default function PollsPage() {
               <Vote className="h-5 w-5 text-blue-600" />
               Polls Overview
               <div className="flex items-center gap-2 ml-auto">
-                <Badge className="bg-green-100 text-green-700 border-green-200">
+                <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-600">
                   {activeCount} Active
                 </Badge>
-                <Badge variant="outline" className="text-gray-600 border-gray-300">
+                <Badge variant="outline" className="text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600">
                   {inactiveCount} Inactive
                 </Badge>
                 <Badge variant="secondary">{allPolls.length} Total</Badge>
@@ -909,7 +909,7 @@ export default function PollsPage() {
           
           <CardContent className="flex-1 overflow-hidden p-0">
             {allPolls.length === 0 ? (
-              <div className="text-center py-16 text-gray-500 px-6">
+              <div className="text-center py-16 text-gray-500 dark:text-gray-400 px-6">
                 <Vote className="h-16 w-16 mx-auto mb-4 opacity-30" />
                 <h3 className="text-xl font-medium mb-2">No Polls Found</h3>
                 <p className="text-sm">Create your first poll to get started</p>
@@ -931,16 +931,16 @@ export default function PollsPage() {
             style={{ width: '85vw' }}
           >
             <div className="flex flex-col h-full">
-              <SheetHeader className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <SheetHeader className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
                 <SheetTitle className="flex items-center gap-3 text-xl">
                   <Vote className="h-6 w-6 text-blue-600" />
-                  <span className="text-gray-900">{selectedPoll?.title}</span>
+                  <span className="text-gray-900 dark:text-gray-100">{selectedPoll?.title}</span>
                   {selectedPoll && getStatusBadge(selectedPoll)}
                 </SheetTitle>
                 {selectedPoll?.description && (
-                  <p className="text-gray-600 mt-2">{selectedPoll.description}</p>
+                  <p className="text-gray-600 dark:text-gray-400 mt-2">{selectedPoll.description}</p>
                 )}
-                <div className="flex items-center gap-6 text-sm text-gray-500 mt-3">
+                <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400 mt-3">
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
                     <span className="font-medium">{selectedPoll?.total_responses}</span> total responses
@@ -958,7 +958,7 @@ export default function PollsPage() {
                 </div>
               </SheetHeader>
 
-              <div className="flex-1 overflow-hidden bg-gray-50">
+              <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
                 <ScrollArea className="h-full">
                   <div className="p-6">
                     {analyticsLoading ? (
@@ -974,7 +974,7 @@ export default function PollsPage() {
                         )}
                       </div>
                     ) : (
-                      <div className="text-center py-12 text-gray-500">
+                      <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                         <div className="text-lg font-medium">Failed to load analytics</div>
                         <p className="text-sm mt-1">Please try again</p>
                       </div>
@@ -1035,15 +1035,15 @@ export default function PollsPage() {
                     <div key={qIndex} className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
                       <div className="space-y-3">
                         <div className="flex items-start gap-2">
-                          <Input placeholder="Question text" value={question.text} readOnly className="flex-1 bg-gray-100" />
+                          <Input placeholder="Question text" value={question.text} readOnly className="flex-1 bg-gray-100 dark:bg-gray-800" />
                         </div>
-                        <Input value={question.type.replace('_', ' ').toUpperCase()} readOnly className="bg-gray-100" />
+                        <Input value={question.type.replace('_', ' ').toUpperCase()} readOnly className="bg-gray-100 dark:bg-gray-800" />
                         {(question.type === 'single_choice' || question.type === 'multiple_choice') && question.options.length > 0 && (
                           <div className="ml-4">
                             <Label className="text-sm font-medium mb-2 block">Options</Label>
                             <div className="space-y-2">
                               {question.options.map((option, oIndex) => (
-                                <Input key={oIndex} value={option} readOnly className="bg-gray-100" />
+                                <Input key={oIndex} value={option} readOnly className="bg-gray-100 dark:bg-gray-800" />
                               ))}
                             </div>
                           </div>

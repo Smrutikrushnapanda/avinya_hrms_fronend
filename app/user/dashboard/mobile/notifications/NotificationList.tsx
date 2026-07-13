@@ -227,7 +227,7 @@ export default function NotificationList({
   const unreadCount = notifications.filter((n) => n.isNew).length;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-gray-950">
       {/* Header */}
       {/* <div className="bg-[#005F90] text-white px-5 pt-10 pb-28 relative">
         <div className="flex items-center">
@@ -261,29 +261,29 @@ export default function NotificationList({
       />
       {/* Search + Filters Card */}
       <div className="-mt-15 px-5 relative z-10">
-        <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100">
+        <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100 dark:bg-gray-900 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-3">
+            <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 dark:bg-gray-800 dark:border-gray-700">
               <Search className="w-4 h-4 text-gray-500" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search messages..."
-                className="w-full bg-transparent outline-none text-sm text-gray-700 placeholder:text-gray-400"
+                className="w-full bg-transparent outline-none text-sm text-gray-700 placeholder:text-gray-400 dark:text-gray-300 dark:placeholder:text-gray-500"
               />
             </div>
             <button className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center">
-              <SlidersHorizontal className="w-5 h-5 text-[#005F90]" />
+              <SlidersHorizontal className="w-5 h-5 text-messages-primary-dark" />
             </button>
           </div>
 
-          <div className="flex justify-between bg-gray-100 rounded-2xl p-2">
+          <div className="flex justify-between bg-gray-100 rounded-2xl p-2 dark:bg-gray-800">
             {filters.map((filter) => (
               <button
                 key={filter}
                 onClick={() => setSelectedFilter(filter)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
-                  selectedFilter === filter ? "bg-[#005F90] text-white" : "text-gray-600"
+                  selectedFilter === filter ? "bg-messages-primary-dark text-white" : "text-gray-600 dark:text-gray-400"
                 }`}
               >
                 <span className="text-sm">{filter}</span>
@@ -291,7 +291,7 @@ export default function NotificationList({
                   className={`min-w-5 h-5 px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
                     selectedFilter === filter
                       ? "bg-white/20 text-white"
-                      : "bg-gray-200 text-gray-700"
+                      : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                   }`}
                 >
                   {filterCounts[filter as keyof typeof filterCounts]}
@@ -310,14 +310,14 @@ export default function NotificationList({
               ? `Search Results (${filteredData.length})`
               : `${selectedFilter} Messages (${filteredData.length})`}
           </p>
-          <div className="px-3 py-1 rounded-full bg-gray-100 text-xs font-semibold text-gray-700">
+          <div className="px-3 py-1 rounded-full bg-gray-100 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
             {unreadCount} unread
           </div>
         </div>
 
         <div className="space-y-3">
           {filteredData.length === 0 ? (
-            <div className="text-center text-sm text-gray-500 py-6">
+            <div className="text-center text-sm text-gray-500 py-6 dark:text-gray-400">
               No notifications found.
             </div>
           ) : (
@@ -326,16 +326,16 @@ export default function NotificationList({
                 key={item.id}
                 onClick={() => handleNotificationPress(item)}
                 className={`w-full text-left rounded-2xl border p-4 shadow-sm ${
-                  item.isNew ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200"
+                  item.isNew ? "bg-blue-50 border-blue-200 dark:bg-blue-950/50 dark:border-blue-900" : "bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700"
                 } ${index === filteredData.length - 1 ? "mb-2" : ""}`}
               >
                 <div className="flex items-start gap-3">
                   <div className="relative">
-                    <div className="w-11 h-11 rounded-full bg-[#0077B6] text-white flex items-center justify-center text-sm font-bold">
+                    <div className="w-11 h-11 rounded-full bg-messages-primary text-white flex items-center justify-center text-sm font-bold">
                       {item.initials}
                     </div>
                     {item.isNew && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[#0077B6] border-2 border-white" />
+                      <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-messages-primary border-2 border-white" />
                     )}
                   </div>
 
@@ -343,7 +343,7 @@ export default function NotificationList({
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className={`text-sm font-semibold ${item.isNew ? "text-[#0b4f73]" : "text-gray-800"}`}>
+                          <p className={`text-sm font-semibold ${item.isNew ? "text-messages-primary-dark/80" : "text-gray-800 dark:text-gray-200"}`}>
                             {item.title}
                           </p>
                           <div className="flex items-center gap-1">
@@ -354,15 +354,15 @@ export default function NotificationList({
                             />
                           </div>
                         </div>
-                        <p className={`text-xs ${item.isNew ? "text-gray-700" : "text-gray-500"}`}>
+                        <p className={`text-xs ${item.isNew ? "text-gray-700 dark:text-gray-300" : "text-gray-500 dark:text-gray-400"}`}>
                           {item.subtitle}
                         </p>
                       </div>
-                      <span className={`text-[11px] ${item.isNew ? "text-[#0b4f73]" : "text-gray-500"}`}>
+                      <span className={`text-[11px] ${item.isNew ? "text-messages-primary-dark/80" : "text-gray-500 dark:text-gray-400"}`}>
                         {formatTime(new Date(item.sentAtMs))}
                       </span>
                     </div>
-                    <p className={`text-xs mt-1 line-clamp-2 ${item.isNew ? "text-gray-700" : "text-gray-500"}`}>
+                    <p className={`text-xs mt-1 line-clamp-2 ${item.isNew ? "text-gray-700 dark:text-gray-300" : "text-gray-500 dark:text-gray-400"}`}>
                       {item.message}
                     </p>
                   </div>
@@ -375,7 +375,7 @@ export default function NotificationList({
         <div className="mt-6">
           <button
             onClick={handleRefresh}
-            className="w-full text-center text-sm text-[#005F90] underline"
+            className="w-full text-center text-sm text-messages-primary-dark underline"
           >
             {refreshing ? "Refreshing..." : "Refresh"}
           </button>

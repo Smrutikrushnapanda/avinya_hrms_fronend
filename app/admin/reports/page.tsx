@@ -1136,7 +1136,7 @@ export default function ReportsPage() {
                       <Card className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardContent className="p-6">
                           <div className="flex items-center space-x-3 mb-4">
-                            <div className="p-2 bg-gray-100 rounded-lg">
+                            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
                               <FileText className="w-6 h-6 text-gray-600" />
                             </div>
                             <div>
@@ -1224,7 +1224,7 @@ export default function ReportsPage() {
                           format: "Excel"
                         }
                       ].map((download, index) => (
-                        <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                        <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                           <div className="flex items-center space-x-4">
                             <div className={`p-2 rounded-lg ${
                               download.type === 'attendance' ? 'bg-blue-100' :

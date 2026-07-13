@@ -417,6 +417,12 @@ export const updateClientProjectDocument = (
 ) => api.patch(`/client-projects/${id}/documents/${documentId}`, data);
 export const deleteClientProjectDocument = (id: string, documentId: string) =>
   api.delete(`/client-projects/${id}/documents/${documentId}`);
+export const getClientProjectLinks = (id: string) =>
+  api.get(`/client-projects/${id}/links`);
+export const createClientProjectLink = (id: string, data: { title: string; url: string }) =>
+  api.post(`/client-projects/${id}/links`, data);
+export const deleteClientProjectLink = (id: string, linkId: string) =>
+  api.delete(`/client-projects/${id}/links/${linkId}`);
 export const getClientProjectTestSheet = (id: string) => api.get(`/client-projects/${id}/test-sheet`);
 export const updateClientProjectTestSheetColumns = (
   id: string,

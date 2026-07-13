@@ -56,7 +56,7 @@ export function StatCard({ title, value, subtitle, icon: Icon, trend, color = "b
 
   return (
     <Card className={`h-full transition-all hover:shadow-md border-l-4 ${colors.bg} ${colors.darkBg} ${colors.border} ${colors.darkBorder} relative overflow-hidden`}>
-      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#184a8c]/5 to-[#00b4db]/5 rounded-full blur-2xl -mr-16 -mt-16" />
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-accent-brand-from/5 to-accent-brand-to/5 rounded-full blur-2xl -mr-16 -mt-16" />
       <CardHeader className="pb-2 relative z-10">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold">{title}</CardTitle>

@@ -158,7 +158,7 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
   if (attendanceState === "no-record") {
     return (
       <div className="flex flex-col items-center justify-center h-32 text-center">
-        <AlertCircle className="w-10 h-10 text-amber-500 mb-2" />
+        <AlertCircle className="w-10 h-10 text-amber-500 dark:text-amber-400 mb-2" />
         <p className="text-sm font-medium text-foreground">No Check-in Record</p>
         <p className="text-xs text-muted-foreground">You haven&apos;t logged in yet</p>
       </div>
@@ -179,7 +179,7 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
         </div>
         <div className="w-full bg-rose-50 dark:bg-rose-950/30 rounded-xl p-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center">
-            <Clock className="w-5 h-5 text-rose-500" />
+            <Clock className="w-5 h-5 text-rose-500 dark:text-rose-400" />
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Check-in Time</p>
@@ -187,7 +187,7 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
           </div>
           <div className="ml-auto text-right">
             <p className="text-xs text-muted-foreground">Status</p>
-            <p className="text-sm font-bold text-rose-500">Late Arrival</p>
+            <p className="text-sm font-bold text-rose-500 dark:text-rose-400">Late Arrival</p>
           </div>
         </div>
       </div>
@@ -241,7 +241,7 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
         className="w-full bg-emerald-50 dark:bg-emerald-950/30 rounded-xl p-3 flex items-center gap-3"
       >
         <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center">
-          <CheckCircle className="w-5 h-5 text-emerald-500" />
+          <CheckCircle className="w-5 h-5 text-emerald-500 dark:text-emerald-400" />
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Check-in Time</p>
@@ -249,7 +249,7 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
         </div>
         <div className="ml-auto text-right">
           <p className="text-xs text-muted-foreground">Status</p>
-          <p className="text-sm font-bold text-emerald-500">On Time! 🎉</p>
+          <p className="text-sm font-bold text-emerald-500 dark:text-emerald-400">On Time! 🎉</p>
         </div>
       </motion.div>
     </div>
