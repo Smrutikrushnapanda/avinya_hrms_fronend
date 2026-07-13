@@ -51,7 +51,12 @@ export function middleware(req: NextRequest) {
 
   // If not authenticated and trying to access protected routes, redirect to signin
   if (!userCookie || !userRoleCookie) {
-    if (isUserRoute || isAdminRoute || isSuperadminRoute) {
+    if (isSuperadminRoute) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/superadmin-login";
+      return NextResponse.redirect(url);
+    }
+    if (isUserRoute || isAdminRoute) {
       const url = req.nextUrl.clone();
       url.pathname = "/signin";
       return NextResponse.redirect(url);
