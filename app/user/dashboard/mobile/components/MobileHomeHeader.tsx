@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { usePlanAccess } from "@/components/plan-access-provider";
 import useUnreadMessages from "./useUnreadMessages";
@@ -53,9 +54,7 @@ export default function MobileHomeHeader({
   const [headerMediaUrl, setHeaderMediaUrl] = useState<string | null>(null);
   const hasCustomBranding = Boolean(headerColor) || Boolean(headerMediaUrl);
 
-  useEffect(() => {
-    onBrandingChange?.(hasCustomBranding);
-  }, [hasCustomBranding, onBrandingChange]);
+  useEffect(() => { onBrandingChange?.(hasCustomBranding); }, [hasCustomBranding, onBrandingChange]);
 
   useEffect(() => {
     if (!user.organizationId) return;
@@ -64,54 +63,49 @@ export default function MobileHomeHeader({
       .then((res) => {
         if (!active) return;
         const org = res.data || {};
-        const mediaActive =
-          org.homeHeaderMediaUrl &&
-          isMediaActive(org.homeHeaderMediaStartDate, org.homeHeaderMediaEndDate);
+        const mediaActive = org.homeHeaderMediaUrl && isMediaActive(org.homeHeaderMediaStartDate, org.homeHeaderMediaEndDate);
         setHeaderColor(org.homeHeaderBackgroundColor || null);
         setHeaderMediaUrl(mediaActive ? org.homeHeaderMediaUrl : null);
       })
-      .catch(() => {
-        if (!active) return;
-        setHeaderColor(null);
-        setHeaderMediaUrl(null);
-      });
-    return () => {
-      active = false;
-    };
+      .catch(() => { if (active) { setHeaderColor(null); setHeaderMediaUrl(null); } });
+    return () => { active = false; };
   }, [user.organizationId]);
 
   const notificationButton = !isBasicPlan && (
     <div className="flex items-center gap-3">
-      <PwaInstallButton
-        className={`rounded-md p-1 transition-colors ${
-          hasCustomBranding ? "text-white hover:bg-white/10" : "text-foreground hover:bg-muted"
-        }`}
-      />
-      <button
-        className={`relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all active:scale-95 shadow-sm border border-slate-100 bg-white text-slate-800`}
+      <PwaInstallButton className="rounded-md p-1 transition-colors text-foreground hover:bg-muted" />
+      <motion.button
+        whileTap={{ scale: 0.9 }}
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground"
         onClick={() => router.push("/user/dashboard/mobile/notifications")}
         aria-label="Notifications"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+          <span className="absolute top-1.5 right-1.5 min-w-[10px] h-[10px] rounded-full bg-destructive flex items-center justify-center">
+            <span className="text-[7px] font-bold text-white leading-none px-[2px]">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          </span>
         )}
-      </button>
+      </motion.button>
     </div>
   );
 
   if (!hasCustomBranding) {
     return (
-      <div className="bg-slate-50/50 dark:bg-slate-900/10 text-foreground px-5 pt-6 pb-4 flex items-center justify-between">
-        <div className="flex items-center space-x-3 cursor-pointer" onClick={onOpenSidebar}>
-          <Avatar className="w-12 h-12 border border-slate-200 shadow-sm">
+      <div className="bg-background text-foreground px-5 pt-5 pb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={onOpenSidebar}>
+          <Avatar className="w-12 h-12 border border-border shrink-0">
             <AvatarImage src={user.avatar} alt={user.name} />
-            <AvatarFallback className="bg-blue-50 text-blue-600 font-bold">{user.name?.[0] || "U"}</AvatarFallback>
+            <AvatarFallback className="bg-primary/10 text-primary font-bold">
+              {user.name?.[0] || "U"}
+            </AvatarFallback>
           </Avatar>
-          <div>
-            <p className="text-xs text-slate-400 font-medium">{getGreeting()},</p>
-            <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 leading-tight mt-0.5">{user.name}</h2>
-            <p className="text-xs text-slate-400 font-normal mt-0.5">{user.designation || user.role}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground font-medium">{getGreeting()},</p>
+            <h2 className="text-base font-bold text-foreground truncate mt-0.5">{user.name}</h2>
+            <p className="text-xs text-muted-foreground font-normal mt-0.5 truncate">{user.designation || user.role}</p>
           </div>
         </div>
         {notificationButton}
@@ -120,8 +114,10 @@ export default function MobileHomeHeader({
   }
 
   return (
-    <div
-      className="text-white px-5 pt-6 pb-16 flex items-center justify-between"
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="text-white px-5 pt-6 pb-12 flex items-center justify-between"
       style={{
         backgroundColor: headerColor || undefined,
         backgroundImage: headerMediaUrl ? `url(${headerMediaUrl})` : undefined,
@@ -129,17 +125,19 @@ export default function MobileHomeHeader({
         backgroundPosition: "center",
       }}
     >
-      <div className="flex items-center space-x-3 cursor-pointer" onClick={onOpenSidebar}>
-        <Avatar className="w-12 h-12 border-2 border-white transition-transform active:scale-95 shadow-sm">
+      <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={onOpenSidebar}>
+        <Avatar className="w-12 h-12 border-2 border-white/50 shrink-0">
           <AvatarImage src={user.avatar} alt={user.name} />
-          <AvatarFallback className="bg-blue-50 text-blue-600 font-bold">{user.name?.[0] || "U"}</AvatarFallback>
+          <AvatarFallback className="bg-white/20 text-white font-bold">{user.name?.[0] || "U"}</AvatarFallback>
         </Avatar>
-        <div>
-          <h2 className="text-base font-bold text-white leading-tight">{user.name}</h2>
-          <p className="text-xs text-blue-100/90 mt-0.5">{user.designation || user.role}</p>
+        <div className="flex-1 min-w-0">
+          <div className="inline-flex items-center rounded-full bg-black/20 border border-white/20 px-3 py-1">
+            <h2 className="text-base font-bold text-white truncate">{user.name}</h2>
+          </div>
+          <p className="text-xs text-white/80 mt-1 truncate">{user.designation || user.role}</p>
         </div>
       </div>
       {notificationButton}
-    </div>
+    </motion.div>
   );
 }

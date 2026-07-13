@@ -111,38 +111,38 @@ export default function MobileApplyLeavePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-[#005F90] text-white px-4 pt-5 pb-16 flex items-center gap-3">
+    <div className="min-h-screen bg-background">
+      <div className="bg-primary text-primary-foreground px-4 pt-5 pb-16 flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
-          className="text-white hover:text-white/90 hover:bg-white/10"
+          className="text-primary-foreground hover:text-primary-foreground/90 hover:bg-white/10"
           onClick={() => router.push("/user/dashboard/mobile/leave")}
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="bg-white/20 rounded-full px-4 py-2">
+        <div className="bg-primary-foreground/20 rounded-full px-4 py-2">
           <h2 className="text-xl font-bold">Leave</h2>
         </div>
       </div>
 
       <div className="px-5 -mt-12 z-10 pb-24">
-        <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
+        <div className="bg-card rounded-2xl p-6 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border border-border">
           <div className="flex flex-col items-center text-center gap-2 mb-6">
-            <div className="h-10 w-10 rounded-full bg-[#E6F4FA] flex items-center justify-center">
-              <FileText className="w-5 h-5 text-[#0077B6]" />
+            <div className="h-10 w-10 rounded-full bg-primary/8 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-primary" />
             </div>
-            <p className="text-sm font-bold text-[#0077B6]">Apply for Leave</p>
-            <p className="text-xs text-gray-500">Submit a new leave request</p>
-            <p className="text-xs text-red-600">
+            <p className="text-sm font-bold text-primary">Apply for Leave</p>
+            <p className="text-xs text-muted-foreground">Submit a new leave request</p>
+            <p className="text-xs text-rose-600">
               If balance is exhausted, request will be submitted as unpaid leave.
             </p>
           </div>
 
           <div className="space-y-4">
             <div>
-              <Label className="text-sm font-medium text-gray-700">Leave Type</Label>
-              <div className="mt-2 rounded-lg border border-gray-300 bg-[#F1F8FB]">
+              <Label className="text-sm font-medium text-foreground">Leave Type</Label>
+              <div className="mt-2 rounded-lg border border-border bg-muted">
                 <Select
                   value={form.leaveTypeId}
                   onValueChange={(value) =>
@@ -171,24 +171,24 @@ export default function MobileApplyLeavePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <Label className="text-sm font-medium text-gray-700">Start Date</Label>
+                <Label className="text-sm font-medium text-foreground">Start Date</Label>
                 <Input
                   type="date"
                   value={form.startDate}
                   min={today}
-                  className="mt-2 border-gray-300 bg-[#F1F8FB]"
+                  className="mt-2 border-border bg-muted"
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, startDate: e.target.value }))
                   }
                 />
               </div>
               <div>
-                <Label className="text-sm font-medium text-gray-700">End Date</Label>
+                <Label className="text-sm font-medium text-foreground">End Date</Label>
                 <Input
                   type="date"
                   value={form.endDate}
                   min={form.startDate || today}
-                  className="mt-2 border-gray-300 bg-[#F1F8FB]"
+                  className="mt-2 border-border bg-muted"
                   onChange={(e) =>
                     setForm((prev) => ({ ...prev, endDate: e.target.value }))
                   }
@@ -197,12 +197,12 @@ export default function MobileApplyLeavePage() {
             </div>
 
             <div>
-              <Label className="text-sm font-medium text-gray-700">Reason</Label>
+              <Label className="text-sm font-medium text-foreground">Reason</Label>
               <Textarea
                 rows={4}
                 placeholder="Enter reason for leave...(optional)"
                 value={form.reason}
-                className="mt-2 border-gray-300 bg-[#F1F8FB]"
+                className="mt-2 border-border bg-muted"
                 onChange={(e) =>
                   setForm((prev) => ({ ...prev, reason: e.target.value }))
                 }
@@ -212,7 +212,7 @@ export default function MobileApplyLeavePage() {
             <Button
               onClick={handleSubmit}
               disabled={submitting}
-              className="w-full bg-[#0077B6] hover:bg-[#006494] text-white gap-2"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
             >
               {submitting ? (
                 <>

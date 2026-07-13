@@ -721,6 +721,16 @@ export default function LoginPage() {
                   <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
                 </form>
               </div>
+
+              <div className="text-center" style={{ marginTop: 18 }}>
+                <Link
+                  href="/superadmin-login"
+                  className="footer-link"
+                  style={{ fontSize: 12, fontWeight: 600 }}
+                >
+                  Super Admin? Sign in with email OTP →
+                </Link>
+              </div>
             </motion.div>
           </div>
         </div>

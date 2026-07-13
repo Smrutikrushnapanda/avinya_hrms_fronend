@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, CheckCircle, Clock, XCircle, Calendar, Menu } from "lucide-react";
+import { Plus, CheckCircle, Clock, Calendar } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getProfile, getLeaveBalance, getLeaveRequests, getPendingLeaves } from "@/app/api/api";
-import { Skeleton } from "@/components/ui/skeleton";
+import { motion } from "framer-motion";
 import MobileTabHeader from "../components/MobileTabHeader";
+import { MobileCard, MobileBadge } from "../components/MobileCard";
+import { MobileFloatingActionButton } from "../components/MobileFloatingActionButton";
+import { StaggerReveal, StaggerItem, SpringNumber } from "../components/animation-wrappers";
+import { MobileEmptyState } from "../components/MobileEmptyState";
+import { MobileSkeleton } from "../components/MobileSkeleton";
 
 interface LeaveBalance {
   id?: string;
-  leaveType?: {
-    name?: string;
-  };
+  leaveType?: { name?: string };
   leaveTypeName?: string;
   allocated?: number;
   used?: number;
@@ -21,9 +24,7 @@ interface LeaveBalance {
 
 interface LeaveRequest {
   id: string;
-  leaveType?: {
-    name?: string;
-  };
+  leaveType?: { name?: string };
   leaveTypeName?: string;
   startDate: string;
   endDate: string;
@@ -33,11 +34,23 @@ interface LeaveRequest {
   totalDays?: number;
   days?: number;
   duration?: number;
-  approvals?: Array<{
-    level: number;
-    status: string;
-  }>;
+  approvals?: Array<{ level: number; status: string }>;
   requiresManagerApproval?: boolean;
+}
+
+const tabs = ["All", "Pending", "Approved", "Rejected"];
+
+function normalizeStatus(status?: string) {
+  const s = (status || "").toLowerCase();
+  if (!s) return "Unknown";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatDate(dateStr?: string) {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString();
 }
 
 export default function MobileLeavePage() {
@@ -50,40 +63,25 @@ export default function MobileLeavePage() {
   const [selectedTab, setSelectedTab] = useState("All");
   const [isApprover, setIsApprover] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-  const [fabOpen, setFabOpen] = useState(false);
 
   const fetchLeaveData = useCallback(async () => {
     if (!userId) return;
- try {
-      const    [balanceRes, requestsRes, pendingRes] = await Promise.all([
+    try {
+      const [balanceRes, requestsRes, pendingRes] = await Promise.all([
         getLeaveBalance(userId),
         getLeaveRequests(userId),
         getPendingLeaves(userId).catch(() => ({ data: [] })),
       ]);
-
-      // Handle balance data
       const balanceData = balanceRes.data;
-      if (Array.isArray(balanceData)) {
-        setLeaveBalances(balanceData);
-      } else if (balanceData?.balances) {
-        setLeaveBalances(balanceData.balances);
-      }
+      if (Array.isArray(balanceData)) setLeaveBalances(balanceData);
+      else if (balanceData?.balances) setLeaveBalances(balanceData.balances);
 
-      // Handle requests data
       const requestsData = requestsRes.data;
-      if (Array.isArray(requestsData)) {
-        setLeaveRequests(requestsData);
-      } else if (requestsData?.results) {
-        setLeaveRequests(requestsData.results);
-      }
+      if (Array.isArray(requestsData)) setLeaveRequests(requestsData);
+      else if (requestsData?.results) setLeaveRequests(requestsData.results);
 
-      // Handle pending count
       const pendingData = pendingRes?.data;
-      if (Array.isArray(pendingData)) {
-        setPendingCount(pendingData.length);
-      } else {
-        setPendingCount(0);
-      }
+      setPendingCount(Array.isArray(pendingData) ? pendingData.length : 0);
     } catch (error) {
       console.error("Error fetching leave data:", error);
     } finally {
@@ -96,13 +94,11 @@ export default function MobileLeavePage() {
       try {
         const profileRes = await getProfile();
         const profile = profileRes.data || {};
-        const resolvedUserId = profile.userId ?? profile.id ?? "";
-        setUserId(resolvedUserId);
+        setUserId(profile.userId ?? profile.id ?? "");
         setIsApprover(Boolean(profile.isApprover));
-        setLoading(false);
-      } catch (error) {
-        console.error("Error fetching profile:", error);
+      } catch {
         setIsApprover(false);
+      } finally {
         setLoading(false);
       }
     };
@@ -110,443 +106,242 @@ export default function MobileLeavePage() {
   }, []);
 
   useEffect(() => {
-    if (userId) {
-      fetchLeaveData();
-    }
+    if (userId) fetchLeaveData();
   }, [userId, fetchLeaveData]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await fetchLeaveData();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [fetchLeaveData]);
-
-  const normalizeStatus = (status?: string) => {
-    const s = (status || "").toLowerCase();
-    if (!s) return "Unknown";
-    return s.charAt(0).toUpperCase() + s.slice(1);
-  };
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "-";
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return "-";
-    return d.toLocaleDateString();
-  };
 
   const filteredLeaves =
     selectedTab === "All"
       ? leaveRequests
-      : leaveRequests.filter(
-          (item) => normalizeStatus(item.status) === selectedTab
-        );
+      : leaveRequests.filter((item) => normalizeStatus(item.status) === selectedTab);
 
   const hasPendingRequests =
-    pendingCount > 0 ||
-    leaveRequests.some((leave) => normalizeStatus(leave.status) === "Pending");
+    pendingCount > 0 || leaveRequests.some((leave) => normalizeStatus(leave.status) === "Pending");
 
   const getApprovalState = (leave: LeaveRequest) => {
     let managerStatus: "pending" | "approved" | "rejected" = "pending";
     let hrStatus: "pending" | "approved" | "rejected" = "pending";
-
     const approvals = Array.isArray(leave?.approvals) ? leave.approvals : [];
-    const level1 = approvals.find((a: any) => a.level === 1);
-    const level2 = approvals.find((a: any) => a.level === 2);
-
+    const level1 = approvals.find((a) => a.level === 1);
+    const level2 = approvals.find((a) => a.level === 2);
     if (level1?.status === "APPROVED") managerStatus = "approved";
     if (level1?.status === "REJECTED") managerStatus = "rejected";
-
     if (level2?.status === "APPROVED") hrStatus = "approved";
     if (level2?.status === "REJECTED") hrStatus = "rejected";
-
-    if (leave?.status === "APPROVED") {
-      managerStatus = "approved";
-      hrStatus = "approved";
-    } else if (leave?.status === "REJECTED") {
-      if (managerStatus === "pending") managerStatus = "rejected";
-    }
-
-    const showManager =
-      (Boolean(level2) && Boolean(level1)) || Boolean(leave?.requiresManagerApproval);
+    if (leave?.status === "APPROVED") { managerStatus = "approved"; hrStatus = "approved"; }
+    else if (leave?.status === "REJECTED" && managerStatus === "pending") managerStatus = "rejected";
+    const showManager = (Boolean(level2) && Boolean(level1)) || Boolean(leave?.requiresManagerApproval);
     return { managerStatus, hrStatus, showManager };
   };
 
-  const getStatusColor = (status: string) => {
-    const normalized = normalizeStatus(status);
-    switch (normalized) {
-      case "Approved":
-        return "bg-green-100 text-green-800 border-green-200";
-      case "Pending":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "Rejected":
-        return "bg-red-100 text-red-800 border-red-200";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
-    }
-  };
-
-  const tabs = ["All", "Pending", "Approved", "Rejected"];
-
-  const canApprove = isApprover;
-
-  const toggleFab = () => {
-    if (canApprove) {
-      setFabOpen(!fabOpen);
-    } else {
-      router.push("/user/dashboard/mobile/leave/apply");
-    }
-  };
-
-  const handleAddLeave = () => {
-    router.push("/user/dashboard/mobile/leave/apply");
-    setFabOpen(false);
-  };
-
-  const handleApprove = () => {
-    router.push("/user/dashboard/mobile/leave/approve");
-    setFabOpen(false);
+  const statusVariant = (status: string) => {
+    const n = normalizeStatus(status);
+    if (n === "Approved") return "success" as const;
+    if (n === "Pending") return "warning" as const;
+    if (n === "Rejected") return "danger" as const;
+    return "default" as const;
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        {/* Header */}
+      <div className="min-h-screen bg-background flex flex-col">
         <MobileTabHeader title="Leave" />
-
-        {/* Loading Skeleton */}
-        <div className="px-5 -mt-12 z-10">
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 mb-4 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent" />
-            <div className="absolute bottom-0 right-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-180" />
-            <div className="absolute bottom-0 left-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-270" />
-            <div className="absolute top-0 right-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-90" />
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <Skeleton className="h-9 w-9 rounded-full" />
-                  <div className="flex-1">
-                    <Skeleton className="h-4 w-24 mb-1" />
-                    <Skeleton className="h-3 w-16" />
-                  </div>
-                  <Skeleton className="h-6 w-12" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs Skeleton */}
-        <div className="px-5 mb-4">
-          <div className="flex bg-gray-100 rounded-xl p-1">
-            {tabs.map((tab) => (
-              <Skeleton key={tab} className="flex-1 h-9 rounded-lg" />
-            ))}
-          </div>
-        </div>
-
-        {/* Cards Skeleton */}
-        <div className="px-5 space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-32 rounded-xl" />
-          ))}
-        </div>
+        <MobileSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
+    <div className="min-h-screen bg-background flex flex-col">
       <MobileTabHeader title="Leave" />
 
-      {/* Content */}
-      <div className="px-5 -mt-12 z-10 pb-24">
-        {/* My Leave / Approve Switch - only shown for approvers */}
-        {canApprove && (
-          <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
-            <button
+      <div className="px-4 -mt-12 z-10 pb-24 space-y-4">
+        {isApprover && (
+          <MobileCard className="flex gap-2 p-1.5">
+            <motion.button
+              whileTap={{ scale: 0.97 }}
               onClick={() => router.push("/user/dashboard/mobile/leave")}
-              className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors bg-[#005F90] text-white"
+              className="flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold bg-primary text-primary-foreground"
             >
               My Leave
-            </button>
-            <button
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
               onClick={() => router.push("/user/dashboard/mobile/leave/approve")}
-              className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors text-gray-600"
+              className="flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold text-muted-foreground"
             >
               Approve
-            </button>
-          </div>
+            </motion.button>
+          </MobileCard>
         )}
 
-        {/* Summary Card - Matching RN */}
-        <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 mb-4 relative overflow-hidden">
-          {/* Triangle Decorations */}
-          <div className="absolute top-0 left-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent" />
-          <div className="absolute bottom-0 right-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-180" />
-          <div className="absolute bottom-0 left-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-270" />
-          <div className="absolute top-0 right-0 w-0 h-0 border-t-[60px] border-t-blue-100 border-r-[60px] border-r-transparent rotate-90" />
-
+        <MobileCard className="relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/40 to-primary/10" />
           {leaveBalances.length === 0 ? (
-            <div className="py-4 text-center">
-              <p className="text-sm text-gray-500">No leave balances available</p>
-            </div>
+            <p className="text-sm text-muted-foreground text-center py-4">No leave balances available</p>
           ) : (
-            <div className="space-y-1 relative z-10">
-              {leaveBalances.map((balance, index) => (
-                <div key={balance.id || index}>
-                  <div className="flex items-center py-2">
-                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center mr-3">
-                      <Calendar className="w-5 h-5 text-blue-500" />
+            <div className="space-y-1">
+              {leaveBalances.map((balance, index) => {
+                const remaining = Number(balance.closingBalance ?? balance.remaining ?? 0);
+                const isUnpaid = remaining < 0;
+                return (
+                  <div key={balance.id || index}>
+                    <div className="flex items-center py-2">
+                      <div className="w-9 h-9 rounded-full bg-primary/8 flex items-center justify-center mr-3">
+                        <Calendar className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm text-foreground">
+                          {balance.leaveType?.name || balance.leaveTypeName || "Leave"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">Balance</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-xl font-bold tabular-nums ${isUnpaid ? "text-rose-500" : "text-foreground"}`}>
+                          <SpringNumber value={Math.abs(remaining)} />
+                          {isUnpaid && <span className="text-xs ml-0.5">(Unpaid)</span>}
+                        </p>
+                        <p className={`text-xs ${isUnpaid ? "text-rose-500 font-semibold" : "text-muted-foreground"}`}>
+                          {isUnpaid ? "Unpaid" : "Available"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-800 text-sm">
-                        {balance.leaveType?.name || balance.leaveTypeName || "Leave"}
-                      </p>
-                      <p className="text-xs text-gray-500">Balance</p>
-                    </div>
-                    <div className="text-right">
-                      {(() => {
-                        const remaining = Number(balance.closingBalance ?? balance.remaining ?? 0);
-                        const isUnpaid = remaining < 0;
-                        return (
-                          <>
-                            <p className={`text-xl font-bold ${isUnpaid ? "text-red-600" : "text-blue-600"}`}>
-                              {remaining}
-                            </p>
-                            <p className={`text-xs ${isUnpaid ? "text-red-600 font-semibold" : "text-gray-500"}`}>
-                              {isUnpaid ? "Unpaid Leave" : "Available"}
-                            </p>
-                          </>
-                        );
-                      })()}
-                    </div>
+                    {index < leaveBalances.length - 1 && <div className="h-px bg-border ml-12" />}
                   </div>
-                  {index < leaveBalances.length - 1 && (
-                    <div className="h-px bg-gray-200 my-1 ml-12" />
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
-        </div>
+        </MobileCard>
 
-        {/* Filter Tabs - Matching RN */}
-        <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
+        <MobileCard className="flex gap-1 p-1" padded={false}>
           {tabs.map((tab) => (
-            <button
+            <motion.button
               key={tab}
               onClick={() => setSelectedTab(tab)}
-              className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors ${
-                selectedTab === tab
-                  ? "bg-[#005F90] text-white"
-                  : "text-gray-600"
+              layout
+              className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-colors relative ${
+                selectedTab === tab ? "text-primary-foreground" : "text-muted-foreground"
               }`}
             >
-              {tab}
-            </button>
+              {selectedTab === tab && (
+                <motion.span
+                  layoutId="leaveTabBg"
+                  className="absolute inset-0 bg-primary rounded-xl"
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{tab}</span>
+            </motion.button>
           ))}
-        </div>
+        </MobileCard>
 
-        {/* Leave Applications */}
-        <div className="space-y-3" style={{ maxHeight: 'none', overflowY: 'visible' }}>
-          {filteredLeaves.length === 0 ? (
-            <div className="py-8 text-center">
-              <p className="text-sm text-gray-500">No leave requests found</p>
-            </div>
-          ) : (
-            filteredLeaves.map((leave) => {
+        {filteredLeaves.length === 0 ? (
+          <MobileEmptyState
+            icon={<Calendar size={24} />}
+            title="No leave requests"
+            description="No requests found for this filter."
+          />
+        ) : (
+          <StaggerReveal className="space-y-3" staggerDelay={0.05}>
+            {filteredLeaves.map((leave) => {
               const approvalState = getApprovalState(leave);
               return (
-                <div key={leave.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                  {/* Card Header */}
-                  <div className="flex justify-between items-center mb-3">
-                    <div>
-                      <p className="font-semibold text-sm text-gray-800">
-                        {formatDate(leave.createdAt)}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {leave.leaveType?.name || (typeof leave.leaveType === "string" ? leave.leaveType : null) || "Leave"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Card Body */}
-                  <div className="flex justify-between items-center mb-3">
-                    <div>
-                      <p className="text-xs text-gray-500">Leave Date</p>
-                      <p className="font-semibold text-sm text-gray-800">
-                        {formatDate(leave.startDate)} - {formatDate(leave.endDate)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500">Total Leave</p>
-                      <p className="font-semibold text-sm text-gray-800">
-                        {leave.numberOfDays ?? leave.totalDays ?? leave.days ?? leave.duration ?? "-"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Status */}
-                  <div className="flex items-center mb-3">
-                    {normalizeStatus(leave.status) === "Approved" ? (
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    ) : normalizeStatus(leave.status) === "Pending" ? (
-                      <Clock className="w-4 h-4 text-yellow-500" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-red-500" />
-                    )}
-                    <span className={`ml-1.5 text-sm font-semibold ${
-                      normalizeStatus(leave.status) === "Approved"
-                        ? "text-green-600"
-                        : normalizeStatus(leave.status) === "Pending"
-                        ? "text-yellow-600"
-                        : "text-red-600"
-                    }`}>
-                      {normalizeStatus(leave.status)}
-                    </span>
-                  </div>
-
-                  {/* Timeline - Matching RN */}
-                  <div className="mt-2 bg-gray-50 rounded-lg p-2 border border-gray-100">
-                    <div className="flex items-center justify-between">
-                      {/* Applied */}
-                      <div className="flex flex-col items-center flex-1">
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                        <p className="text-[9px] text-gray-600 font-semibold mt-1">Applied</p>
+                <StaggerItem key={leave.id}>
+                  <MobileCard className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-sm text-foreground">
+                          {formatDate(leave.createdAt)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {leave.leaveType?.name || (typeof leave.leaveType === "string" ? leave.leaveType : null) || "Leave"}
+                        </p>
                       </div>
+                      <MobileBadge variant={statusVariant(leave.status)}>
+                        {normalizeStatus(leave.status)}
+                      </MobileBadge>
+                    </div>
 
-                      {/* Line to Manager */}
-                      {approvalState.showManager && (
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Leave Date</p>
+                        <p className="font-semibold text-sm text-foreground">
+                          {formatDate(leave.startDate)} &mdash; {formatDate(leave.endDate)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="font-semibold text-sm text-foreground tabular-nums">
+                          {leave.numberOfDays ?? leave.totalDays ?? leave.days ?? leave.duration ?? "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-muted/50 rounded-xl p-3 border border-border/50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col items-center flex-1">
+                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                          <p className="text-[9px] text-muted-foreground font-semibold mt-1">Applied</p>
+                        </div>
+
+                        {approvalState.showManager && (
+                          <div className={`h-0.5 flex-1 mx-1 rounded ${
+                            approvalState.managerStatus === "approved" ? "bg-emerald-500" :
+                            approvalState.managerStatus === "rejected" ? "bg-rose-500" : "bg-amber-300"
+                          }`} />
+                        )}
+
+                        {approvalState.showManager && (
+                          <div className="flex flex-col items-center flex-1">
+                            <div className={`w-2.5 h-2.5 rounded-full ${
+                              approvalState.managerStatus === "approved" ? "bg-emerald-500" :
+                              approvalState.managerStatus === "rejected" ? "bg-rose-500" : "bg-amber-500"
+                            }`} />
+                            <p className="text-[9px] text-muted-foreground font-semibold mt-1">Manager</p>
+                          </div>
+                        )}
+
                         <div className={`h-0.5 flex-1 mx-1 rounded ${
-                          approvalState.managerStatus === "approved"
-                            ? "bg-green-500"
-                            : approvalState.managerStatus === "rejected"
-                            ? "bg-red-500"
-                            : "bg-yellow-300"
+                          approvalState.hrStatus === "approved" ? "bg-emerald-500" :
+                          approvalState.hrStatus === "rejected" ? "bg-rose-500" : "bg-amber-300"
                         }`} />
-                      )}
 
-                      {/* Manager */}
-                      {approvalState.showManager && (
                         <div className="flex flex-col items-center flex-1">
                           <div className={`w-2.5 h-2.5 rounded-full ${
-                            approvalState.managerStatus === "approved"
-                              ? "bg-green-500"
-                              : approvalState.managerStatus === "rejected"
-                              ? "bg-red-500"
-                              : "bg-yellow-500"
+                            approvalState.hrStatus === "approved" ? "bg-emerald-500" :
+                            approvalState.hrStatus === "rejected" ? "bg-rose-500" : "bg-amber-500"
                           }`} />
-                          <p className="text-[9px] text-gray-600 font-semibold mt-1">Manager</p>
+                          <p className="text-[9px] text-muted-foreground font-semibold mt-1">HR</p>
                         </div>
-                      )}
-
-                      {/* Line to HR */}
-                      <div className={`h-0.5 flex-1 mx-1 rounded ${
-                        approvalState.hrStatus === "approved"
-                          ? "bg-green-500"
-                          : approvalState.hrStatus === "rejected"
-                          ? "bg-red-500"
-                          : "bg-yellow-300"
-                      }`} />
-
-                      {/* HR */}
-                      <div className="flex flex-col items-center flex-1">
-                        <div className={`w-2.5 h-2.5 rounded-full ${
-                          approvalState.hrStatus === "approved"
-                            ? "bg-green-500"
-                            : approvalState.hrStatus === "rejected"
-                            ? "bg-red-500"
-                            : "bg-yellow-500"
-                        }`} />
-                        <p className="text-[9px] text-gray-600 font-semibold mt-1">HR</p>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </MobileCard>
+                </StaggerItem>
               );
-            })
-          )}
-        </div>
+            })}
+          </StaggerReveal>
+        )}
       </div>
 
-      {/* Overlay for FAB */}
-      {canApprove && fabOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 z-40"
-          onClick={() => setFabOpen(false)}
-        />
-      )}
+      <MobileFloatingActionButton
+        actions={
+          isApprover
+            ? [
+                { icon: <CheckCircle className="w-4 h-4" />, label: "Approve", onClick: () => router.push("/user/dashboard/mobile/leave/approve") },
+                { icon: <Plus className="w-4 h-4" />, label: "Apply Leave", onClick: () => router.push("/user/dashboard/mobile/leave/apply") },
+              ]
+            : [{ icon: <Plus className="w-4 h-4" />, label: "Apply Leave", onClick: () => router.push("/user/dashboard/mobile/leave/apply") }]
+        }
+      />
 
-      {/* FAB Actions */}
-      {canApprove && fabOpen && (
-        <div className="fixed bottom-32 right-5 flex gap-3 z-50">
-          <button
-            onClick={handleApprove}
-            className="w-20 h-20 rounded-2xl bg-green-500 flex flex-col items-center justify-center shadow-lg"
-          >
-            <div className="relative">
-              <CheckCircle className="w-5 h-5 text-white" />
-              {hasPendingRequests && (
-                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white" />
-              )}
-            </div>
-            <span className="text-white text-[11px] font-bold mt-1">Approve</span>
-            <span className="text-white text-[9px] opacity-90">Leaves</span>
-          </button>
-          <button
-            onClick={handleAddLeave}
-            className="w-20 h-20 rounded-2xl bg-blue-500 flex flex-col items-center justify-center shadow-lg"
-          >
-            <Plus className="w-5 h-5 text-white" />
-            <span className="text-white text-[11px] font-bold mt-1">Add Leave</span>
-            <span className="text-white text-[9px] opacity-90">Request</span>
-          </button>
+      {refreshing && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-card border border-border shadow-lg rounded-full px-4 py-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Clock className="w-4 h-4 animate-spin" />
+            Refreshing...
+          </div>
         </div>
       )}
-
-      {/* Main FAB */}
-      <div className="fixed bottom-16 right-5 z-50">
-        <button
-          onClick={toggleFab}
-          className="w-14 h-14 rounded-full bg-[#005F90] flex items-center justify-center shadow-lg"
-        >
-          {canApprove ? (
-            <Menu className="w-6 h-6 text-white" />
-          ) : (
-            <Plus className="w-6 h-6 text-white" />
-          )}
-          {hasPendingRequests && canApprove && !fabOpen && (
-            <div className="absolute -top-3 -right-1 w-3 h-3 rounded-full bg-red-500 border-2 border-white" />
-          )}
-        </button>
-      </div>
-
-      {/* Pull to refresh indicator would need JavaScript - using button instead */}
-      <div className="fixed bottom-4 left-4 z-30">
-        <button
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="bg-white p-2 rounded-full shadow-md border border-gray-200"
-        >
-          <svg
-            className={`w-5 h-5 text-gray-600 ${refreshing ? 'animate-spin' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
-      </div>
     </div>
   );
 }

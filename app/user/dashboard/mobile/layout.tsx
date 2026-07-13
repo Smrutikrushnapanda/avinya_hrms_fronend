@@ -4,6 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { usePlanAccess } from "@/components/plan-access-provider";
 import { getMenuItems } from "@/app/api/api";
 import PwaInstallPrompt from "@/components/pwa-install-prompt";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Home,
   CalendarDays,
@@ -25,7 +26,7 @@ import {
 const defaultTabs = [
   { name: "Home", href: "/user/dashboard/mobile", icon: Home },
   { name: "Attendance", href: "/user/dashboard/mobile/attendance", icon: CalendarDays },
-  { name: "Services", href: null, icon: LayoutGrid }, // center floating
+  { name: "Services", href: null, icon: LayoutGrid },
   { name: "Leave", href: "/user/dashboard/mobile/leave", icon: Umbrella },
   { name: "Time Slip", href: "/user/dashboard/mobile/timeslip", icon: Clock },
 ];
@@ -50,16 +51,6 @@ const serviceItems = [
   { name: "Notifications", href: "/user/dashboard/mobile/notifications", icon: Bell },
 ];
 
-// This bottom-sheet grid is a separate, hand-built nav surface from the
-// admin-configurable desktop sidebar (which renders GET /menu-items). It
-// can't just render that tree directly — its routes live under a different
-// namespace (/user/dashboard/mobile/*, a curated subset of desktop pages)
-// and the API's route field points at the desktop equivalents. To avoid the
-// two silently drifting (e.g. admin disables "Messages" for a plan tier but
-// this sheet keeps showing it regardless), each item here is mapped to its
-// desktop-route equivalent and cross-checked against what /menu-items
-// currently allows for this viewer. Items with no mapping (e.g. "Settings",
-// which has no admin-managed equivalent) always stay visible.
 const SERVICE_ITEM_DESKTOP_ROUTE: Record<string, string> = {
   Profile: "/user/profile",
   Timesheet: "/user/timesheet",
@@ -79,34 +70,20 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
   const tabs = isBasicPlan ? basicTabs : defaultTabs;
   const hasServicesCenter = !isBasicPlan;
 
-  // Cross-check the static service grid against what the admin currently
-  // allows via /menu-items (role + plan tier). null = not loaded yet or the
-  // fetch failed — fail open and show the full static list rather than risk
-  // hiding something over a network hiccup.
   const [allowedDesktopRoutes, setAllowedDesktopRoutes] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     if (!hasServicesCenter) return;
     let cancelled = false;
-
     const flattenRoutes = (items: any[]): string[] =>
       items.flatMap((item) => [
         ...(item.route ? [item.route] : []),
         ...(item.children ? flattenRoutes(item.children) : []),
       ]);
-
     getMenuItems("EMPLOYEE", planType || undefined)
-      .then((res) => {
-        if (cancelled) return;
-        setAllowedDesktopRoutes(new Set(flattenRoutes(res.data || [])));
-      })
-      .catch(() => {
-        if (!cancelled) setAllowedDesktopRoutes(null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .then((res) => { if (!cancelled) setAllowedDesktopRoutes(new Set(flattenRoutes(res.data || []))); })
+      .catch(() => { if (!cancelled) setAllowedDesktopRoutes(null); });
+    return () => { cancelled = true; };
   }, [hasServicesCenter, planType]);
 
   const visibleServiceItems = useMemo(() => {
@@ -126,18 +103,12 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
       if (pathname.includes("/timeslip")) return 4;
     } else {
       if (
-        pathname.includes("/services") ||
-        pathname.includes("/timesheet") ||
-        pathname.includes("/payroll") ||
-        pathname.includes("/messages") ||
-        pathname.includes("/polls") ||
-        pathname.includes("/posts") ||
-        pathname.includes("/settings") ||
-        pathname.includes("/notifications") ||
-        pathname.includes("/profile") ||
-        pathname.includes("/wfh")
-      )
-        return 2;
+        pathname.includes("/services") || pathname.includes("/timesheet") ||
+        pathname.includes("/payroll") || pathname.includes("/messages") ||
+        pathname.includes("/polls") || pathname.includes("/posts") ||
+        pathname.includes("/settings") || pathname.includes("/notifications") ||
+        pathname.includes("/profile") || pathname.includes("/wfh")
+      ) return 2;
       if (pathname.includes("/leave")) return 3;
       if (pathname.includes("/timeslip")) return 4;
     }
@@ -146,75 +117,92 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
 
   const activeTab = getActiveTab();
 
-  // Close sheet on backdrop click or route change
-  useEffect(() => {
-    setSheetOpen(false);
-  }, [pathname]);
+  useEffect(() => { setSheetOpen(false); }, [pathname]);
 
   return (
     <div className="employee-mobile-shell min-h-screen bg-background text-foreground flex flex-col">
       {children}
-
       <PwaInstallPrompt />
 
-      {/* Bottom Sheet Overlay */}
-      {hasServicesCenter && sheetOpen && (
-        <div
-          className="fixed inset-0 bg-black/45 dark:bg-black/70 z-40"
-          onClick={() => setSheetOpen(false)}
-        />
-      )}
-
-      {/* Bottom Sheet */}
-      {hasServicesCenter && (
-      <div
-        className={`fixed left-0 w-full bg-card border-t border-border z-50 rounded-t-2xl shadow-2xl ${
-          sheetOpen ? "translate-y-0" : "translate-y-full"
-        }`}
-        style={{ bottom: "64px" }} // sits just above the nav bar
-      >
-        {/* Sheet Handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 bg-border rounded-full" />
-        </div>
-
-        {/* Sheet Header */}
-        <div className="flex items-center justify-between px-5 py-3">
-          <span className="text-base font-semibold text-foreground">Services</span>
-          <button
+      <AnimatePresence>
+        {hasServicesCenter && sheetOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/45 dark:bg-black/70 z-40"
             onClick={() => setSheetOpen(false)}
-            className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center"
-          >
-            <X className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
+          />
+        )}
+      </AnimatePresence>
 
-        {/* Service Grid */}
-        <div className="grid grid-cols-3 gap-4 px-5 pb-8 pt-2">
-          {visibleServiceItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.name}
-                onClick={() => {
-                  setSheetOpen(false);
-                  router.push(item.href);
-                }}
-                className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-muted/70 hover:bg-primary/10"
-              >
-                <div className="w-12 h-12 rounded-full bg-background shadow-sm flex items-center justify-center border border-border">
-                  <Icon className="w-5 h-5 text-primary" />
-                </div>
-                <span className="text-[11px] font-medium text-muted-foreground">{item.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {hasServicesCenter && (
+        <motion.div
+          drag="y"
+          dragConstraints={{ top: 0, bottom: 0 }}
+          onDragEnd={(_, info) => { if (info.offset.y > 80) setSheetOpen(false); }}
+          initial={false}
+          animate={sheetOpen ? "open" : "closed"}
+          variants={{
+            open: { y: 0 },
+            closed: { y: "100%" },
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          className="fixed left-0 w-full bg-card border-t border-border z-50 rounded-t-2xl shadow-2xl"
+          style={{ bottom: "64px" }}
+        >
+          <div className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing">
+            <div className="w-10 h-1 bg-border rounded-full" />
+          </div>
+
+          <div className="flex items-center justify-between px-5 py-3">
+            <span className="text-base font-semibold text-foreground">Services</span>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setSheetOpen(false)}
+              className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center"
+            >
+              <X className="w-4 h-4 text-muted-foreground" />
+            </motion.button>
+          </div>
+
+          <motion.div
+            variants={{
+              hidden: {},
+              visible: { transition: { staggerChildren: 0.04, delayChildren: 0.1 } },
+            }}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-3 gap-4 px-5 pb-8 pt-2"
+          >
+            {visibleServiceItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <motion.button
+                  key={item.name}
+                  variants={{
+                    hidden: { opacity: 0, y: 20 },
+                    visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 150, damping: 18 } },
+                  }}
+                  whileTap={{ scale: 0.93 }}
+                  onClick={() => { setSheetOpen(false); router.push(item.href); }}
+                  className="flex flex-col items-center gap-2 py-4 rounded-2xl bg-muted/70 hover:bg-primary/10 active:bg-primary/15 transition-colors"
+                >
+                  <div className="w-12 h-12 rounded-full bg-background shadow-sm flex items-center justify-center border border-border">
+                    <Icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <span className="text-[11px] font-medium text-muted-foreground">{item.name}</span>
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        </motion.div>
       )}
 
-      {/* Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 w-full bg-card border-t border-border shadow-lg z-50" style={{ height: "64px" }}>
+      <div
+        className="fixed bottom-0 left-0 w-full bg-card/80 backdrop-blur-md border-t border-border shadow-lg z-50"
+        style={{ height: "64px" }}
+      >
         <div className="flex items-end h-full relative">
           {tabs.map((tab, index) => {
             const isCenter = hasServicesCenter && index === 2;
@@ -224,8 +212,9 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
             if (isCenter) {
               return (
                 <div key={tab.name} className="flex-1 flex flex-col items-center justify-end pb-2 relative">
-                  {/* Floating Services Button */}
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    animate={sheetOpen ? { rotate: 45 } : { rotate: 0 }}
                     onClick={() => setSheetOpen((prev) => !prev)}
                     className="absolute left-1/2 -translate-x-1/2 w-14 h-14 rounded-full flex items-center justify-center shadow-lg bg-primary"
                     style={{
@@ -233,13 +222,14 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
                       boxShadow: "0 4px 16px color-mix(in srgb, var(--primary) 40%, transparent)",
                     }}
                   >
-                    <Icon className="w-6 h-6 text-primary-foreground" />
-                  </button>
-                  <span
-                    className={`text-[10px] ${
-                      isActive || sheetOpen ? "text-primary font-semibold" : "text-muted-foreground font-medium"
-                    }`}
-                  >
+                    <motion.div
+                      animate={{ rotate: sheetOpen ? 45 : 0 }}
+                      transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                    >
+                      <LayoutGrid className="w-6 h-6 text-primary-foreground" />
+                    </motion.div>
+                  </motion.button>
+                  <span className={`text-[10px] ${isActive || sheetOpen ? "text-primary font-semibold" : "text-muted-foreground font-medium"}`}>
                     {tab.name}
                   </span>
                 </div>
@@ -250,14 +240,21 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
               <button
                 key={tab.name}
                 onClick={() => tab.href && router.push(tab.href)}
-                className={`flex-1 flex flex-col items-center pt-1 pb-3 relative ${
-                  isActive ? "text-primary" : "text-muted-foreground"
-                }`}
+                className={`flex-1 flex flex-col items-center pt-1 pb-3 relative ${isActive ? "text-primary" : "text-muted-foreground"}`}
               >
                 {isActive && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-primary rounded-b-full" />
+                  <motion.span
+                    layoutId="navActiveIndicator"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-primary rounded-b-full"
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
                 )}
-                <Icon className="w-5 h-5" />
+                <motion.div
+                  animate={isActive ? { scale: 1.1 } : { scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                >
+                  <Icon className="w-5 h-5" />
+                </motion.div>
                 <span className={`text-[10px] mt-1 ${isActive ? "font-semibold" : "font-medium"}`}>
                   {tab.name}
                 </span>
@@ -267,7 +264,6 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Spacer so content isn't hidden behind nav */}
       <div style={{ height: "64px" }} />
     </div>
   );

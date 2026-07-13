@@ -66,8 +66,8 @@ export default function SwipeableContainer({
             key={index}
             className={`transition-all duration-300 ${
               index === currentIndex
-                ? "w-6 h-1.5 bg-[#005F90] rounded-full"
-                : "w-1.5 h-1.5 bg-gray-300 rounded-full"
+                ? "w-6 h-1.5 bg-primary rounded-full"
+                : "w-1.5 h-1.5 bg-muted-foreground/30 rounded-full"
             }`}
           />
         ))}
@@ -82,7 +82,7 @@ export default function SwipeableContainer({
           transition={{ delay: 1, duration: 0.5 }}
           className="fixed right-4 top-1/2 -translate-y-1/2 pointer-events-none"
         >
-          <div className="flex items-center gap-1 text-[#005F90]">
+          <div className="flex items-center gap-1 text-primary">
             <span className="text-xs">Swipe</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m9 18 6-6-6-6"/>

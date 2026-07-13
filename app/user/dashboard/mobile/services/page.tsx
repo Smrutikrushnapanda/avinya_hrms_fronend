@@ -1,10 +1,17 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { BadgeDollarSign, MessageSquare, Vote, FileText, Home } from "lucide-react";
+import {
+  FileText,
+  DollarSign,
+  MessageSquare,
+  BarChart2,
+  Home,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import MobileTabHeader from "../components/MobileTabHeader";
 import { usePlanAccess } from "@/components/plan-access-provider";
+import MobileTabHeader from "../components/MobileTabHeader";
+import { MobileCard } from "../components/MobileCard";
+import { StaggerReveal, StaggerItem } from "../components/animation-wrappers";
 
 interface ServiceItem {
   name: string;
@@ -15,9 +22,9 @@ interface ServiceItem {
 
 const baseServices: ServiceItem[] = [
   { name: "Timesheet", icon: FileText, href: "/user/dashboard/mobile/timesheet", description: "View your timesheet" },
-  { name: "Salary Slip", icon: BadgeDollarSign, href: "/user/dashboard/mobile/payroll", description: "View salary slips" },
+  { name: "Salary Slip", icon: DollarSign, href: "/user/dashboard/mobile/payroll", description: "View salary slips" },
   { name: "Messages", icon: MessageSquare, href: "/user/dashboard/mobile/messages", description: "Check your messages" },
-  { name: "Polls", icon: Vote, href: "/user/dashboard/mobile/polls", description: "Active polls" },
+  { name: "Polls", icon: BarChart2, href: "/user/dashboard/mobile/polls", description: "Active polls" },
 ];
 
 export default function MobileServicesPage() {
@@ -26,35 +33,59 @@ export default function MobileServicesPage() {
   const services: ServiceItem[] = isBasicPlan
     ? baseServices
     : [
-        ...baseServices.slice(0, 1),
+        baseServices[0],
         { name: "WFH", icon: Home, href: "/user/dashboard/mobile/wfh", description: "Work from home requests" },
         ...baseServices.slice(1),
       ];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
+    <div className="min-h-screen bg-background flex flex-col">
       <MobileTabHeader title="Services" />
 
-      {/* Content */}
-      <div className="px-5 -mt-12 z-10 pb-24">
-        <div className="grid grid-cols-2 gap-4">
-          {services.map((service) => (
-            <Card 
-              key={service.name}
-              className="cursor-pointer hover:shadow-md transition-shadow border-none shadow-sm"
-              onClick={() => router.push(service.href)}
-            >
-              <CardContent className="p-5 flex flex-col items-center text-center">
-                <div className="w-14 h-14 bg-[#E1F4FF] rounded-full flex items-center justify-center mb-3">
-                  <service.icon className="w-7 h-7 text-[#005F90]" />
-                </div>
-                <h3 className="font-semibold text-sm text-gray-800">{service.name}</h3>
-                <p className="text-xs text-gray-500 mt-1">{service.description}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      <div className="px-4 -mt-12 z-10 pb-24">
+        <StaggerReveal className="grid grid-cols-4 gap-3">
+          {services.map((service, i) => {
+            const isLarge = i === 0;
+            const Icon = service.icon;
+            return (
+              <StaggerItem
+                key={service.name}
+                className={isLarge ? "col-span-4" : "col-span-2"}
+              >
+                <MobileCard
+                  className={`cursor-pointer border-primary/5 hover:border-primary/20 transition-colors ${
+                    isLarge ? "" : ""
+                  }`}
+                  onClick={() => router.push(service.href)}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="flex items-start gap-4">
+                    <div
+                      className={`rounded-full flex items-center justify-center flex-shrink-0 ${
+                        isLarge ? "w-14 h-14" : "w-12 h-12"
+                      }`}
+                      style={{ backgroundColor: "var(--primary-15, rgba(29,78,211,0.08))" }}
+                    >
+                      <Icon
+                        className="text-[var(--primary)]"
+                        size={isLarge ? 28 : 24}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-sm text-foreground">
+                        {service.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {service.description}
+                      </p>
+                    </div>
+                  </div>
+                </MobileCard>
+              </StaggerItem>
+            );
+          })}
+        </StaggerReveal>
       </div>
     </div>
   );

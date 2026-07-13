@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSuperadminOrganizations, createOrganization, updateOrganization, deleteOrganization } from "@/app/api/api";
+import { getSuperadminOrganizations, createOrganization, updateOrganization, deleteOrganization, blockOrganization, unblockOrganization } from "@/app/api/api";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,8 @@ export default function OrganizationsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [blockingOrgId, setBlockingOrgId] = useState<string | null>(null);
 
   // Form states
   const [selectedOrg, setSelectedOrg] = useState<OrganizationItem | null>(null);
@@ -132,15 +134,36 @@ export default function OrganizationsPage() {
     }
   };
 
-  const toggleStatus = async (org: OrganizationItem) => {
+  const requestToggleStatus = (org: OrganizationItem) => {
+    if (org.isActive) {
+      // Blocking locks out an entire company — confirm first.
+      setBlockingOrgId(org.id);
+      setBlockDialogOpen(true);
+      return;
+    }
+    unblockOrg(org.id);
+  };
+
+  const unblockOrg = async (orgId: string) => {
     try {
-      await updateOrganization(org.id, {
-        isActive: !org.isActive,
-      });
-      toast.success(`Organization ${!org.isActive ? "activated" : "deactivated"} successfully.`);
+      await unblockOrganization(orgId);
+      toast.success("Organization unblocked successfully.");
       fetchOrganizations();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to toggle organization status.");
+      toast.error(err.response?.data?.message || "Failed to unblock organization.");
+    }
+  };
+
+  const confirmBlockOrg = async () => {
+    if (!blockingOrgId) return;
+    try {
+      await blockOrganization(blockingOrgId);
+      toast.success("Organization blocked successfully.");
+      setBlockDialogOpen(false);
+      setBlockingOrgId(null);
+      fetchOrganizations();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to block organization.");
     }
   };
 
@@ -274,7 +297,7 @@ export default function OrganizationsPage() {
                         <div className="flex items-center gap-2">
                           <Switch
                             checked={org.isActive}
-                            onCheckedChange={() => toggleStatus(org)}
+                            onCheckedChange={() => requestToggleStatus(org)}
                           />
                           <span className={`text-xs font-medium ${org.isActive ? "text-emerald-600" : "text-red-500"}`}>
                             {org.isActive ? "Active" : "Suspended"}
@@ -450,6 +473,30 @@ export default function OrganizationsPage() {
             </Button>
             <Button type="button" variant="destructive" onClick={handleDelete}>
               Confirm Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* BLOCK CONFIRMATION DIALOG */}
+      <Dialog open={blockDialogOpen} onOpenChange={(open) => { setBlockDialogOpen(open); if (!open) setBlockingOrgId(null); }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" /> Block Organization
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Are you sure you want to block{" "}
+              <strong>{organizations.find((o) => o.id === blockingOrgId)?.name}</strong>?
+              All of its users will be immediately signed out and unable to log back in until you unblock it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="pt-4">
+            <Button type="button" variant="outline" onClick={() => setBlockDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={confirmBlockOrg}>
+              Confirm Block
             </Button>
           </DialogFooter>
         </DialogContent>

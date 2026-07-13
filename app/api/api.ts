@@ -102,6 +102,10 @@ export const resetAdminCredentials = (data: {
 }) => api.post("/auth/reset-password", data);
 export const logout = () => api.post("/auth/logout");
 export const getProfile = () => api.get("/auth/profile");
+export const requestSuperadminOtp = (email: string) =>
+  api.post("/auth/superadmin/login/request-otp", { email }, { timeout: LOGIN_API_TIMEOUT_MS });
+export const verifySuperadminOtp = (email: string, otp: string) =>
+  api.post("/auth/superadmin/login/verify-otp", { email, otp }, { timeout: LOGIN_API_TIMEOUT_MS });
 
 // 👥 User Management APIs
 export const register = (data: any) => api.post('/users/register', data);
@@ -951,6 +955,10 @@ export const getSuperadminOrganizations = () => api.get('/superadmin/organizatio
 export const getSuperadminSubscriptions = () => api.get('/superadmin/subscriptions');
 export const getSuperadminLogs = (limit = 100, offset = 0) =>
   api.get('/superadmin/logs', { params: { limit, offset } });
+export const blockOrganization = (id: string) =>
+  api.patch(`/superadmin/organizations/${id}/block`);
+export const unblockOrganization = (id: string) =>
+  api.patch(`/superadmin/organizations/${id}/unblock`);
 
 // 💰 Pricing APIs
 export const getPricingPlans = () => api.get('/api/pricing/plans?includeInactive=true');

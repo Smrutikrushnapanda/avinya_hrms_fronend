@@ -17,7 +17,12 @@ import {
   getProfile,
 } from "@/app/api/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { motion } from "framer-motion";
 import MobileTabHeader from "../components/MobileTabHeader";
+import { MobileCard } from "../components/MobileCard";
+import { MobileEmptyState } from "../components/MobileEmptyState";
+import { StaggerReveal, StaggerItem, SpringNumber } from "../components/animation-wrappers";
+import { MobileCardSkeleton } from "../components/MobileSkeleton";
 
 interface PayrollRecord {
   id: string;
@@ -60,40 +65,23 @@ export default function MobilePayrollPage() {
     try {
       const profileRes = await getProfile();
       const userId = profileRes.data?.id ?? profileRes.data?.userId;
-
-      if (!userId) {
-        throw new Error("User not authenticated");
-      }
+      if (!userId) throw new Error("User not authenticated");
 
       const employeeRes = await getEmployeeByUserId(userId);
       const employee = employeeRes.data?.data ?? employeeRes.data;
       const employeeId = employee?.id;
       const organizationId = employee?.organizationId ?? profileRes.data?.organizationId;
+      if (!employeeId || !organizationId) throw new Error("Employee profile not found");
 
-      if (!employeeId || !organizationId) {
-        throw new Error("Employee profile not found");
-      }
-
-      const res = await getPayrollRecords({
-        organizationId,
-        employeeId,
-        status: "paid",
-        limit: 200,
-        page: 1,
-      });
-
+      const res = await getPayrollRecords({ organizationId, employeeId, status: "paid", limit: 200, page: 1 });
       const list = Array.isArray(res.data?.data)
         ? res.data.data
-        : Array.isArray(res.data)
-          ? res.data
-          : [];
-
+        : Array.isArray(res.data) ? res.data : [];
       const sorted = [...list].sort((a, b) => {
         const left = new Date(b.periodEnd || b.createdAt || 0).getTime();
         const right = new Date(a.periodEnd || a.createdAt || 0).getTime();
         return left - right;
       });
-
       setRecords(sorted);
     } catch (error: any) {
       console.error("Error fetching payslips:", error);
@@ -105,9 +93,7 @@ export default function MobilePayrollPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchPayslips();
-  }, [fetchPayslips]);
+  useEffect(() => { fetchPayslips(); }, [fetchPayslips]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -141,103 +127,102 @@ export default function MobilePayrollPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
+    <div className="min-h-screen bg-background flex flex-col pb-20">
       <MobileTabHeader title="Payslips" backHref="/user/dashboard/mobile" />
 
-      <div className="px-5 -mt-11 relative z-10 space-y-4">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-[#E8ECEF] relative overflow-hidden">
-          <div className="absolute top-2 left-2 w-0 h-0 border-t-[56px] border-t-[#E1F4FF] border-r-[56px] border-r-transparent" />
-          <div className="absolute bottom-2 right-2 w-0 h-0 border-t-[56px] border-t-[#E1F4FF] border-r-[56px] border-r-transparent rotate-180" />
-          <div className="absolute bottom-2 left-2 w-0 h-0 border-t-[56px] border-t-[#E1F4FF] border-r-[56px] border-r-transparent rotate-270" />
-          <div className="absolute top-2 right-2 w-0 h-0 border-t-[56px] border-t-[#E1F4FF] border-r-[56px] border-r-transparent rotate-90" />
-
-          <div className="relative z-10 text-center py-3">
-            <div className="w-16 h-16 rounded-full bg-[#026D94]/10 mx-auto mb-3 flex items-center justify-center">
-              <BadgeIndianRupee className="w-8 h-8 text-[#026D94]" />
+      <div className="px-4 -mt-11 relative z-10 space-y-4 pb-6">
+        <MobileCard className="relative overflow-hidden text-center">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/40 to-primary/10" />
+          <div className="py-3">
+            <div className="w-16 h-16 rounded-full bg-primary/8 mx-auto mb-3 flex items-center justify-center">
+              <BadgeIndianRupee className="w-8 h-8 text-primary" />
             </div>
-            <p className="text-4xl font-bold text-slate-900">{records.length}</p>
-            <p className="text-sm text-slate-500 mt-1">Payslips Available</p>
+            <p className="text-4xl font-bold text-foreground tabular-nums">
+              <SpringNumber value={records.length} />
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">Payslips Available</p>
             {records.length > 0 && (
-              <div className="inline-flex mt-3 px-4 py-2 rounded-full bg-[#026D94] text-white text-sm font-semibold">
+              <div className="inline-flex mt-3 px-4 py-2 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
                 Total Earned: {formatCurrency(totalEarnings)}
               </div>
             )}
           </div>
-        </div>
+        </MobileCard>
 
         <div className="flex justify-end">
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97 }}
             onClick={handleRefresh}
             disabled={refreshing || loading}
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#026D94] disabled:opacity-60"
+            className="inline-flex items-center gap-2 text-sm font-medium text-primary disabled:opacity-60"
           >
             <RotateCcw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
+          </motion.button>
         </div>
 
         {loading ? (
           <div className="space-y-3">
-            <Skeleton className="h-28 rounded-2xl" />
-            <Skeleton className="h-28 rounded-2xl" />
-            <Skeleton className="h-28 rounded-2xl" />
+            <MobileCardSkeleton />
+            <MobileCardSkeleton />
+            <MobileCardSkeleton />
           </div>
         ) : records.length === 0 ? (
-          <div className="bg-white rounded-2xl p-10 text-center shadow-sm border border-gray-100">
-            <FileText className="w-12 h-12 text-slate-400 mx-auto" />
-            <p className="text-lg font-bold text-slate-900 mt-4">No payslips yet</p>
-            <p className="text-sm text-slate-500 mt-2">
-              Payslips will appear here after HR processes them.
-            </p>
-          </div>
+          <MobileEmptyState
+            icon={<FileText size={28} />}
+            title="No payslips yet"
+            description="Payslips will appear here after HR processes them."
+          />
         ) : (
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">Payment History</h3>
-
-            <div className="space-y-3">
+          <MobileCard>
+            <h3 className="text-lg font-bold text-foreground mb-4">Payment History</h3>
+            <StaggerReveal className="space-y-3" staggerDelay={0.05}>
               {records.map((record) => {
                 const isDownloading = downloadingId === record.id;
-
                 return (
-                  <div key={record.id} className="bg-gray-50 rounded-xl p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#026D94]/10 flex items-center justify-center shrink-0">
-                        <ReceiptText className="w-5 h-5 text-[#026D94]" />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{record.payPeriod || "-"}</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          {formatDate(record.periodStart)} - {formatDate(record.periodEnd)}
-                        </p>
-                      </div>
-
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-slate-900">{formatCurrency(record.netPay)}</p>
-                        <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-600" />
-                          <span className="text-[10px] font-semibold text-green-700">Paid</span>
+                  <StaggerItem key={record.id}>
+                    <div className="bg-muted/50 rounded-xl p-4 border border-border/50 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/8 flex items-center justify-center shrink-0">
+                          <ReceiptText className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {record.payPeriod || "-"}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {formatDate(record.periodStart)} &mdash; {formatDate(record.periodEnd)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-foreground tabular-nums">
+                            {formatCurrency(record.netPay)}
+                          </p>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold mt-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                            Paid
+                          </span>
                         </div>
                       </div>
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        className="w-full h-9 border border-primary/30 rounded-xl inline-flex items-center justify-center gap-2 text-primary text-sm font-semibold disabled:opacity-60"
+                        onClick={() => handleDownload(record)}
+                        disabled={isDownloading}
+                      >
+                        {isDownloading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                        {isDownloading ? "Downloading..." : "Download Payslip"}
+                      </motion.button>
                     </div>
-
-                    <button
-                      className="mt-3 w-full h-9 border border-[#026D94] rounded-lg inline-flex items-center justify-center gap-2 text-[#026D94] text-sm font-semibold disabled:opacity-60"
-                      onClick={() => handleDownload(record)}
-                      disabled={isDownloading}
-                    >
-                      {isDownloading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Download className="w-4 h-4" />
-                      )}
-                      {isDownloading ? "Downloading..." : "Download Payslip"}
-                    </button>
-                  </div>
+                  </StaggerItem>
                 );
               })}
-            </div>
-          </div>
+            </StaggerReveal>
+          </MobileCard>
         )}
       </div>
     </div>

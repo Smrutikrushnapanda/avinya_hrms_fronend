@@ -894,7 +894,7 @@ export default function MobileDashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/30 flex flex-col pb-24 text-slate-800">
+    <div className="min-h-screen bg-background flex flex-col pb-24 text-foreground">
       {/* ── Header ── */}
       <MobileHomeHeader
         user={user}
@@ -903,45 +903,40 @@ export default function MobileDashboardPage() {
       />
 
       {/* ── Punch Card ── */}
-      <div className="px-4 mt-2">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 p-5 text-white shadow-md flex items-center justify-between">
-          <div className="space-y-1 relative z-10">
-            <span className="text-[11px] font-semibold text-blue-100/90 tracking-wide block uppercase">
-              {clockTime.toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
-            </span>
-            <span className="text-3xl font-black block tracking-tight">{clockDisplayNoSeconds}</span>
-            <span className="text-xs text-blue-100/90 block font-medium mt-1">
-              👋 {greeting} {user.name.split(" ")[0]}
-            </span>
-          </div>
-
-          {/* Floating background shape */}
-          <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
-
-          {/* Punch button */}
-          <Button
-            onClick={() => setOpen(true)}
-            disabled={isPunchDisabled}
-            className={`relative z-10 rounded-2xl h-14 px-5 shadow-lg border-0 transition-transform active:scale-95 flex items-center gap-2 bg-white text-blue-600 hover:bg-white/95 disabled:bg-white/60 disabled:text-blue-400`}
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <Fingerprint className="w-6 h-6 shrink-0" />
-                <span className="font-extrabold text-sm tracking-wide">
+      <div className="px-5 mt-2">
+        <div className="rounded-3xl bg-primary p-5 text-white shadow-md">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-semibold text-white/80 uppercase tracking-wide">
+                {clockTime.toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <span className="text-[28px] font-black block tracking-tight mt-0.5">{clockDisplayNoSeconds}</span>
+              <span className="text-xs font-medium text-white/85 block mt-1">
+                👋 {greeting} {user.name.split(" ")[0]}
+              </span>
+            </div>
+            <button
+              onClick={() => setOpen(true)}
+              disabled={isPunchDisabled}
+              className="rounded-2xl bg-white text-primary px-5 py-3.5 font-extrabold text-xs tracking-wide shadow-md flex items-center gap-1.5 disabled:opacity-60 active:scale-95 transition-transform"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Fingerprint className="w-5 h-5" />
                   {hasPunchedInToday ? "Punch Out" : "Punch In"}
-                </span>
-              </>
-            )}
-          </Button>
-        </div>
-        {settings.enableWifiValidation && (
-          <div className="mt-2 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700">
-            <WifiOff className="w-4 h-4 shrink-0" />
-            <span>WiFi validation is required by your organization — punch in from the mobile app.</span>
+                </>
+              )}
+            </button>
           </div>
-        )}
+          {settings.enableWifiValidation && (
+            <div className="mt-3.5 pt-2.5 border-t border-white/20 flex items-center gap-2">
+              <WifiOff className="w-3.5 h-3.5 text-white/70" />
+              <span className="text-[10px] font-semibold text-white/70">WiFi validation is required by your organization — punch in from the mobile app.</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Punch Dialog ── */}
@@ -1049,66 +1044,62 @@ export default function MobileDashboardPage() {
       </Dialog>
 
       {/* ── Today's Overview ── */}
-      <div className="px-4 mt-5">
+      <div className="px-5 mt-5">
         <div className="flex justify-between items-center mb-3">
-          <h3 className="font-bold text-base text-slate-800 dark:text-slate-200">Today&apos;s Overview</h3>
+          <h3 className="text-lg font-extrabold text-foreground">Today&apos;s Overview</h3>
           <p
-            className="text-xs text-blue-600 font-bold cursor-pointer"
+            className="text-sm font-semibold text-primary cursor-pointer"
             onClick={() => router.push("/user/dashboard/mobile/attendance")}
           >
-            View all &gt;
+            View all
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-row flex-wrap justify-between gap-3">
           {/* Punch In Card */}
-          <div className="rounded-3xl p-4 bg-blue-50/70 dark:bg-blue-500/10 flex flex-col justify-between h-36">
-            <div>
-              <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/25 flex items-center justify-center">
-                <ArrowRight className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <p className="text-xs font-bold text-slate-400 mt-2.5">Punch In</p>
-              <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{punchInTimeStr}</p>
+          <div className="w-[47%] rounded-2xl p-3.5 bg-blue-50 dark:bg-blue-500/10">
+            <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-500/25 flex items-center justify-center mb-2.5">
+              <ArrowRight className="w-4 h-4 text-primary" />
             </div>
-            <div className="flex items-center justify-between border-t border-blue-100/50 pt-2 mt-2">
-              <p className="text-[10px] text-slate-400 font-medium">{shortDateDisplay}</p>
-              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${hasPunchedInToday ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>
+            <p className="text-xs font-semibold text-muted-foreground">Punch In</p>
+            <p className="text-lg font-bold text-foreground mt-1 mb-2">{punchInTimeStr}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">{shortDateDisplay}</p>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-xl ${hasPunchedInToday ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-primary"}`}>
                 {hasPunchedInToday ? "Completed" : "Not done"}
               </span>
             </div>
           </div>
 
           {/* Last Punch Card */}
-          <div className="rounded-3xl p-4 bg-red-50/50 dark:bg-red-500/10 flex flex-col justify-between h-36">
-            <div>
-              <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-500/25 flex items-center justify-center">
-                <ArrowLeft className="w-4 h-4 text-red-600 dark:text-red-400" />
-              </div>
-              <p className="text-xs font-bold text-slate-400 mt-2.5">Last Punch</p>
-              <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">{punchOutTimeStr}</p>
+          <div className="w-[47%] rounded-2xl p-3.5 bg-red-50 dark:bg-red-500/10">
+            <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-500/25 flex items-center justify-center mb-2.5">
+              <ArrowLeft className="w-4 h-4 text-destructive" />
             </div>
-            <div className="flex items-center justify-between border-t border-red-100/50 pt-2 mt-2">
-              <p className="text-[10px] text-slate-400 font-medium">{shortDateDisplay}</p>
-              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${punchOutTimeStr !== "--:-- --" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+            <p className="text-xs font-semibold text-muted-foreground">Last Punch</p>
+            <p className="text-lg font-bold text-foreground mt-1 mb-2">{punchOutTimeStr}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">{shortDateDisplay}</p>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-xl ${punchOutTimeStr !== "--:-- --" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-destructive"}`}>
                 {punchOutTimeStr !== "--:-- --" ? "Completed" : "Not done"}
               </span>
             </div>
           </div>
 
           {/* Working Hours Card */}
-          <div className="rounded-3xl p-4 bg-emerald-50/40 dark:bg-emerald-500/10 flex flex-col justify-between h-36 relative">
-            <div>
+          <div className="w-[47%] rounded-2xl p-3.5 bg-emerald-50 dark:bg-emerald-500/10">
+            <div className="flex items-center justify-between mb-2.5">
               <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-500/25 flex items-center justify-center">
                 <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <p className="text-xs font-bold text-slate-400 mt-2.5">Working Hours</p>
-              <p className="text-lg font-black text-slate-800 dark:text-slate-100 mt-0.5">
-                {workingSeconds > 0 ? formatWorkingTime(workingSeconds).replace(" hrs", "") : "0:00:00"}
-                <span className="text-xs font-bold text-slate-400 ml-1">hrs</span>
-              </p>
             </div>
-            <div className="flex items-center justify-between border-t border-emerald-100/50 pt-2 mt-2">
-              <p className="text-[10px] text-slate-400 font-medium">{shortDateDisplay}</p>
+            <p className="text-xs font-semibold text-muted-foreground">Working Hours</p>
+            <p className="text-lg font-bold text-foreground mt-1 mb-2">
+              {workingSeconds > 0 ? formatWorkingTime(workingSeconds).replace(" hrs", "") : "0:00:00"}
+              <span className="text-xs text-muted-foreground font-semibold ml-1">hrs</span>
+            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">{shortDateDisplay}</p>
               <button onClick={() => fetchTodayLogs(user.organizationId, user.userId)} className="text-emerald-600 active:scale-90 transition-transform">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
@@ -1116,42 +1107,38 @@ export default function MobileDashboardPage() {
           </div>
 
           {/* Break Card */}
-          <div className={`rounded-3xl p-4 flex flex-col justify-between h-36 ${isOnBreak ? "bg-amber-50/50 dark:bg-amber-500/10" : "bg-emerald-50/40 dark:bg-emerald-500/10"}`}>
-            <div>
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center ${isOnBreak ? "bg-amber-100 dark:bg-amber-500/25" : "bg-emerald-100 dark:bg-emerald-500/25"}`}>
-                <Coffee className={`w-4 h-4 ${isOnBreak ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} />
-              </div>
-              <p className="text-xs font-bold text-slate-400 mt-2.5">Break</p>
-              <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-0.5 truncate">
-                {isOnBreak ? "On break" : "Available for work"}
-              </p>
+          <div className={`w-[47%] rounded-2xl p-3.5 ${isOnBreak ? "bg-amber-50 dark:bg-amber-500/10" : "bg-emerald-50 dark:bg-emerald-500/10"}`}>
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-2.5 ${isOnBreak ? "bg-amber-100 dark:bg-amber-500/25" : "bg-emerald-100 dark:bg-emerald-500/25"}`}>
+              <Coffee className={`w-4 h-4 ${isOnBreak ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`} />
             </div>
-            <div className="mt-2">
-              <Button
-                onClick={handleBreakToggle}
-                disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
-                className={`h-8 w-full text-xs font-extrabold rounded-xl ${
-                  !isCheckedIn && !isOnBreak
-                    ? "bg-slate-200 text-slate-400 hover:bg-slate-200 cursor-not-allowed shadow-none"
-                    : isOnBreak
-                    ? "bg-amber-500 hover:bg-amber-600 text-white"
-                    : "bg-emerald-500 hover:bg-emerald-600 text-white"
-                }`}
-              >
-                {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
-              </Button>
-              {!isCheckedIn && !isOnBreak && (
-                <p className="text-[9px] text-slate-400 mt-1 text-center font-medium">Check in first</p>
-              )}
-            </div>
+            <p className="text-xs font-semibold text-muted-foreground">Break</p>
+            <p className="text-xs font-semibold text-foreground mt-1 mb-2.5">
+              {isOnBreak ? "On break" : "Available for work"}
+            </p>
+            <button
+              onClick={handleBreakToggle}
+              disabled={(!isCheckedIn && !isOnBreak) || breakLoading}
+              className={`w-full py-2 text-xs font-bold text-white rounded-lg ${
+                !isCheckedIn && !isOnBreak
+                  ? "bg-muted-foreground/30 cursor-not-allowed"
+                  : isOnBreak
+                  ? "bg-amber-500 active:bg-amber-600"
+                  : "bg-emerald-500 active:bg-emerald-600"
+              }`}
+            >
+              {breakLoading ? "..." : isOnBreak ? "End Break" : "Start Break"}
+            </button>
+            {!isCheckedIn && !isOnBreak && (
+              <p className="text-[10px] text-muted-foreground mt-1 text-center">Check in first</p>
+            )}
           </div>
         </div>
       </div>
 
       {/* ── Calendar ── */}
-      <div className="px-4 mt-5">
-        <h3 className="font-bold text-base text-slate-800 dark:text-slate-200 mb-3">Calendar</h3>
-        <Card className="border border-slate-100 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden">
+      <div className="px-5 mt-5">
+        <h3 className="text-lg font-extrabold text-foreground mb-3">Calendar</h3>
+        <Card className="border border-border rounded-2xl overflow-hidden">
           <CardContent className="p-4">
             <AttendanceCalendar
               currentMonth={currentMonth}
@@ -1163,86 +1150,46 @@ export default function MobileDashboardPage() {
       </div>
 
       {/* ── Upcoming Holiday ── */}
-      <div className="px-4 mt-5">
+      <div className="px-5 mt-5">
         <div className="flex justify-between items-center mb-3">
-          <h3 className="font-bold text-base text-slate-800 dark:text-slate-200">Upcoming Holiday</h3>
+          <h3 className="text-lg font-extrabold text-foreground">Upcoming Holiday</h3>
           <p
-            className="text-xs text-blue-600 font-bold cursor-pointer"
+            className="text-sm font-semibold text-primary cursor-pointer"
             onClick={() => router.push("/user/dashboard/mobile/holidays")}
           >
-            View All &gt;
+            View All
           </p>
         </div>
         {nextHoliday ? (
-          <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm hover:shadow transition-shadow">
+          <div className="flex items-center justify-between p-4 bg-card border border-border rounded-2xl">
             <div className="flex items-center gap-4">
-              <div className="flex flex-col items-center justify-center w-14 h-14 bg-blue-600 text-white rounded-2xl shrink-0 shadow-sm">
-                <span className="text-xl font-black leading-none">{new Date(nextHoliday.date!).getDate()}</span>
-                <span className="text-[10px] font-black uppercase tracking-wider mt-1">
+              <div className="flex flex-col items-center justify-center w-14 h-14 bg-primary text-white rounded-2xl shrink-0">
+                <span className="text-xl font-extrabold leading-none">{new Date(nextHoliday.date!).getDate()}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider mt-1">
                   {new Date(nextHoliday.date!).toLocaleDateString('en-US', { month: 'short' })}
                 </span>
               </div>
               <div>
-                <h4 className="font-extrabold text-sm text-slate-800 dark:text-slate-100">{nextHoliday.name}</h4>
-                <span className="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-950/40 px-2.5 py-0.5 text-[9px] font-extrabold text-blue-600 dark:text-blue-400 mt-1 uppercase">
+                <h4 className="font-bold text-sm text-foreground">{nextHoliday.name}</h4>
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary mt-1 uppercase">
                   {nextHoliday.holidayType || 'PUBLIC HOLIDAY'}
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded-xl">
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-semibold bg-muted px-2 py-1 rounded-xl">
               <Clock className="w-3.5 h-3.5" />
               <span>{getDaysDiffStr(nextHoliday.date)}</span>
             </div>
           </div>
         ) : (
-          <div className="text-center py-6 border border-dashed rounded-3xl text-slate-400 text-xs">
+          <div className="text-center py-10 border border-dashed rounded-2xl text-muted-foreground text-xs">
             No upcoming holidays listed
           </div>
         )}
       </div>
 
-      {/* ── Bottom Navigation Bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 flex justify-around items-center h-16 shadow-lg px-2">
-        <button
-          onClick={() => router.push("/user/dashboard/mobile")}
-          className="flex flex-col items-center justify-center w-14 h-full text-blue-600"
-        >
-          <Home className="w-5 h-5 shrink-0" />
-          <span className="text-[10px] font-extrabold mt-1">Home</span>
-        </button>
-
-        <button
-          onClick={() => router.push("/user/dashboard/mobile/attendance")}
-          className="flex flex-col items-center justify-center w-14 h-full text-slate-400 hover:text-blue-600 transition-colors"
-        >
-          <CalendarDays className="w-5 h-5 shrink-0" />
-          <span className="text-[10px] font-bold mt-1">Attendance</span>
-        </button>
-
-        <button
-          onClick={() => router.push("/user/dashboard/mobile/leave")}
-          className="flex flex-col items-center justify-center w-14 h-full text-slate-400 hover:text-blue-600 transition-colors"
-        >
-          <CalendarIcon className="w-5 h-5 shrink-0" />
-          <span className="text-[10px] font-bold mt-1">Leave</span>
-        </button>
-
-        <button
-          onClick={() => router.push("/user/dashboard/mobile/wfh")}
-          className="flex flex-col items-center justify-center w-14 h-full text-slate-400 hover:text-blue-600 transition-colors"
-        >
-          <Home className="w-5 h-5 shrink-0 rotate-180" />
-          <span className="text-[10px] font-bold mt-1">WFH</span>
-        </button>
-
-        <button
-          onClick={() => router.push("/user/dashboard/mobile/timeslips")}
-          className="flex flex-col items-center justify-center w-14 h-full text-slate-400 hover:text-blue-600 transition-colors"
-        >
-          <Clock className="w-5 h-5 shrink-0" />
-          <span className="text-[10px] font-bold mt-1">Time Slip</span>
-        </button>
-      </div>
+      {/* ── Bottom Spacer (nav is in layout) ── */}
+      <div className="h-20" />
 
       {/* ── Sidebar Drawer ── */}
       {isSidebarOpen && (
@@ -1251,9 +1198,8 @@ export default function MobileDashboardPage() {
             className="fixed inset-0 bg-black/55 backdrop-blur-sm"
             onClick={() => setIsSidebarOpen(false)}
           />
-          <div className="relative bg-white dark:bg-slate-900 w-72 h-full shadow-2xl flex flex-col">
-            {/* Sidebar Header */}
-            <div className="p-5 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+          <div className="relative bg-card w-72 h-full shadow-2xl flex flex-col">
+            <div className="p-5 bg-gradient-to-br from-primary to-indigo-700 text-white">
               <div className="flex justify-between items-start mb-4">
                 <Avatar className="w-14 h-14 border-2 border-white">
                   <AvatarImage src={user.avatar} alt={user.name} />
@@ -1267,82 +1213,81 @@ export default function MobileDashboardPage() {
                 </button>
               </div>
               <h2 className="text-xl font-bold truncate">{user.name}</h2>
-              <p className="text-sm text-blue-100 truncate">{user.role}</p>
+              <p className="text-sm text-white/75 truncate">{user.role}</p>
             </div>
 
-            {/* Employee Details */}
             <div className="flex-1 overflow-y-auto py-4">
               <div className="px-4 space-y-4">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                   Employee Details
                 </h3>
 
                 {user.employeeId && (
                   <div className="flex items-center gap-3">
-                    <BadgeCheck className="w-5 h-5 text-gray-400 shrink-0" />
+                    <BadgeCheck className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-400">Employee ID</p>
-                      <p className="text-sm text-gray-700">{user.employeeId}</p>
+                      <p className="text-xs text-muted-foreground">Employee ID</p>
+                      <p className="text-sm text-foreground">{user.employeeId}</p>
                     </div>
                   </div>
                 )}
 
                 {user.email && (
                   <div className="flex items-center gap-3">
-                    <Mail className="w-5 h-5 text-gray-400 shrink-0" />
+                    <Mail className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-400">Email</p>
-                      <p className="text-sm text-gray-700 break-all">{user.email}</p>
+                      <p className="text-xs text-muted-foreground">Email</p>
+                      <p className="text-sm text-foreground break-all">{user.email}</p>
                     </div>
                   </div>
                 )}
 
                 {user.workEmail && user.workEmail !== user.email && (
                   <div className="flex items-center gap-3">
-                    <Mail className="w-5 h-5 text-gray-400 shrink-0" />
+                    <Mail className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-400">Work Email</p>
-                      <p className="text-sm text-gray-700 break-all">{user.workEmail}</p>
+                      <p className="text-xs text-muted-foreground">Work Email</p>
+                      <p className="text-sm text-foreground break-all">{user.workEmail}</p>
                     </div>
                   </div>
                 )}
 
                 {user.phone && (
                   <div className="flex items-center gap-3">
-                    <Phone className="w-5 h-5 text-gray-400 shrink-0" />
+                    <Phone className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-400">Phone</p>
-                      <p className="text-sm text-gray-700">{user.phone}</p>
+                      <p className="text-xs text-muted-foreground">Phone</p>
+                      <p className="text-sm text-foreground">{user.phone}</p>
                     </div>
                   </div>
                 )}
 
                 {user.department && (
                   <div className="flex items-center gap-3">
-                    <Building2 className="w-5 h-5 text-gray-400 shrink-0" />
+                    <Building2 className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-400">Department</p>
-                      <p className="text-sm text-gray-700">{user.department}</p>
+                      <p className="text-xs text-muted-foreground">Department</p>
+                      <p className="text-sm text-foreground">{user.department}</p>
                     </div>
                   </div>
                 )}
 
                 {user.designation && (
                   <div className="flex items-center gap-3">
-                    <Briefcase className="w-5 h-5 text-gray-400 shrink-0" />
+                    <Briefcase className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-400">Designation</p>
-                      <p className="text-sm text-gray-700">{user.designation}</p>
+                      <p className="text-xs text-muted-foreground">Designation</p>
+                      <p className="text-sm text-foreground">{user.designation}</p>
                     </div>
                   </div>
                 )}
 
                 {user.managerName && (
                   <div className="flex items-center gap-3">
-                    <UserCheck className="w-5 h-5 text-gray-400 shrink-0" />
+                    <UserCheck className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="text-xs text-gray-400">Reporting Manager</p>
-                      <p className="text-sm text-gray-700">{user.managerName}</p>
+                      <p className="text-xs text-muted-foreground">Reporting Manager</p>
+                      <p className="text-sm text-foreground">{user.managerName}</p>
                     </div>
                   </div>
                 )}
@@ -1350,11 +1295,10 @@ export default function MobileDashboardPage() {
               </div>
             </div>
 
-            {/* Sidebar Footer */}
-            <div className="p-4 border-t border-gray-100">
+            <div className="p-4 border-t border-border">
               <Button
                 variant="ghost"
-                className="w-full justify-start text-slate-700 hover:text-slate-900 hover:bg-slate-100 h-12 mb-2"
+                className="w-full justify-start text-foreground hover:bg-muted h-12 mb-2"
                 onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
               >
                 {isDarkTheme ? <Sun className="w-5 h-5 mr-3" /> : <Moon className="w-5 h-5 mr-3" />}
@@ -1363,7 +1307,7 @@ export default function MobileDashboardPage() {
               
               <Button
                 variant="ghost"
-                className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 h-12"
+                className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 h-12"
                 onClick={() => router.push("/logout")}
               >
                 <LogOut className="w-5 h-5 mr-3" />

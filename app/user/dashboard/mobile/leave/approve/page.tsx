@@ -137,21 +137,20 @@ export default function MobileLeaveApprovePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <MobileTabHeader title="Leave" />
 
       <div className="px-5 -mt-12 z-10 pb-24">
-        {/* My Leave / Approve Switch */}
-        <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
+        <div className="flex bg-muted rounded-xl p-1 mb-4">
           <button
             onClick={() => router.push("/user/dashboard/mobile/leave")}
-            className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors text-gray-600"
+            className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors text-muted-foreground"
           >
             My Leave
           </button>
           <button
             onClick={() => router.push("/user/dashboard/mobile/leave/approve")}
-            className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors bg-[#005F90] text-white"
+            className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors bg-primary text-primary-foreground"
           >
             Approve
           </button>
@@ -160,7 +159,7 @@ export default function MobileLeaveApprovePage() {
         <div className="space-y-3">
           {pendingLeaves.length === 0 ? (
             <div className="py-8 text-center">
-              <p className="text-sm text-gray-500">No pending leave requests</p>
+              <p className="text-sm text-muted-foreground">No pending leave requests</p>
             </div>
           ) : (
             pendingLeaves.map((leave) => {
@@ -175,16 +174,16 @@ export default function MobileLeaveApprovePage() {
                 leave.numberOfDays ?? leave.totalDays ?? leave.days ?? leave.duration ?? "-";
 
               return (
-                <div key={leave.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                <div key={leave.id} className="bg-card rounded-xl p-4 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border border-border">
                   <div className="flex justify-between items-center mb-2">
                     <div>
-                      <p className="text-sm font-semibold text-gray-800">{requesterName}</p>
-                      <p className="text-xs text-gray-500">{requester?.employeeCode ?? ""}</p>
+                      <p className="text-sm font-semibold text-foreground">{requesterName}</p>
+                      <p className="text-xs text-muted-foreground">{requester?.employeeCode ?? ""}</p>
                     </div>
-                    <span className="text-[11px] font-semibold text-gray-500">{leaveType}</span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">{leaveType}</span>
                   </div>
 
-                  <div className="flex justify-between text-xs text-gray-600 mb-3">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-3">
                     <span>
                       {formatDate(leave.startDate)} - {formatDate(leave.endDate)}
                     </span>

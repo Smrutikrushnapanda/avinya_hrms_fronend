@@ -129,17 +129,16 @@ export default function MobileTimeslipApprovePage() {
       <MobileTabHeader title="Time Slips" />
 
       <div className="px-5 -mt-12 z-10 pb-24">
-        {/* My Time Slips / Approve Switch */}
-        <div className="flex bg-gray-100 rounded-xl p-1 mb-4">
+        <div className="flex bg-muted rounded-xl p-1 mb-4">
           <button
             onClick={() => router.push("/user/dashboard/mobile/timeslip")}
-            className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors text-gray-600"
+            className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors text-muted-foreground"
           >
             My Time Slips
           </button>
           <button
             onClick={() => router.push("/user/dashboard/mobile/timeslip/approve")}
-            className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors bg-[#005F90] text-white"
+            className="flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors bg-primary text-primary-foreground"
           >
             Approve
           </button>
