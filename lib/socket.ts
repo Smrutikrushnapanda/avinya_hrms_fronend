@@ -11,5 +11,4 @@ export const getSocketUrl = () =>
 export const createMessageSocket = (token: string): Socket =>
   io(getSocketUrl(), {
     auth: { token },
-    transports: ["websocket"],
   });
