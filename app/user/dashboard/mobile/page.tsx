@@ -425,8 +425,8 @@ export default function MobileDashboardPage() {
     }
   }, []);
 
-  // ── Request GPS location
-  const requestGeolocation = useCallback((): Promise<{ latitude: number; longitude: number } | null> => {
+  // ── Request GPS location (with retry)
+  const requestGeolocation = useCallback((retryCount = 0): Promise<{ latitude: number; longitude: number } | null> => {
     if (typeof window === "undefined" || !navigator.geolocation) {
       setLocationStatus("denied");
       return Promise.resolve(null);
@@ -456,8 +456,14 @@ export default function MobileDashboardPage() {
           resolve(nextCoords);
         },
         () => {
-          setLocationStatus("denied");
-          resolve(null);
+          if (retryCount < 2) {
+            setTimeout(() => {
+              resolve(requestGeolocation(retryCount + 1));
+            }, 2000);
+          } else {
+            setLocationStatus("denied");
+            resolve(null);
+          }
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: GPS_CACHE_MAX_AGE_MS }
       );
@@ -856,7 +862,6 @@ export default function MobileDashboardPage() {
       : "Good Night";
   const isPunchDisabled =
     isLoading ||
-    settings.enableWifiValidation ||
     (settings.enableGpsValidation && locationStatus !== "available");
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -923,7 +928,7 @@ export default function MobileDashboardPage() {
           {settings.enableWifiValidation && (
             <div className="mt-3.5 pt-2.5 border-t border-white/20 flex items-center gap-2">
               <WifiOff className="w-3.5 h-3.5 text-white/70" />
-              <span className="text-[10px] font-semibold text-white/70">WiFi validation is required by your organization — punch in from the mobile app.</span>
+              <span className="text-[10px] font-semibold text-white/70">WiFi validation is required by your org — punch will be recorded as anomaly for admin review.</span>
             </div>
           )}
         </div>

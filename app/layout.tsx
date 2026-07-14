@@ -4,6 +4,7 @@ import "./globals.css";
 import LayoutWrapper from "@/components/layout-wrapper";
 import { Toaster } from "@/components/ui/sonner";
 import RegisterServiceWorker from "@/components/register-service-worker";
+import ChatPushProvider from "@/components/chat-push-provider";
 import "@fontsource-variable/inter";
 
 
@@ -59,6 +60,7 @@ export default function RootLayout({
         >
           <Toaster position="bottom-right" richColors closeButton />
           <RegisterServiceWorker />
+          <ChatPushProvider />
           <LayoutWrapper>{children}</LayoutWrapper>
         </ThemeProvider>
       </body>

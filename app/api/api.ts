@@ -836,6 +836,10 @@ export const sendChatMessage = (conversationId: string, data: FormData) =>
 export const markChatRead = (conversationId: string) =>
   api.post(`/chat/conversations/${conversationId}/read`);
 
+// 🔔 Push notification token registration
+export const updateFcmToken = (token: string) =>
+  api.patch('/users/fcm-token', { token, platform: 'web' });
+
 // 📡 WFH Monitoring APIs
 export const wfhHeartbeat = (data: { mouseEvents: number; keyboardEvents: number; tabSwitches: number }) =>
   api.post('/wfh-monitoring/heartbeat', data);

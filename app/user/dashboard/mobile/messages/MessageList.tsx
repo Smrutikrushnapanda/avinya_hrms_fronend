@@ -176,7 +176,17 @@ export default function MessageList() {
       });
     });
 
+    const handleVisibility = () => {
+      if (document.hidden) {
+        socket.disconnect();
+      } else if (!socket.connected) {
+        socket.connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
       socket.disconnect();
       setOnlineUsers(new Set());
     };

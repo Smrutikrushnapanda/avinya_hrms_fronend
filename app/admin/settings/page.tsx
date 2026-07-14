@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -737,7 +739,7 @@ const loadOrganization = async () => {
         </TabsContent>
 
         <TabsContent value="office-config">
-          <AttendanceSettingsPage />
+          {/* DIAGNOSTIC: temporarily disabled <AttendanceSettingsPage /> */}
         </TabsContent>
 
         <TabsContent value="organization-settings" className="space-y-4">

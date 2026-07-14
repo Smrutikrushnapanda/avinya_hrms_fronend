@@ -135,6 +135,13 @@ export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string>("");
+  // Set once from ?conversationId= on first load — e.g. a push notification
+  // tap deep-links here. Only applied to the initial load, never overriding
+  // the user's active selection on later refreshes.
+  const [deepLinkConversationId] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("conversationId") || "";
+  });
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showEmojiMenu, setShowEmojiMenu] = useState(false);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
@@ -324,13 +331,20 @@ export default function MessagesPage() {
         if (keepCurrent && prev && items.some((item: Conversation) => item.id === prev)) {
           return prev;
         }
+        if (
+          !keepCurrent &&
+          deepLinkConversationId &&
+          items.some((item: Conversation) => item.id === deepLinkConversationId)
+        ) {
+          return deepLinkConversationId;
+        }
         return items[0]?.id || "";
       });
     } catch (error) {
       console.error("Failed to load conversations:", error);
       toast.error("Failed to load conversations");
     }
-  }, []);
+  }, [deepLinkConversationId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -466,12 +480,15 @@ export default function MessagesPage() {
     loadMessages(selectedConversationId);
   }, [selectedConversationId, loadMessages]);
 
+  const socketRef = useRef<ReturnType<typeof createMessageSocket> | null>(null);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("access_token");
     if (!token) return;
 
     const socket = createMessageSocket(token);
+    socketRef.current = socket;
 
     socket.on("chat:presence", (payload: PresencePayload) => {
       const userId = payload?.userId;
@@ -541,8 +558,45 @@ export default function MessagesPage() {
       }
     });
 
+    socket.on("chat:read", (payload) => {
+      if (!payload?.conversationId || !payload?.userId || !payload?.readAt) return;
+      if (selfUserIdsRef.current.has(payload.userId)) return;
+      if (selectedConversationRef.current !== payload.conversationId) return;
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (
+            selfUserIdsRef.current.has(msg.senderId) &&
+            new Date(msg.createdAt) <= new Date(payload.readAt)
+          ) {
+            return { ...msg, readByAll: true };
+          }
+          return msg;
+        }),
+      );
+    });
+
+    socket.on("chat:meeting-start", (payload) => {
+      if (!payload?.conversationId) return;
+      if (selfUserIdsRef.current.has(payload.userId)) return;
+      toast.info(
+        `${payload.callerName || "Someone"} started a meeting in a chat`,
+        { duration: 5000 },
+      );
+    });
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        socket.disconnect();
+      } else if (!socket.connected) {
+        socket.connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
       socket.disconnect();
+      socketRef.current = null;
     };
   }, [
     loadConversations,
@@ -584,6 +638,30 @@ export default function MessagesPage() {
     if (!selectedConversationId || sending) return;
     if (!composerText.trim() && selectedFiles.length === 0) return;
 
+    const tempId = `temp-${Date.now()}`;
+    const now = new Date().toISOString();
+    const optimistic: ChatMessage = {
+      id: tempId,
+      conversationId: selectedConversationId,
+      senderId: selfUserId,
+      text: composerText.trim() || "",
+      createdAt: now,
+      pending: true,
+      attachments: selectedFiles.map((f) => ({
+        id: "",
+        url: URL.createObjectURL(f),
+        fileName: f.name,
+        type: f.type?.startsWith("image/") ? "image" : "file",
+      })),
+    };
+
+    setMessages((prev) =>
+      [...prev, optimistic].sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )
+    );
+
     const formData = new FormData();
     if (composerText.trim()) formData.append("text", composerText.trim());
     selectedFiles.forEach((file) => formData.append("files", file));
@@ -593,10 +671,11 @@ export default function MessagesPage() {
       const response = await sendChatMessage(selectedConversationId, formData);
       const newMessage = toChatMessage(response.data);
       setMessages((prev) => {
-        if (prev.some((message) => message.id === newMessage.id)) {
-          return prev;
-        }
-        return [...prev, newMessage].sort(
+        const withoutTemp = prev.filter(
+          (m) => !(m.pending && m.senderId === newMessage.senderId && (m.text || "") === (newMessage.text || "")),
+        );
+        if (withoutTemp.some((m) => m.id === newMessage.id)) return withoutTemp;
+        return [...withoutTemp, newMessage].sort(
           (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
@@ -628,6 +707,7 @@ export default function MessagesPage() {
       setShowEmojiMenu(false);
     } catch (error: unknown) {
       console.error("Failed to send chat message:", error);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
       toast.error(getErrorMessage(error, "Failed to send message"));
     } finally {
       setSending(false);
@@ -893,6 +973,12 @@ export default function MessagesPage() {
           formData.append("text", `Join meeting: ${meetingRoomUrl}`);
           try {
             await sendChatMessage(selectedConversationId, formData);
+            socketRef.current?.emit("chat:meeting-start", {
+              conversationId: selectedConversationId,
+              url: meetingRoomUrl,
+              callerName: selfName || "Someone",
+              callerAvatar: "",
+            });
           } catch {
             // non-blocking; ignore send errors
           }
@@ -931,6 +1017,9 @@ export default function MessagesPage() {
         const formData = new FormData();
         formData.append("text", "You left");
         void sendChatMessage(selectedConversationId, formData);
+        socketRef.current?.emit("chat:meeting-end", {
+          conversationId: selectedConversationId,
+        });
       } catch {
         // ignore
       }

@@ -77,6 +77,7 @@ export default function MobileChatPage() {
   const jitsiContainerRef = useRef<HTMLDivElement | null>(null);
   const jitsiApiRef = useRef<any | null>(null);
   const meetingMiniDragOffsetRef = useRef({ x: 0, y: 0 });
+  const socketRef = useRef<ReturnType<typeof createMessageSocket> | null>(null);
   const jitsiDomain = process.env.NEXT_PUBLIC_JITSI_DOMAIN || "8x8.vc";
   const jitsiPrefix =
     process.env.NEXT_PUBLIC_JITSI_ROOM_PREFIX || "vpaas-magic-cookie-13baaedb78ca4524a95bc3d4f7748bf4";
@@ -259,6 +260,7 @@ export default function MobileChatPage() {
     if (!token) return;
 
     const socket = createMessageSocket(token);
+    socketRef.current = socket;
 
     socket.on("chat:message", (payload: ChatSocketPayload) => {
       if (payload.conversationId !== conversationId) return;
@@ -285,8 +287,36 @@ export default function MobileChatPage() {
       setIsOnline(payload.status === "online");
     });
 
+    socket.on("chat:read", (payload) => {
+      if (!payload?.conversationId || !payload?.userId || !payload?.readAt) return;
+      if (payload.userId === selfUserId) return;
+      if (payload.conversationId !== conversationId) return;
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (
+            msg.senderId === selfUserId &&
+            new Date(msg.createdAt) <= new Date(payload.readAt)
+          ) {
+            return { ...msg, readByAll: true };
+          }
+          return msg;
+        }),
+      );
+    });
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        socket.disconnect();
+      } else if (!socket.connected) {
+        socket.connect();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
       socket.disconnect();
+      socketRef.current = null;
       setIsOnline(false);
     };
   }, [conversationId, peerId]);
@@ -416,6 +446,12 @@ export default function MobileChatPage() {
           formData.append("text", `Join meeting: ${meetingRoomUrl}`);
           try {
             await sendChatMessage(conversationId, formData);
+            socketRef.current?.emit("chat:meeting-start", {
+              conversationId,
+              url: meetingRoomUrl,
+              callerName: selfName || "Someone",
+              callerAvatar: "",
+            });
           } catch {
             /* ignore send failures */
           }
@@ -449,6 +485,7 @@ export default function MobileChatPage() {
         const ended = new FormData();
         ended.append("text", "You left");
         void sendChatMessage(conversationId, ended);
+        socketRef.current?.emit("chat:meeting-end", { conversationId });
       } catch {
         // ignore
       }
@@ -523,6 +560,18 @@ export default function MobileChatPage() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [clampMiniPosition, meetingMiniPosition]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const onKeyboardChange = () => {
+      if (viewport.height >= window.innerHeight * 0.95) {
+        window.scrollTo(0, 0);
+      }
+    };
+    viewport.addEventListener("resize", onKeyboardChange);
+    return () => viewport.removeEventListener("resize", onKeyboardChange);
+  }, []);
 
   const hasActiveMeeting = Boolean(activeMeetingUrl);
 
@@ -886,6 +935,7 @@ export default function MobileChatPage() {
             value={composerText}
             onChange={(event) => setComposerText(event.target.value)}
             onFocus={() => setShowEmojiMenu(false)}
+            onBlur={() => window.scrollTo(0, 0)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
