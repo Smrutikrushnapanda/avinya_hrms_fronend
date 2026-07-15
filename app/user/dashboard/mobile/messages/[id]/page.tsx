@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 import {
@@ -48,6 +48,8 @@ import {
   updateOutboxEntry,
 } from "@/lib/chatOutbox";
 
+const CHAT_PAGE_SIZE = 30;
+
 export default function MobileChatPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -84,6 +86,8 @@ export default function MobileChatPage() {
   }, [conversationId]);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [composerText, setComposerText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
@@ -240,23 +244,77 @@ export default function MobileChatPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  // Guards the scroll-to-bottom effect below so it only fires for messages
+  // appended at the end (new send/receive) — not when an older page gets
+  // prepended from scrolling up, which the layout effect just below handles
+  // by restoring the pre-prepend offset instead.
+  const isPrependingRef = useRef(false);
+  const prependScrollAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
 
   const loadMessages = useCallback(async () => {
     if (!conversationId) return [];
     try {
       const [response] = await Promise.all([
-        getChatMessages(conversationId, { limit: 200 }),
+        getChatMessages(conversationId, { limit: CHAT_PAGE_SIZE }),
         markChatRead(conversationId).catch(() => undefined),
       ]);
       const list = Array.isArray(response.data) ? response.data : [];
       const normalized = list.map((item: unknown) => toChatMessage((item as any) || {}));
       const sorted = sortMessages(normalized);
+      setHasMoreMessages(list.length >= CHAT_PAGE_SIZE);
       setMessages(sorted);
       return sorted;
     } finally {
       setLoading(false);
     }
   }, [conversationId]);
+
+  // Loads an older page of messages (before the oldest one currently held)
+  // when the user scrolls to the top, instead of fetching up to 200 messages
+  // up front — which got slower to open the longer a conversation ran.
+  const loadOlderMessages = useCallback(async () => {
+    if (!conversationId || loadingOlderMessages || !hasMoreMessages || messages.length === 0) return;
+    const oldest = messages[0]?.createdAt;
+    if (!oldest) return;
+    setLoadingOlderMessages(true);
+    try {
+      const res = await getChatMessages(conversationId, { limit: CHAT_PAGE_SIZE, before: oldest });
+      const list = Array.isArray(res.data) ? res.data : [];
+      setHasMoreMessages(list.length >= CHAT_PAGE_SIZE);
+      if (list.length > 0) {
+        const fresh = list.map((item: unknown) => toChatMessage((item as any) || {}));
+        const container = listRef.current;
+        if (container) {
+          prependScrollAnchorRef.current = {
+            scrollHeight: container.scrollHeight,
+            scrollTop: container.scrollTop,
+          };
+        }
+        isPrependingRef.current = true;
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          return sortMessages([...fresh.filter((m) => !existingIds.has(m.id)), ...prev]);
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load older messages:", error);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [conversationId, loadingOlderMessages, hasMoreMessages, messages]);
+
+  // Runs before the browser paints the newly-prepended messages, so the
+  // user never sees the jump that would otherwise happen when content is
+  // added above the current scroll position.
+  useLayoutEffect(() => {
+    const anchor = prependScrollAnchorRef.current;
+    if (!anchor) return;
+    const container = listRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight - anchor.scrollHeight + anchor.scrollTop;
+    }
+    prependScrollAnchorRef.current = null;
+  }, [messages]);
 
   // Retry timers for queued sends, keyed by clientMessageId. `attemptSendRef`
   // breaks the circular reference between attemptSend (schedules a retry on
@@ -425,6 +483,10 @@ export default function MobileChatPage() {
   }, [loadMessages, flushOutbox]);
 
   useEffect(() => {
+    if (isPrependingRef.current) {
+      isPrependingRef.current = false;
+      return;
+    }
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
@@ -885,7 +947,15 @@ export default function MobileChatPage() {
       ) : null}
 
       {/* ── SCROLLABLE MESSAGE LIST (only this zone scrolls) ── */}
-      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-3 bg-background space-y-2.5">
+      <div
+        ref={listRef}
+        className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-3 bg-background space-y-2.5"
+        onScroll={(event) => {
+          if (event.currentTarget.scrollTop < 80) {
+            void loadOlderMessages();
+          }
+        }}
+      >
         {loading ? (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Loading messages...</div>
         ) : messages.length === 0 ? (
@@ -896,6 +966,11 @@ export default function MobileChatPage() {
           </div>
         ) : (
           <div className="space-y-2.5">
+            {loadingOlderMessages && (
+              <div className="flex items-center justify-center py-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            )}
             {messages.map((message, index) => {
               const isMine = message.senderId === selfUserId;
               const meetingSystemLabel = getMeetingSystemLabel(message.text);
