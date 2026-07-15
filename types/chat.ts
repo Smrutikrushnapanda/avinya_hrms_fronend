@@ -21,6 +21,8 @@ export type ChatMessage = {
   createdAt: string;
   readByAll?: boolean;
   pending?: boolean;
+  failed?: boolean;
+  clientMessageId?: string;
   attachments?: ChatAttachment[];
   sender?: {
     id?: string;

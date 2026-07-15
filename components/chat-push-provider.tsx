@@ -31,6 +31,21 @@ export default function ChatPushProvider() {
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   const selfUserIdRef = useRef<string>("");
+  // Which conversation the user is actually looking at right now, regardless
+  // of whether the route encodes it in the URL (the desktop /user/messages
+  // route doesn't) — set via the chatActiveConversationChanged event the
+  // messages pages dispatch on selection. Comparing against pathname alone
+  // used to make this suppression check a no-op on desktop.
+  const activeConversationIdRef = useRef<string>("");
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      activeConversationIdRef.current =
+        (e as CustomEvent<{ conversationId: string }>).detail?.conversationId || "";
+    };
+    window.addEventListener("chatActiveConversationChanged", handler);
+    return () => window.removeEventListener("chatActiveConversationChanged", handler);
+  }, []);
 
   // Foreground: tab is open somewhere in the app — socket delivers instantly,
   // show a WhatsApp-style toast + chime. This is the "tab open" case.
@@ -53,7 +68,7 @@ export default function ChatPushProvider() {
       if (!conversationId || !msg?.id) return;
       if (msg.senderId && msg.senderId === selfUserIdRef.current) return;
       // Already looking at this conversation — the page itself shows it live.
-      if (pathnameRef.current?.includes(conversationId)) return;
+      if (activeConversationIdRef.current === conversationId) return;
 
       const senderName = msg.sender?.firstName
         ? `${msg.sender.firstName} ${msg.sender.lastName || ""}`.trim()
@@ -68,6 +83,17 @@ export default function ChatPushProvider() {
           onClick: () => router.push(buildChatUrl(pathnameRef.current, conversationId, senderName)),
         },
       });
+    });
+
+    // Server-authoritative unread total, pushed to every socket this user
+    // has open. Reuses the existing chatUnreadUpdate event the sidebar
+    // already listens to — the only thing that changes is this now fires
+    // app-wide instead of only while /user/messages happens to be mounted.
+    socket.on("chat:unread-sync", (payload: { totalUnread?: number }) => {
+      if (typeof payload?.totalUnread !== "number") return;
+      window.dispatchEvent(
+        new CustomEvent("chatUnreadUpdate", { detail: { count: payload.totalUnread } })
+      );
     });
 
     return () => {

@@ -69,6 +69,8 @@ export const toChatMessage = (item: any): ChatMessage => ({
   createdAt: item?.createdAt || new Date().toISOString(),
   readByAll: Boolean(item?.readByAll),
   pending: Boolean(item?.pending),
+  failed: Boolean(item?.failed),
+  clientMessageId: item?.clientMessageId || undefined,
   attachments: Array.isArray(item?.attachments)
     ? item.attachments.filter((a: any) => a?.id && a?.url).map(toChatAttachment)
     : [],

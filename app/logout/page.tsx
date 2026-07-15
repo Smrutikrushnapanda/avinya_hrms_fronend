@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import axiosInstance from "@/app/api/api";
 import Bowser from "bowser";
+import { getToken } from "firebase/messaging";
+import { getFirebaseMessaging, vapidKey } from "@/lib/firebase";
 
 const clearCookies = () => {
   document.cookie.split(";").forEach((cookie) => {
@@ -53,6 +55,26 @@ const LogoutPage = () => {
         userAgent: window.navigator.userAgent,
       };
 
+      // Read before clearing storage below — deletes this browser's push
+      // token server-side so it stops receiving pushes once logged out.
+      // getToken() returns the existing registration's token (it doesn't
+      // mint a new one), so this is safe to call even just to read it.
+      let fcmToken: string | undefined;
+      try {
+        if ("serviceWorker" in navigator && vapidKey) {
+          const messaging = await getFirebaseMessaging();
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (messaging && registration) {
+            fcmToken = await getToken(messaging, {
+              vapidKey,
+              serviceWorkerRegistration: registration,
+            });
+          }
+        }
+      } catch {
+        // Firebase messaging unsupported/unavailable — proceed without it.
+      }
+
       try {
         // Clear cookies and storage
         clearCookies();
@@ -64,6 +86,7 @@ const LogoutPage = () => {
           await axiosInstance.post("/auth/logout", {
             userId,
             clientInfo,
+            fcmToken,
           });
         }
 

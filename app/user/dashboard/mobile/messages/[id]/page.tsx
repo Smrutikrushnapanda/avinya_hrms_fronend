@@ -21,6 +21,7 @@ import {
   Info,
   Users,
   Download,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getChatMessages, getProfile, sendChatMessage, markChatRead } from "@/app/api/api";
@@ -35,6 +36,17 @@ import {
   toChatMessage,
   sortMessages,
 } from "@/lib/chat-utils";
+import {
+  addOutboxEntry,
+  generateClientMessageId,
+  getBackoffMs,
+  getPendingFiles,
+  loadOutboxForConversation,
+  MAX_SEND_ATTEMPTS,
+  OutboxEntry,
+  removeOutboxEntry,
+  updateOutboxEntry,
+} from "@/lib/chatOutbox";
 
 export default function MobileChatPage() {
   const params = useParams<{ id: string }>();
@@ -50,6 +62,20 @@ export default function MobileChatPage() {
   const peerId = searchParams.get("peerId") || "";
   const chatType = searchParams.get("type") || "DIRECT";
 
+  // Lets the app-wide ChatPushProvider know this conversation is the one
+  // actually on screen, so it can suppress the toast/chime for it.
+  useEffect(() => {
+    if (!conversationId) return;
+    window.dispatchEvent(
+      new CustomEvent("chatActiveConversationChanged", { detail: { conversationId } })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("chatActiveConversationChanged", { detail: { conversationId: "" } })
+      );
+    };
+  }, [conversationId]);
+
   const [avatar, setAvatar] = useState("");
   useEffect(() => {
     if (typeof window !== "undefined" && conversationId) {
@@ -60,7 +86,6 @@ export default function MobileChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [composerText, setComposerText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showEmojiMenu, setShowEmojiMenu] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
@@ -217,7 +242,7 @@ export default function MobileChatPage() {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const loadMessages = useCallback(async () => {
-    if (!conversationId) return;
+    if (!conversationId) return [];
     try {
       const [response] = await Promise.all([
         getChatMessages(conversationId, { limit: 200 }),
@@ -225,11 +250,160 @@ export default function MobileChatPage() {
       ]);
       const list = Array.isArray(response.data) ? response.data : [];
       const normalized = list.map((item: unknown) => toChatMessage((item as any) || {}));
-      setMessages(sortMessages(normalized));
+      const sorted = sortMessages(normalized);
+      setMessages(sorted);
+      return sorted;
     } finally {
       setLoading(false);
     }
   }, [conversationId]);
+
+  // Retry timers for queued sends, keyed by clientMessageId. `attemptSendRef`
+  // breaks the circular reference between attemptSend (schedules a retry on
+  // failure) and scheduleRetry (calls attemptSend when the timer fires).
+  const retryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map()
+  );
+  const attemptSendRef = useRef<
+    ((entry: OutboxEntry) => Promise<void>) | undefined
+  >(undefined);
+
+  useEffect(() => {
+    return () => {
+      retryTimersRef.current.forEach((timer) => clearTimeout(timer));
+      retryTimersRef.current.clear();
+    };
+  }, []);
+
+  const scheduleRetry = useCallback((entry: OutboxEntry) => {
+    const existingTimer = retryTimersRef.current.get(entry.clientMessageId);
+    if (existingTimer) clearTimeout(existingTimer);
+    const delay = Math.max(0, entry.nextRetryAt - Date.now());
+    const timer = setTimeout(() => {
+      retryTimersRef.current.delete(entry.clientMessageId);
+      void attemptSendRef.current?.(entry);
+    }, delay);
+    retryTimersRef.current.set(entry.clientMessageId, timer);
+  }, []);
+
+  const attemptSend = useCallback(
+    async (entry: OutboxEntry) => {
+      const files = getPendingFiles(entry.clientMessageId);
+      if (entry.attachments.length > 0 && files.length === 0) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === entry.clientMessageId
+              ? { ...m, pending: false, failed: true }
+              : m
+          )
+        );
+        return;
+      }
+      try {
+        const formData = new FormData();
+        if (entry.text) formData.append("text", entry.text);
+        formData.append("clientMessageId", entry.clientMessageId);
+        files.forEach((file) => formData.append("files", file));
+        const response = await sendChatMessage(entry.conversationId, formData);
+        const saved = toChatMessage((response.data || {}) as any);
+        removeOutboxEntry(entry.clientMessageId);
+        const timer = retryTimersRef.current.get(entry.clientMessageId);
+        if (timer) {
+          clearTimeout(timer);
+          retryTimersRef.current.delete(entry.clientMessageId);
+        }
+        if (entry.conversationId === conversationId) {
+          setMessages((prev) => {
+            const withoutPending = prev.filter(
+              (item) => item.id !== entry.clientMessageId
+            );
+            if (withoutPending.some((item) => item.id === saved.id)) {
+              return withoutPending;
+            }
+            return sortMessages([...withoutPending, saved]);
+          });
+        }
+      } catch {
+        const nextAttempt = entry.attempt + 1;
+        const nextRetryAt = Date.now() + getBackoffMs(nextAttempt);
+        const updatedEntry = { ...entry, attempt: nextAttempt, nextRetryAt };
+        updateOutboxEntry(entry.clientMessageId, {
+          attempt: nextAttempt,
+          nextRetryAt,
+        });
+        if (entry.conversationId === conversationId) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === entry.clientMessageId
+                ? { ...m, pending: false, failed: true }
+                : m
+            )
+          );
+        }
+        if (nextAttempt < MAX_SEND_ATTEMPTS) {
+          scheduleRetry(updatedEntry);
+        }
+      }
+    },
+    [conversationId, scheduleRetry]
+  );
+
+  useEffect(() => {
+    attemptSendRef.current = attemptSend;
+  }, [attemptSend]);
+
+  const retryFailedMessage = useCallback(
+    (clientMessageId: string) => {
+      const entries = loadOutboxForConversation(conversationId);
+      const entry = entries.find((e) => e.clientMessageId === clientMessageId);
+      if (!entry) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === clientMessageId ? { ...m, pending: true, failed: false } : m
+        )
+      );
+      void attemptSend(entry);
+    },
+    [conversationId, attemptSend]
+  );
+
+  const flushOutbox = useCallback(
+    (fetchedMessages: ChatMessage[]) => {
+      const entries = loadOutboxForConversation(conversationId);
+      if (!entries.length) return;
+      const knownClientIds = new Set(
+        fetchedMessages
+          .filter((m) => m.clientMessageId)
+          .map((m) => m.clientMessageId)
+      );
+      const alreadyDelivered = entries.filter((e) =>
+        knownClientIds.has(e.clientMessageId)
+      );
+      const toRestore = entries.filter(
+        (e) => !knownClientIds.has(e.clientMessageId)
+      );
+      alreadyDelivered.forEach((e) => removeOutboxEntry(e.clientMessageId));
+      if (!toRestore.length) return;
+      setMessages((prev) => {
+        const bubbles: ChatMessage[] = toRestore.map((e) => ({
+          id: e.clientMessageId,
+          conversationId,
+          senderId: selfUserId,
+          text: e.text || "",
+          createdAt: e.createdAt,
+          clientMessageId: e.clientMessageId,
+          pending: e.attempt < MAX_SEND_ATTEMPTS,
+          failed: e.attempt >= MAX_SEND_ATTEMPTS,
+          attachments: [],
+        }));
+        return sortMessages([...prev, ...bubbles]);
+      });
+      toRestore.forEach((e) => {
+        if (e.attempt < MAX_SEND_ATTEMPTS) scheduleRetry(e);
+      });
+    },
+    [conversationId, selfUserId, scheduleRetry]
+  );
 
   useEffect(() => {
     const init = async () => {
@@ -247,8 +421,8 @@ export default function MobileChatPage() {
     };
 
     void init();
-    void loadMessages();
-  }, [loadMessages]);
+    void loadMessages().then((list) => flushOutbox(list || []));
+  }, [loadMessages, flushOutbox]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -268,16 +442,14 @@ export default function MobileChatPage() {
       if (!incoming.id) return;
 
       setMessages((prev) => {
+        // Drop both: an already-inserted copy with the same server id, and
+        // the optimistic pending bubble — keyed by clientMessageId — being
+        // replaced by the now-confirmed server message.
         const withoutPending = prev.filter(
           (item) =>
-            !(
-              item.pending &&
-              item.senderId === incoming.senderId &&
-              (item.text || "") === (incoming.text || "")
-            ),
+            item.id !== incoming.id &&
+            (!incoming.clientMessageId || item.id !== incoming.clientMessageId)
         );
-
-        if (withoutPending.some((item) => item.id === incoming.id)) return withoutPending;
         return sortMessages([...withoutPending, incoming]);
       });
     });
@@ -321,48 +493,45 @@ export default function MobileChatPage() {
     };
   }, [conversationId, peerId]);
 
-  const sendMessage = async () => {
-    if (!conversationId || sending) return;
+  const sendMessage = () => {
+    if (!conversationId) return;
     if (!composerText.trim() && selectedFiles.length === 0) return;
 
-    const tempId = `temp-${Date.now()}`;
+    const clientMessageId = generateClientMessageId();
     const now = new Date().toISOString();
+    const text = composerText.trim() || null;
+    const filesToSend = selectedFiles;
 
     const optimistic: ChatMessage = {
-      id: tempId,
+      id: clientMessageId,
       conversationId,
       senderId: selfUserId,
-      text: composerText.trim() || "",
+      text: text || "",
       createdAt: now,
       pending: true,
+      clientMessageId,
       attachments: [],
     };
-
     setMessages((prev) => sortMessages([...prev, optimistic]));
+    setComposerText("");
+    setSelectedFiles([]);
+    setShowEmojiMenu(false);
 
-    const formData = new FormData();
-    if (composerText.trim()) formData.append("text", composerText.trim());
-    selectedFiles.forEach((file) => formData.append("files", file));
-
-    setSending(true);
-    try {
-      const response = await sendChatMessage(conversationId, formData);
-      const saved = toChatMessage((response.data || {}) as any);
-
-      setMessages((prev) => {
-        const withoutTemp = prev.filter((item) => item.id !== tempId);
-        if (withoutTemp.some((item) => item.id === saved.id)) return withoutTemp;
-        return sortMessages([...withoutTemp, saved]);
-      });
-
-      setComposerText("");
-      setSelectedFiles([]);
-      setShowEmojiMenu(false);
-    } catch {
-      setMessages((prev) => prev.filter((item) => item.id !== tempId));
-    } finally {
-      setSending(false);
-    }
+    const entry: OutboxEntry = {
+      clientMessageId,
+      conversationId,
+      text,
+      attachments: filesToSend.map((f) => ({
+        name: f.name,
+        mimeType: f.type,
+        size: f.size,
+      })),
+      attempt: 0,
+      nextRetryAt: Date.now(),
+      createdAt: now,
+    };
+    addOutboxEntry(entry, filesToSend);
+    void attemptSend(entry);
   };
 
   const pickFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -839,25 +1008,40 @@ export default function MobileChatPage() {
                       ) : null}
 
                       <div className="mt-1 flex items-center justify-end gap-1.5">
-                        <p className={`text-[9px] ${isMine ? "text-white/80" : "text-muted-foreground"}`}>
-                          {formatTime(message.createdAt)}
-                        </p>
-                        {isMine ? (
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full border ${
-                              message.readByAll
-                                ? "bg-sky-300 border-sky-300"
-                                : message.pending
-                                  ? "bg-transparent border-white/70"
-                                  : "bg-white/80 border-white/80"
-                            }`}
-                          />
-                        ) : null}
-                        {message.pending ? (
-                          <Loader2
-                            className={`w-3 h-3 animate-spin ${isMine ? "text-white/80" : "text-muted-foreground"}`}
-                          />
-                        ) : null}
+                        {message.failed ? (
+                          <button
+                            onClick={() =>
+                              message.clientMessageId &&
+                              retryFailedMessage(message.clientMessageId)
+                            }
+                            className="flex items-center gap-1 text-[9px] text-red-400 underline underline-offset-2"
+                          >
+                            <AlertCircle className="w-2.5 h-2.5" />
+                            Tap to retry
+                          </button>
+                        ) : (
+                          <>
+                            <p className={`text-[9px] ${isMine ? "text-white/80" : "text-muted-foreground"}`}>
+                              {formatTime(message.createdAt)}
+                            </p>
+                            {isMine ? (
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full border ${
+                                  message.readByAll
+                                    ? "bg-sky-300 border-sky-300"
+                                    : message.pending
+                                      ? "bg-transparent border-white/70"
+                                      : "bg-white/80 border-white/80"
+                                }`}
+                              />
+                            ) : null}
+                            {message.pending ? (
+                              <Loader2
+                                className={`w-3 h-3 animate-spin ${isMine ? "text-white/80" : "text-muted-foreground"}`}
+                              />
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -948,9 +1132,8 @@ export default function MobileChatPage() {
           />
 
           <Button
-            onClick={() => void sendMessage()}
+            onClick={sendMessage}
             disabled={!composerText.trim() && selectedFiles.length === 0}
-            loading={sending}
             className="w-9 h-9 rounded-full bg-messages-primary-dark text-white flex items-center justify-center disabled:bg-muted/60 disabled:text-muted-foreground transition-colors"
             aria-label="Send"
             size="icon"

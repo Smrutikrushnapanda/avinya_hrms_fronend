@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   createDirectChat,
   createGroupChat,
@@ -29,6 +29,17 @@ import {
   normalizeEmployee,
 } from "@/lib/chat-utils";
 import {
+  addOutboxEntry,
+  generateClientMessageId,
+  getBackoffMs,
+  getPendingFiles,
+  loadOutboxForConversation,
+  MAX_SEND_ATTEMPTS,
+  OutboxEntry,
+  removeOutboxEntry,
+  updateOutboxEntry,
+} from "@/lib/chatOutbox";
+import {
   ArrowLeft,
   ImageIcon,
   Loader2,
@@ -47,6 +58,7 @@ import {
   Clipboard,
   Info,
   Download,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
@@ -75,6 +87,8 @@ type ChatMessage = {
   createdAt: string;
   readByAll?: boolean;
   pending?: boolean;
+  failed?: boolean;
+  clientMessageId?: string;
   attachments?: ChatAttachment[];
   sender?: {
     id?: string;
@@ -125,15 +139,17 @@ const resolveAttachmentUrl = resolveUrl;
 const getErrorMessage = (error: unknown, fallback: string) => getApiError(error, fallback);
 const toConversation = (item: unknown): Conversation => toConv(item) as Conversation;
 const toChatMessage = (item: unknown): ChatMessage => toMsg(item);
+const CHAT_PAGE_SIZE = 30;
 
 export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [conversationLoading, setConversationLoading] = useState(false);
-  const [sending, setSending] = useState(false);
   const [search, setSearch] = useState("");
   const [composerText, setComposerText] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [selectedConversationId, setSelectedConversationId] = useState<string>("");
   // Set once from ?conversationId= on first load — e.g. a push notification
   // tap deep-links here. Only applied to the initial load, never overriding
@@ -180,6 +196,12 @@ export default function MessagesPage() {
   const selectedConversationRef = useRef<string>("");
   const selfUserIdsRef = useRef<Set<string>>(new Set());
   const meetingMiniDragOffsetRef = useRef({ x: 0, y: 0 });
+  // Guards the auto-scroll-to-bottom effect below so it only fires for
+  // messages appended at the end (new send/receive, conversation switch) —
+  // not when an older page gets prepended from scrolling up, which the
+  // layout effect just below handles by restoring the pre-prepend offset.
+  const isPrependingRef = useRef(false);
+  const prependScrollAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
 
   const selectedConversation = useMemo(
     () => conversations.find((conv) => conv.id === selectedConversationId) || null,
@@ -363,6 +385,20 @@ export default function MessagesPage() {
 
   useEffect(() => {
     selectedConversationRef.current = selectedConversationId;
+    // Lets ChatPushProvider (mounted app-wide) know which conversation is
+    // actually on screen so it can suppress the toast/chime for it — the
+    // desktop route's URL never encodes the conversation id, so pathname
+    // alone can't answer that question.
+    window.dispatchEvent(
+      new CustomEvent("chatActiveConversationChanged", {
+        detail: { conversationId: selectedConversationId || "" },
+      })
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("chatActiveConversationChanged", { detail: { conversationId: "" } })
+      );
+    };
   }, [selectedConversationId]);
 
   useEffect(() => {
@@ -370,14 +406,16 @@ export default function MessagesPage() {
   }, [selfUserIds]);
 
   const loadMessages = useCallback(async (conversationId: string) => {
-    if (!conversationId) return;
+    if (!conversationId) return [];
     setConversationLoading(true);
     try {
       const [msgResponse] = await Promise.all([
-        getChatMessages(conversationId, { limit: 200 }),
+        getChatMessages(conversationId, { limit: CHAT_PAGE_SIZE }),
         markChatRead(conversationId).catch(() => undefined),
       ]);
-      const items = Array.isArray(msgResponse.data) ? msgResponse.data.map(toChatMessage) : [];
+      const raw = Array.isArray(msgResponse.data) ? msgResponse.data : [];
+      const items = raw.map(toChatMessage);
+      setHasMoreMessages(raw.length >= CHAT_PAGE_SIZE);
       setMessages(items);
       setConversations((prev) =>
         prev.map((conversation) =>
@@ -386,14 +424,72 @@ export default function MessagesPage() {
             : conversation
         )
       );
+      return items;
     } catch (error) {
       console.error("Failed to load chat messages:", error);
       toast.error("Failed to load messages");
       setMessages([]);
+      return [];
     } finally {
       setConversationLoading(false);
     }
   }, []);
+
+  // Loads an older page of messages (before the oldest one currently held)
+  // when the user scrolls to the top, instead of fetching up to 200 messages
+  // up front — which got slower to open the longer a conversation ran.
+  const loadOlderMessages = useCallback(async () => {
+    if (
+      !selectedConversationId ||
+      loadingOlderMessages ||
+      !hasMoreMessages ||
+      messages.length === 0
+    )
+      return;
+    const oldest = messages[0]?.createdAt;
+    if (!oldest) return;
+    setLoadingOlderMessages(true);
+    try {
+      const res = await getChatMessages(selectedConversationId, {
+        limit: CHAT_PAGE_SIZE,
+        before: oldest,
+      });
+      const raw = Array.isArray(res.data) ? res.data : [];
+      setHasMoreMessages(raw.length >= CHAT_PAGE_SIZE);
+      if (raw.length > 0) {
+        const fresh = raw.map(toChatMessage);
+        const container = messageContainerRef.current;
+        if (container) {
+          prependScrollAnchorRef.current = {
+            scrollHeight: container.scrollHeight,
+            scrollTop: container.scrollTop,
+          };
+        }
+        isPrependingRef.current = true;
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          return sortMsgs([...fresh.filter((m) => !existingIds.has(m.id)), ...prev]);
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load older messages:", error);
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [selectedConversationId, loadingOlderMessages, hasMoreMessages, messages]);
+
+  // Runs before the browser paints the newly-prepended messages, so the
+  // user never sees the jump that would otherwise happen when content is
+  // added above the current scroll position.
+  useLayoutEffect(() => {
+    const anchor = prependScrollAnchorRef.current;
+    if (!anchor) return;
+    const container = messageContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight - anchor.scrollHeight + anchor.scrollTop;
+    }
+    prependScrollAnchorRef.current = null;
+  }, [messages]);
 
   const loadEmployeesAndProfile = useCallback(async () => {
     try {
@@ -472,13 +568,192 @@ export default function MessagesPage() {
     };
   }, [loadConversations, loadEmployeesAndProfile]);
 
+  // Retry timers for queued sends, keyed by clientMessageId. `attemptSendRef`
+  // breaks the circular reference between attemptSend (schedules a retry on
+  // failure) and scheduleRetry (calls attemptSend when the timer fires).
+  const retryTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map()
+  );
+  const attemptSendRef = useRef<
+    ((entry: OutboxEntry) => Promise<void>) | undefined
+  >(undefined);
+
+  useEffect(() => {
+    return () => {
+      retryTimersRef.current.forEach((timer) => clearTimeout(timer));
+      retryTimersRef.current.clear();
+    };
+  }, []);
+
+  const scheduleRetry = useCallback((entry: OutboxEntry) => {
+    const existingTimer = retryTimersRef.current.get(entry.clientMessageId);
+    if (existingTimer) clearTimeout(existingTimer);
+    const delay = Math.max(0, entry.nextRetryAt - Date.now());
+    const timer = setTimeout(() => {
+      retryTimersRef.current.delete(entry.clientMessageId);
+      void attemptSendRef.current?.(entry);
+    }, delay);
+    retryTimersRef.current.set(entry.clientMessageId, timer);
+  }, []);
+
+  const attemptSend = useCallback(
+    async (entry: OutboxEntry) => {
+      const files = getPendingFiles(entry.clientMessageId);
+      // Attachments were required but the blob didn't survive (e.g. a page
+      // reload cleared the in-memory file) — nothing to resend, so surface
+      // this as failed instead of sending a text-only message silently
+      // missing its attachment.
+      if (entry.attachments.length > 0 && files.length === 0) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === entry.clientMessageId
+              ? { ...m, pending: false, failed: true }
+              : m
+          )
+        );
+        return;
+      }
+      try {
+        const formData = new FormData();
+        if (entry.text) formData.append("text", entry.text);
+        formData.append("clientMessageId", entry.clientMessageId);
+        files.forEach((file) => formData.append("files", file));
+        const response = await sendChatMessage(entry.conversationId, formData);
+        const newMessage = toChatMessage(response.data);
+        removeOutboxEntry(entry.clientMessageId);
+        const timer = retryTimersRef.current.get(entry.clientMessageId);
+        if (timer) {
+          clearTimeout(timer);
+          retryTimersRef.current.delete(entry.clientMessageId);
+        }
+        if (entry.conversationId === selectedConversationRef.current) {
+          setMessages((prev) => {
+            const withoutPending = prev.filter(
+              (m) => m.id !== entry.clientMessageId
+            );
+            if (withoutPending.some((m) => m.id === newMessage.id)) {
+              return withoutPending;
+            }
+            return sortMsgs([...withoutPending, newMessage]);
+          });
+        }
+        setConversations((prev) =>
+          prev
+            .map((conversation) =>
+              conversation.id === entry.conversationId
+                ? {
+                    ...conversation,
+                    lastMessage: {
+                      id: newMessage.id,
+                      text: newMessage.text || "",
+                      senderId: newMessage.senderId,
+                      createdAt: newMessage.createdAt,
+                      attachments: newMessage.attachments || [],
+                    },
+                    updatedAt: newMessage.createdAt || new Date().toISOString(),
+                  }
+                : conversation
+            )
+            .sort(
+              (a, b) =>
+                new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            )
+        );
+      } catch {
+        const nextAttempt = entry.attempt + 1;
+        const nextRetryAt = Date.now() + getBackoffMs(nextAttempt);
+        const updatedEntry = { ...entry, attempt: nextAttempt, nextRetryAt };
+        updateOutboxEntry(entry.clientMessageId, {
+          attempt: nextAttempt,
+          nextRetryAt,
+        });
+        if (entry.conversationId === selectedConversationRef.current) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === entry.clientMessageId
+                ? { ...m, pending: false, failed: true }
+                : m
+            )
+          );
+        }
+        if (nextAttempt < MAX_SEND_ATTEMPTS) {
+          scheduleRetry(updatedEntry);
+        }
+      }
+    },
+    [scheduleRetry]
+  );
+
+  useEffect(() => {
+    attemptSendRef.current = attemptSend;
+  }, [attemptSend]);
+
+  const retryFailedMessage = useCallback(
+    (clientMessageId: string) => {
+      if (!selectedConversationId) return;
+      const entries = loadOutboxForConversation(selectedConversationId);
+      const entry = entries.find((e) => e.clientMessageId === clientMessageId);
+      if (!entry) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === clientMessageId ? { ...m, pending: true, failed: false } : m
+        )
+      );
+      void attemptSend(entry);
+    },
+    [selectedConversationId, attemptSend]
+  );
+
+  // Recovers queued sends after a reload. An entry whose send actually
+  // landed server-side (the response was just lost) is quietly dropped
+  // from the outbox instead of being resent.
+  const flushOutbox = useCallback(
+    (conversationId: string, fetchedMessages: ChatMessage[]) => {
+      const entries = loadOutboxForConversation(conversationId);
+      if (!entries.length) return;
+      const knownClientIds = new Set(
+        fetchedMessages
+          .filter((m) => m.clientMessageId)
+          .map((m) => m.clientMessageId)
+      );
+      const alreadyDelivered = entries.filter((e) =>
+        knownClientIds.has(e.clientMessageId)
+      );
+      const toRestore = entries.filter(
+        (e) => !knownClientIds.has(e.clientMessageId)
+      );
+      alreadyDelivered.forEach((e) => removeOutboxEntry(e.clientMessageId));
+      if (!toRestore.length) return;
+      setMessages((prev) => {
+        const bubbles: ChatMessage[] = toRestore.map((e) => ({
+          id: e.clientMessageId,
+          conversationId,
+          senderId: selfUserId,
+          text: e.text || "",
+          createdAt: e.createdAt,
+          clientMessageId: e.clientMessageId,
+          pending: e.attempt < MAX_SEND_ATTEMPTS,
+          failed: e.attempt >= MAX_SEND_ATTEMPTS,
+          attachments: [],
+        }));
+        return sortMsgs([...prev, ...bubbles]);
+      });
+      toRestore.forEach((e) => {
+        if (e.attempt < MAX_SEND_ATTEMPTS) scheduleRetry(e);
+      });
+    },
+    [selfUserId, scheduleRetry]
+  );
+
   useEffect(() => {
     if (!selectedConversationId) {
       setMessages([]);
       return;
     }
-    loadMessages(selectedConversationId);
-  }, [selectedConversationId, loadMessages]);
+    void loadMessages(selectedConversationId).then((items) => {
+      flushOutbox(selectedConversationId, items || []);
+    });
+  }, [selectedConversationId, loadMessages, flushOutbox]);
 
   const socketRef = useRef<ReturnType<typeof createMessageSocket> | null>(null);
 
@@ -547,11 +822,17 @@ export default function MessagesPage() {
 
       if (selectedConversationRef.current === conversationId) {
         setMessages((prev) => {
-          if (prev.some((msg) => msg.id === normalized.id)) return prev;
-          const next = [...prev, normalized].sort(
-            (a, b) =>
-              new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          // Drop both: an already-inserted copy with the same server id
+          // (this echo arriving after the REST response already added it),
+          // and the optimistic pending bubble — keyed by clientMessageId —
+          // being replaced by the now-confirmed server message.
+          const withoutPending = prev.filter(
+            (msg) =>
+              msg.id !== normalized.id &&
+              (!normalized.clientMessageId ||
+                msg.id !== normalized.clientMessageId)
           );
+          const next = sortMsgs([...withoutPending, normalized]);
           requestAnimationFrame(() => scrollToBottom("smooth"));
           return next;
         });
@@ -607,6 +888,13 @@ export default function MessagesPage() {
   useEffect(() => {
     if (conversationLoading) return;
 
+    if (isPrependingRef.current) {
+      isPrependingRef.current = false;
+      previousConversationRef.current = selectedConversationId;
+      previousMessageCountRef.current = messages.length;
+      return;
+    }
+
     const isConversationChanged =
       previousConversationRef.current !== selectedConversationId;
     const hasNewMessages = messages.length > previousMessageCountRef.current;
@@ -634,84 +922,50 @@ export default function MessagesPage() {
     setSelectedFiles((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const sendMessage = async () => {
-    if (!selectedConversationId || sending) return;
+  const sendMessage = () => {
+    if (!selectedConversationId) return;
     if (!composerText.trim() && selectedFiles.length === 0) return;
 
-    const tempId = `temp-${Date.now()}`;
+    const clientMessageId = generateClientMessageId();
     const now = new Date().toISOString();
+    const text = composerText.trim() || null;
+    const filesToSend = selectedFiles;
+
     const optimistic: ChatMessage = {
-      id: tempId,
+      id: clientMessageId,
       conversationId: selectedConversationId,
       senderId: selfUserId,
-      text: composerText.trim() || "",
+      text: text || "",
       createdAt: now,
       pending: true,
-      attachments: selectedFiles.map((f) => ({
+      clientMessageId,
+      attachments: filesToSend.map((f) => ({
         id: "",
         url: URL.createObjectURL(f),
         fileName: f.name,
         type: f.type?.startsWith("image/") ? "image" : "file",
       })),
     };
+    setMessages((prev) => sortMsgs([...prev, optimistic]));
+    setComposerText("");
+    setSelectedFiles([]);
+    setShowEmojiMenu(false);
 
-    setMessages((prev) =>
-      [...prev, optimistic].sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      )
-    );
-
-    const formData = new FormData();
-    if (composerText.trim()) formData.append("text", composerText.trim());
-    selectedFiles.forEach((file) => formData.append("files", file));
-
-    setSending(true);
-    try {
-      const response = await sendChatMessage(selectedConversationId, formData);
-      const newMessage = toChatMessage(response.data);
-      setMessages((prev) => {
-        const withoutTemp = prev.filter(
-          (m) => !(m.pending && m.senderId === newMessage.senderId && (m.text || "") === (newMessage.text || "")),
-        );
-        if (withoutTemp.some((m) => m.id === newMessage.id)) return withoutTemp;
-        return [...withoutTemp, newMessage].sort(
-          (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-      });
-      setConversations((prev) =>
-        prev
-          .map((conversation) =>
-            conversation.id === selectedConversationId
-              ? {
-                  ...conversation,
-                  lastMessage: {
-                    id: newMessage.id,
-                    text: newMessage.text || "",
-                    senderId: newMessage.senderId,
-                    createdAt: newMessage.createdAt,
-                    attachments: newMessage.attachments || [],
-                  },
-                  updatedAt: newMessage.createdAt || new Date().toISOString(),
-                }
-              : conversation
-          )
-          .sort(
-            (a, b) =>
-              new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          )
-      );
-      setComposerText("");
-      setSelectedFiles([]);
-      setShowEmojiMenu(false);
-    } catch (error: unknown) {
-      console.error("Failed to send chat message:", error);
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      toast.error(getErrorMessage(error, "Failed to send message"));
-    } finally {
-      setSending(false);
-    }
+    const entry: OutboxEntry = {
+      clientMessageId,
+      conversationId: selectedConversationId,
+      text,
+      attachments: filesToSend.map((f) => ({
+        name: f.name,
+        mimeType: f.type,
+        size: f.size,
+      })),
+      attempt: 0,
+      nextRetryAt: Date.now(),
+      createdAt: now,
+    };
+    addOutboxEntry(entry, filesToSend);
+    void attemptSend(entry);
   };
 
   const openDirectChat = async (userId: string) => {
@@ -1320,6 +1574,9 @@ export default function MessagesPage() {
                 const distanceFromBottom =
                   target.scrollHeight - target.scrollTop - target.clientHeight;
                 setShowScrollToBottom(distanceFromBottom > 160);
+                if (target.scrollTop < 80) {
+                  void loadOlderMessages();
+                }
               }}
             >
               {conversationLoading ? (
@@ -1333,6 +1590,11 @@ export default function MessagesPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {loadingOlderMessages && (
+                    <div className="flex items-center justify-center py-2 text-slate-400 dark:text-gray-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  )}
                   {messages.map((message, index) => {
                     const isMine = selfUserIds.has(message.senderId);
                     const meetingSystemLabel = getMeetingSystemLabel(message.text);
@@ -1472,25 +1734,40 @@ export default function MessagesPage() {
                                     isMine ? "text-white/80" : "text-slate-500 dark:text-gray-400"
                               }`}
                             >
-                              {formatTime(message.createdAt)}
-                              {isMine ? (
-                                <span
-                                  className={`inline-block w-[7px] h-[7px] rounded-full border ${
-                                    message.readByAll
-                                      ? "bg-sky-300 border-sky-300"
-                                      : message.pending
-                                        ? "bg-transparent border-white/70"
-                                        : "bg-white/80 border-white/80"
-                                  }`}
-                                />
-                              ) : null}
-                              {message.pending ? (
-                                <Loader2
-                                  className={`inline-block w-3 h-3 animate-spin ${
-                                isMine ? "text-white/80" : "text-slate-500 dark:text-gray-400"
-                                  }`}
-                                />
-                              ) : null}
+                              {message.failed ? (
+                                <button
+                                  onClick={() =>
+                                    message.clientMessageId &&
+                                    retryFailedMessage(message.clientMessageId)
+                                  }
+                                  className="flex items-center gap-1 text-red-400 hover:text-red-300 underline underline-offset-2"
+                                >
+                                  <AlertCircle className="w-3 h-3" />
+                                  Tap to retry
+                                </button>
+                              ) : (
+                                <>
+                                  {formatTime(message.createdAt)}
+                                  {isMine ? (
+                                    <span
+                                      className={`inline-block w-[7px] h-[7px] rounded-full border ${
+                                        message.readByAll
+                                          ? "bg-sky-300 border-sky-300"
+                                          : message.pending
+                                            ? "bg-transparent border-white/70"
+                                            : "bg-white/80 border-white/80"
+                                      }`}
+                                    />
+                                  ) : null}
+                                  {message.pending ? (
+                                    <Loader2
+                                      className={`inline-block w-3 h-3 animate-spin ${
+                                    isMine ? "text-white/80" : "text-slate-500 dark:text-gray-400"
+                                      }`}
+                                    />
+                                  ) : null}
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1573,7 +1850,6 @@ export default function MessagesPage() {
                   <Button
                     onClick={sendMessage}
                     disabled={!composerText.trim() && selectedFiles.length === 0}
-                    loading={sending}
                     size="icon"
                     className="bg-messages-primary text-white hover:bg-messages-primary/90"
                   >
