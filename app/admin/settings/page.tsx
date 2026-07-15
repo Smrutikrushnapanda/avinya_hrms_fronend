@@ -739,7 +739,7 @@ const loadOrganization = async () => {
         </TabsContent>
 
         <TabsContent value="office-config">
-          {/* DIAGNOSTIC: temporarily disabled <AttendanceSettingsPage /> */}
+          <AttendanceSettingsPage />
         </TabsContent>
 
         <TabsContent value="organization-settings" className="space-y-4">
