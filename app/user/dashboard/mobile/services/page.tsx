@@ -42,7 +42,7 @@ export default function MobileServicesPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <MobileTabHeader title="Services" />
 
-      <div className="px-4 -mt-12 z-10 pb-24">
+      <div className="px-4 -mt-6 z-10 pb-24">
         <StaggerReveal className="grid grid-cols-4 gap-3">
           {services.map((service, i) => {
             const isLarge = i === 0;

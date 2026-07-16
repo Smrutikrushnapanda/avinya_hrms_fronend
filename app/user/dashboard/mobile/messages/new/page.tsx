@@ -90,7 +90,14 @@ export default function NewChatPage() {
       {/* ── STICKY HEADER + SEARCH (never scrolls) ── */}
       <div className="sticky top-0 z-20 shrink-0 bg-[#f8fbff] dark:bg-gray-900">
         {/* Top bar */}
-        <div className="bg-[#005F90] pt-[max(32px,env(safe-area-inset-top))] pb-3 px-5 flex items-center gap-2.5">
+        <div className="bg-[#005F90] pt-[max(32px,env(safe-area-inset-top))] pb-2 px-5 flex items-center gap-2.5 relative overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute w-[200px] h-[200px] rounded-full bg-white/15 -top-[90px] -right-[30px]" />
+            <div className="absolute w-[140px] h-[140px] rounded-full bg-white/15 -bottom-[50px] -left-[10px]" />
+            {[{s:8,l:"10%",t:10,k:"particle-1",d:"5.2s"},{s:12,l:"28%",t:42,k:"particle-2",d:"6.4s"},{s:6,l:"46%",t:14,k:"particle-3",d:"5.6s"},{s:10,l:"64%",t:28,k:"particle-4",d:"7.0s"},{s:14,l:"82%",t:8,k:"particle-5",d:"7.6s"},{s:7,l:"20%",t:72,k:"particle-6",d:"6.2s"}].map((p,i)=>(
+              <div key={i} className="absolute rounded-full bg-white/30" style={{width:p.s,height:p.s,left:p.l,top:p.t,animation:`${p.k} ${p.d} ease-in-out infinite`,animationDelay:["0s","0.6s","1.2s","0.3s","0.9s","1.5s"][i]}} />
+            ))}
+          </div>
           <button
             onClick={() => router.back()}
             className="p-1 rounded-md text-white hover:bg-white/10 hover:text-white transition-colors"

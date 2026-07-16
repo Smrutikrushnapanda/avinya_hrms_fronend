@@ -162,8 +162,15 @@ export default function MobilePostsPage() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-10 backdrop-blur-md">
-        <div className="flex items-center gap-3">
+      <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute w-[200px] h-[200px] rounded-full bg-blue-400/15 dark:bg-blue-500/20 -top-[90px] -right-[30px]" />
+          <div className="absolute w-[140px] h-[140px] rounded-full bg-blue-500/15 dark:bg-blue-400/20 -bottom-[50px] -left-[10px]" />
+          {[{s:8,l:"10%",t:10,k:"particle-1",d:"5.2s"},{s:12,l:"28%",t:42,k:"particle-2",d:"6.4s"},{s:6,l:"46%",t:14,k:"particle-3",d:"5.6s"},{s:10,l:"64%",t:28,k:"particle-4",d:"7.0s"},{s:14,l:"82%",t:8,k:"particle-5",d:"7.6s"},{s:7,l:"20%",t:72,k:"particle-6",d:"6.2s"}].map((p,i)=>(
+            <div key={i} className="absolute rounded-full bg-blue-400/50 dark:bg-white/35" style={{width:p.s,height:p.s,left:p.l,top:p.t,animation:`${p.k} ${p.d} ease-in-out infinite`,animationDelay:["0s","0.6s","1.2s","0.3s","0.9s","1.5s"][i]}} />
+          ))}
+        </div>
+        <div className="flex items-center gap-3 relative z-10">
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => router.push("/user/dashboard/mobile")}

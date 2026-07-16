@@ -85,7 +85,7 @@ interface ResignationRequest {
 }
 
 const EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Intern", "Consultant"];
-const DEFAULT_HOME_HEADER_COLOR = "#026D94";
+const DEFAULT_HOME_HEADER_COLOR = "#1D4ED8";
 
 function CredentialsTourBootstrap({ enabled }: { enabled: boolean }) {
   const hasStartedRef = useRef(false);
@@ -152,6 +152,7 @@ const [orgForm, setOrgForm] = useState({
   wfhCarryForwardEnabled: false,
 });
 const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
+const [isOrgEditing, setIsOrgEditing] = useState(false);
   const [roleForm, setRoleForm] = useState({ roleName: "", description: "" });
   const [resignationRequests, setResignationRequests] = useState<ResignationRequest[]>([]);
   const [resignationStatusFilter, setResignationStatusFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED">("ALL");
@@ -537,6 +538,68 @@ const loadOrganization = async () => {
     }
   };
 
+  const handleSaveOrganizationInline = async () => {
+    const errors: Record<string, string> = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!orgForm.name.trim()) errors.name = "Organization name is required";
+    else if (orgForm.name.trim().length < 2) errors.name = "Name must be at least 2 characters";
+
+    if (!orgForm.email.trim()) errors.email = "Email is required";
+    else if (!emailRegex.test(orgForm.email.trim())) errors.email = "Enter a valid email address";
+
+    if (orgForm.hrMail.trim() && !emailRegex.test(orgForm.hrMail.trim()))
+      errors.hrMail = "Enter a valid HR email address";
+
+    if (orgForm.phone.trim() && !/^\+?[\d\s\-()\[\]]{7,20}$/.test(orgForm.phone.trim()))
+      errors.phone = "Enter a valid phone number (7–20 digits)";
+
+    if (orgForm.logoUrl.trim() && !/^https?:\/\/.+/.test(orgForm.logoUrl.trim()))
+      errors.logoUrl = "Logo URL must start with http:// or https://";
+
+    if (
+      orgForm.homeHeaderBackgroundColor.trim() &&
+      !/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(orgForm.homeHeaderBackgroundColor.trim())
+    ) {
+      errors.homeHeaderBackgroundColor = "Header color must be a valid hex value like #1D4ED8";
+    }
+
+    if (orgForm.homeHeaderMediaUrl.trim() && !/^https?:\/\/.+/.test(orgForm.homeHeaderMediaUrl.trim())) {
+      errors.homeHeaderMediaUrl = "Header media URL must start with http:// or https://";
+    }
+
+    if (
+      orgForm.homeHeaderMediaStartDate &&
+      orgForm.homeHeaderMediaEndDate &&
+      orgForm.homeHeaderMediaStartDate > orgForm.homeHeaderMediaEndDate
+    ) {
+      errors.homeHeaderMediaEndDate = "End date must be on or after the start date";
+    }
+
+    if (orgForm.resignationNoticePeriodDays < 0)
+      errors.resignationNoticePeriodDays = "Notice period cannot be negative";
+    if (orgForm.sessionStartMonth < 1 || orgForm.sessionStartMonth > 12) {
+      errors.sessionStartMonth = "Session start month must be between January and December";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setOrgErrors(errors);
+      return;
+    }
+
+    setOrgErrors({});
+    try {
+      await updateOrganization(organizationId, {
+        ...orgForm,
+        resignationNoticePeriodDays: Number(orgForm.resignationNoticePeriodDays || 0),
+      });
+      toast.success("Organization updated");
+      loadOrganization();
+    } catch (error) {
+      toast.error("Failed to update organization");
+    }
+  };
+
   const handleSaveHoliday = async () => {
     if (!holidayForm.name.trim() || !holidayForm.date) {
       toast.error("Holiday name and date are required");
@@ -692,46 +755,260 @@ const loadOrganization = async () => {
                 >
                   <Pencil className="w-4 h-4 mr-2" /> Change Admin Credentials
                 </Button>
-                <Button onClick={() => setIsOrgDialogOpen(true)}>
-                  <Pencil className="w-4 h-4 mr-2" /> Edit
-                </Button>
+                {!isOrgEditing && (
+                  <Button onClick={() => { setIsOrgEditing(true); setOrgErrors({}); }}>
+                    <Pencil className="w-4 h-4 mr-2" /> Edit
+                  </Button>
+                )}
               </div>
             </CardHeader>
-<CardContent className="space-y-4">
-              {organization && (
+            <CardContent>
+              <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+                <div>
+                  <Label>Organization Name <span className="text-destructive">*</span></Label>
+                  <Input
+                    disabled={!isOrgEditing}
+                    value={orgForm.name}
+                    onChange={(e) => { setOrgForm({ ...orgForm, name: e.target.value }); setOrgErrors((p) => ({ ...p, name: "" })); }}
+                    className={orgErrors.name ? "border-destructive" : ""}
+                  />
+                  {orgErrors.name && <p className="text-xs text-destructive mt-1">{orgErrors.name}</p>}
+                </div>
+                <div>
+                  <Label>Email <span className="text-destructive">*</span></Label>
+                  <Input
+                    disabled={!isOrgEditing}
+                    type="email"
+                    value={orgForm.email}
+                    onChange={(e) => { setOrgForm({ ...orgForm, email: e.target.value }); setOrgErrors((p) => ({ ...p, email: "" })); }}
+                    placeholder="admin@company.com"
+                    className={orgErrors.email ? "border-destructive" : ""}
+                  />
+                  {orgErrors.email && <p className="text-xs text-destructive mt-1">{orgErrors.email}</p>}
+                </div>
+                <div>
+                  <Label className="flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    HR Mail
+                  </Label>
+                  <Input
+                    disabled={!isOrgEditing}
+                    type="email"
+                    value={orgForm.hrMail}
+                    onChange={(e) => { setOrgForm({ ...orgForm, hrMail: e.target.value }); setOrgErrors((p) => ({ ...p, hrMail: "" })); }}
+                    placeholder="hr@company.com"
+                    className={orgErrors.hrMail ? "border-destructive" : ""}
+                  />
+                  {orgErrors.hrMail && <p className="text-xs text-destructive mt-1">{orgErrors.hrMail}</p>}
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <Input
+                    disabled={!isOrgEditing}
+                    value={orgForm.phone}
+                    onChange={(e) => { setOrgForm({ ...orgForm, phone: e.target.value }); setOrgErrors((p) => ({ ...p, phone: "" })); }}
+                    placeholder="+91 98765 43210"
+                    className={orgErrors.phone ? "border-destructive" : ""}
+                  />
+                  {orgErrors.phone && <p className="text-xs text-destructive mt-1">{orgErrors.phone}</p>}
+                </div>
+                <div>
+                  <Label>Logo URL</Label>
+                  <Input
+                    disabled={!isOrgEditing}
+                    value={orgForm.logoUrl}
+                    onChange={(e) => { setOrgForm({ ...orgForm, logoUrl: e.target.value }); setOrgErrors((p) => ({ ...p, logoUrl: "" })); }}
+                    placeholder="https://example.com/logo.png"
+                    className={orgErrors.logoUrl ? "border-destructive" : ""}
+                  />
+                  {orgErrors.logoUrl && <p className="text-xs text-destructive mt-1">{orgErrors.logoUrl}</p>}
+                </div>
+                <div>
+                  <Label>Home Header Color</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      disabled={!isOrgEditing}
+                      type="color"
+                      value={orgForm.homeHeaderBackgroundColor || DEFAULT_HOME_HEADER_COLOR}
+                      onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderBackgroundColor: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderBackgroundColor: "" })); }}
+                      className="h-10 w-16 p-1"
+                    />
+                    <Input
+                      disabled={!isOrgEditing}
+                      value={orgForm.homeHeaderBackgroundColor}
+                      onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderBackgroundColor: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderBackgroundColor: "" })); }}
+                      placeholder="#1D4ED8"
+                      className={orgErrors.homeHeaderBackgroundColor ? "border-destructive" : ""}
+                    />
+                    {isOrgEditing && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setOrgForm({
+                            ...orgForm,
+                            homeHeaderBackgroundColor: DEFAULT_HOME_HEADER_COLOR,
+                          })
+                        }
+                      >
+                        Reset
+                      </Button>
+                    )}
+                  </div>
+                  {orgErrors.homeHeaderBackgroundColor && <p className="text-xs text-destructive mt-1">{orgErrors.homeHeaderBackgroundColor}</p>}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Default app header color: {DEFAULT_HOME_HEADER_COLOR}
+                  </p>
+                </div>
+                <div>
+                  <Label>Home Header Image/GIF URL</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      disabled={!isOrgEditing}
+                      value={orgForm.homeHeaderMediaUrl}
+                      onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderMediaUrl: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderMediaUrl: "", homeHeaderMediaEndDate: "" })); }}
+                      placeholder="https://example.com/christmas-banner.gif"
+                      className={orgErrors.homeHeaderMediaUrl ? "border-destructive" : ""}
+                    />
+                    {isOrgEditing && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setOrgForm({
+                            ...orgForm,
+                            homeHeaderMediaUrl: "",
+                            homeHeaderMediaStartDate: "",
+                            homeHeaderMediaEndDate: "",
+                          })
+                        }
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                  {orgErrors.homeHeaderMediaUrl && <p className="text-xs text-destructive mt-1">{orgErrors.homeHeaderMediaUrl}</p>}
+                  {orgForm.homeHeaderMediaUrl ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Delete will remove the media and clear the active date range.
+                    </p>
+                  ) : null}
+                </div>
                 <div className="grid grid-cols-2 gap-4">
-                  {organization.logoUrl && (
-                    <div className="col-span-2 mb-4">
-                      <Label className="text-sm font-medium">Logo</Label>
-                      <div className="mt-2">
-                        <img 
-                          src={organization.logoUrl} 
-                          alt={organization.name + " Logo"} 
-                          className="h-20 w-auto object-contain border rounded-md p-2"
-                        />
-                      </div>
-                    </div>
-                  )}
                   <div>
-                    <Label className="text-sm font-medium">Organization Name</Label>
-                    <p className="text-sm text-muted-foreground">{organization.name}</p>
+                    <Label>Header Media Start Date</Label>
+                    <Input
+                      disabled={!isOrgEditing}
+                      type="date"
+                      value={orgForm.homeHeaderMediaStartDate}
+                      onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderMediaStartDate: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderMediaEndDate: "" })); }}
+                    />
                   </div>
                   <div>
-                    <Label className="text-sm font-medium">Email</Label>
-                    <p className="text-sm text-muted-foreground">{organization.email || "Not set"}</p>
+                    <Label>Header Media End Date</Label>
+                    <Input
+                      disabled={!isOrgEditing}
+                      type="date"
+                      value={orgForm.homeHeaderMediaEndDate}
+                      onChange={(e) => { setOrgForm({ ...orgForm, homeHeaderMediaEndDate: e.target.value }); setOrgErrors((p) => ({ ...p, homeHeaderMediaEndDate: "" })); }}
+                      className={orgErrors.homeHeaderMediaEndDate ? "border-destructive" : ""}
+                    />
+                    {orgErrors.homeHeaderMediaEndDate && <p className="text-xs text-destructive mt-1">{orgErrors.homeHeaderMediaEndDate}</p>}
                   </div>
+                </div>
+                <div>
+                  <Label>Address</Label>
+                  <Textarea
+                    disabled={!isOrgEditing}
+                    value={orgForm.address}
+                    onChange={(e) => setOrgForm({ ...orgForm, address: e.target.value })}
+                    placeholder="123 Main St, City, Country"
+                  />
+                </div>
+                <div>
+                  <Label>Resignation Notice Period (days)</Label>
+                  <Input
+                    disabled={!isOrgEditing}
+                    type="number"
+                    min={0}
+                    value={orgForm.resignationNoticePeriodDays}
+                    onChange={(e) => { setOrgForm({ ...orgForm, resignationNoticePeriodDays: Number(e.target.value || 0) }); setOrgErrors((p) => ({ ...p, resignationNoticePeriodDays: "" })); }}
+                    className={orgErrors.resignationNoticePeriodDays ? "border-destructive" : ""}
+                  />
+                  {orgErrors.resignationNoticePeriodDays && <p className="text-xs text-destructive mt-1">{orgErrors.resignationNoticePeriodDays}</p>}
+                </div>
+                <div>
+                  <Label>Session Start Month</Label>
+                  <select
+                    disabled={!isOrgEditing}
+                    className={`mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm ${orgErrors.sessionStartMonth ? "border-destructive" : ""}`}
+                    value={orgForm.sessionStartMonth}
+                    onChange={(e) =>
+                      setOrgForm({ ...orgForm, sessionStartMonth: Number(e.target.value) })
+                    }
+                  >
+                    <option value={1}>January</option>
+                    <option value={4}>April</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Changing this month will automatically reload Leave and WFH session balances.
+                  </p>
+                  {orgErrors.sessionStartMonth && <p className="text-xs text-destructive mt-1">{orgErrors.sessionStartMonth}</p>}
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <Label className="text-sm font-medium">HR Mail</Label>
-                    <p className="text-sm text-muted-foreground">{organization.hrMail || "Not set"}</p>
+                    <Label>Allow Early Relieving by Admin</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Admin/HR can approve an employee to leave before notice completion.
+                    </p>
                   </div>
+                  <Switch
+                    disabled={!isOrgEditing}
+                    checked={orgForm.allowEarlyRelievingByAdmin}
+                    onCheckedChange={(v) => setOrgForm({ ...orgForm, allowEarlyRelievingByAdmin: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <Label className="text-sm font-medium">Phone</Label>
-                    <p className="text-sm text-muted-foreground">{organization.phone || "Not set"}</p>
+                    <Label>Leave Carry Forward</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Carry remaining leave balance to the next session year.
+                    </p>
                   </div>
+                  <Switch
+                    disabled={!isOrgEditing}
+                    checked={orgForm.leaveCarryForwardEnabled}
+                    onCheckedChange={(v) => setOrgForm({ ...orgForm, leaveCarryForwardEnabled: v })}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <Label className="text-sm font-medium">Address</Label>
-                    <p className="text-sm text-muted-foreground">{organization.address || "Not set"}</p>
+                    <Label>WFH Carry Forward</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Carry remaining WFH balance to the next session year.
+                    </p>
                   </div>
+                  <Switch
+                    disabled={!isOrgEditing}
+                    checked={orgForm.wfhCarryForwardEnabled}
+                    onCheckedChange={(v) => setOrgForm({ ...orgForm, wfhCarryForwardEnabled: v })}
+                  />
+                </div>
+                <div>
+                  <Label>Resignation Policy</Label>
+                  <Textarea
+                    disabled={!isOrgEditing}
+                    rows={4}
+                    value={orgForm.resignationPolicy}
+                    onChange={(e) => setOrgForm({ ...orgForm, resignationPolicy: e.target.value })}
+                    placeholder="Example: Employees must serve 30 days notice, complete handover, and return company assets."
+                  />
+                </div>
+              </div>
+              {isOrgEditing && (
+                <div className="flex items-center justify-end gap-2 mt-6 pt-4 border-t">
+                  <Button variant="outline" onClick={() => { setIsOrgEditing(false); loadOrganization(); }}>Cancel</Button>
+                  <Button onClick={handleSaveOrganizationInline}>Save Changes</Button>
                 </div>
               )}
             </CardContent>

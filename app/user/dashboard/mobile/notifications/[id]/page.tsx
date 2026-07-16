@@ -73,7 +73,7 @@ export default function MobileNotificationDetailPage() {
         // showBackLabel
         showBell={false}
       />
-      <div className="-mt-13 px-5 pb-24">
+      <div className="-mt-7 px-5 pb-24">
         <div className="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
           {loading ? (
             <p className="text-sm text-gray-500">Loading notification...</p>

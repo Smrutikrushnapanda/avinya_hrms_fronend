@@ -131,7 +131,7 @@ export default function MobilePayrollPage() {
     <div className="min-h-screen bg-background flex flex-col pb-20">
       <MobileTabHeader title="Payslips" backHref="/user/dashboard/mobile" />
 
-      <div className="px-4 -mt-11 relative z-10 space-y-4 pb-6">
+      <div className="px-4 -mt-5 relative z-10 space-y-4 pb-6">
         <MobileCard className="relative overflow-hidden text-center">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary/40 to-primary/10" />
           <div className="py-3">

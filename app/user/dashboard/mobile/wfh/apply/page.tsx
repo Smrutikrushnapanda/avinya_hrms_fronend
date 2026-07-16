@@ -79,7 +79,14 @@ export default function MobileApplyWfhPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="bg-primary text-primary-foreground px-4 pt-5 pb-16 flex items-center gap-3">
+      <div className="bg-primary text-primary-foreground px-4 pt-3 pb-10 flex items-center gap-3 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute w-[200px] h-[200px] rounded-full bg-white/15 -top-[90px] -right-[30px]" />
+          <div className="absolute w-[140px] h-[140px] rounded-full bg-white/15 -bottom-[50px] -left-[10px]" />
+          {[{s:8,l:"10%",t:10,k:"particle-1",d:"5.2s"},{s:12,l:"28%",t:42,k:"particle-2",d:"6.4s"},{s:6,l:"46%",t:14,k:"particle-3",d:"5.6s"},{s:10,l:"64%",t:28,k:"particle-4",d:"7.0s"},{s:14,l:"82%",t:8,k:"particle-5",d:"7.6s"},{s:7,l:"20%",t:72,k:"particle-6",d:"6.2s"}].map((p,i)=>(
+            <div key={i} className="absolute rounded-full bg-white/30" style={{width:p.s,height:p.s,left:p.l,top:p.t,animation:`${p.k} ${p.d} ease-in-out infinite`,animationDelay:["0s","0.6s","1.2s","0.3s","0.9s","1.5s"][i]}} />
+          ))}
+        </div>
         <Button
           variant="ghost"
           size="icon"
@@ -94,7 +101,7 @@ export default function MobileApplyWfhPage() {
         </div>
       </div>
 
-      <div className="px-5 -mt-12 z-10 pb-24">
+      <div className="px-5 -mt-6 z-10 pb-24">
         <div className="bg-card rounded-2xl p-6 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border border-border">
           <div className="flex flex-col items-center text-center gap-2 mb-6">
             <div className="h-10 w-10 rounded-full bg-primary/8 flex items-center justify-center">

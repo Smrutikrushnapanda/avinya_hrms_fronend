@@ -260,7 +260,7 @@ export default function NotificationList({
         showBell={false}
       />
       {/* Search + Filters Card */}
-      <div className="-mt-15 px-5 relative z-10">
+      <div className="-mt-8 px-5 relative z-10">
         <div className="bg-white rounded-2xl p-5 shadow-lg border border-gray-100 dark:bg-gray-900 dark:border-gray-700">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex-1 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 dark:bg-gray-800 dark:border-gray-700">

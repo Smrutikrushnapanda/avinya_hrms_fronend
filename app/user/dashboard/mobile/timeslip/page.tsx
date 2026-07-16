@@ -151,7 +151,7 @@ export default function MobileTimeslipPage() {
     <div className="min-h-screen bg-background flex flex-col">
       <MobileTabHeader title="Time Slips" />
 
-      <div className="px-4 -mt-12 z-10 pb-24 space-y-4">
+      <div className="px-4 -mt-6 z-10 pb-24 space-y-4">
         {isApprover && (
           <MobileCard className="flex gap-2 p-1.5">
             <motion.button

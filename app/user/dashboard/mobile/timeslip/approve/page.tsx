@@ -108,7 +108,7 @@ export default function MobileTimeslipApprovePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <MobileTabHeader title="Time Slips" />
-        <div className="px-5 -mt-12 z-10 pb-24">
+        <div className="px-5 -mt-6 z-10 pb-24">
           <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 dark:bg-gray-900 dark:border-gray-700">
             <div className="flex items-center gap-3">
               <Clock className="w-5 h-5 text-gray-400" />
@@ -128,7 +128,7 @@ export default function MobileTimeslipApprovePage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <MobileTabHeader title="Time Slips" />
 
-      <div className="px-5 -mt-12 z-10 pb-24">
+      <div className="px-5 -mt-6 z-10 pb-24">
         <div className="flex bg-muted rounded-xl p-1 mb-4">
           <button
             onClick={() => router.push("/user/dashboard/mobile/timeslip")}

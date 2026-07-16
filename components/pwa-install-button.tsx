@@ -18,10 +18,16 @@ export default function PwaInstallButton({ className }: { className?: string }) 
   const platform = getPlatform();
 
   useEffect(() => {
+    // The live display-mode check is the only reliable signal for whether
+    // the app is *currently* installed — unlike the "pwa_installed"
+    // localStorage flag this used to also gate on, which gets set once
+    // (on first install, or the "appinstalled" event firing) and never
+    // cleared, so the button stayed hidden forever afterwards even after
+    // the user uninstalled the PWA and reopened it in a regular browser tab.
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as any).standalone === true;
-    if (isStandalone || localStorage.getItem("pwa_installed")) {
+    if (isStandalone) {
       setInstalled(true);
       return;
     }
@@ -33,7 +39,6 @@ export default function PwaInstallButton({ className }: { className?: string }) 
 
     const installedHandler = () => {
       setInstalled(true);
-      localStorage.setItem("pwa_installed", "true");
     };
 
     window.addEventListener("beforeinstallprompt", beforeInstallHandler);
@@ -43,7 +48,6 @@ export default function PwaInstallButton({ className }: { className?: string }) 
     const changeHandler = () => {
       if (media.matches) {
         setInstalled(true);
-        localStorage.setItem("pwa_installed", "true");
       }
     };
     media.addEventListener("change", changeHandler);
@@ -71,7 +75,6 @@ export default function PwaInstallButton({ className }: { className?: string }) 
       const result = await deferredPrompt.userChoice;
       if (result.outcome === "accepted") {
         setInstalled(true);
-        localStorage.setItem("pwa_installed", "true");
       }
       setDeferredPrompt(null);
     }
