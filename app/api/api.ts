@@ -12,6 +12,7 @@ const LOGIN_API_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_LOGIN_TIMEOUT_MS || 
 const api = axios.create({
   baseURL: apiBaseURL,
   timeout: DEFAULT_API_TIMEOUT_MS,
+  withCredentials: false,
 });
 
 api.interceptors.request.use((config) => {
@@ -21,8 +22,16 @@ api.interceptors.request.use((config) => {
       config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    const userCookie = document.cookie.split('; ').find(row => row.startsWith('user='));
+    if (userCookie) {
+      config.headers = config.headers || {};
+      config.headers['x-user-cookie'] = userCookie.split('=')[1];
+    }
   }
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 let isRedirectingToLogin = false;
@@ -493,6 +502,62 @@ export const updateTaskStatus = (
 export const deleteProjectTask = (projectId: string, taskId: string) =>
   api.delete(`/client-projects/${projectId}/tasks/${taskId}`);
 
+// ─── Assign Work (standalone menu, syncs with project tasks/issues) ────────
+export interface WorkAssignment {
+  id: string;
+  type: "client" | "internal";
+  projectId: string | null;
+  projectName: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  progressPercent: number;
+  workReport: string | null;
+  imageUrl: string | null;
+  dueDate: string | null;
+  assignedToUserId: string | null;
+  assignedByUserId: string;
+  assignedToUser: { id: string; firstName: string; lastName: string } | null;
+  assignedByUser: { id: string; firstName: string; lastName: string } | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface AssignWorkOptions {
+  projects: Array<{ id: string; name: string; source: "client" | "internal" }>;
+  employees: Array<{ userId: string; firstName: string; lastName: string }>;
+}
+
+export const getAssignWorkOptions = () => api.get<AssignWorkOptions>("/assign-work/options");
+export const createAssignWork = (data: {
+  projectId?: string;
+  source?: "client" | "internal";
+  otherProjectName?: string;
+  title: string;
+  description?: string;
+  assignedToUserId?: string;
+  assignedToUserIds?: string[];
+  dueDate?: string;
+  priority?: "low" | "medium" | "high" | "urgent";
+  imageUrl?: string;
+}) => api.post("/assign-work", data);
+export const getAllAssignments = () => api.get<WorkAssignment[]>("/assign-work");
+export const getMyAssignments = () => api.get<WorkAssignment[]>("/assign-work/my");
+export const getAssignmentsByMe = () => api.get<WorkAssignment[]>("/assign-work/assigned-by-me");
+export const updateAssignmentProgress = (
+  id: string,
+  data: {
+    status?: string;
+    progressPercent?: number;
+    workReport?: string;
+    source?: "client" | "internal";
+  },
+) => api.put(`/assign-work/${id}/progress`, data);
+export const deleteAssignment = (id: string, source: "client" | "internal") =>
+  api.delete(`/assign-work/${id}`, { params: { source } });
+
 // 🕒 Enhanced attendance report fetcher
 export const getAttendanceReport = async (params: {
   organizationId: string;
@@ -669,17 +734,53 @@ export const getUserActivities = (params?: any) => api.get("/user-activities", {
 
 // 📊 Polls APIs
 export const saveResponse = (data: any) => api.post("/polls/save-response", data);
-export const createPoll = (data: any) => api.post("/polls", data);
-export const deletePoll = (id: string) => api.delete(`/polls/${id}`);
-export const updatePoll = (id: string, data: any) => api.patch(`/polls/${id}`, data);
-export const getPolls = () => api.get("/polls");
-export const getActivePoll = (userId?: string) => api.get("/polls/active", { params: { userId } });
-export const getPoll = (id: string) => api.get(`/polls/${id}`);
-export const addQuestion = (id: string, data: any) => api.post(`/polls/${id}/questions`, data);
-export const getQuestions = (id: string) => api.get(`/polls/${id}/questions`);
-export const getPollAnalytics = (pollId: string) => api.get(`/polls/${pollId}/analytics`);
-export const getPollsSummary = () => api.get("/polls/summary");
-export const getActivePollsWithAnalytics = () => api.get("/polls/active-with-analytics");
+export const createPoll = (data: any, organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.post("/polls", data, params);
+};
+export const deletePoll = (id: string, organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.delete(`/polls/${id}`, params);
+};
+export const updatePoll = (id: string, data: any, organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.patch(`/polls/${id}`, data, params);
+};
+export const getPolls = (organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.get("/polls", params);
+};
+export const getActivePoll = (userId?: string, organizationId?: string) => {
+  const params: any = { params: { userId } };
+  if (organizationId) {
+    params.params.organizationId = organizationId;
+  }
+  return api.get("/polls/active", params);
+};
+export const getPoll = (id: string, organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.get(`/polls/${id}`, params);
+};
+export const addQuestion = (id: string, data: any, organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.post(`/polls/${id}/questions`, data, params);
+};
+export const getQuestions = (id: string, organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.get(`/polls/${id}/questions`, params);
+};
+export const getPollAnalytics = (pollId: string, organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.get(`/polls/${pollId}/analytics`, params);
+};
+export const getPollsSummary = (organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.get("/polls/summary", params);
+};
+export const getActivePollsWithAnalytics = (organizationId?: string) => {
+  const params = organizationId ? { params: { organizationId } } : {};
+  return api.get("/polls/active-with-analytics", params);
+};
 
 
 

@@ -34,6 +34,7 @@ import {
   MessageSquarePlus,
   Bell,
   Plane,
+  ListTodo,
 } from "lucide-react";
 import {
   Tooltip,
@@ -119,6 +120,7 @@ const iconMap: Record<string, LucideIcon> = {
   UserRound,
   Bell,
   Plane,
+  ListTodo,
 };
 
 function mapApiItem(item: ApiMenuItem): MenuItem {
@@ -138,12 +140,12 @@ function applyPlanScope(items: MenuItem[], isBasic: boolean, role: string): Menu
 
   const basicEmployeeAllowlist = new Set([
     "Dashboard", "Attendance", "Timesheet", "Leave", "WFH",
-    "Time Slips", "Salary Slips", "Policy", "My Profile",
+    "Time Slips", "Salary Slips", "Policy", "My Profile", "Assign Work",
   ]);
 
   const basicAdminAllowlist = new Set([
     "Dashboard", "Employees", "Attendance", "Time Slips",
-    "Leave & WFH", "Policy", "Settings",
+    "Leave & WFH", "Policy", "Settings", "Assign Work",
   ]);
 
   const allowlist = role === "EMPLOYEE" ? basicEmployeeAllowlist : basicAdminAllowlist;

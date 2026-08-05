@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import {
   ResponsiveContainer,
   BarChart,
@@ -125,6 +126,8 @@ type ProjectIssue = {
   description: string | null;
   imageUrl: string | null;
   status: IssueStatus;
+  progressPercent?: number;
+  workReport?: string | null;
   assigneeUserId: string | null;
   createdByUserId: string;
   resolvedByUserId: string | null;
@@ -196,6 +199,9 @@ type ClientProjectTask = {
     email?: string;
   } | null;
   dueDate: string | null;
+  progressPercent?: number;
+  workReport?: string | null;
+  imageUrl?: string | null;
   completedAt: string | null;
   createdAt: string;
 };
@@ -1967,6 +1973,8 @@ export default function ProjectWorkspace({
                   <th className="text-left px-2 py-2 border-b border-border">Attachment</th>
                   <th className="text-left px-2 py-2 border-b border-border">Assigned To</th>
                   <th className="text-left px-2 py-2 border-b border-border">Status</th>
+                  <th className="text-left px-2 py-2 border-b border-border">Progress</th>
+                  <th className="text-left px-2 py-2 border-b border-border">Work Report</th>
                   <th className="text-left px-2 py-2 border-b border-border">Assigned By</th>
                   <th className="text-right px-2 py-2 border-b border-border">Save</th>
                 </tr>
@@ -1974,7 +1982,7 @@ export default function ProjectWorkspace({
               <tbody>
                 {issues.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-4 text-muted-foreground">
+                    <td colSpan={11} className="px-3 py-4 text-muted-foreground">
                       No assigned work rows yet.
                     </td>
                   </tr>
@@ -2126,6 +2134,8 @@ export default function ProjectWorkspace({
                     <th className="text-left px-3 py-2 border-b border-border">Priority</th>
                     <th className="text-left px-3 py-2 border-b border-border">Due Date</th>
                     <th className="text-left px-3 py-2 border-b border-border">Status</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Progress</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Work Report</th>
                     <th className="text-left px-3 py-2 border-b border-border">Assigned By</th>
                     <th className="text-right px-3 py-2 border-b border-border">Actions</th>
                   </tr>
@@ -2133,7 +2143,7 @@ export default function ProjectWorkspace({
                 <tbody>
                   {clientTasks.length === 0 ? (
                     <tr>
-                      <td className="px-3 py-4 text-muted-foreground" colSpan={7}>
+                      <td className="px-3 py-4 text-muted-foreground" colSpan={9}>
                         No tasks created for this project yet.
                       </td>
                     </tr>
@@ -2185,6 +2195,23 @@ export default function ProjectWorkspace({
                                 <option value="cancelled">Cancelled</option>
                               </select>
                             </div>
+                          </td>
+                          <td className="px-3 py-2 min-w-[110px]">
+                            <div className="flex items-center gap-2">
+                              <Progress value={task.progressPercent || 0} className="w-14" />
+                              <span className="text-xs font-medium whitespace-nowrap">
+                                {task.progressPercent || 0}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 max-w-[200px]">
+                            {task.workReport ? (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {task.workReport}
+                              </p>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/60">—</span>
+                            )}
                           </td>
                           <td className="px-3 py-2">{formatUserName(task.assignedByUser)}</td>
                           <td className="px-3 py-2 text-right">
@@ -2327,6 +2354,21 @@ function IssueRow({
           <option value="pending">Pending</option>
           <option value="resolved">Resolved</option>
         </select>
+      </td>
+      <td className="px-2 py-2 min-w-[110px]">
+        <div className="flex items-center gap-2">
+          <Progress value={issue.progressPercent || 0} className="w-14" />
+          <span className="text-xs font-medium whitespace-nowrap">
+            {issue.progressPercent || 0}%
+          </span>
+        </div>
+      </td>
+      <td className="px-2 py-2 max-w-[200px]">
+        {issue.workReport ? (
+          <p className="text-xs text-muted-foreground line-clamp-2">{issue.workReport}</p>
+        ) : (
+          <span className="text-xs text-muted-foreground/60">—</span>
+        )}
       </td>
       <td className="px-2 py-2 min-w-[130px] text-xs text-muted-foreground">{reporterName}</td>
       <td className="px-2 py-2 text-right min-w-[90px]">

@@ -39,9 +39,7 @@ export default function TimesheetRowForm({
   const set = <K extends keyof TimesheetRowDraft>(key: K, value: TimesheetRowDraft[K]) => {
     const next = { ...row, [key]: value };
     if (key === "startTime" || key === "endTime") {
-      if (!next.minutesTouched) {
-        next.workingMinutes = computeMinutes(next.startTime, next.endTime);
-      }
+      next.workingMinutes = computeMinutes(next.startTime, next.endTime);
     }
     onChange(next);
   };
@@ -84,9 +82,9 @@ export default function TimesheetRowForm({
             type="number"
             min={1}
             value={row.workingMinutes}
-            onChange={(e) =>
-              onChange({ ...row, workingMinutes: Math.max(1, Number(e.target.value) || 0), minutesTouched: true })
-            }
+            disabled
+            readOnly
+            aria-readonly="true"
           />
           <p className="text-[11px] text-muted-foreground">{formatMinutes(row.workingMinutes)}</p>
         </div>

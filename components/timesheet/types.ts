@@ -52,14 +52,14 @@ export function formatMinutes(totalMinutes: number): string {
 export function newDraftRow(): TimesheetRowDraft {
   return {
     key: `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    startTime: "09:00",
-    endTime: "10:00",
+    startTime: "",
+    endTime: "",
     projectId: "",
     projectName: "",
     moduleFeature: "",
     pageScreen: "",
     workDescription: "",
-    workingMinutes: 60,
+    workingMinutes: 0,
     minutesTouched: false,
     workStatus: "COMPLETED",
     employeeRemark: "",

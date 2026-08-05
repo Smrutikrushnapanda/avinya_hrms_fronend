@@ -95,7 +95,14 @@ export default function ClientsProjectsPage() {
   useEffect(() => {
     const init = async () => {
       try {
-        const profileRes = await getProfile();
+        const profilePromise = getProfile();
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Request timeout: Unable to fetch profile information. Please check your connection and try again.")), 30000);
+        });
+        
+        const profileRes = (await Promise.race([profilePromise, timeoutPromise])) as {
+          data?: { organizationId?: string };
+        };
         const orgId = profileRes.data?.organizationId ?? "";
         setOrganizationId(orgId);
         if (orgId) {
@@ -103,7 +110,11 @@ export default function ClientsProjectsPage() {
         }
       } catch (error) {
         console.error("Failed to load clients/projects:", error);
-        toast.error("Failed to load clients and projects");
+        if ((error as { message?: string })?.message?.includes("timeout")) {
+          toast.error("Request timed out. Please check your internet connection and try again.");
+        } else {
+          toast.error("Failed to load clients and projects");
+        }
       } finally {
         setLoading(false);
       }
