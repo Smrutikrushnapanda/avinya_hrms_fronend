@@ -9,6 +9,19 @@ const apiBaseURL = envOverrideURL || cloudFallbackURL;
 const DEFAULT_API_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_API_TIMEOUT_MS || 30000);
 const LOGIN_API_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_LOGIN_TIMEOUT_MS || 90000);
 
+// Fail loudly in development: silently talking to the production backend masks
+// local bugs and can mutate real data. Explicitness beats convenience here.
+if (
+  process.env.NODE_ENV !== "production" &&
+  !envOverrideURL &&
+  typeof window !== "undefined"
+) {
+  console.warn(
+    "[api] WARNING: using the production backend (https://avinyahrms.duckdns.org) in dev. " +
+      "Set NEXT_PUBLIC_API_BASE_URL (e.g. http://localhost:8080) to develop against a local backend."
+  );
+}
+
 const api = axios.create({
   baseURL: apiBaseURL,
   timeout: DEFAULT_API_TIMEOUT_MS,

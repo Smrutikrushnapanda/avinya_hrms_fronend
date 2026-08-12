@@ -449,7 +449,7 @@ const loadOrganization = async () => {
           // no-op: malformed local user payload should not block credentials update
         }
 
-        document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; path=/; max-age=2592000`;
+        document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; path=/; max-age=2592000; SameSite=Lax${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
       }
 
       toast.success("Admin credentials updated");

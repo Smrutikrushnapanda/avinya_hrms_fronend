@@ -386,6 +386,7 @@ export default function AssignWorkPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/40">
               <tr>
+                <th className="text-left px-3 py-2 border-b border-border">S.No</th>
                 <th className="text-left px-3 py-2 border-b border-border">Work</th>
                 <th className="text-left px-3 py-2 border-b border-border">Project</th>
                 <th className="text-left px-3 py-2 border-b border-border">Assigned To</th>
@@ -400,7 +401,7 @@ export default function AssignWorkPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((assignment) => {
+              {filtered.map((assignment, index) => {
                 const st = statusMeta[assignment.status] || statusMeta.pending;
                 const pr = priorityMeta[assignment.priority] || priorityMeta.medium;
                 return (
@@ -408,7 +409,7 @@ export default function AssignWorkPage() {
                     key={`${assignment.type}-${assignment.id}`}
                     className="border-b border-border last:border-b-0 align-top hover:bg-muted/20"
                   >
-                    <td className="px-3 py-2 min-w-[220px]">
+                    <td className="px-3 py-2 text-muted-foreground">{index + 1}</td>                    <td className="px-3 py-2 min-w-[220px]">
                       <p className="font-medium">{assignment.title}</p>
                       {assignment.description ? (
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">

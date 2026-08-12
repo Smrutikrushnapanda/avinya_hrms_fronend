@@ -50,11 +50,12 @@ export default function LoginPage() {
     cookieMaxAge: number
   ) => {
     const mustChangePassword = Boolean(userParams?.mustChangePassword);
-    document.cookie = `user=${encodeURIComponent(JSON.stringify(userParams))}; path=/; max-age=${cookieMaxAge}`;
-    document.cookie = `user_role=${chosenRole}; path=/; max-age=${cookieMaxAge}`;
-    document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; path=/; max-age=${cookieMaxAge}`;
+    const cookieFlags = `path=/; max-age=${cookieMaxAge}; SameSite=Lax${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+    document.cookie = `user=${encodeURIComponent(JSON.stringify(userParams))}; ${cookieFlags}`;
+    document.cookie = `user_role=${chosenRole}; ${cookieFlags}`;
+    document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; ${cookieFlags}`;
     if (chosenRole === "EMPLOYEE") {
-      document.cookie = `dashboard-view=${isLikelyMobileDevice() ? "mobile" : "desktop"}; path=/; max-age=${cookieMaxAge}`;
+      document.cookie = `dashboard-view=${isLikelyMobileDevice() ? "mobile" : "desktop"}; ${cookieFlags}`;
     }
   };
 

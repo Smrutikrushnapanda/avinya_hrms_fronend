@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getMyAssignments,
   getAssignmentsByMe,
   getAssignWorkOptions,
+  createAssignWork,
   updateAssignmentProgress,
+  uploadFile,
   WorkAssignment,
   AssignWorkOptions,
 } from "@/app/api/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +21,9 @@ import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -30,7 +35,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ListTodo, CheckCircle2, ClipboardList, RefreshCw } from "lucide-react";
+import { ListTodo, CheckCircle2, ClipboardList, RefreshCw, Plus, Upload, Image as ImageIcon } from "lucide-react";
 
 const statusMeta: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: "Pending", color: "text-slate-600", bg: "bg-slate-100" },
@@ -50,12 +55,30 @@ const priorityMeta: Record<string, { label: string; color: string; bg: string }>
 
 type TabKey = "assigned-to-me" | "assigned-by-me";
 
+const OTHER_PROJECT_VALUE = "__other__";
+
 export default function UserAssignWorkPage() {
   const [options, setOptions] = useState<AssignWorkOptions | null>(null);
   const [assignedToMe, setAssignedToMe] = useState<WorkAssignment[]>([]);
   const [assignedByMe, setAssignedByMe] = useState<WorkAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("assigned-to-me");
+
+  // Composer state
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerSaving, setComposerSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [form, setForm] = useState({
+    projectValue: "",
+    otherProjectName: "",
+    assignedToUserIds: [] as string[],
+    employeeSearch: "",
+    title: "",
+    description: "",
+    dueDate: "",
+    priority: "medium",
+    imageUrl: "",
+  });
 
   const [editTarget, setEditTarget] = useState<WorkAssignment | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -114,6 +137,103 @@ export default function UserAssignWorkPage() {
     });
   };
 
+  const openComposer = () => {
+    setForm({
+      projectValue: "",
+      otherProjectName: "",
+      assignedToUserIds: [],
+      employeeSearch: "",
+      title: "",
+      description: "",
+      dueDate: "",
+      priority: "medium",
+      imageUrl: "",
+    });
+    setComposerOpen(true);
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (file: File) => {
+    try {
+      setUploadingImage(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await uploadFile(formData, { path: "assign-work", public: true });
+      const url = res?.data?.url || res?.data?.secureUrl || "";
+      if (!url) {
+        toast.error("Image upload did not return a URL");
+        return;
+      }
+      setForm((prev) => ({ ...prev, imageUrl: url }));
+      toast.success("Image uploaded");
+    } catch {
+      toast.error("Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const toggleAssignee = (userId: string) =>
+    setForm((prev) => ({
+      ...prev,
+      assignedToUserIds: prev.assignedToUserIds.includes(userId)
+        ? prev.assignedToUserIds.filter((id) => id !== userId)
+        : [...prev.assignedToUserIds, userId],
+    }));
+
+  const filteredEmployees = useMemo(() => {
+    const q = form.employeeSearch.trim().toLowerCase();
+    const list = options?.employees || [];
+    if (!q) return list;
+    return list.filter(
+      (e) =>
+        `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+        e.firstName.toLowerCase().includes(q) ||
+        (e.lastName || "").toLowerCase().includes(q),
+    );
+  }, [form.employeeSearch, options]);
+
+  const canSubmit = useMemo(() => {
+    const projectOk =
+      form.projectValue === OTHER_PROJECT_VALUE
+        ? form.otherProjectName.trim().length > 0
+        : true;
+    return Boolean(
+      form.title.trim() && form.assignedToUserIds.length > 0 && projectOk,
+    );
+  }, [form]);
+
+  const handleCreate = async () => {
+    if (!canSubmit) {
+      toast.error("Work title, assignee and project/work name are required");
+      return;
+    }
+    try {
+      setComposerSaving(true);
+      const isOther = form.projectValue === OTHER_PROJECT_VALUE;
+      const project = options?.projects.find((p) => p.id === form.projectValue);
+      await createAssignWork({
+        projectId: isOther ? undefined : project?.id,
+        source: isOther ? undefined : project?.source,
+        otherProjectName: isOther ? form.otherProjectName.trim() : undefined,
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        assignedToUserIds: form.assignedToUserIds,
+        dueDate: form.dueDate || undefined,
+        priority: form.priority as "low" | "medium" | "high" | "urgent",
+        imageUrl: form.imageUrl || undefined,
+      });
+      toast.success("Work assigned successfully");
+      setComposerOpen(false);
+      void load();
+    } catch {
+      toast.error("Failed to assign work");
+    } finally {
+      setComposerSaving(false);
+    }
+  };
+
   const handleSaveProgress = async () => {
     if (!editTarget) return;
     try {
@@ -152,10 +272,16 @@ export default function UserAssignWorkPage() {
             Track work assigned to you and review work you assigned to others.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void load()}>
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => void load()}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Refresh
+          </Button>
+          <Button size="sm" onClick={openComposer}>
+            <Plus className="h-4 w-4 mr-1" />
+            Assign New Work
+          </Button>
+        </div>
       </div>
 
       <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30 w-fit">
@@ -193,7 +319,7 @@ export default function UserAssignWorkPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {items.map((assignment) => {
+          {items.map((assignment, index) => {
             const st = statusMeta[assignment.status] || statusMeta.pending;
             const pr = priorityMeta[assignment.priority] || priorityMeta.medium;
             const isMine = tab === "assigned-to-me";
@@ -203,7 +329,11 @@ export default function UserAssignWorkPage() {
                 className="rounded-xl border border-border bg-card p-4 space-y-3"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {index + 1}.
+                    </span>
+                    <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-medium">{assignment.title}</h3>
                       <Badge variant="outline" className="text-[10px]">
@@ -222,6 +352,7 @@ export default function UserAssignWorkPage() {
                         {assignment.description}
                       </p>
                     ) : null}
+                  </div>
                   </div>
                   <Badge variant="outline" className={`${st.color} ${st.bg}`}>
                     {st.label}
@@ -287,6 +418,236 @@ export default function UserAssignWorkPage() {
           })}
         </div>
       )}
+
+      {/* Assign New Work dialog */}
+      <Dialog open={composerOpen} onOpenChange={setComposerOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Assign New Work</DialogTitle>
+            <DialogDescription>
+              Choose a project (or select Other) and an employee to assign the work to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Project</Label>
+                <Select
+                  value={form.projectValue}
+                  onValueChange={(v) =>
+                    setForm((prev) => ({ ...prev, projectValue: v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Client Projects</SelectLabel>
+                      {(options?.projects || [])
+                        .filter((p) => p.source === "client")
+                        .map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Internal Projects</SelectLabel>
+                      {(options?.projects || [])
+                        .filter((p) => p.source === "internal")
+                        .map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Other</SelectLabel>
+                      <SelectItem value={OTHER_PROJECT_VALUE}>Other (not listed)</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              {form.projectValue === OTHER_PROJECT_VALUE ? (
+                <div className="space-y-1.5">
+                  <Label>Work Name</Label>
+                  <Input
+                    placeholder="e.g. Website banner design"
+                    value={form.otherProjectName}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, otherProjectName: e.target.value }))
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label>Due Date</Label>
+                  <Input
+                    type="date"
+                    value={form.dueDate}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, dueDate: e.target.value }))
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Assign To ({form.assignedToUserIds.length} selected)</Label>
+                {form.assignedToUserIds.length > 0 && (
+                  <button
+                    type="button"
+                    className="text-xs text-destructive hover:underline"
+                    onClick={() =>
+                      setForm((prev) => ({ ...prev, assignedToUserIds: [] }))
+                    }
+                  >
+                    Clear selection
+                  </button>
+                )}
+              </div>
+              <Input
+                placeholder="Search employee by name..."
+                value={form.employeeSearch}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, employeeSearch: e.target.value }))
+                }
+              />
+              <div className="max-h-40 overflow-y-auto rounded-md border border-border">
+                {filteredEmployees.length === 0 ? (
+                  <p className="p-3 text-xs text-muted-foreground">No employees found</p>
+                ) : (
+                  filteredEmployees.map((emp) => {
+                    const checked = form.assignedToUserIds.includes(emp.userId);
+                    return (
+                      <button
+                        key={emp.userId}
+                        type="button"
+                        onClick={() => toggleAssignee(emp.userId)}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-muted/40 flex items-center gap-2 ${
+                          checked ? "bg-muted/60 font-medium" : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAssignee(emp.userId)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 accent-foreground"
+                        />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        {emp.firstName} {emp.lastName}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Work Title *</Label>
+              <Input
+                placeholder="e.g. Build login page UI"
+                value={form.title}
+                onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea
+                placeholder="Details of the work (optional)"
+                value={form.description}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, description: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Priority</Label>
+                <Select
+                  value={form.priority}
+                  onValueChange={(v) =>
+                    setForm((prev) => ({ ...prev, priority: v }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Work Image (optional)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Image URL (or upload below)"
+                    value={form.imageUrl}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, imageUrl: e.target.value }))
+                    }
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleImageUpload(file);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    loading={uploadingImage}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="w-4 h-4 mr-1" />
+                    Upload
+                  </Button>
+                </div>
+                {form.imageUrl ? (
+                  <a
+                    href={form.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-blue-600"
+                  >
+                    <ImageIcon className="h-3 w-3" />
+                    View uploaded image
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setComposerOpen(false)}
+              disabled={composerSaving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => void handleCreate()} loading={composerSaving} disabled={!canSubmit}>
+              <Plus className="w-4 h-4 mr-1" />
+              Assign Work
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(editTarget)} onOpenChange={(o) => !o && setEditTarget(null)}>
         <DialogContent className="sm:max-w-md">

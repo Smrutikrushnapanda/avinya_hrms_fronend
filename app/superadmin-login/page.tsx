@@ -102,9 +102,10 @@ export default function SuperadminLoginPage() {
       localStorage.setItem("user", JSON.stringify(user));
       localStorage.setItem("user_role", "SUPERADMIN");
 
-      document.cookie = `user=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=${SESSION_MAX_AGE_SECONDS}`;
-      document.cookie = `user_role=SUPERADMIN; path=/; max-age=${SESSION_MAX_AGE_SECONDS}`;
-      document.cookie = `must_change_password=0; path=/; max-age=${SESSION_MAX_AGE_SECONDS}`;
+      const cookieFlags = `path=/; max-age=${SESSION_MAX_AGE_SECONDS}; SameSite=Lax${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+      document.cookie = `user=${encodeURIComponent(JSON.stringify(user))}; ${cookieFlags}`;
+      document.cookie = `user_role=SUPERADMIN; ${cookieFlags}`;
+      document.cookie = `must_change_password=0; ${cookieFlags}`;
 
       toast.success("Welcome back, Super Admin");
       router.push("/superadmin/dashboard");
