@@ -1103,7 +1103,9 @@ export const deleteMenuItem = (id: string) => api.delete(`/menu-items/${id}`);
 
 // 🚀 Superadmin APIs
 export const getSuperadminStats = () => api.get('/superadmin/stats');
+export const getSuperadminEnhancedStats = () => api.get('/superadmin/stats/enhanced');
 export const getSuperadminOrganizations = () => api.get('/superadmin/organizations');
+export const getSuperadminOrgDetails = (id: string) => api.get(`/superadmin/organizations/${id}/details`);
 export const getSuperadminSubscriptions = () => api.get('/superadmin/subscriptions');
 export const getSuperadminLogs = (limit = 100, offset = 0) =>
   api.get('/superadmin/logs', { params: { limit, offset } });
@@ -1111,6 +1113,19 @@ export const blockOrganization = (id: string) =>
   api.patch(`/superadmin/organizations/${id}/block`);
 export const unblockOrganization = (id: string) =>
   api.patch(`/superadmin/organizations/${id}/unblock`);
+
+// 💰 Revenue APIs
+export const getSuperadminRevenue = () => api.get('/superadmin/revenue');
+export const getSuperadminExpiringSoon = (days = 30) =>
+  api.get('/superadmin/expiring-soon', { params: { days } });
+
+// 📧 Renewal Email APIs
+export const sendRenewalEmail = (data: { organizationId: string; customMessage?: string }) =>
+  api.post('/superadmin/renewal-email', data);
+export const sendBulkRenewalEmails = (data: { daysThreshold?: number; customMessage?: string }) =>
+  api.post('/superadmin/renewal-email/bulk', data);
+export const getRenewalEmailHistory = (limit = 50, offset = 0) =>
+  api.get('/superadmin/renewal-history', { params: { limit, offset } });
 
 // 💰 Pricing APIs
 export const getPricingPlans = () => api.get('/api/pricing/plans?includeInactive=true');
