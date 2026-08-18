@@ -53,6 +53,7 @@ export default function OrganizationsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [blockingOrgId, setBlockingOrgId] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   // Form states
   const [selectedOrg, setSelectedOrg] = useState<OrganizationItem | null>(null);
@@ -182,6 +183,7 @@ export default function OrganizationsPage() {
 
   const openDeleteDialog = (org: OrganizationItem) => {
     setSelectedOrg(org);
+    setDeleteConfirmText("");
     setDeleteDialogOpen(true);
   };
 
@@ -456,7 +458,7 @@ export default function OrganizationsPage() {
       </Dialog>
 
       {/* DELETE DIALOG */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <Dialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) setDeleteConfirmText(""); }}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -464,14 +466,30 @@ export default function OrganizationsPage() {
             </DialogTitle>
             <DialogDescription className="pt-2">
               Are you absolutely sure you want to delete <strong>{selectedOrg?.name}</strong>?
-              This action will permanently delete the organization record and its configuration settings.
+              This action will permanently delete the organization and all its data.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-2 pt-2">
+            <Label htmlFor="deleteConfirm">
+              Type <span className="font-mono font-semibold text-red-600">delete_{selectedOrg?.name}</span> to confirm
+            </Label>
+            <Input
+              id="deleteConfirm"
+              placeholder={`delete_${selectedOrg?.name}`}
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+            />
+          </div>
           <DialogFooter className="pt-4">
             <Button type="button" variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={handleDelete}>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleteConfirmText !== `delete_${selectedOrg?.name}`}
+              onClick={handleDelete}
+            >
               Confirm Delete
             </Button>
           </DialogFooter>
