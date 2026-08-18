@@ -187,6 +187,8 @@ export default function OrganizationsPage() {
     setDeleteDialogOpen(true);
   };
 
+  const deleteConfirmWord = selectedOrg?.name?.split(/\s+/)[0]?.toLowerCase() || "";
+
   const filteredOrgs = organizations.filter(
     (org) =>
       org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -471,11 +473,11 @@ export default function OrganizationsPage() {
           </DialogHeader>
           <div className="space-y-2 pt-2">
             <Label htmlFor="deleteConfirm">
-              Type <span className="font-mono font-semibold text-red-600">delete_{selectedOrg?.name}</span> to confirm
+              Type <span className="font-mono font-semibold text-red-600">delete_{deleteConfirmWord}</span> to confirm
             </Label>
             <Input
               id="deleteConfirm"
-              placeholder={`delete_${selectedOrg?.name}`}
+              placeholder={`delete_${deleteConfirmWord}`}
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
             />
@@ -487,7 +489,7 @@ export default function OrganizationsPage() {
             <Button
               type="button"
               variant="destructive"
-              disabled={deleteConfirmText !== `delete_${selectedOrg?.name}`}
+              disabled={deleteConfirmText !== `delete_${deleteConfirmWord}`}
               onClick={handleDelete}
             >
               Confirm Delete
