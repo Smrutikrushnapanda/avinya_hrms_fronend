@@ -510,7 +510,7 @@ export default function MobileDashboardPage() {
     }
 
     // Check Camera permission
-    if (navigator.permissions && navigator.mediaDevices?.getUserMedia) {
+    if (navigator.permissions && typeof navigator.mediaDevices?.getUserMedia === "function") {
       try {
         const camPerm = await navigator.permissions.query({ name: "camera" as any });
         setNeedCameraPerm(camPerm.state !== "granted");
@@ -547,7 +547,7 @@ export default function MobileDashboardPage() {
     }
 
     // 2. Camera
-    if (typeof window !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+    if (typeof window !== "undefined" && typeof navigator.mediaDevices?.getUserMedia === "function") {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach((track) => track.stop());
@@ -742,7 +742,7 @@ export default function MobileDashboardPage() {
         requestGeolocation();
       }
 
-      if (!navigator.mediaDevices?.getUserMedia) {
+      if (typeof navigator.mediaDevices?.getUserMedia !== "function") {
         setCameraStatus("denied");
         toast.error("Camera is not supported in this browser.");
         return;
