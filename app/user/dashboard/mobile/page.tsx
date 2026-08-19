@@ -297,6 +297,8 @@ export default function MobileDashboardPage() {
   const [cameraStatus, setCameraStatus] = useState<"pending" | "available" | "denied">("pending");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [gpsLocationName, setGpsLocationName] = useState("");
+  const [needCameraPerm, setNeedCameraPerm] = useState(false);
+  const [needLocationPerm, setNeedLocationPerm] = useState(false);
 
   // ── Clock
   const [clockTime, setClockTime] = useState(new Date());
@@ -485,6 +487,84 @@ export default function MobileDashboardPage() {
       );
     });
   }, []);
+
+  // ── Permissions Checking & Requesting
+  const checkPermissionsState = useCallback(async () => {
+    if (typeof window === "undefined") return;
+
+    // Check Geolocation permission
+    if (navigator.permissions && navigator.geolocation) {
+      try {
+        const geoPerm = await navigator.permissions.query({ name: "geolocation" });
+        setNeedLocationPerm(geoPerm.state !== "granted");
+        geoPerm.onchange = () => {
+          setNeedLocationPerm(geoPerm.state !== "granted");
+        };
+      } catch (e) {
+        console.error("Error querying geolocation permission:", e);
+        const cached = readCachedLocation();
+        setNeedLocationPerm(!cached);
+      }
+    } else {
+      setNeedLocationPerm(false);
+    }
+
+    // Check Camera permission
+    if (navigator.permissions && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const camPerm = await navigator.permissions.query({ name: "camera" as any });
+        setNeedCameraPerm(camPerm.state !== "granted");
+        camPerm.onchange = () => {
+          setNeedCameraPerm(camPerm.state !== "granted");
+        };
+      } catch (e) {
+        console.error("Error querying camera permission:", e);
+        const hasGrantedCam = localStorage.getItem("hrms_camera_granted") === "true";
+        setNeedCameraPerm(!hasGrantedCam);
+      }
+    } else {
+      setNeedCameraPerm(false);
+    }
+  }, []);
+
+  const requestAllPermissions = async () => {
+    // 1. Geolocation
+    if (typeof window !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const nextCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          setCoords(nextCoords);
+          setNeedLocationPerm(false);
+          toast.success("Location access granted!");
+        },
+        (err) => {
+          console.error("Location request failed:", err);
+          toast.error("Location access denied. Please allow it in browser settings.");
+          setNeedLocationPerm(true);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    // 2. Camera
+    if (typeof window !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach((track) => track.stop());
+        setNeedCameraPerm(false);
+        localStorage.setItem("hrms_camera_granted", "true");
+        toast.success("Camera access granted!");
+      } catch (err) {
+        console.error("Camera request failed:", err);
+        toast.error("Camera access denied. Please allow it in browser settings.");
+        setNeedCameraPerm(true);
+      }
+    }
+  };
+
+  useEffect(() => {
+    checkPermissionsState();
+  }, [checkPermissionsState]);
 
   // ── PWA install detection
   useEffect(() => {
@@ -876,6 +956,29 @@ export default function MobileDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Permissions Warning Banner ── */}
+      {(needLocationPerm || needCameraPerm) && (
+        <div className="mx-4 mt-4 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex flex-col gap-3 shadow-sm">
+          <div className="flex gap-2.5">
+            <span className="text-xl">⚠️</span>
+            <div className="flex-1">
+              <h4 className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                Action Required: Permissions Needed
+              </h4>
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 leading-relaxed">
+                To mark attendance, please enable {needCameraPerm && needLocationPerm ? "camera and location" : needCameraPerm ? "camera" : "location"} access.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={requestAllPermissions}
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-2 h-auto rounded-xl active:scale-[0.98] transition"
+          >
+            Grant Permissions
+          </Button>
+        </div>
+      )}
 
       {/* ── Punch Card ── */}
       <div className="px-4 mt-4">
