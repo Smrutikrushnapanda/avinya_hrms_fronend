@@ -297,6 +297,12 @@ export default function MobileDashboardPage() {
   const [cameraStatus, setCameraStatus] = useState<"pending" | "available" | "denied">("pending");
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [gpsLocationName, setGpsLocationName] = useState("");
+  // True from the moment the punch dialog opens until the GPS fix locks in —
+  // the shutter stays disabled during this window (PagarBook style).
+  const [isLocating, setIsLocating] = useState(false);
+  // Ensures location is fetched exactly once per dialog open (not on every
+  // retake): reset only when the dialog fully closes.
+  const locationRequestedForDialog = useRef(false);
   const [needCameraPerm, setNeedCameraPerm] = useState(false);
   const [needLocationPerm, setNeedLocationPerm] = useState(false);
 
@@ -734,12 +740,14 @@ export default function MobileDashboardPage() {
   // ── Camera dialog - Fixed for proper display and permissions
   useEffect(() => {
     if (open && !capturedImage) {
-      // Kick off geolocation the moment the punch dialog opens, in parallel
-      // with camera setup, so the fix is usually already resolved by the time
-      // the user finishes positioning for the photo — submitPhoto then has
-      // nothing left to wait on instead of requesting location cold.
-      if (settings.enableGpsValidation && !coordsRef.current) {
-        requestGeolocation();
+      // Start a fresh GPS fix the moment the punch dialog opens — exactly
+      // once per open (retakes reuse the same fix). The shutter stays
+      // disabled until this resolves, so submitPhoto never falls back to a
+      // stale fix from earlier in the session.
+      if (settings.enableGpsValidation && !locationRequestedForDialog.current) {
+        locationRequestedForDialog.current = true;
+        setIsLocating(true);
+        requestGeolocation().finally(() => setIsLocating(false));
       }
 
       if (typeof navigator.mediaDevices?.getUserMedia !== "function") {
@@ -790,6 +798,8 @@ export default function MobileDashboardPage() {
     if (ctx) {
       canvasRef.current.width = videoRef.current.videoWidth || 640;
       canvasRef.current.height = videoRef.current.videoHeight || 480;
+      ctx.scale(-1, 1);
+      ctx.translate(-canvasRef.current.width, 0);
       ctx.drawImage(videoRef.current, 0, 0);
       // Stop camera immediately
       if (streamRef.current) {
@@ -809,16 +819,12 @@ export default function MobileDashboardPage() {
       if (settings.enableWifiValidation) {
         toast.warning("WiFi validation isn't supported from the web.");
       }
-      if (settings.enableGpsValidation) {
-        // Always re-request a FRESH GPS fix at submit time instead of reusing
-        // coordsRef (which may be minutes old or from an earlier session fix)
-        // — stale coordinates make the backend flag a valid office punch as
-        // "GPS outside allowed office radius". Only fall back to the previous
-        // fix if the fresh request fails.
-        const freshCoords = await requestGeolocation();
-        if (freshCoords) {
-          activeCoords = freshCoords;
-        } else if (!activeCoords) {
+      if (settings.enableGpsValidation && !activeCoords) {
+        // Location was already fetched when the punch dialog opened (the
+        // shutter stays disabled until it arrives) — this is only a
+        // last-resort fallback if the fix somehow never landed.
+        activeCoords = await requestGeolocation();
+        if (!activeCoords) {
           toast.error("Location permission is required.");
           return;
         }
@@ -1038,7 +1044,7 @@ export default function MobileDashboardPage() {
       </div>
 
       {/* ── Punch Dialog - FIXED FOR CAMERA DISPLAY ── */}
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setCapturedImage(null); }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setCapturedImage(null); locationRequestedForDialog.current = false; } }}>
         <DialogContent 
           className="max-w-none w-screen h-screen p-0 gap-0 bg-black border-0 rounded-none z-[999]"
           // This prevents pointer-events none on the backdrop effectively
@@ -1056,6 +1062,7 @@ export default function MobileDashboardPage() {
                 playsInline 
                 muted 
                 className="absolute inset-0 w-full h-full object-cover"
+                style={{ transform: "scaleX(-1)" }}
                 // Ensures camera starts immediately
                 onLoadedMetadata={(e) => e.currentTarget.play()}
               />
@@ -1070,14 +1077,31 @@ export default function MobileDashboardPage() {
                 </button>
               </div>
 
-              <div className="absolute bottom-12 left-0 right-0 flex flex-col items-center gap-6 z-10">
-                <p className="text-white/70 text-xs tracking-wider">Position face within frame</p>
-                <button 
-                  onClick={capturePhoto} 
-                  className="w-20 h-20 rounded-full border-4 border-white/80 bg-white/20 backdrop-blur-sm flex items-center justify-center active:scale-95 transition-transform"
-                >
-                  <div className="w-16 h-16 rounded-full bg-white"></div>
-                </button>
+              <div className="absolute bottom-12 left-0 right-0 flex flex-col items-center gap-4 z-10">
+                {settings.enableGpsValidation && (
+                  <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full backdrop-blur-md text-xs font-semibold ${isLocating ? "bg-yellow-500/20 text-yellow-300" : coordsRef.current ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"}`}>
+                    <span className={`w-2 h-2 rounded-full ${isLocating ? "bg-yellow-300 animate-pulse" : coordsRef.current ? "bg-emerald-300" : "bg-red-300"}`} />
+                    {isLocating ? "Acquiring location…" : coordsRef.current ? "Location locked" : "Location unavailable"}
+                  </div>
+                )}
+                <div className="flex flex-col items-center gap-3">
+                  <button 
+                    onClick={capturePhoto} 
+                    disabled={isLocating || (settings.enableGpsValidation && !coordsRef.current)}
+                    className={`w-20 h-20 rounded-full border-4 border-white/80 bg-white/20 backdrop-blur-sm flex items-center justify-center active:scale-95 transition-transform ${isLocating || (settings.enableGpsValidation && !coordsRef.current) ? "opacity-50 cursor-not-allowed" : "hover:bg-white/30"}`}
+                  >
+                    {isLocating ? (
+                      <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full border-[3px] border-yellow-300 border-t-transparent animate-spin"></div>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-white"></div>
+                    )}
+                  </button>
+                  <p className="text-white/70 text-xs tracking-wider">
+                    {isLocating ? "Waiting for GPS fix…" : settings.enableGpsValidation && !coordsRef.current ? "Location required to punch" : "Position face within frame"}
+                  </p>
+                </div>
               </div>
             </div>
           ) : (

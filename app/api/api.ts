@@ -164,6 +164,8 @@ export const getEmployee = (id: string) => api.get(`/employees/${id}`);
 export const updateEmployee = (id: string, data: any) => api.put(`/employees/${id}`, data);
 export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
 export const getEmployeeByUserId = (userId: string) => api.get(`/employees/by-user/${userId}`);
+export const updateMyPassword = (userId: string, data: { password: string; currentPassword: string }) =>
+  api.patch(`/users/${userId}`, data);
 export const getEmployeeHierarchy = (organizationId: string, employeeId?: string) =>
   api.get("/employees/hierarchy", { params: { organizationId, employeeId } });
 export const validateEmployee = (data: { organizationId: string; employeeId?: string; reportingTo: string }) =>

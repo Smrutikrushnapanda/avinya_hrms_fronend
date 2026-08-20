@@ -104,7 +104,7 @@ export default function MobileHolidaysPage() {
     <div className="min-h-screen bg-background flex flex-col pb-20">
       <MobileTabHeader title="Holidays" backHref="/user/dashboard/mobile" />
 
-      <div className="px-4 -mt-5 relative z-10 space-y-4 pb-6">
+      <div className="px-4 mt-4 relative z-10 space-y-4 pb-6">
         {nextHoliday && (
           <MobileCard className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border border-primary/20">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-primary-foreground" />

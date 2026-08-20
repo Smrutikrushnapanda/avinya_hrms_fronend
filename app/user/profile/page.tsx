@@ -35,6 +35,7 @@ import {
   getMyResignationRequests,
   getOrganization,
   getProfile,
+  updateMyPassword,
 } from "@/app/api/api";
 
 type Role = {
@@ -200,6 +201,12 @@ export default function UserProfilePage() {
     proposedLastWorkingDay: "",
   });
   const [sendingResignation, setSendingResignation] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [updatingPassword, setUpdatingPassword] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -329,6 +336,49 @@ export default function UserProfilePage() {
       toast.error(message);
     } finally {
       setSendingResignation(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    const currentUserId =
+      profile?.id || profile?.userId || profile?.user_id || "";
+    if (!currentUserId) {
+      toast.error("Account not found. Please log in again.");
+      return;
+    }
+    if (!passwordForm.currentPassword.trim()) {
+      toast.error("Please enter your current password.");
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters.");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+    setUpdatingPassword(true);
+    try {
+      await updateMyPassword(currentUserId, {
+        password: passwordForm.newPassword,
+        currentPassword: passwordForm.currentPassword,
+      });
+      toast.success("Password updated successfully.");
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      document.cookie = "must_change_password=0; path=/; max-age=2592000; SameSite=Lax";
+    } catch (err: unknown) {
+      const maybeAxiosError = err as { response?: { data?: { message?: string } } };
+      toast.error(
+        maybeAxiosError?.response?.data?.message ||
+          "Failed to change password. Check your current password and try again."
+      );
+    } finally {
+      setUpdatingPassword(false);
     }
   };
 
@@ -477,6 +527,88 @@ export default function UserProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Account Security */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            Account Security
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-1">
+              <Label
+                htmlFor="currentPassword"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Current Password
+              </Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) =>
+                  setPasswordForm((prev) => ({
+                    ...prev,
+                    currentPassword: e.target.value,
+                  }))
+                }
+                placeholder="Enter current password"
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label
+                htmlFor="newPassword"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                New Password
+              </Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) =>
+                  setPasswordForm((prev) => ({
+                    ...prev,
+                    newPassword: e.target.value,
+                  }))
+                }
+                placeholder="Min 8 characters"
+                className="mt-1.5"
+              />
+            </div>
+            <div>
+              <Label
+                htmlFor="confirmPassword"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Confirm New Password
+              </Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) =>
+                  setPasswordForm((prev) => ({
+                    ...prev,
+                    confirmPassword: e.target.value,
+                  }))
+                }
+                placeholder="Re-enter new password"
+                className="mt-1.5"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end">
+            <Button onClick={handleChangePassword} loading={updatingPassword}>
+              Change Password
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <Card className="shadow-sm lg:col-span-1">

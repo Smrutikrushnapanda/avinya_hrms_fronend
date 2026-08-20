@@ -37,7 +37,14 @@ export function middleware(req: NextRequest) {
           url.searchParams.delete("force_credentials");
         }
       } else {
-        url.pathname = isMobile ? "/user/dashboard/mobile" : "/user/dashboard";
+        // Employees land on their profile page when a password change is
+        // required (it has the self-service "Account Security" form) instead
+        // of an admin-only page they can't open.
+        url.pathname = mustChangePassword
+          ? "/user/profile"
+          : isMobile
+          ? "/user/dashboard/mobile"
+          : "/user/dashboard";
       }
       const response = NextResponse.redirect(url);
       if (isEmployeeRole) {
