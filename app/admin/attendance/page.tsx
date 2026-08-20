@@ -4,26 +4,17 @@ import { useEffect, useState, useMemo } from "react";
 import { format, isBefore, parse } from "date-fns";
 import { ColumnDef, SortingState } from "@tanstack/react-table";
 import {
-  AlarmClock,
-  ArrowDownRight,
-  ArrowUpRight,
   BadgeCheck,
   Camera,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CircleX,
-  ClipboardCheck,
   Clock4,
   ClipboardList,
   FileText,
-  Flag,
-  Hourglass,
   Laptop,
   MapPin,
   Settings,
   User,
-  UserX,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -494,86 +485,7 @@ function buildColumns(
 ];
 }
 
-function DiffChip({ value }: { value?: number }) {
-  if (value === undefined || value === null || value === 0) {
-    return (
-      <span className="inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full bg-muted text-muted-foreground whitespace-nowrap">
-        Same as yesterday
-      </span>
-    );
-  }
-  const up = value > 0;
-  return (
-    <span
-      className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${
-        up ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-      }`}
-    >
-      {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-      {up ? "+" : ""}
-      {value} vs yesterday
-    </span>
-  );
-}
 
-function StatTile({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value?: number | null;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-border/70 bg-muted/40 px-3 py-2.5">
-      {icon}
-      <div className="flex flex-col min-w-0">
-        <span className="text-2xl font-extrabold leading-none">
-          {value ?? "-"}
-        </span>
-        <span className="text-[11px] leading-tight text-muted-foreground truncate">
-          {label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function SummaryRow({
-  icon,
-  label,
-  description,
-  value,
-  valueClass,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  description?: string;
-  value?: number | null;
-  valueClass?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-2">
-      <div className="flex items-center gap-2.5 min-w-0">
-        {icon}
-        <div className="flex flex-col min-w-0">
-          <span className="text-sm font-semibold leading-tight truncate">
-            {label}
-          </span>
-          {description && (
-            <span className="text-[11px] leading-tight text-muted-foreground truncate">
-              {description}
-            </span>
-          )}
-        </div>
-      </div>
-      <span className={`text-xl font-extrabold whitespace-nowrap ${valueClass || ""}`}>
-        {value ?? "-"}
-      </span>
-    </div>
-  );
-}
 
 export default function AttendancePage() {
   const [date, setDate] = useState(new Date());
@@ -601,6 +513,9 @@ export default function AttendancePage() {
     search: "",
     sorting: [],
   });
+
+  const formatDiff = (value: number) =>
+    `${value >= 0 ? "+" : ""}${value ?? 0} vs yesterday`;
 
   useEffect(() => {
     getProfile()
@@ -759,54 +674,54 @@ export default function AttendancePage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {/* Present Summary */}
         <Card className="transition-all hover:shadow-md">
           <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  Present
-                </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Employees who clocked in today
-                </p>
-              </div>
-              <DiffChip value={stats?.presentSummary?.total_presentDiff} />
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-green-600" />
+              Present Summary
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="space-y-4">
-                <div className="h-10 w-32 bg-gray-200 rounded animate-pulse" />
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t">
-                  {[...Array(2)].map((_, i) => (
-                    <div key={i} className="h-16 bg-gray-100 rounded animate-pulse" />
-                  ))}
-                </div>
+              <div className="grid grid-cols-3 divide-x text-center mt-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="h-6 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-3 bg-gray-100 rounded mb-1"></div>
+                    <div className="h-3 bg-gray-100 rounded"></div>
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-extrabold text-green-600 leading-none">
+              <div className="grid grid-cols-3 divide-x text-center mt-4">
+                <div>
+                  <p className="text-xl font-bold text-green-600">
                     {stats?.presentSummary?.total_present ?? "-"}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    total present
-                  </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Total Present</p>
+                  <p className="text-xs text-green-600">
+                    {formatDiff(stats?.presentSummary?.total_presentDiff ?? 0)}
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 pt-4 border-t">
-                  <StatTile
-                    icon={<ClipboardCheck className="w-4 h-4 text-green-600" />}
-                    label="On time / Early"
-                    value={stats?.presentSummary?.earlyClockIn}
-                  />
-                  <StatTile
-                    icon={<AlarmClock className="w-4 h-4 text-orange-500" />}
-                    label="Late arrival"
-                    value={stats?.presentSummary?.lateClockIn}
-                  />
+                <div>
+                  <p className="text-xl font-bold text-blue-600">
+                    {stats?.presentSummary?.earlyClockIn ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">On time / Early</p>
+                  <p className="text-xs text-green-600">
+                    {formatDiff(stats?.presentSummary?.earlyClockInDiff ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-orange-600">
+                    {stats?.presentSummary?.lateClockIn ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Late clock-in</p>
+                  <p className="text-xs text-red-600">
+                    {formatDiff(stats?.presentSummary?.lateClockInDiff ?? 0)}
+                  </p>
                 </div>
               </div>
             )}
@@ -816,78 +731,68 @@ export default function AttendancePage() {
         {/* Not Present Summary */}
         <Card className="transition-all hover:shadow-md">
           <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <CircleX className="w-5 h-5 text-red-600" />
-                  Not Present
-                </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Employees not marked present today
-                </p>
-              </div>
-              <DiffChip
-                value={
-                  (stats?.notPresentSummary?.absentDiff ?? 0) +
-                  (stats?.notPresentSummary?.incompleteHoursDiff ?? 0)
-                }
-              />
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-red-600" />
+              Not Present Summary
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="space-y-4">
-                <div className="h-10 w-32 bg-gray-200 rounded animate-pulse" />
+              <div className="grid grid-cols-5 divide-x text-center mt-4">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-11 bg-gray-100 rounded animate-pulse" />
+                  <div key={i} className="animate-pulse">
+                    <div className="h-6 bg-gray-200 rounded mb-2"></div>
+                    <div className="h-3 bg-gray-100 rounded mb-1"></div>
+                    <div className="h-3 bg-gray-100 rounded"></div>
+                  </div>
                 ))}
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-extrabold text-red-600 leading-none">
-                    {stats?.notPresentSummary?.absent ?? "-"}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    fully absent (no punch)
-                  </span>
+              <div className="grid grid-cols-5 divide-x text-center mt-4">
+                <div>
+                  <p className="text-xl font-bold text-amber-600">
+                    {stats?.notPresentSummary?.incompleteHours ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Incomplete hours</p>
+                  <p className="text-xs text-amber-600">
+                    {formatDiff(stats?.notPresentSummary?.incompleteHoursDiff ?? 0)}
+                  </p>
                 </div>
-                <div className="space-y-2 pt-4 border-t">
-                  <SummaryRow
-                    icon={<UserX className="w-4 h-4 text-red-600" />}
-                    label="Fully absent"
-                    description="No clock-in or clock-out recorded"
-                    value={stats?.notPresentSummary?.absent}
-                    valueClass="text-red-600"
-                  />
-                  <SummaryRow
-                    icon={<Hourglass className="w-4 h-4 text-amber-600" />}
-                    label="Worked fewer hours"
-                    description="Punched in but not enough hours"
-                    value={stats?.notPresentSummary?.incompleteHours}
-                    valueClass="text-amber-600"
-                  />
-                  <SummaryRow
-                    icon={<Clock4 className="w-4 h-4 text-orange-500" />}
-                    label="No clock-in"
-                    description="Clock-out recorded, check-in missing"
-                    value={stats?.notPresentSummary?.noClockIn}
-                    valueClass="text-orange-600"
-                  />
-                  <SummaryRow
-                    icon={<Clock4 className="w-4 h-4 text-orange-500" />}
-                    label="No clock-out"
-                    description="Clock-in recorded, check-out missing"
-                    value={stats?.notPresentSummary?.noClockOut}
-                    valueClass="text-orange-600"
-                  />
-                  <SummaryRow
-                    icon={<Flag className="w-4 h-4 text-purple-600" />}
-                    label="Needs review"
-                    description="Marked invalid or flagged today"
-                    value={stats?.notPresentSummary?.invalid}
-                    valueClass="text-purple-600"
-                  />
+                <div>
+                  <p className="text-xl font-bold text-red-600">
+                    {stats?.notPresentSummary?.absent ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Absent (no punch)</p>
+                  <p className="text-xs text-green-600">
+                    {formatDiff(stats?.notPresentSummary?.absentDiff ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-orange-600">
+                    {stats?.notPresentSummary?.noClockIn ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">No clock-in</p>
+                  <p className="text-xs text-orange-500">
+                    {formatDiff(stats?.notPresentSummary?.noClockInDiff ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-orange-600">
+                    {stats?.notPresentSummary?.noClockOut ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">No clock-out</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDiff(stats?.notPresentSummary?.noClockOutDiff ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-purple-600">
+                    {stats?.notPresentSummary?.invalid ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Invalid</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDiff(stats?.notPresentSummary?.invalidDiff ?? 0)}
+                  </p>
                 </div>
               </div>
             )}

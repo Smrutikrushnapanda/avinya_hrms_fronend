@@ -173,8 +173,7 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
     userName: "",
     email: "",
     password: "",
-    firstName: "",
-    lastName: "",
+    fullName: "",
     roleId: "",
   });
   const [userErrors, setUserErrors] = useState<Record<string, string>>({});
@@ -772,8 +771,7 @@ const loadOrganization = async () => {
     userName: "",
     email: "",
     password: "",
-    firstName: "",
-    lastName: "",
+    fullName: "",
     roleId: userRoleOptions[0]?.id || "",
   };
 
@@ -781,9 +779,10 @@ const loadOrganization = async () => {
     const errors: Record<string, string> = {};
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+    const fullNameParts = userForm.fullName.trim().split(/\s+/).filter(Boolean);
+
     if (!userForm.userName.trim()) errors.userName = "Username is required";
-    if (!userForm.firstName.trim()) errors.firstName = "First name is required";
-    if (!userForm.lastName.trim()) errors.lastName = "Last name is required";
+    if (fullNameParts.length < 2) errors.fullName = "Enter first and last name";
     if (!userForm.email.trim()) errors.email = "Email is required";
     else if (!emailRegex.test(userForm.email.trim()))
       errors.email = "Enter a valid email address";
@@ -809,8 +808,8 @@ const loadOrganization = async () => {
     } = {
       userName: userForm.userName.trim(),
       email: userForm.email.trim(),
-      firstName: userForm.firstName.trim(),
-      lastName: userForm.lastName.trim(),
+      firstName: fullNameParts[0] || "",
+      lastName: fullNameParts.slice(1).join(" ") || fullNameParts[0] || "",
       roleIds: [userForm.roleId],
     };
 
@@ -1640,8 +1639,7 @@ const loadOrganization = async () => {
                             userName: user.userName || "",
                             email: user.email || "",
                             password: "",
-                            firstName: user.firstName || "",
-                            lastName: user.lastName || "",
+                            fullName: [user.firstName, user.lastName].filter(Boolean).join(" "),
                             roleId: user.roles?.[0]?.id || "",
                           });
                           setUserErrors({});
@@ -1998,17 +1996,10 @@ const loadOrganization = async () => {
             <DialogTitle>{editingUser ? "Edit" : "Add"} User</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>First Name *</Label>
-                <Input value={userForm.firstName} onChange={(e) => { setUserForm({ ...userForm, firstName: e.target.value }); setUserErrors((p) => ({ ...p, firstName: "" })); }} />
-                {userErrors.firstName && <p className="text-sm text-red-500">{userErrors.firstName}</p>}
-              </div>
-              <div>
-                <Label>Last Name *</Label>
-                <Input value={userForm.lastName} onChange={(e) => { setUserForm({ ...userForm, lastName: e.target.value }); setUserErrors((p) => ({ ...p, lastName: "" })); }} />
-                {userErrors.lastName && <p className="text-sm text-red-500">{userErrors.lastName}</p>}
-              </div>
+            <div>
+              <Label>Full Name *</Label>
+              <Input placeholder="e.g. John Smith" value={userForm.fullName} onChange={(e) => { setUserForm({ ...userForm, fullName: e.target.value }); setUserErrors((p) => ({ ...p, fullName: "" })); }} />
+              {userErrors.fullName && <p className="text-sm text-red-500">{userErrors.fullName}</p>}
             </div>
             <div>
               <Label>Username *</Label>
