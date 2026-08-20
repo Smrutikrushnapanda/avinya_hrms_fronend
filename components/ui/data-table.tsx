@@ -43,6 +43,10 @@ interface DataTableProps<TData, TValue> {
     search: string;
     sorting: any;
   }) => void;
+  /** Columns to hide by default, e.g. `{ device: false }` */
+  initialColumnVisibility?: VisibilityState;
+  /** Friendly names for the Columns toggle menu, keyed by column id */
+  columnLabels?: Record<string, string>;
 }
 
 export function DataTable<TData, TValue>({
@@ -51,10 +55,12 @@ export function DataTable<TData, TValue>({
   pageCount,
   state,
   setState,
+  initialColumnVisibility = {},
+  columnLabels = {},
 }: DataTableProps<TData, TValue>) {
   const [inputValue, setInputValue] = React.useState(state.search);
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+    React.useState<VisibilityState>(initialColumnVisibility);
 
   // Debounce search
   React.useEffect(() => {
@@ -132,7 +138,7 @@ export function DataTable<TData, TValue>({
                   checked={column.getIsVisible()}
                   onCheckedChange={(value) => column.toggleVisibility(!!value)}
                 >
-                  {column.id}
+                  {columnLabels[column.id] ?? column.id}
                 </DropdownMenuCheckboxItem>
               ))}
           </DropdownMenuContent>

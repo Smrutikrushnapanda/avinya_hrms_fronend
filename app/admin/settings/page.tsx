@@ -14,8 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Building2, Calendar, Users, Mail, ClipboardList, CheckCircle2, XCircle, Clock3, Eye, EyeOff } from "lucide-react";
-import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest } from "@/app/api/api";
+import { Plus, Pencil, Trash2, Building2, Calendar, Users, Mail, ClipboardList, CheckCircle2, XCircle, Clock3, Eye, EyeOff, UserCog } from "lucide-react";
+import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest, getUsers, createUser, updateUser, deleteUser } from "@/app/api/api";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AttendanceSettingsPage from "../attendance/settings/page";
 import { TourProvider, useTour, type StepType } from "@reactour/tour";
 
@@ -44,6 +45,17 @@ interface Role {
   roleName: string;
   description?: string;
   type?: string;
+}
+
+interface OrgUser {
+  id: string;
+  userName: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  skipOtp: boolean;
+  isActive: boolean;
+  roles?: { id: string; roleName: string }[];
 }
 
 interface Organization {
@@ -154,6 +166,20 @@ const [orgForm, setOrgForm] = useState({
 const [orgErrors, setOrgErrors] = useState<Record<string, string>>({});
 const [isOrgEditing, setIsOrgEditing] = useState(false);
   const [roleForm, setRoleForm] = useState({ roleName: "", description: "" });
+  const [users, setUsers] = useState<OrgUser[]>([]);
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<OrgUser | null>(null);
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [userForm, setUserForm] = useState({
+    userName: "",
+    email: "",
+    password: "",
+    firstName: "",
+    lastName: "",
+    roleId: "",
+    skipOtp: false,
+  });
+  const [userErrors, setUserErrors] = useState<Record<string, string>>({});
   const [resignationRequests, setResignationRequests] = useState<ResignationRequest[]>([]);
   const [resignationStatusFilter, setResignationStatusFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "REJECTED">("ALL");
   const [isCredentialsDialogOpen, setIsCredentialsDialogOpen] = useState(false);
@@ -212,6 +238,7 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
       loadDesignations();
       loadHolidays();
       loadRoles();
+      loadUsers();
       loadOrganization();
       loadResignationRequests(resignationStatusFilter);
     }
@@ -300,6 +327,47 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
       setRoles(res.data || []);
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      interface UserPayload {
+        id: string;
+        userName: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        skipOtp?: boolean;
+        isActive?: boolean;
+        userRoles?: { role?: { id: string; roleName: string } }[];
+      }
+      const res = await getUsers({
+        limit: 1000,
+        excludeEmployees: true,
+        sortField: "user_name",
+        sortOrder: "ASC",
+      });
+      const rows: OrgUser[] = ((res.data?.data || []) as UserPayload[]).map(
+        (user) => ({
+          id: user.id,
+          userName: user.userName,
+          email: user.email,
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
+          skipOtp: Boolean(user.skipOtp),
+          isActive: Boolean(user.isActive),
+          roles: (user.userRoles || [])
+            .map((ur) => ur.role)
+            .filter(
+              (role): role is { id: string; roleName: string } =>
+                Boolean(role),
+            ),
+        }),
+      );
+      setUsers(rows);
+    } catch (error) {
+      toast.error("Failed to load users");
     }
   };
 
@@ -670,6 +738,106 @@ const loadOrganization = async () => {
     }
   };
 
+  const userRoleOptions = useMemo(
+    () =>
+      roles.filter(
+        (role) => role.roleName !== "EMPLOYEE" && role.roleName !== "SUPERADMIN",
+      ),
+    [roles],
+  );
+
+  const emptyUserForm = {
+    userName: "",
+    email: "",
+    password: "",
+    firstName: "",
+    lastName: "",
+    roleId: userRoleOptions[0]?.id || "",
+    skipOtp: false,
+  };
+
+  const handleSaveUser = async () => {
+    const errors: Record<string, string> = {};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!userForm.userName.trim()) errors.userName = "Username is required";
+    if (!userForm.firstName.trim()) errors.firstName = "First name is required";
+    if (!userForm.lastName.trim()) errors.lastName = "Last name is required";
+    if (!userForm.email.trim()) errors.email = "Email is required";
+    else if (!emailRegex.test(userForm.email.trim()))
+      errors.email = "Enter a valid email address";
+    if (!userForm.roleId) errors.roleId = "Role is required";
+    if (userForm.password && userForm.password.length < 8)
+      errors.password = "Password must be at least 8 characters";
+    if (!editingUser && !userForm.password)
+      errors.password = "Password is required";
+
+    setUserErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error("Please fix the form errors");
+      return;
+    }
+
+    const basePayload: {
+      userName: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      roleIds: string[];
+      skipOtp: boolean;
+      password?: string;
+    } = {
+      userName: userForm.userName.trim(),
+      email: userForm.email.trim(),
+      firstName: userForm.firstName.trim(),
+      lastName: userForm.lastName.trim(),
+      roleIds: [userForm.roleId],
+      skipOtp: userForm.skipOtp,
+    };
+
+    setIsSavingUser(true);
+    try {
+      if (editingUser) {
+        if (userForm.password) basePayload.password = userForm.password;
+        await updateUser(editingUser.id, basePayload);
+        toast.success("User updated");
+      } else {
+        await createUser({
+          ...basePayload,
+          password: userForm.password,
+          organizationId,
+        });
+        toast.success("User created");
+      }
+      setIsUserDialogOpen(false);
+      setEditingUser(null);
+      setUserForm(emptyUserForm);
+      setUserErrors({});
+      loadUsers();
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response
+          ?.data?.message || "Failed to save user";
+      toast.error(message);
+    } finally {
+      setIsSavingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: OrgUser) => {
+    if (!confirm(`Are you sure you want to delete user "${user.userName}"?`)) return;
+    try {
+      await deleteUser(user.id);
+      toast.success("User deleted");
+      loadUsers();
+    } catch (error) {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response
+          ?.data?.message || "Failed to delete user";
+      toast.error(message);
+    }
+  };
+
   const openResignationReviewDialog = (request: ResignationRequest, status: "APPROVED" | "REJECTED") => {
     setReviewingResignation(request);
     setResignationReviewForm({
@@ -735,6 +903,7 @@ const loadOrganization = async () => {
           <TabsTrigger value="designations">Designations</TabsTrigger>
           <TabsTrigger value="holidays">Holidays</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
         </TabsList>
 
         <TabsContent value="organization">
@@ -1400,6 +1569,82 @@ const loadOrganization = async () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="users">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCog className="w-5 h-5" />
+                  Users
+                </CardTitle>
+                <CardDescription>Manage organization users (non-employee)</CardDescription>
+              </div>
+              <Button onClick={() => { setEditingUser(null); setUserForm(emptyUserForm); setUserErrors({}); setIsUserDialogOpen(true); }}>
+                <Plus className="w-4 h-4 mr-2" /> Add User
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sl#</TableHead>
+                    <TableHead>Username</TableHead>
+                    <TableHead>Full Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Skip OTP</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                        No users found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {users.map((user, index) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
+                      <TableCell className="font-medium">{user.userName}</TableCell>
+                      <TableCell>
+                        {[user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "—"}
+                      </TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        {user.roles?.map((role) => role.roleName).join(", ") || "—"}
+                      </TableCell>
+                      <TableCell>{user.skipOtp ? "Yes" : "No"}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          setEditingUser(user);
+                          setUserForm({
+                            userName: user.userName || "",
+                            email: user.email || "",
+                            password: "",
+                            firstName: user.firstName || "",
+                            lastName: user.lastName || "",
+                            roleId: user.roles?.[0]?.id || "",
+                            skipOtp: Boolean(user.skipOtp),
+                          });
+                          setUserErrors({});
+                          setIsUserDialogOpen(true);
+                        }}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
 
       <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
@@ -1727,6 +1972,73 @@ const loadOrganization = async () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRoleDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveRole}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingUser ? "Edit" : "Add"} User</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>First Name *</Label>
+                <Input value={userForm.firstName} onChange={(e) => { setUserForm({ ...userForm, firstName: e.target.value }); setUserErrors((p) => ({ ...p, firstName: "" })); }} />
+                {userErrors.firstName && <p className="text-sm text-red-500">{userErrors.firstName}</p>}
+              </div>
+              <div>
+                <Label>Last Name *</Label>
+                <Input value={userForm.lastName} onChange={(e) => { setUserForm({ ...userForm, lastName: e.target.value }); setUserErrors((p) => ({ ...p, lastName: "" })); }} />
+                {userErrors.lastName && <p className="text-sm text-red-500">{userErrors.lastName}</p>}
+              </div>
+            </div>
+            <div>
+              <Label>Username *</Label>
+              <Input value={userForm.userName} onChange={(e) => { setUserForm({ ...userForm, userName: e.target.value }); setUserErrors((p) => ({ ...p, userName: "" })); }} />
+              {userErrors.userName && <p className="text-sm text-red-500">{userErrors.userName}</p>}
+            </div>
+            <div>
+              <Label>Email *</Label>
+              <Input type="email" value={userForm.email} onChange={(e) => { setUserForm({ ...userForm, email: e.target.value }); setUserErrors((p) => ({ ...p, email: "" })); }} />
+              {userErrors.email && <p className="text-sm text-red-500">{userErrors.email}</p>}
+            </div>
+            <div>
+              <Label>Password {editingUser ? "(leave blank to keep current)" : "*"}</Label>
+              <Input type="password" value={userForm.password} onChange={(e) => { setUserForm({ ...userForm, password: e.target.value }); setUserErrors((p) => ({ ...p, password: "" })); }} />
+              {userErrors.password && <p className="text-sm text-red-500">{userErrors.password}</p>}
+            </div>
+            <div>
+              <Label>Role *</Label>
+              <Select value={userForm.roleId} onValueChange={(value) => { setUserForm({ ...userForm, roleId: value }); setUserErrors((p) => ({ ...p, roleId: "" })); }}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {userRoleOptions.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>{role.roleName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {userErrors.roleId && <p className="text-sm text-red-500">{userErrors.roleId}</p>}
+              {userRoleOptions.length === 0 && (
+                <p className="text-sm text-muted-foreground">No assignable roles found. Create a role first.</p>
+              )}
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label>Skip OTP</Label>
+                <p className="text-xs text-muted-foreground">Allow this user to sign in without an OTP verification step.</p>
+              </div>
+              <Switch checked={userForm.skipOtp} onCheckedChange={(value) => setUserForm({ ...userForm, skipOtp: value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUserDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveUser} loading={isSavingUser}>
+              {editingUser ? "Save Changes" : "Create User"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
