@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Building2, Calendar, Users, Mail, ClipboardList, CheckCircle2, XCircle, Clock3, Eye, EyeOff, UserCog } from "lucide-react";
-import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest, getUsers, createUser, updateUser, deleteUser } from "@/app/api/api";
+import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest, getUsers, createUser, updateUser, deleteUser, getEmployees } from "@/app/api/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AttendanceSettingsPage from "../attendance/settings/page";
 import { TourProvider, useTour, type StepType } from "@reactour/tour";
@@ -53,7 +53,6 @@ interface OrgUser {
   email: string;
   firstName: string;
   lastName: string;
-  skipOtp: boolean;
   isActive: boolean;
   roles?: { id: string; roleName: string }[];
 }
@@ -177,7 +176,6 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
     firstName: "",
     lastName: "",
     roleId: "",
-    skipOtp: false,
   });
   const [userErrors, setUserErrors] = useState<Record<string, string>>({});
   const [resignationRequests, setResignationRequests] = useState<ResignationRequest[]>([]);
@@ -338,28 +336,49 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
         email: string;
         firstName: string;
         lastName: string;
-        skipOtp?: boolean;
         isActive?: boolean;
         isEmployee?: boolean;
         userRoles?: { role?: { id: string; roleName: string } }[];
       }
-      const res = await getUsers({
-        limit: 1000,
-        excludeEmployees: true,
-        sortField: "user_name",
-        sortOrder: "ASC",
-      });
-      // Hard-filter employee-linked accounts client-side as well — this page
-      // manages ONLY independent organization login users (Admin, HR, etc.).
-      const rows: OrgUser[] = ((res.data?.data || []) as UserPayload[])
-        .filter((user) => !user.isEmployee)
+      interface EmployeePayload {
+        userId?: string;
+        user?: { id?: string };
+      }
+      const [usersRes, employeesRes] = await Promise.all([
+        getUsers({
+          limit: 1000,
+          excludeEmployees: true,
+          sortField: "user_name",
+          sortOrder: "ASC",
+        }),
+        getEmployees(organizationId),
+      ]);
+
+      // Collect every userId that is backed by an employee record so these
+      // login-account rows are excluded even if the backend response does not
+      // carry an isEmployee flag. Employees are managed from the Employees
+      // module and must NEVER surface on this page.
+      const employeeRecords: EmployeePayload[] = Array.isArray(employeesRes.data)
+        ? employeesRes.data
+        : employeesRes.data?.data || [];
+      const employeeUserIds = new Set(
+        employeeRecords.flatMap((emp) =>
+          [emp?.userId, emp?.user?.id].filter(
+            (id): id is string => Boolean(id),
+          ),
+        ),
+      );
+
+      const rows: OrgUser[] = ((usersRes.data?.data || []) as UserPayload[])
+        .filter(
+          (user) => !user.isEmployee && !employeeUserIds.has(user.id),
+        )
         .map((user) => ({
           id: user.id,
           userName: user.userName,
           email: user.email,
           firstName: user.firstName || "",
           lastName: user.lastName || "",
-          skipOtp: Boolean(user.skipOtp),
           isActive: Boolean(user.isActive),
           roles: (user.userRoles || [])
             .map((ur) => ur.role)
@@ -756,7 +775,6 @@ const loadOrganization = async () => {
     firstName: "",
     lastName: "",
     roleId: userRoleOptions[0]?.id || "",
-    skipOtp: false,
   };
 
   const handleSaveUser = async () => {
@@ -787,7 +805,6 @@ const loadOrganization = async () => {
       firstName: string;
       lastName: string;
       roleIds: string[];
-      skipOtp: boolean;
       password?: string;
     } = {
       userName: userForm.userName.trim(),
@@ -795,7 +812,6 @@ const loadOrganization = async () => {
       firstName: userForm.firstName.trim(),
       lastName: userForm.lastName.trim(),
       roleIds: [userForm.roleId],
-      skipOtp: userForm.skipOtp,
     };
 
     setIsSavingUser(true);
@@ -1595,7 +1611,6 @@ const loadOrganization = async () => {
                     <TableHead>Full Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Skip OTP</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1618,7 +1633,6 @@ const loadOrganization = async () => {
                       <TableCell>
                         {user.roles?.map((role) => role.roleName).join(", ") || "—"}
                       </TableCell>
-                      <TableCell>{user.skipOtp ? "Yes" : "No"}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => {
                           setEditingUser(user);
@@ -1629,7 +1643,6 @@ const loadOrganization = async () => {
                             firstName: user.firstName || "",
                             lastName: user.lastName || "",
                             roleId: user.roles?.[0]?.id || "",
-                            skipOtp: Boolean(user.skipOtp),
                           });
                           setUserErrors({});
                           setIsUserDialogOpen(true);
@@ -2028,13 +2041,6 @@ const loadOrganization = async () => {
               {userRoleOptions.length === 0 && (
                 <p className="text-sm text-muted-foreground">No assignable roles found. Create a role first.</p>
               )}
-            </div>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <Label>Skip OTP</Label>
-                <p className="text-xs text-muted-foreground">Allow this user to sign in without an OTP verification step.</p>
-              </div>
-              <Switch checked={userForm.skipOtp} onCheckedChange={(value) => setUserForm({ ...userForm, skipOtp: value })} />
             </div>
           </div>
           <DialogFooter>
