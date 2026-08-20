@@ -809,9 +809,16 @@ export default function MobileDashboardPage() {
       if (settings.enableWifiValidation) {
         toast.warning("WiFi validation isn't supported from the web.");
       }
-      if (settings.enableGpsValidation && !activeCoords) {
-        activeCoords = await requestGeolocation();
-        if (!activeCoords) {
+      if (settings.enableGpsValidation) {
+        // Always re-request a FRESH GPS fix at submit time instead of reusing
+        // coordsRef (which may be minutes old or from an earlier session fix)
+        // — stale coordinates make the backend flag a valid office punch as
+        // "GPS outside allowed office radius". Only fall back to the previous
+        // fix if the fresh request fails.
+        const freshCoords = await requestGeolocation();
+        if (freshCoords) {
+          activeCoords = freshCoords;
+        } else if (!activeCoords) {
           toast.error("Location permission is required.");
           return;
         }
