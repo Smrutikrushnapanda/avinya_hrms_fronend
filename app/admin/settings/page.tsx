@@ -340,6 +340,7 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
         lastName: string;
         skipOtp?: boolean;
         isActive?: boolean;
+        isEmployee?: boolean;
         userRoles?: { role?: { id: string; roleName: string } }[];
       }
       const res = await getUsers({
@@ -348,8 +349,11 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
         sortField: "user_name",
         sortOrder: "ASC",
       });
-      const rows: OrgUser[] = ((res.data?.data || []) as UserPayload[]).map(
-        (user) => ({
+      // Hard-filter employee-linked accounts client-side as well — this page
+      // manages ONLY independent organization login users (Admin, HR, etc.).
+      const rows: OrgUser[] = ((res.data?.data || []) as UserPayload[])
+        .filter((user) => !user.isEmployee)
+        .map((user) => ({
           id: user.id,
           userName: user.userName,
           email: user.email,
@@ -363,8 +367,7 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
               (role): role is { id: string; roleName: string } =>
                 Boolean(role),
             ),
-        }),
-      );
+        }));
       setUsers(rows);
     } catch (error) {
       toast.error("Failed to load users");
