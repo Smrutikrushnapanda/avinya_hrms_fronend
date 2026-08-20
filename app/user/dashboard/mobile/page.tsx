@@ -42,6 +42,7 @@ import { useRouter } from "next/navigation";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
 import { useTheme } from "next-themes";
+import useUnreadMessages from "./components/useUnreadMessages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -255,6 +256,7 @@ function mapApiStatus(status: string): AttendanceStatus["status"] {
 
 export default function MobileDashboardPage() {
   const router = useRouter();
+  const unreadCount = useUnreadMessages();
   const { theme, setTheme } = useTheme();
   const isDarkTheme = theme === "dark";
 
@@ -965,7 +967,7 @@ export default function MobileDashboardPage() {
           </div>
         </div>
         
-        {/* Bell icon - just a visual placeholder (no sidebar toggle) */}
+        {/* Notification bell + PWA install */}
         <div className="flex items-center gap-3">
           {!isAppInstalled && (
             <button
@@ -976,10 +978,16 @@ export default function MobileDashboardPage() {
               <Download className="w-4 h-4" />
             </button>
           )}
-          <div className="relative p-2 bg-gray-100 dark:bg-zinc-800 rounded-full">
-            <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-blue-600 rounded-full border-2 border-white dark:border-zinc-900"></div>
+          <button
+            onClick={() => router.push("/user/dashboard/mobile/notifications")}
+            className="relative p-2 bg-gray-100 dark:bg-zinc-800 rounded-full active:scale-95 transition-transform"
+            aria-label="Notifications"
+          >
             <Bell className="w-5 h-5 text-gray-700 dark:text-zinc-300" />
-          </div>
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-blue-600 rounded-full border-2 border-white dark:border-zinc-900" />
+            )}
+          </button>
         </div>
       </div>
 

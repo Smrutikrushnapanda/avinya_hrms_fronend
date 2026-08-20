@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, KeyRound, Mail, ShieldCheck, UserRound, ArrowLeft, ChevronRight, Lock } from "lucide-react";
 import { toast } from "sonner";
-import { requestPasswordResetOtp, resetAdminCredentials } from "../api/api";
+import { requestPasswordResetOtp, resetPassword } from "../api/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 
@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
     const normalizedIdentifier = rawIdentifier.trim().toLowerCase();
 
     if (!normalizedIdentifier) {
-      toast.error("Enter admin email or user ID");
+      toast.error("Enter your registered email or user ID");
       return;
     }
 
@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
       await requestPasswordResetOtp({ identifier: normalizedIdentifier });
       setIdentifier(normalizedIdentifier);
       setStep("reset");
-      toast.success("OTP sent to registered admin email");
+      toast.success("OTP sent to your registered email");
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Could not send OTP");
     } finally {
@@ -81,13 +81,13 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      await resetAdminCredentials({
+      await resetPassword({
         identifier: identifier.trim().toLowerCase(),
         otp: otp.trim(),
         newUserName: newUserName.trim(),
         newPassword,
       });
-      toast.success("Admin credentials updated");
+      toast.success("Credentials updated");
       router.push("/signin");
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Could not reset credentials");
@@ -250,7 +250,7 @@ export default function ForgotPasswordPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Reset admin access
+                Reset account access
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Email OTP verification required
@@ -281,7 +281,7 @@ export default function ForgotPasswordPage() {
               >
                 <div className="space-y-2">
                   <label className="fp-form-label" htmlFor="identifier">
-                    Registered admin email or user ID
+                    Registered email or user ID
                   </label>
                   <div className="relative">
                     <input
@@ -289,7 +289,7 @@ export default function ForgotPasswordPage() {
                       type="text"
                       value={identifier}
                       onChange={(event) => setIdentifier(event.target.value)}
-                      placeholder="admin@company.com"
+                      placeholder="you@company.com"
                       className="fp-form-input pl-10"
                       autoComplete="username"
                     />
@@ -343,7 +343,7 @@ export default function ForgotPasswordPage() {
                       id="newUserName"
                       value={newUserName}
                       onChange={(event) => setNewUserName(event.target.value)}
-                      placeholder="admin_user"
+                      placeholder="your_username"
                       className="fp-form-input pl-10"
                       autoComplete="username"
                     />
@@ -392,7 +392,7 @@ export default function ForgotPasswordPage() {
 
                 <Button type="submit" className="fp-submit-btn" loading={loading}>
                   <ShieldCheck size={16} />
-                  Update admin credentials
+                  Update credentials
                 </Button>
               </motion.form>
             )}

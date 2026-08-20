@@ -44,6 +44,8 @@ function AnimatedHeaderBg() {
   );
 }
 
+export { AnimatedHeaderBg };
+
 export default function MobileTabHeader({
   title,
   backHref,
@@ -53,6 +55,7 @@ export default function MobileTabHeader({
   showBell = true,
   compact = false,
   className = "",
+  rightSlot,
 }: {
   title: string;
   backHref?: string;
@@ -62,6 +65,7 @@ export default function MobileTabHeader({
   showBell?: boolean;
   compact?: boolean;
   className?: string;
+  rightSlot?: React.ReactNode;
 }) {
   const router = useRouter();
   const { isBasicPlan } = usePlanAccess();
@@ -109,6 +113,9 @@ export default function MobileTabHeader({
           </div>
         )}
       </div>
+      {rightSlot ? (
+        <div className="relative z-10 flex items-center gap-2">{rightSlot}</div>
+      ) : null}
       {showBell && !isBasicPlan && (
         <div className="relative z-10 flex items-center gap-2">
           <PwaInstallButton className="rounded-md p-1 hover:bg-muted transition-colors text-foreground" />

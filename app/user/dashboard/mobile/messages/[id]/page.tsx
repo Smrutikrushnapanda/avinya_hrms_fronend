@@ -24,6 +24,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AnimatedHeaderBg } from "../../components/MobileTabHeader";
 import { getChatMessages, getProfile, sendChatMessage, markChatRead } from "@/app/api/api";
 import { createMessageSocket } from "@/lib/socket";
 import { ChatMessage, ProfileLike, ChatSocketPayload, PresencePayload } from "@/types/chat";
@@ -831,94 +832,97 @@ export default function MobileChatPage() {
 
       {/* ── STICKY HEADER (never scrolls) ── */}
       <div
-        className="sticky top-0 z-20 shrink-0 cursor-pointer bg-messages-primary-dark px-4 pb-3 pt-[max(32px,env(safe-area-inset-top))] flex items-center gap-2.5"
+        className="sticky top-0 z-20 shrink-0 cursor-pointer bg-card dark:bg-card border-b border-border px-4 pt-3 pb-3 shadow-sm flex items-center gap-2.5 relative overflow-hidden"
         onClick={() => setShowChatDetails(true)}
       >
-        <button
-          onClick={(event) => {
-            event.stopPropagation();
-            router.push("/user/dashboard/mobile/messages");
-          }}
-          className="p-1 rounded-md text-white hover:bg-white/10 hover:text-white transition-colors"
-          aria-label="Back"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-
-        <div className="w-10 h-10 rounded-full bg-white/20 overflow-hidden flex items-center justify-center flex-shrink-0">
-          {avatar ? (
-            <Image
-              src={resolveAttachmentUrl(avatar)}
-              alt={title}
-              width={40}
-              height={40}
-              className="w-full h-full object-cover"
-              unoptimized
-            />
-          ) : (
-            <span className="font-bold text-white text-base">{title.charAt(0).toUpperCase()}</span>
-          )}
-        </div>
-
-        <div className="ml-2.5 min-w-0 flex-1">
-          <p className="text-[15px] font-bold text-white truncate">{title}</p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            {chatType === "GROUP" ? (
-              <p className="text-[11px] text-slate-300">Group chat</p>
-            ) : (
-              <>
-                <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-green-500" : "bg-slate-300"}`} />
-                <p className="text-[11px] text-slate-300">{isOnline ? "Online" : "Offline"}</p>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          <Button
-            onClick={(event) => {
-              event.stopPropagation();
-              void startMeeting("create");
-            }}
-            loading={meetingLoading}
-            className="h-9 w-9 rounded-full bg-white/15 flex items-center justify-center text-white hover:bg-white/20 disabled:opacity-60"
-            title={meetingLoading ? "Preparing..." : "Create meeting"}
-            aria-label="Create meeting"
-            size="icon"
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
-          <Button
-            onClick={(event) => {
-              event.stopPropagation();
-              void startMeeting("join");
-            }}
-            disabled={!hasActiveMeeting}
-            loading={meetingLoading}
-            className="h-9 w-9 rounded-full bg-white/15 flex items-center justify-center text-white hover:bg-white/20 disabled:opacity-40"
-            title={
-              meetingLoading
-                ? "Preparing..."
-                : hasActiveMeeting
-                  ? "Join meeting"
-                  : "No meeting created yet"
-            }
-            aria-label="Join meeting"
-            size="icon"
-          >
-            <Video className="w-4 h-4" />
-          </Button>
+        <AnimatedHeaderBg />
+        <div className="relative z-10 flex items-center gap-2.5 flex-1 min-w-0">
           <button
             onClick={(event) => {
               event.stopPropagation();
-              setShowChatDetails(true);
+              router.push("/user/dashboard/mobile/messages");
             }}
-            className="h-9 w-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20"
-            title="Chat details"
-            aria-label="Chat details"
+            className="p-1 rounded-md text-foreground hover:bg-muted hover:text-foreground transition-colors"
+            aria-label="Back"
           >
-            <Info className="w-4.5 h-4.5 text-white" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
+
+          <div className="w-10 h-10 rounded-full bg-muted border border-border overflow-hidden flex items-center justify-center flex-shrink-0">
+            {avatar ? (
+              <Image
+                src={resolveAttachmentUrl(avatar)}
+                alt={title}
+                width={40}
+                height={40}
+                className="w-full h-full object-cover"
+                unoptimized
+              />
+            ) : (
+              <span className="font-bold text-foreground text-base">{title.charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+
+          <div className="ml-2.5 min-w-0 flex-1">
+            <p className="text-[15px] font-bold text-foreground truncate">{title}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {chatType === "GROUP" ? (
+                <p className="text-[11px] text-muted-foreground">Group chat</p>
+              ) : (
+                <>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? "bg-green-500" : "bg-muted-foreground/50"}`} />
+                  <p className="text-[11px] text-muted-foreground">{isOnline ? "Online" : "Offline"}</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button
+              onClick={(event) => {
+                event.stopPropagation();
+                void startMeeting("create");
+              }}
+              loading={meetingLoading}
+              className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-foreground hover:bg-muted/70 disabled:opacity-60"
+              title={meetingLoading ? "Preparing..." : "Create meeting"}
+              aria-label="Create meeting"
+              size="icon"
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+            <Button
+              onClick={(event) => {
+                event.stopPropagation();
+                void startMeeting("join");
+              }}
+              disabled={!hasActiveMeeting}
+              loading={meetingLoading}
+              className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-foreground hover:bg-muted/70 disabled:opacity-40"
+              title={
+                meetingLoading
+                  ? "Preparing..."
+                  : hasActiveMeeting
+                    ? "Join meeting"
+                    : "No meeting created yet"
+              }
+              aria-label="Join meeting"
+              size="icon"
+            >
+              <Video className="w-4 h-4" />
+            </Button>
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                setShowChatDetails(true);
+              }}
+              className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-foreground hover:bg-muted/70"
+              title="Chat details"
+              aria-label="Chat details"
+            >
+              <Info className="w-4.5 h-4.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -926,7 +930,7 @@ export default function MobileChatPage() {
       <div className="px-4 py-3 bg-card border-b border-border">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-background border border-border flex items-center justify-center shadow-sm">
-            <Video className="w-5 h-5 text-[#005F90]" />
+            <Video className="w-5 h-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground">Meet inside this chat</p>
@@ -937,7 +941,7 @@ export default function MobileChatPage() {
           <button
             onClick={() => void startMeeting("join")}
             disabled={meetingLoading}
-            className="h-9 px-3 rounded-full bg-messages-primary-dark text-white text-xs font-bold shadow-sm disabled:bg-muted"
+            className="h-9 px-3 rounded-full bg-primary text-primary-foreground text-xs font-bold shadow-sm disabled:bg-muted"
           >
             {meetingLoading ? "Loading..." : "Join"}
           </button>
@@ -1308,10 +1312,10 @@ export default function MobileChatPage() {
           {/* Slide-in Panel */}
           <div className="absolute right-0 top-0 bottom-0 w-full max-w-sm bg-card shadow-2xl flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/60">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-card relative overflow-hidden">
               <button 
                 onClick={() => setShowChatDetails(false)}
-                className="p-1 rounded-full hover:bg-muted"
+                className="p-1 rounded-full hover:bg-muted text-foreground"
               >
                 <X className="h-5 w-5 text-muted-foreground" />
               </button>
@@ -1325,7 +1329,7 @@ export default function MobileChatPage() {
                 <div className="flex flex-col items-center text-center">
                   <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center mb-3 overflow-hidden">
                     {chatType === "GROUP" ? (
-                      <Users className="h-10 w-10 text-[#005F90]" />
+                      <Users className="h-10 w-10 text-primary" />
                     ) : avatar ? (
                       <Image
                         src={resolveAttachmentUrl(avatar)}
@@ -1336,7 +1340,7 @@ export default function MobileChatPage() {
                         unoptimized
                       />
                     ) : (
-                      <span className="text-2xl font-semibold text-[#005F90]">
+                      <span className="text-2xl font-semibold text-primary">
                         {title[0]?.toUpperCase()}
                       </span>
                     )}

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Circle, Edit2, MessageCircle, Search, Users, X } from "lucide-react";
+import { Circle, Edit2, MessageCircle, Search, Users, X } from "lucide-react";
 import { getChatConversations, getEmployees, getProfile } from "@/app/api/api";
 import { createMessageSocket } from "@/lib/socket";
 import { Conversation, Employee, ProfileLike, PresencePayload, ChatSocketPayload } from "@/types/chat";
@@ -14,6 +14,7 @@ import {
   toConversation,
   normalizeEmployee,
 } from "@/lib/chat-utils";
+import MobileTabHeader from "../components/MobileTabHeader";
 
 export default function MessageList() {
   const router = useRouter();
@@ -239,21 +240,21 @@ export default function MessageList() {
   return (
     <div className="h-[100dvh] bg-background text-foreground flex flex-col overflow-hidden pb-16">
       <div className="sticky top-0 z-20 shrink-0 bg-background">
-        <div className="bg-[#005F90] pt-[max(32px,env(safe-area-inset-top))] pb-3 px-5 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <MobileTabHeader
+          title="Chats"
+          backHref="/user/dashboard/mobile"
+          showBackLabel
+          backLabel="Home"
+          rightSlot={
             <button
-              onClick={() => router.push("/user/dashboard/mobile")}
-              className="p-1 rounded-md text-white hover:bg-white/10 hover:text-white transition-colors"
-              aria-label="Back"
+              onClick={() => router.push("/user/dashboard/mobile/messages/new")}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-sm hover:bg-muted transition-colors"
+              aria-label="New chat"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <Edit2 className="w-5 h-5" />
             </button>
-            <h1 className="text-[22px] font-bold text-white">Chats</h1>
-          </div>
-          <button onClick={() => router.push("/user/dashboard/mobile/messages/new")} className="text-white">
-            <Edit2 className="w-5 h-5" />
-          </button>
-        </div>
+          }
+        />
 
         <div className="mx-4 -mt-3 bg-card border border-border rounded-xl px-3 py-2.5 flex items-center gap-2">
           <Search className="w-4.5 h-4.5 text-muted-foreground" />

@@ -116,7 +116,7 @@ export const login = (data: any) =>
   api.post("/auth/login", data, { timeout: LOGIN_API_TIMEOUT_MS });
 export const requestPasswordResetOtp = (data: { identifier: string }) =>
   api.post("/auth/forgot-password", data);
-export const resetAdminCredentials = (data: {
+export const resetPassword = (data: {
   identifier: string;
   otp: string;
   newUserName: string;

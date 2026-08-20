@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { createDirectChat, getEmployees, getProfile } from "@/app/api/api";
 import { Employee, ProfileLike } from "@/types/chat";
 import { normalizeEmployee } from "@/lib/chat-utils";
+import MobileTabHeader from "../../components/MobileTabHeader";
 
 export default function NewChatPage() {
   const router = useRouter();
@@ -85,48 +86,36 @@ export default function NewChatPage() {
      * `h-[100dvh] flex flex-col overflow-hidden` — full dynamic viewport,
      * flex column so header is locked and only the list scrolls.
      */
-    <div className="h-[100dvh] bg-[#f8fbff] dark:bg-gray-900 flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-background text-foreground flex flex-col overflow-hidden">
 
       {/* ── STICKY HEADER + SEARCH (never scrolls) ── */}
-      <div className="sticky top-0 z-20 shrink-0 bg-[#f8fbff] dark:bg-gray-900">
-        {/* Top bar */}
-        <div className="bg-[#005F90] pt-[max(32px,env(safe-area-inset-top))] pb-2 px-5 flex items-center gap-2.5 relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            <div className="absolute w-[200px] h-[200px] rounded-full bg-white/15 -top-[90px] -right-[30px]" />
-            <div className="absolute w-[140px] h-[140px] rounded-full bg-white/15 -bottom-[50px] -left-[10px]" />
-            {[{s:8,l:"10%",t:10,k:"particle-1",d:"5.2s"},{s:12,l:"28%",t:42,k:"particle-2",d:"6.4s"},{s:6,l:"46%",t:14,k:"particle-3",d:"5.6s"},{s:10,l:"64%",t:28,k:"particle-4",d:"7.0s"},{s:14,l:"82%",t:8,k:"particle-5",d:"7.6s"},{s:7,l:"20%",t:72,k:"particle-6",d:"6.2s"}].map((p,i)=>(
-              <div key={i} className="absolute rounded-full bg-white/30" style={{width:p.s,height:p.s,left:p.l,top:p.t,animation:`${p.k} ${p.d} ease-in-out infinite`,animationDelay:["0s","0.6s","1.2s","0.3s","0.9s","1.5s"][i]}} />
-            ))}
-          </div>
-          <button
-            onClick={() => router.back()}
-            className="p-1 rounded-md text-white hover:bg-white/10 hover:text-white transition-colors"
-            aria-label="Back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-lg font-bold text-white">New Chat</h1>
-        </div>
+      <div className="sticky top-0 z-20 shrink-0 bg-background">
+        <MobileTabHeader
+          title="New Chat"
+          backHref="/user/dashboard/mobile/messages"
+          showBackLabel
+          backLabel="Chats"
+        />
 
         {/* Search bar — pinned, never scrolls */}
-        <div className="mx-4 -mt-3 bg-white border border-slate-200 dark:bg-gray-900 dark:border-gray-700 rounded-xl px-3 py-2.5 flex items-center gap-2">
-          <Search className="w-4.5 h-4.5 text-slate-500" />
+        <div className="mx-4 -mt-3 bg-card border border-border rounded-xl px-3 py-2.5 flex items-center gap-2">
+          <Search className="w-4.5 h-4.5 text-muted-foreground" />
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search employees"
-            className="flex-1 text-[13px] text-slate-900 placeholder:text-slate-400 outline-none"
+            className="flex-1 text-[13px] text-foreground placeholder:text-muted-foreground outline-none bg-transparent"
           />
           {search.length > 0 ? (
             <button onClick={() => setSearch("")} aria-label="Clear">
-              <X className="w-4.5 h-4.5 text-slate-500" />
+              <X className="w-4.5 h-4.5 text-muted-foreground" />
             </button>
           ) : null}
         </div>
 
         {/* Section label */}
         {!loading && filtered.length > 0 ? (
-          <p className="px-5 pt-4 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+          <p className="px-5 pt-4 pb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             {search.trim() ? `${filtered.length} result${filtered.length !== 1 ? "s" : ""}` : `All employees · ${filtered.length}`}
           </p>
         ) : null}
@@ -142,8 +131,8 @@ export default function NewChatPage() {
       <div className="flex-1 min-h-0 overflow-y-auto pb-20">
         {loading ? (
           <div className="px-4 py-16 flex flex-col items-center gap-3">
-            <div className="w-8 h-8 rounded-full border-2 border-[#005F90] border-t-transparent animate-spin" />
-            <p className="text-sm text-slate-500">Loading employees…</p>
+            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <p className="text-sm text-muted-foreground">Loading employees…</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-16 flex flex-col items-center gap-2">
@@ -153,12 +142,12 @@ export default function NewChatPage() {
               viewBox="0 0 24 24"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
-              className="text-slate-300"
+              className="text-muted-foreground/50"
             >
               <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="1.5" />
               <path d="M21 21L16.65 16.65" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-muted-foreground">
               {search.trim() ? `No results for "${search}"` : "No employees found"}
             </p>
           </div>
@@ -178,17 +167,17 @@ export default function NewChatPage() {
               <button
                 key={employee.id}
                 onClick={() => void startChatWith(employee)}
-                className="w-full flex items-center px-4 py-3 border-b border-slate-100 dark:border-gray-700 text-left active:bg-slate-50 dark:active:bg-gray-800 transition-colors"
+                className="w-full flex items-center px-4 py-3 border-b border-border/60 text-left active:bg-muted transition-colors"
               >
                 {/* Avatar */}
-                <div className="w-[42px] h-[42px] rounded-full bg-[#E0F2FE] flex items-center justify-center mr-3 shrink-0">
-                  <span className="text-[#005F90] text-sm font-bold">{initials}</span>
+                <div className="w-[42px] h-[42px] rounded-full bg-primary/10 flex items-center justify-center mr-3 shrink-0">
+                  <span className="text-primary text-sm font-bold">{initials}</span>
                 </div>
 
                 {/* Name + designation */}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">{designation}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{designation}</p>
                 </div>
 
                 {/* Chevron hint */}
@@ -198,7 +187,7 @@ export default function NewChatPage() {
                   viewBox="0 0 24 24"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
-                  className="text-slate-300 shrink-0 ml-2"
+                  className="text-muted-foreground/40 shrink-0 ml-2"
                 >
                   <path
                     d="M9 18L15 12L9 6"

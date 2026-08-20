@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Send, ArrowLeft, Clock } from "lucide-react";
+import { Send, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { createTimeslip, getEmployeeByUserId, getProfile } from "@/app/api/api";
 import { format } from "date-fns";
+import MobileTabHeader from "../../components/MobileTabHeader";
 
 interface FormState {
   date: string;
@@ -144,26 +145,7 @@ export default function MobileAddTimeslipPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="bg-primary text-primary-foreground px-4 pt-3 pb-10 flex items-center gap-3 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute w-[200px] h-[200px] rounded-full bg-white/15 -top-[90px] -right-[30px]" />
-          <div className="absolute w-[140px] h-[140px] rounded-full bg-white/15 -bottom-[50px] -left-[10px]" />
-          {[{s:8,l:"10%",t:10,k:"particle-1",d:"5.2s"},{s:12,l:"28%",t:42,k:"particle-2",d:"6.4s"},{s:6,l:"46%",t:14,k:"particle-3",d:"5.6s"},{s:10,l:"64%",t:28,k:"particle-4",d:"7.0s"},{s:14,l:"82%",t:8,k:"particle-5",d:"7.6s"},{s:7,l:"20%",t:72,k:"particle-6",d:"6.2s"}].map((p,i)=>(
-            <div key={i} className="absolute rounded-full bg-white/30" style={{width:p.s,height:p.s,left:p.l,top:p.t,animation:`${p.k} ${p.d} ease-in-out infinite`,animationDelay:["0s","0.6s","1.2s","0.3s","0.9s","1.5s"][i]}} />
-          ))}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-primary-foreground hover:text-primary-foreground/90 hover:bg-white/10"
-          onClick={() => router.push("/user/dashboard/mobile/timeslip")}
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="bg-primary-foreground/20 rounded-full px-4 py-2">
-          <h2 className="text-xl font-bold">Time Slip</h2>
-        </div>
-      </div>
+      <MobileTabHeader title="Time Slip" backHref="/user/dashboard/mobile/timeslip" />
 
       <div className="px-5 -mt-6 z-10 pb-24">
         <div className="bg-card rounded-2xl p-6 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border border-border">
