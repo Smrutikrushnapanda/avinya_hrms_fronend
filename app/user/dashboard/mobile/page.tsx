@@ -136,6 +136,26 @@ async function reverseGeocodeCoordinates(
   latitude: number,
   longitude: number
 ): Promise<string | null> {
+  // Prefer OpenStreetMap Nominatim — it returns a full street-level address
+  // (e.g. "DLF Cybercity, Patia, Bhubaneswar, Odisha 751024, India") instead
+  // of just the city name ("Bhubaneswar").
+  try {
+    const osmRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+    );
+    if (osmRes.ok) {
+      const osmData = await osmRes.json();
+      const displayName =
+        typeof osmData?.display_name === "string"
+          ? osmData.display_name.trim()
+          : "";
+      if (displayName) return displayName;
+    }
+  } catch {
+    // Fall through to bigdatacloud below
+  }
+
+  // Fallback: bigdatacloud (city/region-level detail).
   try {
     const bdcRes = await fetch(
       `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
@@ -147,19 +167,12 @@ async function reverseGeocodeCoordinates(
         bdcData?.principalSubdivision,
         bdcData?.countryName,
       ].filter(Boolean);
-      if (parts.length > 0) return parts.join(", ");
+      const joined = parts.join(", ").trim();
+      if (joined) return joined;
     }
   } catch {}
-  try {
-    const osmRes = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
-    );
-    if (!osmRes.ok) return null;
-    const osmData = await osmRes.json();
-    return typeof osmData?.display_name === "string" ? osmData.display_name.trim() : null;
-  } catch {
-    return null;
-  }
+
+  return null;
 }
 
 type PunchCardPeriod = "morning" | "noon" | "afternoon" | "evening" | "night";

@@ -24,6 +24,7 @@ import { MobileEmptyState } from "../components/MobileEmptyState";
 
 interface AttendanceItem {
   date: string;
+  rawDate?: string;
   status: string;
   inTime: string;
   outTime: string;
@@ -37,9 +38,23 @@ const monthNames = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-function getBadgeProps(status: string, isSunday: boolean, isHoliday: boolean) {
+function getBadgeProps(
+  status: string,
+  isSunday: boolean,
+  isHoliday: boolean,
+  dateStr?: string,
+) {
   if (isHoliday) return { color: "var(--primary)", text: "Holiday" };
-  if (isSunday) return { color: "var(--primary)", text: "Sunday" };
+  if (isSunday) {
+    // Show the ACTUAL weekday instead of hardcoding "Sunday" — the org's
+    // weekly off could be any weekday (e.g. a night/split batch resting on
+    // Monday).
+    const day =
+      typeof dateStr === "string" && dateStr
+        ? new Date(dateStr).toLocaleDateString("en-US", { weekday: "long" })
+        : "";
+    return { color: "var(--primary)", text: day ? `Weekly Off (${day})` : "Weekly Off" };
+  }
   switch (status?.toLowerCase()) {
     case "present": return { color: "#10B981", text: "Present" };
     case "absent": return { color: "#EF4444", text: "Absent" };
@@ -125,6 +140,7 @@ export default function WebAttendancePage() {
           const isHoliday = status === "holiday";
           return {
             date: dateStr ? formatDisplayDate(dateStr) : "--",
+            rawDate: dateStr,
             status,
             inTime: record.inTime ?? "--",
             outTime: record.outTime ?? "--",
@@ -319,7 +335,7 @@ export default function WebAttendancePage() {
           ) : (
             <StaggerReveal className="space-y-3" staggerDelay={0.04}>
               {displayedItems.map((item, index) => {
-                const { color: badgeColor, text: badgeText } = getBadgeProps(item.status, item.isSunday, item.isHoliday);
+                const { color: badgeColor, text: badgeText } = getBadgeProps(item.status, item.isSunday, item.isHoliday, item.rawDate ?? item.date);
                 const { icon: Icon, color: iconColor, bg: iconBg } = getIconConfig(item.status, item.isSunday, item.isHoliday);
 
                 return (

@@ -119,10 +119,27 @@ const reverseGeocodeCache = new Map<string, string>();
 const isCoordinateLabel = (value?: string): boolean =>
   coordinateLabelPattern.test((value || "").trim());
 
+// Prefer OpenStreetMap Nominatim — it returns a full street-level address
+// (e.g. "DLF Cybercity, Patia, Bhubaneswar, Odisha 751024, India") instead
+// of just the city name ("Bhubaneswar").
 async function reverseGeocodeCoordinates(
   latitude: number,
   longitude: number
 ): Promise<string | null> {
+  try {
+    const osmRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+    );
+    if (osmRes.ok) {
+      const osmData = await osmRes.json();
+      const displayName =
+        typeof osmData?.display_name === "string" ? osmData.display_name.trim() : "";
+      if (displayName) return displayName;
+    }
+  } catch {
+    // Fall back to bigdatacloud below
+  }
+
   try {
     const bdcRes = await fetch(
       `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
@@ -134,25 +151,12 @@ async function reverseGeocodeCoordinates(
         bdcData?.principalSubdivision,
         bdcData?.countryName,
       ].filter(Boolean);
-      if (parts.length > 0) {
-        return parts.join(", ");
-      }
+      const joined = parts.join(", ").trim();
+      if (joined) return joined;
     }
-  } catch {
-    // Fallback below
-  }
+  } catch {}
 
-  try {
-    const osmRes = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
-    );
-    if (!osmRes.ok) return null;
-    const osmData = await osmRes.json();
-    const displayName = typeof osmData?.display_name === "string" ? osmData.display_name.trim() : "";
-    return displayName || null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 function ResolvedLocationText({
@@ -685,8 +689,8 @@ export default function AttendancePage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="grid grid-cols-3 divide-x text-center mt-4">
-                {[...Array(3)].map((_, i) => (
+              <div className="grid grid-cols-4 divide-x text-center mt-4">
+                {[...Array(4)].map((_, i) => (
                   <div key={i} className="animate-pulse">
                     <div className="h-6 bg-gray-200 rounded mb-2"></div>
                     <div className="h-3 bg-gray-100 rounded mb-1"></div>
@@ -695,7 +699,7 @@ export default function AttendancePage() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-3 divide-x text-center mt-4">
+              <div className="grid grid-cols-4 divide-x text-center mt-4">
                 <div>
                   <p className="text-xl font-bold text-green-600">
                     {stats?.presentSummary?.total_present ?? "-"}
@@ -703,6 +707,15 @@ export default function AttendancePage() {
                   <p className="text-xs text-muted-foreground">Total Present</p>
                   <p className="text-xs text-green-600">
                     {formatDiff(stats?.presentSummary?.total_presentDiff ?? 0)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-cyan-600">
+                    {stats?.presentSummary?.wfhPresent ?? "-"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Present (WFH)</p>
+                  <p className="text-xs text-cyan-600">
+                    {formatDiff(stats?.presentSummary?.wfhPresentDiff ?? 0)}
                   </p>
                 </div>
                 <div>
