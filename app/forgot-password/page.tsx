@@ -14,7 +14,6 @@ export default function ForgotPasswordPage() {
   const [step, setStep] = useState<"email" | "reset">("email");
   const [identifier, setIdentifier] = useState("");
   const [otp, setOtp] = useState("");
-  const [newUserName, setNewUserName] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,11 +63,6 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    if (newUserName.trim().length < 3) {
-      toast.error("User ID must be at least 3 characters");
-      return;
-    }
-
     if (newPassword.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
@@ -84,13 +78,13 @@ export default function ForgotPasswordPage() {
       await resetPassword({
         identifier: identifier.trim().toLowerCase(),
         otp: otp.trim(),
-        newUserName: newUserName.trim(),
+        newUserName: "",
         newPassword,
       });
-      toast.success("Credentials updated");
+      toast.success("Password updated successfully");
       router.push("/signin");
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Could not reset credentials");
+      toast.error(error?.response?.data?.message || "Could not reset password");
     } finally {
       setLoading(false);
     }
@@ -335,22 +329,6 @@ export default function ForgotPasswordPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="fp-form-label" htmlFor="newUserName">
-                    New user ID
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="newUserName"
-                      value={newUserName}
-                      onChange={(event) => setNewUserName(event.target.value)}
-                      placeholder="your_username"
-                      className="fp-form-input pl-10"
-                      autoComplete="username"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
                   <label className="fp-form-label" htmlFor="newPassword">
                     New password
                   </label>
@@ -392,7 +370,7 @@ export default function ForgotPasswordPage() {
 
                 <Button type="submit" className="fp-submit-btn" loading={loading}>
                   <ShieldCheck size={16} />
-                  Update credentials
+                  Reset password
                 </Button>
               </motion.form>
             )}
