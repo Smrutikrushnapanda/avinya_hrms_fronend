@@ -190,41 +190,43 @@ export default function AttendanceCalendar({
                 <DialogHeader>
                   <DialogTitle>{format(day, "PPP")}</DialogTitle>
                   <DialogDescription asChild>
-                    <div className="text-sm mt-2 space-y-1">
-                      {status ? (
+                    <div className="text-sm mt-2 space-y-2">
+                      {status === "holiday" ? (
                         <>
-                          <p>
-                            <strong>Status:</strong> {status}
-                          </p>
-                          {dayData?.inTime && (
-                            <p>
-                              <strong>In Time:</strong> {dayData.inTime}
-                            </p>
-                          )}
-                          {dayData?.outTime && (
-                            <p>
-                              <strong>Out Time:</strong> {dayData.outTime}
-                            </p>
-                          )}
-                          {status === "holiday" && (
-                            <p>
-                              <strong>Holiday Type:</strong>{" "}
-                              {dayData?.isOptional
-                                ? "Restricted Holiday (RH)"
-                                : "General Holiday (H)"}
-                            </p>
-                          )}
                           {dayData?.holidayName && (
-                            <p>
-                              <strong>Holiday Name:</strong>{" "}
+                            <p className="text-base font-bold" style={{ color: "#045faa" }}>
                               {dayData.holidayName}
                             </p>
                           )}
+                          <p className="italic text-muted-foreground">
+                            {dayData?.isOptional ? "(Restricted Holiday)" : "(Holiday)"}
+                          </p>
                         </>
+                      ) : status === "present" || status === "half-day" ? (
+                        <div className="rounded-xl bg-gray-50 dark:bg-zinc-800 p-3 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-white dark:bg-zinc-700 flex items-center justify-center shadow-sm shrink-0">
+                              <span className="text-green-500 text-base">↗</span>
+                            </div>
+                            <div>
+                              <p className="text-[11px] text-muted-foreground font-medium">Punch In</p>
+                              <p className="font-bold text-sm">{dayData?.inTime || "N/A"}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-white dark:bg-zinc-700 flex items-center justify-center shadow-sm shrink-0">
+                              <span className="text-red-500 text-base">↙</span>
+                            </div>
+                            <div>
+                              <p className="text-[11px] text-muted-foreground font-medium">Punch Out</p>
+                              <p className="font-bold text-sm">{dayData?.outTime || "N/A"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : status ? (
+                        <p><strong>Status:</strong> {status.charAt(0).toUpperCase() + status.slice(1)}</p>
                       ) : (
-                        <p className="text-muted-foreground">
-                          No data available.
-                        </p>
+                        <p className="text-muted-foreground">No data available.</p>
                       )}
                     </div>
                   </DialogDescription>

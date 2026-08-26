@@ -256,7 +256,7 @@ export default function MessageList() {
           }
         />
 
-        <div className="mx-4 -mt-3 bg-card border border-border rounded-xl px-3 py-2.5 flex items-center gap-2">
+        <div className="mx-4 mt-2 bg-card border border-border rounded-xl px-3 py-2.5 flex items-center gap-2">
           <Search className="w-4.5 h-4.5 text-muted-foreground" />
           <input
             value={search}

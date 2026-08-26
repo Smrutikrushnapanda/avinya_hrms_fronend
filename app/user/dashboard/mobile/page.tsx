@@ -731,7 +731,20 @@ const map: Record<string, { status: AttendanceStatus; inTime?: string; outTime?:
   }, [settings]);
 
   const mergedStatusByDate = useMemo(() => {
-    const merged = { ...holidayStatusByDate, ...statusByDate };
+    // Start with attendance records, then layer holiday metadata on top
+    // so holidayName/isOptional are never lost when both exist for a date.
+    const merged: Record<string, { status: AttendanceStatus; holidayName?: string; isOptional?: boolean; inTime?: string; outTime?: string }> = {};
+    for (const [key, rec] of Object.entries(statusByDate)) {
+      merged[key] = { ...rec };
+    }
+    for (const [key, hol] of Object.entries(holidayStatusByDate)) {
+      if (merged[key]) {
+        // Preserve attendance inTime/outTime but mark as holiday with its name
+        merged[key] = { ...merged[key], status: "holiday", holidayName: hol.holidayName, isOptional: hol.isOptional };
+      } else {
+        merged[key] = { ...hol };
+      }
+    }
     const startMonth = startOfMonth(currentMonth);
     const endMonth = endOfMonth(currentMonth);
     for (let d = startMonth; d <= endMonth; d = addDays(d, 1)) {
