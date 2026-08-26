@@ -15,14 +15,9 @@ import {
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useTheme } from "next-themes";
+import { getAttendanceSettings } from "@/app/api/api";
 
 interface AttendanceStatus {
   status:
@@ -46,34 +41,14 @@ interface AttendanceCalendarProps {
   statusByDate: Record<string, AttendanceStatus>;
 }
 
-function getDayCircleClass(
-  status: AttendanceStatus["status"] | undefined,
-  isCurrentDay: boolean
-): string {
-  const base =
-    "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold mx-auto relative transition-colors";
-  if (status === "present")
-    return cn(base, "bg-green-100 dark:bg-green-900/30 border-2 border-green-500 dark:border-green-600 text-green-800 dark:text-green-300");
-  if (status === "absent")
-    return cn(base, "bg-red-100 dark:bg-red-900/30 border-2 border-red-500 dark:border-red-600 text-red-800 dark:text-red-300");
-  if (status === "weekend")
-    return cn(base, "bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 dark:border-blue-600 text-blue-800 dark:text-blue-300");
-  if (status === "leave")
-    return cn(base, "bg-yellow-100 dark:bg-yellow-900/30 border-2 border-yellow-500 dark:border-yellow-600 text-yellow-800 dark:text-yellow-300");
-  if (status === "holiday")
-    return cn(base, "bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-400 dark:border-blue-600 text-blue-800 dark:text-blue-300");
-  if (status === "pending")
-    return cn(base, "bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400");
-  if (isCurrentDay)
-    return cn(base, "border-2 border-blue-500 dark:border-blue-600 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950");
-  return cn(base, "text-gray-700 dark:text-gray-300");
-}
-
 export default function AttendanceCalendar({
   currentMonth,
   setCurrentMonth,
   statusByDate,
 }: AttendanceCalendarProps) {
+  const { theme } = useTheme();
+  const isDarkMode = theme === "dark";
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
@@ -88,6 +63,24 @@ export default function AttendanceCalendar({
     }
     return days;
   }, [start, end]);
+
+  // Fetch org settings for weekend/off-day rules
+  const [workingDays, setWorkingDays] = useState<number[] | undefined>(undefined);
+  const [weekdayOffRules, setWeekdayOffRules] = useState<Record<string, number[]> | undefined>(undefined);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await getAttendanceSettings(new Date().getFullYear()); // orgId would come from context
+        const s = res.data;
+        setWorkingDays(s?.workingDays);
+        setWeekdayOffRules(s?.weekdayOffRules);
+      } catch {
+        // ignore
+      }
+    };
+    loadSettings();
+  }, []);
 
   return (
     <div className="select-none">
@@ -173,8 +166,7 @@ export default function AttendanceCalendar({
                       </span>
                     </div>
                   ) : (
-                    <div className={getDayCircleClass(status, isCurrentDay)}>
-                      {format(day, "d")}
+                    <div>
                       {status === "holiday" && (
                         <span className="absolute -top-1.5 -right-1 text-[8px] font-bold text-blue-600 bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-900 rounded px-0.5 leading-none">
                           {dayData?.isOptional ? "RH" : "H"}

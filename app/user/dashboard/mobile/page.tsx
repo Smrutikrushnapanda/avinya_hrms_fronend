@@ -41,6 +41,7 @@ import {
 import { useRouter } from "next/navigation";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
+import { mapApiStatus, isOrgOffDay, generateMarkedDates } from "@/lib/calendar-utils";
 import { useTheme } from "next-themes";
 import useUnreadMessages from "./components/useUnreadMessages";
 
@@ -718,6 +719,22 @@ export default function MobileDashboardPage() {
     return map;
   }, [holidays]);
 
+  const attendanceData = useMemo(() => {
+    return statusByDate || {};
+  }, [statusByDate]);
+
+  const markedDates = useMemo(() =>
+    generateMarkedDates(attendanceData, currentMonth.getMonth() + 1, currentMonth.getFullYear(), {
+      primary: isDarkMode ? "#3b82f6" : "#3b82f6",
+      surface: isDarkMode ? "#1e293b" : "#f8fafc",
+      text: isDarkMode ? "#f1f5f9" : "#1e293b",
+      onPrimary: "#ffffff",
+      grey: isDarkMode ? "#64748b" : "#94a3b8",
+      border: isDarkMode ? "#334155" : "#e2e8f0",
+    }, workingDays, weekdayOffRules),
+    [attendanceData, currentMonth, workingDays, weekdayOffRules, isDarkMode]
+  );
+
   const isOrgOffDay = useCallback((date: Date) => {
     const dow = date.getDay();
     const weekNum = Math.ceil(date.getDate() / 7);
@@ -1232,7 +1249,7 @@ export default function MobileDashboardPage() {
       <div className="px-4 mt-6">
         <h3 className="text-lg font-bold text-gray-900 dark:text-zinc-100 mb-3">Calendar</h3>
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800 p-1">
-          <AttendanceCalendar currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} statusByDate={mergedStatusByDate} />
+          <AttendanceCalendar currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} statusByDate={markedDates} />
         </div>
       </div>
 

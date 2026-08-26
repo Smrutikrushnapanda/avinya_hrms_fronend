@@ -5,7 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import axios from "axios";
 import { startOfMonth } from "date-fns";
-import { getProfile, getHolidays } from "@/app/api/api";
+import { getProfile, getHolidays, getAttendanceSettings } from "@/app/api/api";
+import { isOrgOffDay, generateMarkedDates } from "@/lib/calendar-utils";
 
 interface AttendanceRecord {
   date: string;
@@ -35,6 +36,8 @@ const DashboardCalendarSection = () => {
   );
   const [loading, setLoading] = useState(true);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [workingDays, setWorkingDays] = useState<number[] | undefined>(undefined);
+  const [weekdayOffRules, setWeekdayOffRules] = useState<Record<string, number[]> | undefined>(undefined);
 
   const userId = "08936291-d8f4-4429-ac51-2879ea34df43";
   const organizationId = "24facd21-265a-4edd-8fd1-bc69a036f755";
@@ -65,14 +68,14 @@ const DashboardCalendarSection = () => {
   }, [userId, organizationId, month, year]);
 
   // Fetch holidays from API
-  useEffect(() => {
+useEffect(() => {
     const fetchHolidays = async () => {
       try {
         const profileRes = await getProfile();
         const orgId = profileRes.data?.organizationId || organizationId;
         
         const holidaysRes = await getHolidays({ organizationId: orgId });
-        let holidaysData = holidaysRes.data;
+        const holidaysData = holidaysRes.data;
         
         if (holidaysData?.holidays) {
           setHolidays(holidaysData.holidays);
@@ -87,7 +90,22 @@ const DashboardCalendarSection = () => {
     fetchHolidays();
   }, [organizationId]);
 
-  // ✅ Transform to match AttendanceCalendar's props
+  // Fetch org attendance settings for weekend/off-day rules
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const settingsRes = await getAttendanceSettings(organizationId);
+        const s = settingsRes.data;
+        setWorkingDays(s?.workingDays);
+        setWeekdayOffRules(s?.weekdayOffRules);
+      } catch {
+        // ignore
+      }
+    };
+    fetchSettings();
+  }, [organizationId]);
+
+  // ✅ Transform to match AttendanceCalendar's props with React Native-style logic
   const statusByDate = useMemo(() => {
     const map: Record<
       string,
@@ -109,8 +127,60 @@ const DashboardCalendarSection = () => {
       };
     }
 
+    // Apply org off-day rules - mark weekends/off days in blue
+    const daysInMonth = new Date(year, month, 0).getDate();
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateObj = new Date(year, month - 1, day);
+      const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const off = isOrgOffDay(dateObj, workingDays, weekdayOffRules);
+
+      if (off && !map[dateKey]) {
+        map[dateKey] = { status: "weekend" };
+      } else if (off && map[dateKey]?.status !== "holiday") {
+        map[dateKey] = { status: "weekend" };
+      }
+    }
+
     return map;
-  }, [attendanceRecords]);
+  }, [attendanceRecords, workingDays, weekdayOffRules, month, year]);
+
+  // Generate marked dates using shared utility (same logic as React Native HomeCalendar)
+  interface AttendData {
+    [key: string]: {
+      status: string;
+      isSunday?: boolean;
+      isWeekend?: boolean;
+      isHoliday?: boolean;
+      holidayName?: string;
+      isOptional?: boolean;
+      inTime?: string;
+      outTime?: string;
+    };
+  }
+  const markedDates = useMemo(() => {
+    const attendanceData: AttendData = {};
+    for (const [key, value] of Object.entries(statusByDate)) {
+      attendanceData[key] = {
+        status: value.status,
+        isSunday: false,
+        isWeekend: value.status === "weekend",
+        isHoliday: value.status === "holiday",
+        holidayName: value.holidayName,
+        isOptional: false,
+        inTime: value.inTime,
+        outTime: value.outTime,
+      };
+    }
+
+    return generateMarkedDates(attendanceData, month, year, {
+      primary: "#3b82f6",
+      surface: "#f8fafc",
+      text: "#1e293b",
+      onPrimary: "#ffffff",
+      grey: "#94a3b8",
+      border: "#e2e8f0",
+    }, workingDays, weekdayOffRules);
+  }, [statusByDate, month, year, workingDays, weekdayOffRules]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
@@ -123,7 +193,7 @@ const DashboardCalendarSection = () => {
             <AttendanceCalendar
               currentMonth={currentMonth}
               setCurrentMonth={setCurrentMonth}
-              statusByDate={statusByDate}
+              statusByDate={markedDates}
             />
           )}
         </CardContent>
@@ -138,8 +208,8 @@ const DashboardCalendarSection = () => {
           {holidays.length > 0 ? (
             <ul className="space-y-2 text-sm">
               {holidays.slice(0, 5).map((holiday, index) => (
-                <li 
-                  key={holiday.id || index} 
+                <li
+                  key={holiday.id || index}
                   className={`border p-2 rounded ${holiday.isOptional ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}
                 >
                   <div className="flex justify-between items-center">
