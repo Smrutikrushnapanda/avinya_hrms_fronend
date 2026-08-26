@@ -60,11 +60,11 @@ const POST_TYPES = [
   { value: "event", label: "Event", color: "bg-orange-100 text-orange-800" },
 ];
 
-// Keep the upload comfortably under nginx's default client_max_body_size (1MB)
-// so posts images never hit a "413 Request Entity Too Large" (and under the
-// 10MB backend limit as well). We compress on the client with the native
-// Canvas API — no extra dependency.
-const MAX_IMAGE_SIZE_MB = 0.9; // target ~900KB to clear nginx + headroom
+// Keep uploads under the configured 2MB limit (and ideally under nginx's
+// default client_max_body_size of 1MB) so posts images never hit a
+// "413 Request Entity Too Large" (and always under the 2MB backend limit).
+// We compress on the client with the native Canvas API — no extra dependency.
+const MAX_IMAGE_SIZE_MB = 1.9; // target ~1.9MB, comfortably under the 2MB cap
 const MAX_IMAGE_DIMENSION = 1600; // longest side in px for posts
 
 /**
