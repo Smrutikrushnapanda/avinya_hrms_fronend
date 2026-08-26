@@ -240,19 +240,6 @@ const PUNCH_CARD_STAR_POSITIONS = [
   { top: "22px", left: "88%", size: 3, opacity: 0.7 },
 ];
 
-function mapApiStatus(status: string): AttendanceStatus["status"] {
-  switch (status?.toLowerCase()) {
-    case "present": return "present";
-    case "absent": return "absent";
-    case "half-day":
-    case "half_day": return "half-day";
-    case "holiday": return "holiday";
-    case "on-leave":
-    case "leave": return "leave";
-    default: return "pending";
-  }
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function MobileDashboardPage() {
