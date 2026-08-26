@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Building2, Calendar, Users, Mail, ClipboardList, CheckCircle2, XCircle, Clock3, Eye, EyeOff, UserCog } from "lucide-react";
-import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest, getUsers, createUser, updateUser, deleteUser, getEmployees } from "@/app/api/api";
+import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest, getUsers, createUser, updateUser, deleteUser, getEmployees, assignRole } from "@/app/api/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AttendanceSettingsPage from "../attendance/settings/page";
 import { TourProvider, useTour, type StepType } from "@reactour/tour";
@@ -56,6 +56,27 @@ interface OrgUser {
   isActive: boolean;
   roles?: { id: string; roleName: string }[];
 }
+
+type UserSavePayload = {
+  userName: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  password?: string;
+  roleIds?: string[];
+  organizationId?: string;
+};
+
+const isRoleIdsWhitelistError = (error: unknown) => {
+  const message = (error as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+  const messages = Array.isArray(message) ? message : [message];
+  return messages.some((item) => item === "property roleIds should not exist");
+};
+
+const withoutRoleIds = (payload: UserSavePayload) => {
+  const { roleIds, ...rest } = payload;
+  return rest;
+};
 
 interface Organization {
   id: string;
@@ -799,33 +820,43 @@ const loadOrganization = async () => {
       return;
     }
 
-    const basePayload: {
-      userName: string;
-      email: string;
-      firstName: string;
-      lastName: string;
-      roleIds: string[];
-      password?: string;
-    } = {
+    const basePayload: UserSavePayload = {
       userName: userForm.userName.trim(),
       email: userForm.email.trim(),
       firstName: userForm.firstName.trim(),
       lastName: userForm.lastName.trim(),
-      roleIds: [userForm.roleId],
     };
 
     setIsSavingUser(true);
     try {
       if (editingUser) {
+        const currentRoleId = editingUser.roles?.[0]?.id;
+        if (userForm.roleId !== currentRoleId) {
+          basePayload.roleIds = [userForm.roleId];
+        }
         if (userForm.password) basePayload.password = userForm.password;
-        await updateUser(editingUser.id, basePayload);
+        try {
+          await updateUser(editingUser.id, basePayload);
+        } catch (error) {
+          if (!basePayload.roleIds || !isRoleIdsWhitelistError(error)) throw error;
+          await updateUser(editingUser.id, withoutRoleIds(basePayload));
+          await assignRole({ userId: editingUser.id, roleIds: basePayload.roleIds });
+        }
         toast.success("User updated");
       } else {
-        await createUser({
+        const createPayload: UserSavePayload = {
           ...basePayload,
           password: userForm.password,
           organizationId,
-        });
+          roleIds: [userForm.roleId],
+        };
+        try {
+          await createUser(createPayload);
+        } catch (error) {
+          if (!isRoleIdsWhitelistError(error)) throw error;
+          const response = await createUser(withoutRoleIds(createPayload));
+          await assignRole({ userId: response.data.id, roleIds: createPayload.roleIds });
+        }
         toast.success("User created");
       }
       setIsUserDialogOpen(false);
