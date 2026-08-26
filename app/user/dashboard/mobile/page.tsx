@@ -1237,7 +1237,7 @@ const map: Record<string, { status: AttendanceStatus; inTime?: string; outTime?:
 <AttendanceCalendar
           currentMonth={currentMonth}
           setCurrentMonth={setCurrentMonth}
-          statusByDate={statusByDate}
+          statusByDate={mergedStatusByDate}
 />
         </div>
       </div>
