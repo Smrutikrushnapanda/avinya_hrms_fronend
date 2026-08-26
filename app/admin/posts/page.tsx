@@ -60,6 +60,87 @@ const POST_TYPES = [
   { value: "event", label: "Event", color: "bg-orange-100 text-orange-800" },
 ];
 
+// Keep the upload comfortably under nginx's default client_max_body_size (1MB)
+// so posts images never hit a "413 Request Entity Too Large" (and under the
+// 10MB backend limit as well). We compress on the client with the native
+// Canvas API — no extra dependency.
+const MAX_IMAGE_SIZE_MB = 0.9; // target ~900KB to clear nginx + headroom
+const MAX_IMAGE_DIMENSION = 1600; // longest side in px for posts
+
+/**
+ * Compresses an image file in the browser using a <canvas>.
+ * Returns a Blob that is <= MAX_IMAGE_SIZE_MB or the best-effort minimum
+ * if even the lowest quality still exceeds the target.
+ */
+function compressImage(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read image"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Invalid image file"));
+      img.onload = () => {
+        try {
+          const targetBytes = Math.floor(MAX_IMAGE_SIZE_MB * 1024 * 1024);
+
+          let { width, height } = img;
+          const scale = Math.min(
+            1,
+            MAX_IMAGE_DIMENSION / Math.max(width, height),
+          );
+          if (scale < 1) {
+            width = Math.max(1, Math.round(width * scale));
+            height = Math.max(1, Math.round(height * scale));
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Canvas not supported"));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Always re-encode as JPEG for posts — best compression ratio.
+          let quality = 0.85;
+          let blob: Blob | null = null;
+          const tryExport = (q: number): Promise<Blob> =>
+            new Promise((res, rej) =>
+              canvas.toBlob(
+                (b) => (b ? res(b) : rej(new Error("Compression failed"))),
+                "image/jpeg",
+                q,
+              ),
+            );
+
+          (async () => {
+            // Iterate: step quality down until the blob fits the target.
+            while (quality > 0.4) {
+              blob = await tryExport(quality);
+              if (blob.size <= targetBytes) break;
+              quality -= 0.1;
+            }
+            if (!blob) blob = await tryExport(0.5);
+
+            // Preserve the original type in the name so Cloudinary/DB keep sane ext.
+            const ext = file.type === "image/png" ? ".png" : ".jpg";
+            const compressed = new File([blob], `post-${Date.now()}${ext}`, {
+              type: "image/jpeg",
+            });
+            resolve(compressed);
+          })().catch(reject);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 interface Post {
   id: string;
   content: string;
@@ -142,24 +223,44 @@ export default function PostsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Guard: only accept images.
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (jpg, png, webp)");
+      e.target.value = "";
+      return;
+    }
+
     setImageUploading(true);
     try {
+      // Compress on the client so the file never trips the 1MB nginx limit
+      // (which returns a raw "413 Request Entity Too Large" HTML error).
+      const compressed = await compressImage(file);
       const formData = new FormData();
-      formData.append("file", file);
-      const res = await uploadFile(formData);
+      formData.append("file", compressed);
+      // 'public' is a query param on the backend (common.controller reads @Query).
+      const res = await uploadFile(formData, { public: "true" });
       const url = res.data?.url || res.data?.fileUrl;
       if (url) {
         setNewPostImage(url);
-        toast.success("Image uploaded successfully");
+        const savedMB = ((file.size - compressed.size) / (1024 * 1024)).toFixed(2);
+        const finalMB = (compressed.size / (1024 * 1024)).toFixed(2);
+        toast.success(
+          file.size > compressed.size
+            ? `Image uploaded (compressed ${finalMB}MB, saved ${savedMB}MB)`
+            : "Image uploaded successfully",
+        );
       }
     } catch (error: any) {
       if (error.response?.data?.message) {
         toast.error(error.response.data.message);
       } else {
-        toast.error("Failed to upload image");
+        toast.error(
+          error.message || "Failed to upload image. Please try a smaller image.",
+        );
       }
     } finally {
       setImageUploading(false);
+      e.target.value = ""; // allow re-selecting the same file later
     }
   };
 
