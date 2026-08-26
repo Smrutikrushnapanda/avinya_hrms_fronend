@@ -117,14 +117,23 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
 
   const activeTab = getActiveTab();
 
-  // Hide bottom tabs on chat detail page; user can toggle them back with a button
+  // Chat detail page (/messages/[id]) owns its own full-screen layout.
+  // The layout must render nothing extra — no tabs, no sheet, no spacer,
+  // no floating button — so the chat composer is never obscured.
   const isChatDetailPage = /\/messages\/[^/]+/.test(pathname);
-  const [tabsVisibleOnChat, setTabsVisibleOnChat] = useState(false);
-  const showTabs = !isChatDetailPage || tabsVisibleOnChat;
 
+  // Close the services sheet whenever the route changes.
   useEffect(() => { setSheetOpen(false); }, [pathname]);
-  // Reset tab visibility when leaving the chat detail page
-  useEffect(() => { if (!isChatDetailPage) setTabsVisibleOnChat(false); }, [isChatDetailPage]);
+
+  // Chat detail page: render children only, zero chrome from this layout.
+  if (isChatDetailPage) {
+    return (
+      <div className="employee-mobile-shell bg-background text-foreground">
+        {children}
+        <PwaInstallPrompt />
+      </div>
+    );
+  }
 
   return (
     <div className="employee-mobile-shell min-h-screen bg-background text-foreground flex flex-col">
@@ -206,18 +215,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
         </motion.div>
       )}
 
-      {/* Floating toggle button — only visible on chat detail page */}
-      {isChatDetailPage && (
-        <button
-          onClick={() => setTabsVisibleOnChat((prev) => !prev)}
-          className="fixed bottom-4 right-4 z-[55] w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
-          aria-label="Toggle navigation"
-        >
-          <LayoutGrid className="w-5 h-5" />
-        </button>
-      )}
-
-      {showTabs && (
+      {/* Bottom tab bar — 64 px tall, fixed to viewport bottom */}
       <div
         className="fixed bottom-0 left-0 w-full bg-card/80 backdrop-blur-md border-t border-border shadow-lg z-50"
         style={{ height: "64px" }}
@@ -283,9 +281,8 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      )}
-
-      <div style={{ height: showTabs ? "64px" : "0px" }} />
+      {/* Spacer so page content isn't hidden behind the fixed tab bar */}
+      <div style={{ height: "64px" }} />
     </div>
   );
 }
