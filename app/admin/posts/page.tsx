@@ -152,8 +152,12 @@ export default function PostsPage() {
         setNewPostImage(url);
         toast.success("Image uploaded successfully");
       }
-    } catch (error) {
-      toast.error("Failed to upload image");
+    } catch (error: any) {
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error("Failed to upload image");
+      }
     } finally {
       setImageUploading(false);
     }

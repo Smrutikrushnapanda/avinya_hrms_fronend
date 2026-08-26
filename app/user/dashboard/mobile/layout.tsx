@@ -49,6 +49,7 @@ const serviceItems = [
   { name: "Posts", href: "/user/dashboard/mobile/posts", icon: Newspaper },
   { name: "Settings", href: "/user/dashboard/mobile/settings", icon: Settings },
   { name: "Notifications", href: "/user/dashboard/mobile/notifications", icon: Bell },
+  { name: "Policies", href: "/user/dashboard/mobile/policies", icon: FileText },
 ];
 
 const SERVICE_ITEM_DESKTOP_ROUTE: Record<string, string> = {
@@ -60,6 +61,7 @@ const SERVICE_ITEM_DESKTOP_ROUTE: Record<string, string> = {
   Polls: "/user/polls",
   Posts: "/user/posts",
   Notifications: "/user/notifications",
+  Policies: "/user/policy",
 };
 
 export default function MobileLayout({ children }: { children: ReactNode }) {
@@ -107,7 +109,8 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
         pathname.includes("/payroll") || pathname.includes("/messages") ||
         pathname.includes("/polls") || pathname.includes("/posts") ||
         pathname.includes("/settings") || pathname.includes("/notifications") ||
-        pathname.includes("/profile") || pathname.includes("/wfh")
+        pathname.includes("/profile") || pathname.includes("/wfh") ||
+        pathname.includes("/policies")
       ) return 2;
       if (pathname.includes("/leave")) return 3;
       if (pathname.includes("/timeslip")) return 4;

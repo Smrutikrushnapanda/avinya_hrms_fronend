@@ -741,6 +741,8 @@ export default function EmployeesPage() {
       console.error("Failed to update employee:", error);
       if (error.response?.status === 413) {
         toast.error("File size too large. Please remove or compress document images.");
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
       } else {
         const errorMessage = error.response?.data?.message || error.message || "Failed to update employee";
         toast.error(errorMessage);
