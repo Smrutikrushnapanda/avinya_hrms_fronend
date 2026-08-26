@@ -41,27 +41,11 @@ import {
 import { useRouter } from "next/navigation";
 import AttendanceCalendar from "@/components/AttendanceCalendar";
 import { startOfMonth, endOfMonth, addDays } from "date-fns";
-import { mapApiStatus, isOrgOffDay, generateMarkedDates } from "@/lib/calendar-utils";
+import { mapApiStatus, isOrgOffDay, generateMarkedDates, AttendanceData, AttendanceStatus } from "@/lib/calendar-utils";
 import { useTheme } from "next-themes";
 import useUnreadMessages from "./components/useUnreadMessages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface AttendanceStatus {
-  status:
-    | "present"
-    | "absent"
-    | "half-day"
-    | "holiday"
-    | "weekend"
-    | "pending"
-    | "leave"
-    | "half-leave";
-  holidayName?: string;
-  inTime?: string;
-  outTime?: string;
-  isOptional?: boolean;
-}
 
 interface Holiday {
   id?: number;
@@ -313,7 +297,7 @@ export default function MobileDashboardPage() {
   const [clockTime, setClockTime] = useState(new Date());
 
   // ── Calendar
-  const [statusByDate, setStatusByDate] = useState<Record<string, AttendanceStatus>>({});
+  const [statusByDate, setStatusByDate] = useState<Record<string, { status: AttendanceStatus; inTime?: string; outTime?: string }>>({});
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
   const [holidays, setHolidays] = useState<Holiday[]>([]);
 
@@ -445,7 +429,7 @@ export default function MobileDashboardPage() {
         year: month.getFullYear(),
       });
       const records: any[] = res.data?.attendance ?? res.data?.data ?? (Array.isArray(res.data) ? res.data : []);
-      const map: Record<string, AttendanceStatus> = {};
+const map: Record<string, { status: AttendanceStatus; inTime?: string; outTime?: string }> = {};
       for (const record of records) {
         const dateStr: string = record.attendanceDate ?? record.date ?? "";
         if (dateStr) {
@@ -696,7 +680,7 @@ export default function MobileDashboardPage() {
   }, [user.organizationId, user.userId, fetchTodayLogs]);
 
   const holidayStatusByDate = useMemo(() => {
-    const map: Record<string, AttendanceStatus> = {};
+    const map: Record<string, { status: AttendanceStatus; holidayName?: string; isOptional?: boolean }> = {};
     for (const holiday of holidays) {
       if (holiday.date) {
         const key = new Date(holiday.date).toISOString().split("T")[0];
@@ -707,19 +691,33 @@ export default function MobileDashboardPage() {
   }, [holidays]);
 
   const attendanceData = useMemo(() => {
-    return statusByDate || {};
+    const data: Record<string, { date: string; status: AttendanceStatus; isSunday: boolean; isWeekend: boolean; isHoliday: boolean; holidayName?: string; isOptional?: boolean; inTime?: string; outTime?: string }> = {};
+    for (const [dateStr, record] of Object.entries(statusByDate)) {
+      data[dateStr] = {
+        date: dateStr,
+        status: record.status,
+        isSunday: false,
+        isWeekend: false,
+        isHoliday: false,
+        holidayName: undefined,
+        isOptional: false,
+        inTime: undefined,
+        outTime: undefined,
+      };
+    }
+    return data;
   }, [statusByDate]);
 
   const markedDates = useMemo(() =>
     generateMarkedDates(attendanceData, currentMonth.getMonth() + 1, currentMonth.getFullYear(), {
-      primary: isDarkMode ? "#3b82f6" : "#3b82f6",
-      surface: isDarkMode ? "#1e293b" : "#f8fafc",
-      text: isDarkMode ? "#f1f5f9" : "#1e293b",
+      primary: isDarkTheme ? "#3b82f6" : "#3b82f6",
+      surface: isDarkTheme ? "#1e293b" : "#f8fafc",
+      text: isDarkTheme ? "#f1f5f9" : "#1e293b",
       onPrimary: "#ffffff",
-      grey: isDarkMode ? "#64748b" : "#94a3b8",
-      border: isDarkMode ? "#334155" : "#e2e8f0",
-    }, workingDays, weekdayOffRules),
-    [attendanceData, currentMonth, workingDays, weekdayOffRules, isDarkMode]
+      grey: isDarkTheme ? "#64748b" : "#94a3b8",
+      border: isDarkTheme ? "#334155" : "#e2e8f0",
+    }, settings.workingDays, settings.weekdayOffRules),
+    [attendanceData, currentMonth, settings.workingDays, settings.weekdayOffRules, isDarkTheme]
   );
 
   const isOrgOffDay = useCallback((date: Date) => {
@@ -1236,7 +1234,11 @@ export default function MobileDashboardPage() {
       <div className="px-4 mt-6">
         <h3 className="text-lg font-bold text-gray-900 dark:text-zinc-100 mb-3">Calendar</h3>
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-gray-100 dark:border-zinc-800 p-1">
-          <AttendanceCalendar currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} statusByDate={markedDates} />
+<AttendanceCalendar
+          currentMonth={currentMonth}
+          setCurrentMonth={setCurrentMonth}
+          statusByDate={statusByDate}
+/>
         </div>
       </div>
 

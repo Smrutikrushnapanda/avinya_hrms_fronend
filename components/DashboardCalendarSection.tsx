@@ -110,7 +110,7 @@ useEffect(() => {
     const map: Record<
       string,
       {
-        status: "present" | "absent" | "half-day" | "holiday" | "pending";
+        status: "present" | "absent" | "half-day" | "holiday" | "weekend" | "pending";
         holidayName?: string;
         inTime?: string;
         outTime?: string;
@@ -145,12 +145,13 @@ useEffect(() => {
   }, [attendanceRecords, workingDays, weekdayOffRules, month, year]);
 
   // Generate marked dates using shared utility (same logic as React Native HomeCalendar)
-  interface AttendData {
+interface AttendData {
     [key: string]: {
-      status: string;
-      isSunday?: boolean;
-      isWeekend?: boolean;
-      isHoliday?: boolean;
+      date: string;
+      status: "present" | "absent" | "half-day" | "holiday" | "weekend" | "pending";
+      isSunday: boolean;
+      isWeekend: boolean;
+      isHoliday: boolean;
       holidayName?: string;
       isOptional?: boolean;
       inTime?: string;
@@ -161,6 +162,7 @@ useEffect(() => {
     const attendanceData: AttendData = {};
     for (const [key, value] of Object.entries(statusByDate)) {
       attendanceData[key] = {
+        date: key,
         status: value.status,
         isSunday: false,
         isWeekend: value.status === "weekend",
@@ -190,11 +192,11 @@ useEffect(() => {
           {loading ? (
             <p className="text-muted-foreground">Loading...</p>
           ) : (
-            <AttendanceCalendar
+<AttendanceCalendar
               currentMonth={currentMonth}
               setCurrentMonth={setCurrentMonth}
-              statusByDate={markedDates}
-            />
+              statusByDate={statusByDate}
+/>
           )}
         </CardContent>
       </Card>

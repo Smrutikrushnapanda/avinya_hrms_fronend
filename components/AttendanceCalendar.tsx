@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useTheme } from "next-themes";
-import { getAttendanceSettings } from "@/app/api/api";
 
 interface AttendanceStatus {
   status:
@@ -67,20 +66,6 @@ export default function AttendanceCalendar({
   // Fetch org settings for weekend/off-day rules
   const [workingDays, setWorkingDays] = useState<number[] | undefined>(undefined);
   const [weekdayOffRules, setWeekdayOffRules] = useState<Record<string, number[]> | undefined>(undefined);
-
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const res = await getAttendanceSettings(new Date().getFullYear()); // orgId would come from context
-        const s = res.data;
-        setWorkingDays(s?.workingDays);
-        setWeekdayOffRules(s?.weekdayOffRules);
-      } catch {
-        // ignore
-      }
-    };
-    loadSettings();
-  }, []);
 
   return (
     <div className="select-none">

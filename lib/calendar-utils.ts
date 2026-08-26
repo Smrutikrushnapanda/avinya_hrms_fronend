@@ -60,7 +60,7 @@ export function getDayCircleClass(
     return cn(base, "bg-red-100 dark:bg-red-900/30 border-2 border-red-500 dark:border-red-600 text-red-800 dark:text-red-300");
   if (status === "weekend")
     return cn(base, "bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-500 dark:border-blue-600 text-blue-800 dark:text-blue-300");
-  if (status === "leave")
+  if (status === "half-leave")
     return cn(base, "bg-yellow-100 dark:bg-yellow-900/30 border-2 border-yellow-500 dark:border-yellow-500 dark:text-yellow-300");
   if (status === "holiday")
     return cn(base, "bg-blue-100 dark:bg-blue-900/30 border-2 border-blue-400 dark:border-blue-600 text-blue-800 dark:text-blue-300");
@@ -244,7 +244,7 @@ export function mapApiStatus(status: string): AttendanceStatus {
     case "half_day": return "half-day";
     case "holiday": return "holiday";
     case "on-leave":
-    case "leave": return "leave";
+    case "half-leave": return "half-leave";
     default: return "pending";
   }
 }
