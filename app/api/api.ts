@@ -32,13 +32,11 @@ api.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("access_token");
     if (token) {
-      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     
     const userCookie = document.cookie.split('; ').find(row => row.startsWith('user='));
     if (userCookie) {
-      config.headers = config.headers || {};
       config.headers['x-user-cookie'] = userCookie.split('=')[1];
     }
   }
