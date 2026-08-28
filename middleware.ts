@@ -1,10 +1,36 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+function getJwtExpiry(token?: string) {
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = JSON.parse(atob(padded));
+    return typeof decoded.exp === "number" ? decoded.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+function redirectToSignin(req: NextRequest, pathname = "/signin") {
+  const url = req.nextUrl.clone();
+  url.pathname = pathname;
+  url.search = "";
+  const response = NextResponse.redirect(url);
+  for (const name of ["user", "user_role", "must_change_password", "dashboard-view", "auth_token"]) {
+    response.cookies.delete(name);
+  }
+  return response;
+}
+
 export function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const userCookie = req.cookies.get("user")?.value;
   const userRoleCookie = req.cookies.get("user_role")?.value;
+  const authTokenCookie = req.cookies.get("auth_token")?.value;
   const mustChangePassword = req.cookies.get("must_change_password")?.value === "1";
   const isSigninRoute = pathname === "/signin";
 
@@ -12,6 +38,14 @@ export function middleware(req: NextRequest) {
   const isUserRoute = pathname.startsWith("/user");
   const isAdminRoute = pathname.startsWith("/admin");
   const isSuperadminRoute = pathname.startsWith("/superadmin");
+  const isProtectedRoute = isUserRoute || isAdminRoute || isSuperadminRoute;
+
+  if (isProtectedRoute) {
+    const tokenExpiry = getJwtExpiry(authTokenCookie);
+    if (!authTokenCookie || !tokenExpiry || tokenExpiry * 1000 <= Date.now()) {
+      return redirectToSignin(req, isSuperadminRoute ? "/superadmin-login" : "/signin");
+    }
+  }
 
   // If already authenticated and visiting signin, redirect to the appropriate dashboard.
   if (isSigninRoute && userCookie && userRoleCookie) {
@@ -59,14 +93,10 @@ export function middleware(req: NextRequest) {
   // If not authenticated and trying to access protected routes, redirect to signin
   if (!userCookie || !userRoleCookie) {
     if (isSuperadminRoute) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/superadmin-login";
-      return NextResponse.redirect(url);
+      return redirectToSignin(req, "/superadmin-login");
     }
     if (isUserRoute || isAdminRoute) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/signin";
-      return NextResponse.redirect(url);
+      return redirectToSignin(req);
     }
     return NextResponse.next();
   }

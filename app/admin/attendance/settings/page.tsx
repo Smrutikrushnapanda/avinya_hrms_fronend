@@ -177,6 +177,11 @@ const sanitizeIntInput = (value: string) => value.replace(/[^0-9]/g, "");
 const sanitizeFloatInput = (value: string) => value.replace(/[^0-9.-]/g, "");
 const normalizeBranchName = (value: string) => value.trim().replace(/\s+/g, " ");
 const canonicalBranchName = (value: string) => normalizeBranchName(value).toLowerCase();
+const parseOptionalNumber = (value: string) => {
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
 export default function AttendanceSettingsPage() {
   const router = useRouter();
@@ -184,6 +189,8 @@ export default function AttendanceSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("timing");
   const [settings, setSettings] = useState<AttendanceSettings>(defaultSettings);
+  const [officeLatitudeInput, setOfficeLatitudeInput] = useState("");
+  const [officeLongitudeInput, setOfficeLongitudeInput] = useState("");
   const [organizationId, setOrganizationId] = useState<string>("");
 
   // WiFi state
@@ -244,19 +251,26 @@ export default function AttendanceSettingsPage() {
     }
     setBranchSaving(true);
     try {
+      const branchPayload = {
+        organizationId,
+        name: normalizedName,
+        workStartTime: `${branchForm.workStartTime}:00`,
+        workEndTime: `${branchForm.workEndTime}:00`,
+        graceMinutes: Number(branchForm.graceMinutes || 0),
+        lateThresholdMinutes: Number(branchForm.lateThresholdMinutes || 0),
+        halfDayCutoffTime: `${branchForm.halfDayCutoffTime}:00`,
+        workingDays: branchForm.workingDays,
+        weekdayOffRules: branchForm.weekdayOffRules,
+        officeLatitude: parseOptionalNumber(branchForm.officeLatitude),
+        officeLongitude: parseOptionalNumber(branchForm.officeLongitude),
+        allowedRadiusMeters: Number(branchForm.allowedRadiusMeters || 100),
+        isActive: branchForm.isActive,
+      };
       if (editingBranch) {
-        await updateBranch(editingBranch.id, {
-          organizationId,
-          name: normalizedName,
-          isActive: branchForm.isActive,
-        });
+        await updateBranch(editingBranch.id, branchPayload);
         toast.success("Branch updated");
       } else {
-        await createBranch({
-          organizationId,
-          name: normalizedName,
-          isActive: branchForm.isActive,
-        });
+        await createBranch(branchPayload);
         toast.success("Branch created");
       }
       setBranchDialogOpen(false);
@@ -278,6 +292,16 @@ export default function AttendanceSettingsPage() {
     setBranchForm({
       ...defaultBranchForm,
       name: branch.name,
+      workStartTime: (branch.workStartTime || defaultBranchForm.workStartTime).slice(0, 5),
+      workEndTime: (branch.workEndTime || defaultBranchForm.workEndTime).slice(0, 5),
+      graceMinutes: String(branch.graceMinutes ?? defaultBranchForm.graceMinutes),
+      lateThresholdMinutes: String(branch.lateThresholdMinutes ?? defaultBranchForm.lateThresholdMinutes),
+      halfDayCutoffTime: (branch.halfDayCutoffTime || defaultBranchForm.halfDayCutoffTime).slice(0, 5),
+      workingDays: Array.isArray(branch.workingDays) && branch.workingDays.length ? branch.workingDays : defaultBranchForm.workingDays,
+      weekdayOffRules: branch.weekdayOffRules || {},
+      officeLatitude: branch.officeLatitude == null ? "" : String(branch.officeLatitude),
+      officeLongitude: branch.officeLongitude == null ? "" : String(branch.officeLongitude),
+      allowedRadiusMeters: String(branch.allowedRadiusMeters ?? 100),
       isActive: branch.isActive,
     });
     setBranchDialogOpen(true);
@@ -325,7 +349,10 @@ export default function AttendanceSettingsPage() {
         params: { organizationId: orgId },
       });
       if (response.data) {
-        setSettings({ ...defaultSettings, ...response.data });
+        const nextSettings = { ...defaultSettings, ...response.data };
+        setSettings(nextSettings);
+        setOfficeLatitudeInput(nextSettings.officeLatitude == null ? "" : String(nextSettings.officeLatitude));
+        setOfficeLongitudeInput(nextSettings.officeLongitude == null ? "" : String(nextSettings.officeLongitude));
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -480,8 +507,8 @@ export default function AttendanceSettingsPage() {
         workEndTime: settings.workEndTime,
         graceMinutes: settings.graceMinutes,
         lateThresholdMinutes: settings.lateThresholdMinutes,
-        officeLatitude: settings.officeLatitude,
-        officeLongitude: settings.officeLongitude,
+        officeLatitude: parseOptionalNumber(officeLatitudeInput),
+        officeLongitude: parseOptionalNumber(officeLongitudeInput),
         officeLocationName: settings.officeLocationName,
         officeLocationAddress: settings.officeLocationAddress,
         allowedRadiusMeters: settings.allowedRadiusMeters,
@@ -495,9 +522,14 @@ export default function AttendanceSettingsPage() {
         weekdayOffRules: settings.weekdayOffRules,
       };
       const payload = Object.fromEntries(
-        Object.entries(raw).filter(([, v]) => v != null)
+        Object.entries(raw).filter(([, v]) => v !== undefined)
       );
       await updateAttendanceSettings(organizationId, payload);
+      setSettings((prev) => ({
+        ...prev,
+        officeLatitude: payload.officeLatitude ?? null,
+        officeLongitude: payload.officeLongitude ?? null,
+      }));
 
       toast.success("Settings saved successfully!");
     } catch (error) {
@@ -1216,14 +1248,8 @@ export default function AttendanceSettingsPage() {
                     type="text"
                     inputMode="decimal"
                     placeholder="e.g., 20.3494624"
-                    value={String(settings.officeLatitude ?? "")}
-                    onChange={(e) => {
-                      const sanitized = sanitizeFloatInput(e.target.value);
-                      handleInputChange(
-                        "officeLatitude",
-                        sanitized === "" ? null : parseFloat(sanitized)
-                      );
-                    }}
+                    value={officeLatitudeInput}
+                    onChange={(e) => setOfficeLatitudeInput(sanitizeFloatInput(e.target.value))}
                   />
                 </div>
                 <div className="space-y-2">
@@ -1233,14 +1259,8 @@ export default function AttendanceSettingsPage() {
                     type="text"
                     inputMode="decimal"
                     placeholder="e.g., 85.8078853"
-                    value={String(settings.officeLongitude ?? "")}
-                    onChange={(e) => {
-                      const sanitized = sanitizeFloatInput(e.target.value);
-                      handleInputChange(
-                        "officeLongitude",
-                        sanitized === "" ? null : parseFloat(sanitized)
-                      );
-                    }}
+                    value={officeLongitudeInput}
+                    onChange={(e) => setOfficeLongitudeInput(sanitizeFloatInput(e.target.value))}
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
@@ -1720,6 +1740,41 @@ export default function AttendanceSettingsPage() {
                 onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
                 placeholder="e.g., Branch A"
               />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="branch-latitude">Latitude</Label>
+                <Input
+                  id="branch-latitude"
+                  type="text"
+                  inputMode="decimal"
+                  value={branchForm.officeLatitude}
+                  onChange={(e) => setBranchForm({ ...branchForm, officeLatitude: sanitizeFloatInput(e.target.value) })}
+                  placeholder="20.3494624"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="branch-longitude">Longitude</Label>
+                <Input
+                  id="branch-longitude"
+                  type="text"
+                  inputMode="decimal"
+                  value={branchForm.officeLongitude}
+                  onChange={(e) => setBranchForm({ ...branchForm, officeLongitude: sanitizeFloatInput(e.target.value) })}
+                  placeholder="85.8078853"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="branch-radius">Radius (m)</Label>
+                <Input
+                  id="branch-radius"
+                  type="text"
+                  inputMode="numeric"
+                  value={branchForm.allowedRadiusMeters}
+                  onChange={(e) => setBranchForm({ ...branchForm, allowedRadiusMeters: sanitizeIntInput(e.target.value) })}
+                  placeholder="100"
+                />
+              </div>
             </div>
             <div className="flex items-center justify-between p-3 border rounded-lg">
               <div>

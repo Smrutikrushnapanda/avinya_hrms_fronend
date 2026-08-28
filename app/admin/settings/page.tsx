@@ -150,6 +150,7 @@ export default function SettingsPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [organizationId, setOrganizationId] = useState<string>("");
+  const [currentUserId, setCurrentUserId] = useState<string>("");
 
   const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
   const [isDesigDialogOpen, setIsDesigDialogOpen] = useState(false);
@@ -217,6 +218,10 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
     approvedLastWorkingDay: "",
     allowEarlyRelieving: false,
   });
+  const adminUserCount = useMemo(
+    () => users.filter((user) => user.roles?.some((role) => role.roleName === "ADMIN")).length,
+    [users],
+  );
 
   const credentialsTourSteps = useMemo<StepType[]>(
     () => [
@@ -244,6 +249,7 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
       try {
         const res = await getProfile();
         setOrganizationId(res.data.organizationId);
+        setCurrentUserId(res.data.userId || res.data.id || "");
       } catch (error) {
         toast.error("Failed to load profile");
       }
@@ -830,8 +836,9 @@ const loadOrganization = async () => {
     setIsSavingUser(true);
     try {
       if (editingUser) {
+        const isEditingCurrentUser = editingUser.id === currentUserId;
         const currentRoleId = editingUser.roles?.[0]?.id;
-        if (userForm.roleId !== currentRoleId) {
+        if (!isEditingCurrentUser && userForm.roleId !== currentRoleId) {
           basePayload.roleIds = [userForm.roleId];
         }
         if (userForm.password) basePayload.password = userForm.password;
@@ -840,7 +847,6 @@ const loadOrganization = async () => {
         } catch (error) {
           if (!basePayload.roleIds || !isRoleIdsWhitelistError(error)) throw error;
           await updateUser(editingUser.id, withoutRoleIds(basePayload));
-          await assignRole({ userId: editingUser.id, roleIds: basePayload.roleIds });
         }
         toast.success("User updated");
       } else {
@@ -875,6 +881,16 @@ const loadOrganization = async () => {
   };
 
   const handleDeleteUser = async (user: OrgUser) => {
+    const isCurrentUser = user.id === currentUserId;
+    const isAdminUser = user.roles?.some((role) => role.roleName === "ADMIN");
+    if (isCurrentUser) {
+      toast.error("You cannot delete your own admin account.");
+      return;
+    }
+    if (isAdminUser && adminUserCount <= 1) {
+      toast.error("At least one admin account is required.");
+      return;
+    }
     if (!confirm(`Are you sure you want to delete user "${user.userName}"?`)) return;
     try {
       await deleteUser(user.id);
@@ -1653,39 +1669,47 @@ const loadOrganization = async () => {
                       </TableCell>
                     </TableRow>
                   )}
-                  {users.map((user, index) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{index + 1}</TableCell>
-                      <TableCell className="font-medium">{user.userName}</TableCell>
-                      <TableCell>
-                        {[user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "—"}
-                      </TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        {user.roles?.map((role) => role.roleName).join(", ") || "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => {
-                          setEditingUser(user);
-                          setUserForm({
-                            userName: user.userName || "",
-                            email: user.email || "",
-                            password: "",
-                            firstName: user.firstName || "",
-                            lastName: user.lastName || "",
-                            roleId: user.roles?.[0]?.id || "",
-                          });
-                          setUserErrors({});
-                          setIsUserDialogOpen(true);
-                        }}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {users.map((user, index) => {
+                    const isCurrentUser = user.id === currentUserId;
+                    const isAdminUser = user.roles?.some((role) => role.roleName === "ADMIN");
+                    const canDeleteUser = !isCurrentUser && !(isAdminUser && adminUserCount <= 1);
+
+                    return (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-medium">{user.userName}</TableCell>
+                        <TableCell>
+                          {[user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "—"}
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          {user.roles?.map((role) => role.roleName).join(", ") || "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            setEditingUser(user);
+                            setUserForm({
+                              userName: user.userName || "",
+                              email: user.email || "",
+                              password: "",
+                              firstName: user.firstName || "",
+                              lastName: user.lastName || "",
+                              roleId: user.roles?.[0]?.id || "",
+                            });
+                            setUserErrors({});
+                            setIsUserDialogOpen(true);
+                          }}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          {canDeleteUser ? (
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(user)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </CardContent>
@@ -2058,7 +2082,11 @@ const loadOrganization = async () => {
             </div>
             <div>
               <Label>Role *</Label>
-              <Select value={userForm.roleId} onValueChange={(value) => { setUserForm({ ...userForm, roleId: value }); setUserErrors((p) => ({ ...p, roleId: "" })); }}>
+              <Select
+                value={userForm.roleId}
+                disabled={editingUser?.id === currentUserId}
+                onValueChange={(value) => { setUserForm({ ...userForm, roleId: value }); setUserErrors((p) => ({ ...p, roleId: "" })); }}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>

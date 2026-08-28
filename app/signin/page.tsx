@@ -46,6 +46,7 @@ export default function LoginPage() {
 
   const writeAuthCookies = (
     userParams: any,
+    token: string,
     chosenRole: "ADMIN" | "EMPLOYEE" | "SUPERADMIN",
     cookieMaxAge: number
   ) => {
@@ -53,6 +54,7 @@ export default function LoginPage() {
     const cookieFlags = `path=/; max-age=${cookieMaxAge}; SameSite=Lax${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
     document.cookie = `user=${encodeURIComponent(JSON.stringify(userParams))}; ${cookieFlags}`;
     document.cookie = `user_role=${chosenRole}; ${cookieFlags}`;
+    document.cookie = `auth_token=${token}; ${cookieFlags}`;
     document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; ${cookieFlags}`;
     if (chosenRole === "EMPLOYEE") {
       document.cookie = `dashboard-view=${isLikelyMobileDevice() ? "mobile" : "desktop"}; ${cookieFlags}`;
@@ -71,7 +73,7 @@ export default function LoginPage() {
       if (normalizedRole !== "ADMIN" && normalizedRole !== "EMPLOYEE" && normalizedRole !== "SUPERADMIN") return;
 
       const parsedUser = JSON.parse(rawUser);
-      writeAuthCookies(parsedUser, normalizedRole, 2592000);
+      writeAuthCookies(parsedUser, token, normalizedRole, 2592000);
       router.replace(getPostLoginRoute(normalizedRole, parsedUser));
     } catch {
       // ignore malformed local storage and stay on login
@@ -82,7 +84,7 @@ export default function LoginPage() {
     localStorage.setItem("access_token", token);
     localStorage.setItem("user", JSON.stringify(userParams));
     localStorage.setItem("user_role", chosenRole);
-    writeAuthCookies(userParams, chosenRole, cookieMaxAge);
+    writeAuthCookies(userParams, token, chosenRole, cookieMaxAge);
 
     toast.success("Welcome back! 🎉");
     setTimeout(() => {

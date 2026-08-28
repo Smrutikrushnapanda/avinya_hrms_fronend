@@ -105,6 +105,7 @@ export default function SuperadminLoginPage() {
       const cookieFlags = `path=/; max-age=${SESSION_MAX_AGE_SECONDS}; SameSite=Lax${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
       document.cookie = `user=${encodeURIComponent(JSON.stringify(user))}; ${cookieFlags}`;
       document.cookie = `user_role=SUPERADMIN; ${cookieFlags}`;
+      document.cookie = `auth_token=${access_token}; ${cookieFlags}`;
       document.cookie = `must_change_password=0; ${cookieFlags}`;
 
       toast.success("Welcome back, Super Admin");

@@ -54,6 +54,7 @@ function clearAuthData() {
   localStorage.removeItem("user");
   document.cookie = "user=; path=/; max-age=0";
   document.cookie = "user_role=; path=/; max-age=0";
+  document.cookie = "auth_token=; path=/; max-age=0";
   document.cookie = "must_change_password=; path=/; max-age=0";
 }
 
