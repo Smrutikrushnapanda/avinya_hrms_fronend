@@ -118,7 +118,6 @@ export const requestPasswordResetOtp = (data: { identifier: string }) =>
 export const resetPassword = (data: {
   identifier: string;
   otp: string;
-  newUserName: string;
   newPassword: string;
 }) => api.post("/auth/reset-password", data);
 export const logout = () => api.post("/auth/logout");

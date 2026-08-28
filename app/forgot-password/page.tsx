@@ -78,7 +78,6 @@ export default function ForgotPasswordPage() {
       await resetPassword({
         identifier: identifier.trim().toLowerCase(),
         otp: otp.trim(),
-        newUserName: "",
         newPassword,
       });
       toast.success("Password updated successfully");
