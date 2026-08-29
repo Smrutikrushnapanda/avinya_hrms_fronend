@@ -274,27 +274,29 @@ function buildColumns(
       </div>
     ),
     cell: ({ row }) => {
-      const { userName, employeeCode, profileImage, profileImageSigned } =
+      const { userName, employeeCode, profileImage, profileImageSigned, userId } =
         row.original;
       const avatarSrc =
         profileImageSigned || profileImage || "/default-avatar.png";
       return (
-        <div className="flex items-center gap-3 w-[200px]">
-          <img
-            src={avatarSrc}
-            alt={userName}
-            className="w-10 h-10 rounded-full object-cover ring-1 ring-muted-foreground/20"
-          />
-          <div className="flex flex-col">
-            <span className="font-semibold whitespace-normal break-words">
-              {userName}
-            </span>
-            <div className="w-full border-b my-0.5" />
-            <span className="text-xs text-muted-foreground font-semibold">
-              {employeeCode}
-            </span>
+        <Link href={`/admin/attendance/employee/${userId}`}>
+          <div className="flex items-center gap-3 w-[200px] hover:opacity-80 transition-opacity cursor-pointer">
+            <img
+              src={avatarSrc}
+              alt={userName}
+              className="w-10 h-10 rounded-full object-cover ring-1 ring-muted-foreground/20"
+            />
+            <div className="flex flex-col">
+              <span className="font-semibold whitespace-normal break-words text-blue-600 hover:underline">
+                {userName}
+              </span>
+              <div className="w-full border-b my-0.5" />
+              <span className="text-xs text-muted-foreground font-semibold">
+                {employeeCode}
+              </span>
+            </div>
           </div>
-        </div>
+        </Link>
       );
     },
   },

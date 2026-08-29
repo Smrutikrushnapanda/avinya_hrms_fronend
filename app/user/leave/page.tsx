@@ -62,8 +62,11 @@ interface LeaveRequest {
   numberOfDays?: number;
   paidDays?: number;
   unpaidDays?: number;
+  duration?: number;
   reason?: string;
   status?: string;
+  reconciled?: boolean;
+  reconciledDates?: string;
   leaveType?: string | { name?: string; id?: string };
   createdAt?: string;
 }
@@ -187,6 +190,7 @@ export default function UserLeavePage() {
     leaveTypeId: "",
     startDate: today,
     endDate: today,
+    duration: 1,
     reason: "",
   });
   const [applySubmitting, setApplySubmitting] = useState(false);
@@ -307,11 +311,13 @@ export default function UserLeavePage() {
           const total = Number(row.original.numberOfDays ?? 0);
           const paid = Number(row.original.paidDays ?? 0);
           const unpaid = Number(row.original.unpaidDays ?? 0);
+          const duration = row.original.duration;
           if (!total) return "-";
+          const durationLabel = duration === 0.5 ? "Half Day" : "Full Day";
           if (unpaid > 0) {
-            return `${total} (Paid ${paid}, Unpaid ${unpaid})`;
+            return `${total} day${total !== 1 ? "s" : ""} (${durationLabel}, Paid ${paid}, Unpaid ${unpaid})`;
           }
-          return total;
+          return `${total} day${total !== 1 ? "s" : ""} (${durationLabel})`;
         },
       },
       {
@@ -349,6 +355,37 @@ export default function UserLeavePage() {
         header: "Status",
         enableSorting: false,
         cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      },
+      {
+        id: "Reconciled",
+        accessorKey: "reconciled",
+        header: "Reconciled",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const req = row.original;
+          if (req.status?.toUpperCase() !== "APPROVED") {
+            return <span className="text-sm text-muted-foreground">-</span>;
+          }
+          if (req.reconciled) {
+            return (
+              <Badge className="bg-green-100 text-green-700 border-green-300">
+                Yes
+              </Badge>
+            );
+          }
+          if (req.reconciledDates) {
+            return (
+              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300">
+                Partial
+              </Badge>
+            );
+          }
+          return (
+            <Badge variant="outline" className="text-muted-foreground">
+              No
+            </Badge>
+          );
+        },
       },
       {
         id: "Actions",
@@ -494,6 +531,7 @@ export default function UserLeavePage() {
         startDate: applyForm.startDate,
         endDate: applyForm.endDate,
         reason: applyForm.reason.trim(),
+        duration: applyForm.duration,
       });
       const unpaidDays = Number(res?.data?.unpaidDays ?? 0);
       if (unpaidDays > 0) {
@@ -508,6 +546,7 @@ export default function UserLeavePage() {
         leaveTypeId: "",
         startDate: today,
         endDate: today,
+        duration: 1,
         reason: "",
       });
       fetchLeaveRequests();
@@ -792,6 +831,7 @@ export default function UserLeavePage() {
               leaveTypeId: "",
               startDate: today,
               endDate: today,
+              duration: 1,
               reason: "",
             });
         }}
@@ -836,6 +876,34 @@ export default function UserLeavePage() {
                   )}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Duration</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="duration"
+                    value={1}
+                    checked={applyForm.duration === 1}
+                    onChange={() => setApplyForm((prev) => ({ ...prev, duration: 1 }))}
+                    className="w-4 h-4 text-primary"
+                  />
+                  <span className="text-sm">Full Day</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="duration"
+                    value={0.5}
+                    checked={applyForm.duration === 0.5}
+                    onChange={() => setApplyForm((prev) => ({ ...prev, duration: 0.5 }))}
+                    className="w-4 h-4 text-primary"
+                  />
+                  <span className="text-sm">Half Day (0.5 day)</span>
+                </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -896,6 +964,7 @@ export default function UserLeavePage() {
                   leaveTypeId: "",
                   startDate: today,
                   endDate: today,
+                  duration: 1,
                   reason: "",
                 });
               }}

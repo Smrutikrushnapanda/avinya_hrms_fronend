@@ -15,6 +15,7 @@ import {
   Tag,
   Venus,
   Star,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,7 @@ import {
   deleteLeaveType,
   getOrganization,
   updateOrganization,
+  reconcileLeaveRequest,
 } from "@/app/api/api";
 import { format } from "date-fns";
 
@@ -93,6 +95,8 @@ interface LeaveRequest {
   remarks?: string;
   paidDays?: number;
   unpaidDays?: number;
+  reconciled?: boolean;
+  reconciledDates?: string;
   createdAt?: string;
   user?: {
     firstName: string;
@@ -211,6 +215,7 @@ export default function LeaveManagementPage() {
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [reconcileLoading, setReconcileLoading] = useState<string | null>(null);
 
   // Reject dialog state
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -467,6 +472,25 @@ export default function LeaveManagementPage() {
       toast.error("Failed to reject request");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleReconcile = async (req: LeaveRequest) => {
+    setReconcileLoading(req.id);
+    try {
+      const result = await reconcileLeaveRequest(req.id);
+      const data = result.data;
+      if (data.restored > 0) {
+        toast.success(`Reconciled ${data.restored} day(s) — balance restored`);
+      } else {
+        toast.info(data.message || "Nothing to reconcile");
+      }
+      fetchLeaveRequests();
+    } catch (error: any) {
+      console.error("Reconcile failed:", error);
+      toast.error("Failed to reconcile leave");
+    } finally {
+      setReconcileLoading(null);
     }
   };
 
@@ -825,13 +849,14 @@ export default function LeaveManagementPage() {
                       <TableHead>Dates</TableHead>
                       <TableHead>Days</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Reconciled</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredRequests.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground">
                           No leave requests found
                         </TableCell>
                       </TableRow>
@@ -856,7 +881,7 @@ export default function LeaveManagementPage() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <span>{days}</span>
+                              <span>{days} day{days !== 1 ? "s" : ""} ({(req as any).duration === 0.5 ? "Half Day" : "Full Day"})</span>
                               {unpaidDays > 0 && (
                                 <Badge className="bg-red-100 text-red-700 border-red-300 hover:bg-red-100">
                                   Unpaid {unpaidDays}
@@ -866,6 +891,25 @@ export default function LeaveManagementPage() {
                           </TableCell>
                           <TableCell>
                             <StatusBadge status={req.status} />
+                          </TableCell>
+                          <TableCell>
+                            {req.status?.toUpperCase() === "APPROVED" ? (
+                              req.reconciled ? (
+                                <Badge className="bg-green-100 text-green-700 border-green-300">
+                                  Fully Reconciled
+                                </Badge>
+                              ) : req.reconciledDates ? (
+                                <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300">
+                                  Partial
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-muted-foreground">
+                                  Pending
+                                </Badge>
+                              )
+                            ) : (
+                              <span className="text-sm text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             {req.status?.toUpperCase() === "PENDING" ? (
@@ -890,6 +934,17 @@ export default function LeaveManagementPage() {
                                   Reject
                                 </Button>
                               </div>
+                            ) : req.status?.toUpperCase() === "APPROVED" && !req.reconciled ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1"
+                                onClick={() => handleReconcile(req)}
+                                loading={reconcileLoading === req.id}
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                                Reconcile
+                              </Button>
                             ) : (
                               <span className="text-sm text-muted-foreground">
                                 No actions

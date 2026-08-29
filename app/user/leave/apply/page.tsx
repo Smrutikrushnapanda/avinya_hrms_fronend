@@ -36,6 +36,7 @@ export default function ApplyLeavePage() {
     leaveTypeId: "",
     startDate: today,
     endDate: today,
+    duration: 1,
     reason: "",
   });
 
@@ -92,6 +93,7 @@ export default function ApplyLeavePage() {
         startDate: form.startDate,
         endDate: form.endDate,
         reason: form.reason.trim(),
+        duration: form.duration,
       });
       toast.success("Leave request submitted.");
       router.push("/user/leave");
@@ -166,6 +168,34 @@ export default function ApplyLeavePage() {
                     )}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-gray-700">Duration</Label>
+              <div className="mt-2 flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="duration"
+                    value={1}
+                    checked={form.duration === 1}
+                    onChange={() => setForm((prev) => ({ ...prev, duration: 1 }))}
+                    className="w-4 h-4 text-messages-primary"
+                  />
+                  <span className="text-sm">Full Day</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="duration"
+                    value={0.5}
+                    checked={form.duration === 0.5}
+                    onChange={() => setForm((prev) => ({ ...prev, duration: 0.5 }))}
+                    className="w-4 h-4 text-messages-primary"
+                  />
+                  <span className="text-sm">Half Day (0.5 day)</span>
+                </label>
               </div>
             </div>
 

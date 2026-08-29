@@ -47,6 +47,7 @@ interface PayrollRecord {
   totalDeductions: number;
   netPay: number;
   status: PayrollStatus;
+  salaryPredicateDate?: string | null;
   employee?: {
     firstName: string;
     lastName?: string;
@@ -77,6 +78,7 @@ const emptyForm = {
   employeeId: "",
   periodStart: "",
   periodEnd: "",
+  salaryPredicateDate: "",
   status: "draft" as PayrollStatus,
   basic: 0,
   hra: 0,
@@ -198,6 +200,7 @@ export default function PayrollPage() {
       employeeId: record.employeeId,
       periodStart: record.periodStart?.slice(0, 10),
       periodEnd: record.periodEnd?.slice(0, 10),
+      salaryPredicateDate: record.salaryPredicateDate?.slice(0, 10) || "",
       status: record.status,
       basic: Number(record.basic),
       hra: Number(record.hra),
@@ -241,6 +244,7 @@ export default function PayrollPage() {
       periodStart: new Date(form.periodStart).toISOString(),
       periodEnd: new Date(form.periodEnd).toISOString(),
       ...amountValues,
+      salaryPredicateDate: form.salaryPredicateDate || null,
       status: form.status,
     };
 
@@ -729,6 +733,10 @@ export default function PayrollPage() {
               <div className="space-y-2">
                 <Label>Period End</Label>
                 <Input type="date" value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Salary Predicate Date</Label>
+                <Input type="date" value={form.salaryPredicateDate} onChange={(e) => setForm({ ...form, salaryPredicateDate: e.target.value })} />
               </div>
             </div>
 

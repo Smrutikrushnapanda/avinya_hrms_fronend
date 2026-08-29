@@ -209,6 +209,8 @@ export default function UserLeaveApprovePage() {
                   leave.days ??
                   leave.duration ??
                   "-";
+                const isHalfDay = leave.duration === 0.5;
+                const durationLabel = isHalfDay ? "Half Day" : "Full Day";
                 const isActing = actionLoadingId === leave.id;
 
                 return (
@@ -235,7 +237,7 @@ export default function UserLeaveApprovePage() {
                         {formatDate(leave.endDate)}
                         {totalDays !== "-" && (
                           <span className="ml-2 font-medium">
-                            ({totalDays} day{Number(totalDays) !== 1 ? "s" : ""})
+                            ({totalDays} day{Number(totalDays) !== 1 ? "s" : ""}, {durationLabel})
                           </span>
                         )}
                       </p>

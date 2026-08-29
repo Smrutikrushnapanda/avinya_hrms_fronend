@@ -176,116 +176,106 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
               View All
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto w-[90vw]">
-            <DialogHeader>
-              <DialogTitle>All Attendance Anomalies</DialogTitle>
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden w-[95vw] flex flex-col">
+            <DialogHeader className="pb-3 border-b">
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                All Attendance Anomalies
+                <Badge variant="destructive" className="ml-1 text-xs">{anomalies.length}</Badge>
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 mt-4">
+            <div className="flex-1 overflow-y-auto space-y-3 py-2">
               {anomalies.length > 0 ? anomalies.map((anomaly, index) => (
-                <div key={index} className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 hover:shadow-md transition-all duration-200">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 mt-1">
-                      <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                        <AlertTriangle className="h-5 w-5 text-red-500" />
+                <div key={index} className="border rounded-lg overflow-hidden hover:shadow-sm transition-shadow">
+                  {/* Header row: employee + timestamp */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-muted/30">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {anomaly.photoUrl ? (
+                        <img src={anomaly.photoUrl} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-background" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                          <AlertTriangle className="h-4 w-4 text-red-500" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">
+                          {anomaly.user ? `${anomaly.user.firstName} ${anomaly.user.lastName}`.trim() : 'Unknown Employee'}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">{anomaly.user?.email || ''}</p>
                       </div>
                     </div>
-                    {anomaly.photoUrl && (
-                      <div className="flex-shrink-0">
-                        <img src={anomaly.photoUrl} alt="Employee Photo" className="w-16 h-16 rounded-lg object-cover border-2 border-white dark:border-gray-700 shadow-sm" />
+                    <div className="text-right flex-shrink-0 ml-4">
+                      <p className="text-xs font-medium">{format(new Date(anomaly.timestamp), 'dd MMM yyyy')}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(anomaly.timestamp), 'HH:mm')}</p>
+                    </div>
+                  </div>
+
+                  {/* Body */}
+                  <div className="px-4 py-3 space-y-3">
+                    {/* Reason + badges */}
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                        {anomaly.anomalyReason || 'Attendance Anomaly'}
+                      </p>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        {anomaly.type && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{anomaly.type}</Badge>
+                        )}
+                        {anomaly.source && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{anomaly.source}</Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Info grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-xs">
+                      {anomaly.locationAddress && (
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Location</span>
+                          <p className="font-medium truncate mt-0.5">{anomaly.locationAddress}</p>
+                        </div>
+                      )}
+                      {anomaly.deviceInfo && (
+                        <div className={anomaly.locationAddress ? '' : 'col-span-2'}>
+                          <span className="text-muted-foreground">Device</span>
+                          <p className="font-medium truncate mt-0.5">{anomaly.deviceInfo}</p>
+                        </div>
+                      )}
+                      {anomaly.wifiSsid && (
+                        <div>
+                          <span className="text-muted-foreground">SSID</span>
+                          <p className="font-mono font-medium mt-0.5 truncate">{anomaly.wifiSsid}</p>
+                        </div>
+                      )}
+                      {anomaly.wifiBssid && (
+                        <div>
+                          <span className="text-muted-foreground">BSSID</span>
+                          <p className="font-mono font-medium mt-0.5 truncate">{anomaly.wifiBssid}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Face match row */}
+                    {(anomaly.faceMatchScore !== undefined || anomaly.faceVerified !== undefined) && (
+                      <div className="flex items-center gap-3 pt-1 border-t">
+                        <span className="text-xs text-muted-foreground">Face Match:</span>
+                        <Badge variant={anomaly.faceVerified ? "default" : "destructive"} className="text-[10px]">
+                          {anomaly.faceVerified ? "Verified" : "Failed"}
+                        </Badge>
+                        {anomaly.faceMatchScore !== undefined && (
+                          <span className="text-xs font-medium">{(anomaly.faceMatchScore * 100).toFixed(1)}%</span>
+                        )}
                       </div>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
-                        <div className="flex-1">
-                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                            {anomaly.anomalyReason || 'Attendance Anomaly'}
-                          </h4>
-                          <div className="flex flex-wrap gap-2 mb-2">
-                            <Badge variant="outline" className="text-xs font-medium bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-900">{anomaly.type}</Badge>
-                            <Badge variant="outline" className="text-xs font-medium bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-900">{anomaly.source}</Badge>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {format(new Date(anomaly.timestamp), 'MMM dd, HH:mm')}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Employee:</span>
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              {anomaly.user ? `${anomaly.user.firstName} ${anomaly.user.lastName}`.trim() : 'Unknown'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Email:</span>
-                            <span className="text-sm text-gray-600 dark:text-gray-400 truncate">{anomaly.user?.email || 'Unknown'}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          {anomaly.locationAddress && (
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Location:</span>
-                              <span className="text-sm text-gray-600 dark:text-gray-400 truncate">{anomaly.locationAddress}</span>
-                            </div>
-                          )}
-                          {anomaly.deviceInfo && (
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Device:</span>
-                              <span className="text-sm text-gray-600 dark:text-gray-400">{anomaly.deviceInfo}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {(anomaly.wifiSsid || anomaly.wifiBssid) && (
-                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-4 h-4 bg-indigo-500 rounded-sm"></div>
-                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Network Information</span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                            {anomaly.wifiSsid && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-500 dark:text-gray-400">SSID:</span>
-                                <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{anomaly.wifiSsid}</span>
-                              </div>
-                            )}
-                            {anomaly.wifiBssid && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-gray-500 dark:text-gray-400">BSSID:</span>
-                                <span className="font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300">{anomaly.wifiBssid}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      {(anomaly.faceMatchScore !== undefined || anomaly.faceVerified !== undefined) && (
-                        <div className="mt-3 flex items-center gap-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Face Match:</span>
-                            <Badge variant={anomaly.faceVerified ? "default" : "destructive"} className="text-xs">
-                              {anomaly.faceVerified ? "Verified" : "Failed"}
-                            </Badge>
-                          </div>
-                          {anomaly.faceMatchScore !== undefined && (
-                            <div className="text-sm text-amber-600 dark:text-amber-400">
-                              Score: {(anomaly.faceMatchScore * 100).toFixed(1)}%
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
               )) : (
-                <div className="text-center py-6 text-gray-500 dark:text-gray-400">
-                  No anomalies detected today.
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                    <AlertTriangle className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium">No Anomalies</p>
+                  <p className="text-xs text-muted-foreground mt-1">All clear today</p>
                 </div>
               )}
             </div>
@@ -293,23 +283,29 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
         </Dialog>
       </CardHeader>
       <CardContent className="px-4 pb-4 pt-0">
-        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
           {anomalies.length > 0 ? anomalies.slice(0, 5).map((anomaly, index) => (
-            <div key={index} className="flex items-start gap-3 p-3 bg-red-50/50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-lg">
-              <div className="mt-0.5">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
+            <div key={index} className="flex items-center gap-3 p-3 rounded-lg border bg-red-50/30 dark:bg-red-900/10">
+              <div className="flex-shrink-0">
+                {anomaly.photoUrl ? (
+                  <img src={anomaly.photoUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                  </div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                <p className="text-sm font-medium truncate">
                   {anomaly.user ? `${anomaly.user.firstName} ${anomaly.user.lastName}`.trim() : 'Unknown'}
                 </p>
-                <p className="text-xs text-red-600 dark:text-red-400 line-clamp-1 mt-0.5">
+                <p className="text-xs text-red-600 dark:text-red-400 truncate">
                   {anomaly.anomalyReason || 'Attendance Anomaly'}
                 </p>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
-                  {format(new Date(anomaly.timestamp), 'MMM dd, HH:mm')}
-                </p>
               </div>
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                {format(new Date(anomaly.timestamp), 'HH:mm')}
+              </span>
             </div>
           )) : (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-3">

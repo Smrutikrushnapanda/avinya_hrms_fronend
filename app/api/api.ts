@@ -665,6 +665,12 @@ export const updateEmployeeLeaveLimit = (userId: string, leaveTypeId: string, da
 export const deleteEmployeeLeaveLimit = (userId: string, leaveTypeId: string) =>
   api.delete(`/leave/employee-limits/${userId}/${leaveTypeId}`);
 
+// 🔄 Leave Reconciliation APIs
+export const reconcileLeaveRequest = (requestId: string) =>
+  api.post(`/leave/reconcile/${requestId}`);
+export const reconcileAllLeaves = (orgId: string) =>
+  api.post(`/leave/reconcile-all/${orgId}`);
+
 // 🏠 WFH Management APIs
 export const applyWfh = (userId: string, data: any) => api.post(`/wfh/apply/${userId}`, data);
 export const approveWfh = (requestId: string, approverId: string, data: any) => api.post(`/wfh/approve/${requestId}/${approverId}`, data);

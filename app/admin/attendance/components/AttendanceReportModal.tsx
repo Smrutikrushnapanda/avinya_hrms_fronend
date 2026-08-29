@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, FileText, Download, Calendar, Filter } from 'lucide-react';
 import { getAttendanceReport2 } from '@/app/api/api'
 import { exportAttendanceReport } from '@/utils/exportToExcel'
+import { exportAttendanceReportToPdf } from '@/utils/exportToPdf'
 import { Button } from '@/components/ui/button'
 
 interface AttendanceReportModalProps {
@@ -54,7 +55,7 @@ export default function AttendanceReportModal({
 }: AttendanceReportModalProps) {
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
-  const [exportFormat, setExportFormat] = useState<'excel' | 'csv'>('excel');
+  const [exportFormat, setExportFormat] = useState<'excel' | 'csv' | 'pdf'>('excel');
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [showAnimation, setShowAnimation] = useState(false);
@@ -192,6 +193,11 @@ const formatDataForExport = (data: ReportData) => {
   // Export report
   const handleExport = () => {
     if (!reportData) return;
+
+    if (exportFormat === 'pdf') {
+      exportAttendanceReportToPdf(reportData, `${monthOptions.find(m => m.value === month)?.label} ${year}`);
+      return;
+    }
 
     const exportData = formatDataForExport(reportData);
     const period = `${monthOptions.find(m => m.value === month)?.label}_${year}`;
@@ -343,7 +349,7 @@ const formatDataForExport = (data: ReportData) => {
                     name="format"
                     value="excel"
                     checked={exportFormat === 'excel'}
-                    onChange={(e) => setExportFormat(e.target.value as 'excel' | 'csv')}
+                    onChange={(e) => setExportFormat(e.target.value as 'excel' | 'csv' | 'pdf')}
                     className="h-4 w-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400 border-gray-300 dark:border-gray-600"
                     disabled={loading}
                   />
@@ -358,12 +364,27 @@ const formatDataForExport = (data: ReportData) => {
                     name="format"
                     value="csv"
                     checked={exportFormat === 'csv'}
-                    onChange={(e) => setExportFormat(e.target.value as 'excel' | 'csv')}
+                    onChange={(e) => setExportFormat(e.target.value as 'excel' | 'csv' | 'pdf')}
                     className="h-4 w-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400 border-gray-300 dark:border-gray-600"
                     disabled={loading}
                   />
                   <label htmlFor="csv" className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
                     CSV (.csv)
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="radio"
+                    id="pdf"
+                    name="format"
+                    value="pdf"
+                    checked={exportFormat === 'pdf'}
+                    onChange={(e) => setExportFormat(e.target.value as 'excel' | 'csv' | 'pdf')}
+                    className="h-4 w-4 text-blue-600 dark:text-blue-400 focus:ring-blue-500 dark:focus:ring-blue-400 border-gray-300 dark:border-gray-600"
+                    disabled={loading}
+                  />
+                  <label htmlFor="pdf" className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+                    PDF (.pdf)
                   </label>
                 </div>
               </div>
