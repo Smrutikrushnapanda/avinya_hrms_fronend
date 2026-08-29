@@ -54,16 +54,25 @@ try {
   const messaging = getMessaging(firebaseApp);
 
   onBackgroundMessage(messaging, (payload) => {
-    const title = payload.notification?.title || payload.data?.senderName || "New message";
-    const body = payload.notification?.body || "You have a new message";
-    const conversationId = payload.data?.conversationId || "";
+    const data = payload.data || {};
+    const isMeeting = data.type === "meeting_notification";
+
+    const title = isMeeting
+      ? (payload.notification?.title || "New Meeting")
+      : (payload.notification?.title || data.senderName || "New message");
+    const body = isMeeting
+      ? (payload.notification?.body || "You have a new meeting notification")
+      : (payload.notification?.body || "You have a new message");
+    const tag = isMeeting
+      ? `meeting-${data.meetingId || ""}`
+      : (data.conversationId || undefined);
 
     void swScope.registration.showNotification(title, {
       body,
       icon: "/icons/icon-192x192.png",
       badge: "/icons/icon-96x96.png",
-      tag: conversationId || undefined,
-      data: payload.data || {},
+      tag,
+      data,
     });
   });
 } catch {
@@ -76,12 +85,8 @@ swScope.addEventListener("notificationclick", (event) => {
   notificationEvent.notification.close();
 
   const data = notificationEvent.notification.data as
-    | { conversationId?: string; senderName?: string; type?: string }
+    | { conversationId?: string; senderName?: string; type?: string; meetingId?: string }
     | undefined;
-  if (data?.type !== "chat_message" || !data.conversationId) return;
-
-  const conversationId = data.conversationId;
-  const senderName = data.senderName || "";
 
   notificationEvent.waitUntil(
     (async () => {
@@ -89,6 +94,24 @@ swScope.addEventListener("notificationclick", (event) => {
         type: "window",
         includeUncontrolled: true,
       });
+
+      // Meeting notification tap — route to meetings page
+      if (data?.type === "meeting_notification") {
+        const existing = clientList.find((c) => "focus" in c);
+        if (existing) {
+          await (existing as WindowClient).focus();
+          existing.postMessage({ type: "meeting-notification-click" });
+          return;
+        }
+        await swScope.clients.openWindow("/admin/meetings");
+        return;
+      }
+
+      // Chat notification tap — route to conversation
+      if (data?.type !== "chat_message" || !data.conversationId) return;
+
+      const conversationId = data.conversationId;
+      const senderName = data.senderName || "";
 
       const existing = clientList.find((c) => "focus" in c);
       if (existing) {

@@ -90,6 +90,11 @@ const searchCatalog: Record<UserRole, SearchTarget[]> = {
       keywords: ["salary", "payslip", "ctc", "compensation", "deductions"],
     },
     {
+      label: "Salary Structure",
+      href: "/admin/salary-structure",
+      keywords: ["salary", "structure", "earnings", "deductions", "basic", "hra", "ctc", "compensation"],
+    },
+    {
       label: "Reports",
       href: "/admin/reports",
       keywords: ["reporting", "analytics", "export", "download", "csv"],

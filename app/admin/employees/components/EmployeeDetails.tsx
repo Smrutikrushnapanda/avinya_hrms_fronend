@@ -31,6 +31,8 @@ import {
   getProfile,
   getMonthlyAttendance,
   updateEmployee,
+  getSalaryStructuresByEmployee,
+  getPayrollRecords,
 } from "@/app/api/api";
 import TimeslipTab from "./TimeslipTab";
 import WorkflowManagement from "./WorkflowManagement"; // Add this import
@@ -548,11 +550,140 @@ function LeaveTab({ employeeId, employee }: { employeeId: string; employee: Empl
 }
 
 function PayrollTab({ employeeId, employee }: { employeeId: string; employee: Employee }) {
+  const [salaryStructures, setSalaryStructures] = useState<any[]>([]);
+  const [payrollRecords, setPayrollRecords] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [ssRes, prRes] = await Promise.all([
+          getSalaryStructuresByEmployee(employeeId),
+          getPayrollRecords({ employeeId, page: 1, limit: 10 }),
+        ]);
+        setSalaryStructures(ssRes.data || []);
+        setPayrollRecords(prRes.data?.data || []);
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [employeeId]);
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(Number(value || 0));
+
+  if (loading) {
+    return <div className="py-6 text-center text-gray-500">Loading payroll data...</div>;
+  }
+
+  const activeStructure = salaryStructures.find((s: any) => s.status === "active");
+
   return (
-    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-      <CreditCard className="h-12 w-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
-      <p>No API available for payroll data</p>
-      <p className="text-sm mt-2">Please provide the payroll API endpoint</p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Salary & Payroll</h3>
+        <a
+          href="/admin/salary-structure"
+          className="text-sm text-blue-600 hover:underline"
+        >
+          Manage Salary Structure →
+        </a>
+      </div>
+
+      {/* Active Salary Structure */}
+      {activeStructure ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Active Salary Structure</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500">Basic Pay</span>
+                <p className="font-semibold">{formatCurrency(activeStructure.basic)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">HRA</span>
+                <p className="font-semibold">{formatCurrency(activeStructure.hra)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Conveyance</span>
+                <p className="font-semibold">{formatCurrency(activeStructure.conveyance)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Special Allowance</span>
+                <p className="font-semibold">{formatCurrency(activeStructure.otherAllowances)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">PF</span>
+                <p className="font-semibold">{formatCurrency(activeStructure.pf)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">TDS</span>
+                <p className="font-semibold">{formatCurrency(activeStructure.tds)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Gross Salary</span>
+                <p className="font-semibold text-green-600">{formatCurrency(activeStructure.grossSalary)}</p>
+              </div>
+              <div>
+                <span className="text-gray-500">Net Salary</span>
+                <p className="font-semibold text-green-600">{formatCurrency(activeStructure.netSalary)}</p>
+              </div>
+            </div>
+            {activeStructure.effectiveFrom && (
+              <p className="text-xs text-gray-400 mt-3">
+                Effective from {new Date(activeStructure.effectiveFrom).toLocaleDateString("en-IN")}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-8 text-center text-gray-500">
+            <CreditCard className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+            <p>No salary structure configured for this employee.</p>
+            <a href="/admin/salary-structure" className="text-sm text-blue-600 hover:underline mt-1 inline-block">
+              Configure Salary Structure →
+            </a>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent Payroll Records */}
+      {payrollRecords.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent Payroll Records</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {payrollRecords.slice(0, 5).map((record: any) => (
+                <div key={record.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div>
+                    <span className="text-sm font-medium">{record.payPeriod}</span>
+                    <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
+                      record.status === "paid" ? "bg-green-100 text-green-700" :
+                      record.status === "processed" ? "bg-blue-100 text-blue-700" :
+                      "bg-gray-100 text-gray-600"
+                    }`}>
+                      {record.status}
+                    </span>
+                  </div>
+                  <span className="font-semibold">{formatCurrency(record.netPay)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

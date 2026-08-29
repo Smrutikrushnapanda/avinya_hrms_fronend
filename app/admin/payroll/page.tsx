@@ -26,6 +26,7 @@ import {
   sendPayslip,
   getEmployeeBankDetail,
   updateEmployeeBankDetail,
+  getActiveSalaryStructure,
 } from "@/app/api/api";
 
 type PayrollStatus = "draft" | "processed" | "paid";
@@ -268,7 +269,12 @@ export default function PayrollPage() {
   const handleDownload = async (id: string) => {
     try {
       const res = await downloadPayrollSlip(id);
-      const blob = new Blob([res.data], { type: "application/pdf" });
+      if (res.status !== 200) {
+        const msg = typeof res.data === "object" ? res.data?.message : "Failed to download slip";
+        toast.error(msg || "Failed to download slip");
+        return;
+      }
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -277,8 +283,9 @@ export default function PayrollPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch (error) {
-      toast.error("Failed to download slip");
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || "Failed to download slip";
+      toast.error(msg);
     }
   };
 
@@ -678,7 +685,31 @@ export default function PayrollPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Employee</Label>
-                <Select value={form.employeeId} onValueChange={(v) => setForm({ ...form, employeeId: v })}>
+                <Select value={form.employeeId} onValueChange={async (v) => {
+                  setForm({ ...form, employeeId: v });
+                  // Auto-populate from salary structure if available
+                  if (v) {
+                    try {
+                      const res = await getActiveSalaryStructure(v);
+                      if (res.data) {
+                        const ss = res.data;
+                        setForm((prev) => ({
+                          ...prev,
+                          employeeId: v,
+                          basic: Number(ss.basic || 0),
+                          hra: Number(ss.hra || 0),
+                          conveyance: Number(ss.conveyance || 0),
+                          otherAllowances: Number(ss.otherAllowances || 0),
+                          pf: Number(ss.pf || 0),
+                          tds: Number(ss.tds || 0),
+                        }));
+                        toast.success("Salary structure loaded for this employee");
+                      }
+                    } catch {
+                      // No salary structure found — keep current values
+                    }
+                  }
+                }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select employee" />
                   </SelectTrigger>

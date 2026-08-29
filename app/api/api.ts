@@ -933,6 +933,20 @@ export const getEmployeeBankDetail = (employeeId: string) =>
 export const updateEmployeeBankDetail = (employeeId: string, data: any) =>
   api.put(`/payroll/bank-details/${employeeId}`, data);
 
+// 💰 Salary Structure APIs
+export const getSalaryStructures = () =>
+  api.get("/salary-structures");
+export const getSalaryStructuresByEmployee = (employeeId: string) =>
+  api.get(`/salary-structures/employee/${employeeId}`);
+export const getActiveSalaryStructure = (employeeId: string) =>
+  api.get(`/salary-structures/employee/${employeeId}/active`);
+export const createSalaryStructure = (data: any) =>
+  api.post("/salary-structures", data);
+export const updateSalaryStructure = (id: string, data: any) =>
+  api.put(`/salary-structures/${id}`, data);
+export const deleteSalaryStructure = (id: string) =>
+  api.delete(`/salary-structures/${id}`);
+
 // 💬 Chat APIs
 export const getChatConversations = () => api.get('/chat/conversations');
 export const createDirectChat = (userId: string) =>

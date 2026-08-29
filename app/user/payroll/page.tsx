@@ -115,7 +115,12 @@ export default function PayrollPage() {
     try {
       setDownloadingId(recordId);
       const response = await downloadPayrollSlip(recordId);
-      const blob = new Blob([response.data], { type: "application/pdf" });
+      if (response.status !== 200) {
+        const msg = typeof response.data === "object" ? response.data?.message : "Failed to download salary slip";
+        toast.error(msg || "Failed to download salary slip");
+        return;
+      }
+      const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -124,8 +129,9 @@ export default function PayrollPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Failed to download salary slip");
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || "Failed to download salary slip";
+      toast.error(msg);
     } finally {
       setDownloadingId(null);
     }

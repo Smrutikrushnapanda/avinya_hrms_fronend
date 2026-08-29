@@ -35,6 +35,7 @@ import {
   Bell,
   Plane,
   ListTodo,
+  Coins,
 } from "lucide-react";
 import {
   Tooltip,
@@ -121,6 +122,7 @@ const iconMap: Record<string, LucideIcon> = {
   Bell,
   Plane,
   ListTodo,
+  Coins,
 };
 
 function mapApiItem(item: ApiMenuItem): MenuItem {

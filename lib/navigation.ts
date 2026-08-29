@@ -7,6 +7,7 @@ import {
   Settings,
   Bell,
   UserCog,
+  Coins,
 } from "lucide-react";
 
 export interface NavItem {
@@ -47,6 +48,12 @@ export const adminNavigation: NavItem[] = [
     icon: BadgeDollarSign,
     href: "/admin/payroll",
     description: "Salary and compensation",
+  },
+  {
+    name: "Salary Structure",
+    icon: Coins,
+    href: "/admin/salary-structure",
+    description: "Employee salary configuration",
   },
   {
     name: "Reports",

@@ -62,6 +62,10 @@ export default function ChatPushProvider() {
       .catch(() => {});
 
     const socket = createMessageSocket(accessToken);
+
+    // Track recently notified message IDs to prevent duplicate sounds
+    const notifiedMessageIds = new Set<string>();
+
     socket.on("chat:message", (payload: { conversationId?: string; message?: IncomingChatMessage }) => {
       const conversationId = payload?.conversationId;
       const msg = payload?.message;
@@ -82,6 +86,26 @@ export default function ChatPushProvider() {
           label: "Open",
           onClick: () => router.push(buildChatUrl(pathnameRef.current, conversationId, senderName)),
         },
+      });
+    });
+
+    // Meeting / general in-app notifications via the message:new event.
+    // Played once per message ID to avoid duplicate sounds on reconnects.
+    socket.on("message:new", (payload: { message?: { id?: string; title?: string; body?: string; type?: string } }) => {
+      const msg = payload?.message;
+      if (!msg?.id) return;
+      if (msg.type !== "meeting") return;
+      if (notifiedMessageIds.has(msg.id)) return;
+      notifiedMessageIds.add(msg.id);
+      // Prevent unbounded growth — prune when over 200 entries
+      if (notifiedMessageIds.size > 200) {
+        const first = notifiedMessageIds.values().next().value;
+        if (first) notifiedMessageIds.delete(first);
+      }
+
+      void playIncomingMessageSound();
+      toast(msg.title || "New Meeting", {
+        description: msg.body || "You have a new meeting notification",
       });
     });
 
