@@ -19,6 +19,7 @@ import {
   BarChart2,
   Settings,
   Bell,
+  Video,
   Users,
   Newspaper,
 } from "lucide-react";
@@ -41,6 +42,7 @@ const basicTabs = [
 
 const serviceItems = [
   { name: "Profile", href: "/user/dashboard/mobile/profile", icon: Users },
+  { name: "My Meetings", href: "/user/dashboard/mobile/meetings", icon: Video },
   { name: "Timesheet", href: "/user/dashboard/mobile/timesheet", icon: FileText },
   { name: "WFH", href: "/user/dashboard/mobile/wfh", icon: Monitor },
   { name: "Payroll", href: "/user/dashboard/mobile/payroll", icon: DollarSign },
@@ -54,6 +56,7 @@ const serviceItems = [
 
 const SERVICE_ITEM_DESKTOP_ROUTE: Record<string, string> = {
   Profile: "/user/profile",
+  "My Meetings": "/user/meetings",
   Timesheet: "/user/timesheet",
   WFH: "/user/wfh",
   Payroll: "/user/payroll",
@@ -110,7 +113,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
         pathname.includes("/polls") || pathname.includes("/posts") ||
         pathname.includes("/settings") || pathname.includes("/notifications") ||
         pathname.includes("/profile") || pathname.includes("/wfh") ||
-        pathname.includes("/policies")
+        pathname.includes("/policies") || pathname.includes("/meetings")
       ) return 2;
       if (pathname.includes("/leave")) return 3;
       if (pathname.includes("/timeslip")) return 4;
