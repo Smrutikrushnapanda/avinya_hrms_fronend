@@ -52,6 +52,12 @@ const getStatusBadgeClass = (status: PayrollStatus) => {
   return "bg-amber-100 text-amber-700 border-amber-200";
 };
 
+const formatPayPeriod = (pp: string) => {
+  if (!pp) return "-";
+  const [y, m] = pp.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+};
+
 export default function PayrollPage() {
   const [loading, setLoading] = useState(true);
   const [employeeId, setEmployeeId] = useState("");
@@ -165,7 +171,7 @@ export default function PayrollPage() {
           <CardHeader>
             <CardTitle className="text-lg">Current Salary Slip</CardTitle>
             <CardDescription>
-              Pay Period: {currentSlip.payPeriod || `${formatDate(currentSlip.periodStart)} - ${formatDate(currentSlip.periodEnd)}`}
+              Pay Period: {formatPayPeriod(currentSlip.payPeriod) || `${formatDate(currentSlip.periodStart)} - ${formatDate(currentSlip.periodEnd)}`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -236,7 +242,7 @@ export default function PayrollPage() {
                   {records.map((record, index) => (
                     <tr key={record.id} className="border-b last:border-b-0">
                       <td className="py-3 pr-4 font-medium">{index + 1}</td>
-                      <td className="py-3 pr-4 font-medium">{record.payPeriod || "-"}</td>
+                      <td className="py-3 pr-4 font-medium">{formatPayPeriod(record.payPeriod)}</td>
                       <td className="py-3 pr-4">
                         {formatDate(record.periodStart)} - {formatDate(record.periodEnd)}
                       </td>

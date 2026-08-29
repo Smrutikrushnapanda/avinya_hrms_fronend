@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Download, Plus, Pencil, Send, Mail, Smartphone, ChevronDown, Landmark } from "lucide-react";
+import { Download, Plus, Pencil, Send, Mail, Smartphone, ChevronDown, Landmark, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { deductionFieldKeys, earningFieldKeys, payrollLayoutConfig, type PayrollAmountFieldKey } from "@/lib/payroll-config";
 import {
@@ -28,6 +28,7 @@ import {
   updateEmployeeBankDetail,
   getActiveSalaryStructure,
 } from "@/app/api/api";
+import EmployeeSelector from "@/components/employee-selector";
 
 type PayrollStatus = "draft" | "processed" | "paid";
 
@@ -106,6 +107,12 @@ const formatCurrency = (value: number) =>
     currency: "INR",
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
+
+const formatPayPeriod = (pp: string) => {
+  if (!pp) return "-";
+  const [y, m] = pp.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+};
 
 export default function PayrollPage() {
   const [organizationId, setOrganizationId] = useState<string>("");
@@ -237,10 +244,7 @@ export default function PayrollPage() {
       (acc, field) => ({ ...acc, [field.key]: Number(form[field.key] || 0) }),
       {} as Record<PayrollAmountFieldKey, number>
     );
-    const payload: any = {
-      organizationId,
-      employeeId: form.employeeId,
-      payPeriod,
+    const basePayload: any = {
       periodStart: new Date(form.periodStart).toISOString(),
       periodEnd: new Date(form.periodEnd).toISOString(),
       ...amountValues,
@@ -250,10 +254,16 @@ export default function PayrollPage() {
 
     try {
       if (editing) {
-        await updatePayrollRecord(editing.id, payload);
+        await updatePayrollRecord(editing.id, basePayload);
         toast.success("Payroll updated");
       } else {
-        await createPayrollRecord(payload);
+        const createPayload = {
+          ...basePayload,
+          organizationId,
+          employeeId: form.employeeId,
+          payPeriod,
+        };
+        await createPayrollRecord(createPayload);
         toast.success("Payroll created");
       }
       setIsDialogOpen(false);
@@ -272,6 +282,7 @@ export default function PayrollPage() {
 
   const handleDownload = async (id: string) => {
     try {
+      setDownloadingId(id);
       const res = await downloadPayrollSlip(id);
       if (res.status !== 200) {
         const msg = typeof res.data === "object" ? res.data?.message : "Failed to download slip";
@@ -290,10 +301,13 @@ export default function PayrollPage() {
     } catch (error: any) {
       const msg = error?.response?.data?.message || "Failed to download slip";
       toast.error(msg);
+    } finally {
+      setDownloadingId(null);
     }
   };
 
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const handleSend = async (record: PayrollRecord, method: 'email' | 'in_app' | 'both') => {
     try {
@@ -540,15 +554,15 @@ export default function PayrollPage() {
                       <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell>{r.employee?.firstName} {r.employee?.lastName || ""}</TableCell>
                       <TableCell>{r.employee?.employeeCode || "-"}</TableCell>
-                      <TableCell>{r.payPeriod}</TableCell>
+                      <TableCell>{formatPayPeriod(r.payPeriod)}</TableCell>
                       <TableCell className="font-semibold">{formatCurrency(r.netPay)}</TableCell>
                       <TableCell className="capitalize">{r.status}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDownload(r.id)}>
-                          <Download className="w-4 h-4" />
+                        <Button variant="ghost" size="sm" onClick={() => handleDownload(r.id)} disabled={downloadingId === r.id}>
+                          {downloadingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => openBankDetails(r)} title="Bank Details">
                           <Landmark className="w-4 h-4" />
@@ -615,7 +629,20 @@ export default function PayrollPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Primary Color</Label>
-                  <Input value={settings.primaryColor || ""} onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })} placeholder="#1f2937" />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={settings.primaryColor || "#1f2937"}
+                      onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
+                      className="h-10 w-14 cursor-pointer rounded border border-input bg-transparent p-0.5"
+                    />
+                    <Input
+                      value={settings.primaryColor || ""}
+                      onChange={(e) => setSettings({ ...settings, primaryColor: e.target.value })}
+                      placeholder="#1f2937"
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="space-y-2">
@@ -689,42 +716,33 @@ export default function PayrollPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Employee</Label>
-                <Select value={form.employeeId} onValueChange={async (v) => {
-                  setForm({ ...form, employeeId: v });
-                  // Auto-populate from salary structure if available
-                  if (v) {
-                    try {
-                      const res = await getActiveSalaryStructure(v);
-                      if (res.data) {
-                        const ss = res.data;
-                        setForm((prev) => ({
-                          ...prev,
-                          employeeId: v,
-                          basic: Number(ss.basic || 0),
-                          hra: Number(ss.hra || 0),
-                          conveyance: Number(ss.conveyance || 0),
-                          otherAllowances: Number(ss.otherAllowances || 0),
-                          pf: Number(ss.pf || 0),
-                          tds: Number(ss.tds || 0),
-                        }));
-                        toast.success("Salary structure loaded for this employee");
+                <EmployeeSelector
+                  value={form.employeeId}
+                  onChange={async (employeeId) => {
+                    setForm({ ...form, employeeId });
+                    if (employeeId) {
+                      try {
+                        const res = await getActiveSalaryStructure(employeeId);
+                        if (res.data) {
+                          const ss = res.data;
+                          setForm((prev) => ({
+                            ...prev,
+                            employeeId,
+                            basic: Number(ss.basic || 0),
+                            hra: Number(ss.hra || 0),
+                            conveyance: Number(ss.conveyance || 0),
+                            otherAllowances: Number(ss.otherAllowances || 0),
+                            pf: Number(ss.pf || 0),
+                            tds: Number(ss.tds || 0),
+                          }));
+                          toast.success("Salary structure loaded for this employee");
+                        }
+                      } catch {
+                        // No salary structure found
                       }
-                    } catch {
-                      // No salary structure found — keep current values
                     }
-                  }
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select employee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((e: any) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.firstName} {e.lastName || ""} ({e.employeeCode})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  }}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Period Start</Label>
@@ -735,7 +753,7 @@ export default function PayrollPage() {
                 <Input type="date" value={form.periodEnd} onChange={(e) => setForm({ ...form, periodEnd: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Salary Predicate Date</Label>
+                <Label>Salary Date</Label>
                 <Input type="date" value={form.salaryPredicateDate} onChange={(e) => setForm({ ...form, salaryPredicateDate: e.target.value })} />
               </div>
             </div>

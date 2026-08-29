@@ -158,6 +158,8 @@ export const getDashboardStats = (organizationId?: string) => {
 
 export const createEmployee = (data: any) => api.post("/employees", data);
 export const getEmployees = (organizationId: string) => api.get("/employees", { params: { organizationId } });
+export const getEmployeeSelector = (params: { organizationId: string; search?: string; departmentId?: string; designationId?: string; limit?: number }) =>
+  api.get("/employees/selector", { params });
 export const getEmployee = (id: string) => api.get(`/employees/${id}`);
 export const updateEmployee = (id: string, data: any) => api.put(`/employees/${id}`, data);
 export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
