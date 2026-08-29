@@ -259,13 +259,6 @@ function buildColumns(
   const lateThresholdMinutes = 60;
   return [
   {
-    id: "serial",
-    header: () => <span>Sr. No.</span>,
-    cell: ({ row }) => row.index + 1,
-    enableSorting: false,
-    size: 40,
-  },
-  {
     accessorKey: "userName",
     header: () => (
       <div className="flex items-center gap-1">
@@ -849,7 +842,6 @@ export default function AttendancePage() {
               setState={setState}
               initialColumnVisibility={{ inDeviceInfo: false }}
               columnLabels={{
-                serial: "Sr. No.",
                 userName: "Employee Name",
                 clockInOut: "Clock-In & Out",
                 inPhoto: "In Photo",

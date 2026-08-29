@@ -70,6 +70,8 @@ export default function SalaryStructurePage() {
   const [deptFilter, setDeptFilter] = useState("all");
   const [desigFilter, setDesigFilter] = useState("all");
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
 
   useEffect(() => {
     const init = async () => {
@@ -157,6 +159,9 @@ export default function SalaryStructurePage() {
     return rows;
   }, [employees, deptFilter, desigFilter, search]);
 
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
   const hasFilters = deptFilter !== "all" || desigFilter !== "all" || search.trim();
 
   return (
@@ -187,16 +192,16 @@ export default function SalaryStructurePage() {
           <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search by name, code, or email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+              <Input placeholder="Search by name, code, or email..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pl-8" />
             </div>
-            <Select value={deptFilter} onValueChange={setDeptFilter}>
+            <Select value={deptFilter} onValueChange={(v) => { setDeptFilter(v); setPage(1); }}>
               <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Department" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
                 {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={desigFilter} onValueChange={setDesigFilter}>
+            <Select value={desigFilter} onValueChange={(v) => { setDesigFilter(v); setPage(1); }}>
               <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Designation" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Designations</SelectItem>
@@ -204,7 +209,7 @@ export default function SalaryStructurePage() {
               </SelectContent>
             </Select>
             {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={() => { setDeptFilter("all"); setDesigFilter("all"); setSearch(""); }}>
+              <Button variant="ghost" size="sm" onClick={() => { setDeptFilter("all"); setDesigFilter("all"); setSearch(""); setPage(1); }}>
                 <X className="w-4 h-4 mr-1" /> Clear
               </Button>
             )}
@@ -219,6 +224,7 @@ export default function SalaryStructurePage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Employee</TableHead>
                   <TableHead>Code</TableHead>
                   <TableHead>Department</TableHead>
@@ -234,21 +240,22 @@ export default function SalaryStructurePage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={11} className="text-center py-8">
                       <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
                     </TableCell>
                   </TableRow>
-                ) : filtered.length === 0 ? (
+                ) : paginated.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No employees found.</TableCell>
+                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No employees found.</TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((emp) => (
+                  paginated.map((emp, idx) => (
                     <TableRow
                       key={emp.id}
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => router.push(`/admin/salary-structure/${emp.id}`)}
                     >
+                      <TableCell className="text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                       <TableCell>
                         <div className="font-medium">{emp.firstName} {emp.lastName || ""}</div>
                         <div className="text-xs text-muted-foreground">{emp.workEmail}</div>
@@ -285,7 +292,21 @@ export default function SalaryStructurePage() {
                 )}
               </TableBody>
             </Table>
-          </div>
+           </div>
+          {filtered.length > pageSize && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <p className="text-sm text-muted-foreground">
+                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+              </p>
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <Button key={p} variant={p === page ? "default" : "outline"} size="sm" onClick={() => setPage(p)}>{p}</Button>
+                ))}
+                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

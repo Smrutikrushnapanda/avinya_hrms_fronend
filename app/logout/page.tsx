@@ -13,9 +13,8 @@ import { getToken } from "firebase/messaging";
 import { getFirebaseMessaging, vapidKey } from "@/lib/firebase";
 
 const clearCookies = () => {
-  document.cookie.split(";").forEach((cookie) => {
-    const name = cookie.split("=")[0].trim();
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+  ["user", "user_role", "auth_token", "must_change_password", "dashboard-view"].forEach((name) => {
+    document.cookie = `${name}=; path=/; max-age=0`;
   });
 };
 
@@ -76,10 +75,11 @@ const LogoutPage = () => {
       }
 
       try {
-        // Clear cookies and storage
+        // Clear auth cookies and auth-related localStorage keys
         clearCookies();
-        localStorage.clear();
-        sessionStorage.clear();
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("user_role");
 
         // Call logout API if user is logged in
         if (shouldCallLogout) {

@@ -24,11 +24,39 @@ export default function SuperadminLoginPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expired") === "1") {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("user_role");
+        return;
+      }
+
       const token = localStorage.getItem("access_token");
       const rawRole = localStorage.getItem("user_role");
-      if (token && rawRole?.toUpperCase() === "SUPERADMIN") {
-        router.replace("/superadmin/dashboard");
+      if (!token || !rawRole) return;
+
+      if (rawRole.toUpperCase() !== "SUPERADMIN") return;
+
+      // Validate JWT expiry before re-hydrating into cookies
+      try {
+        const parts = token.split(".");
+        if (parts.length !== 3) throw new Error("malformed");
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+        if (typeof payload.exp === "number" && payload.exp * 1000 <= Date.now()) {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("user");
+          localStorage.removeItem("user_role");
+          return;
+        }
+      } catch {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("user_role");
+        return;
       }
+
+      router.replace("/superadmin/dashboard");
     } catch {
       // ignore malformed local storage and stay on login
     }

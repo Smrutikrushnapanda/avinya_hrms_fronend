@@ -64,6 +64,14 @@ export default function LoginPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expired") === "1") {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("user_role");
+        return;
+      }
+
       const token = localStorage.getItem("access_token");
       const rawUser = localStorage.getItem("user");
       const rawRole = localStorage.getItem("user_role");
@@ -71,6 +79,28 @@ export default function LoginPage() {
 
       const normalizedRole = rawRole.toUpperCase() as "ADMIN" | "EMPLOYEE" | "SUPERADMIN";
       if (normalizedRole !== "ADMIN" && normalizedRole !== "EMPLOYEE" && normalizedRole !== "SUPERADMIN") return;
+
+      // Validate JWT expiry before re-hydrating into cookies
+      try {
+        const parts = token.split(".");
+        if (parts.length !== 3) throw new Error("malformed");
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+        if (typeof payload.exp === "number" && payload.exp * 1000 <= Date.now()) {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("user");
+          localStorage.removeItem("user_role");
+          document.cookie = "user=; path=/; max-age=0";
+          document.cookie = "user_role=; path=/; max-age=0";
+          document.cookie = "auth_token=; path=/; max-age=0";
+          document.cookie = "must_change_password=; path=/; max-age=0";
+          return;
+        }
+      } catch {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("user_role");
+        return;
+      }
 
       const parsedUser = JSON.parse(rawUser);
       writeAuthCookies(parsedUser, token, normalizedRole, 2592000);

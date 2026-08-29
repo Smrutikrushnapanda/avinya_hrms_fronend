@@ -50,6 +50,7 @@ let isRedirectingToLogin = false;
 function clearAuthData() {
   localStorage.removeItem("access_token");
   localStorage.removeItem("user");
+  localStorage.removeItem("user_role");
   document.cookie = "user=; path=/; max-age=0";
   document.cookie = "user_role=; path=/; max-age=0";
   document.cookie = "auth_token=; path=/; max-age=0";

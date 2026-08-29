@@ -15,10 +15,13 @@ function getJwtExpiry(token?: string) {
   }
 }
 
-function redirectToSignin(req: NextRequest, pathname = "/signin") {
+function redirectToSignin(req: NextRequest, pathname = "/signin", expired = false) {
   const url = req.nextUrl.clone();
   url.pathname = pathname;
   url.search = "";
+  if (expired) {
+    url.searchParams.set("expired", "1");
+  }
   const response = NextResponse.redirect(url);
   for (const name of ["user", "user_role", "must_change_password", "dashboard-view", "auth_token"]) {
     response.cookies.delete(name);
@@ -43,7 +46,7 @@ export function middleware(req: NextRequest) {
   if (isProtectedRoute) {
     const tokenExpiry = getJwtExpiry(authTokenCookie);
     if (!authTokenCookie || !tokenExpiry || tokenExpiry * 1000 <= Date.now()) {
-      return redirectToSignin(req, isSuperadminRoute ? "/superadmin-login" : "/signin");
+      return redirectToSignin(req, isSuperadminRoute ? "/superadmin-login" : "/signin", true);
     }
   }
 
