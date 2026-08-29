@@ -554,21 +554,6 @@ export default function EmployeesPage() {
       errors.workEmail = "Email already exists";
     }
 
-    // Validate credentials: if updating credentials in edit mode, require both username AND password
-    if (isUpdate) {
-      const hasUsername = data.loginUserName?.trim();
-      const hasPassword = data.loginPassword?.trim();
-      
-      // If providing only one credential, show error
-      if ((hasUsername && !hasPassword) || (!hasUsername && hasPassword)) {
-        if (hasUsername && !hasPassword) {
-          errors.loginPassword = "Please also provide password when updating username";
-        } else if (!hasUsername && hasPassword) {
-          errors.loginUserName = "Please also provide username when updating password";
-        }
-      }
-    }
-
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -613,18 +598,13 @@ export default function EmployeesPage() {
       cleanData.loginUserName = data.loginUserName?.trim();
       cleanData.loginPassword = data.loginPassword;
     } else {
-      // Edit mode: only include credentials if BOTH username AND password are provided together
-      // This prevents partial updates that cause credential mismatches
+      // Edit mode: username syncs from the form (auto-mirrors the work email),
+      // and the password is only updated if the admin explicitly provides a
+      // new one. The backend applies each independently, so no password is
+      // required when editing ordinary detail fields.
       const hasUsername = data.loginUserName?.trim();
-      const hasPassword = data.loginPassword?.trim();
-      
-      // Only send credentials if both are provided (updating as a pair)
-      if (hasUsername && hasPassword) {
-        cleanData.loginUserName = hasUsername;
-        cleanData.loginPassword = hasPassword;
-      }
-      // If neither or only one is provided, don't send credentials (keep current)
-      // This ensures credentials remain unchanged unless explicitly updating both
+      if (hasUsername) cleanData.loginUserName = hasUsername;
+      if (data.loginPassword?.trim()) cleanData.loginPassword = data.loginPassword;
     }
 
     return cleanData;

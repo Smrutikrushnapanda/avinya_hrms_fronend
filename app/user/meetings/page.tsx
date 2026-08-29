@@ -13,6 +13,8 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Plus,
+  Loader2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,10 +30,26 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { getProfile, getMeetingsForUser } from "@/app/api/api";
+import {
+  getProfile,
+  getEmployees,
+  createMeeting,
+  getMeetingsForUser,
+} from "@/app/api/api";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -57,6 +75,14 @@ interface Meeting {
     lastName: string;
   };
   participants?: Participant[];
+}
+
+interface Employee {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -148,7 +174,21 @@ export default function MyMeetingsPage() {
   const [meetingsLoading, setMeetingsLoading] = useState(false);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  // ─── Schedule meeting state ──────────────────────────────────────────────
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [meetingForm, setMeetingForm] = useState({
+    title: "",
+    description: "",
+    scheduledDate: "",
+    scheduledTime: "",
+    durationMinutes: "30",
+    participantIds: [] as string[],
+  });
 
   // ─── Copy link to clipboard ─────────────────────────────────────────────────
   const handleCopyLink = async (link: string) => {
@@ -162,12 +202,13 @@ export default function MyMeetingsPage() {
     }
   };
 
-  // ─── Fetch profile to get userId ──────────────────────────────────────────
+  // ─── Fetch profile to get userId + organizationId ────────────────────────
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const res = await getProfile();
         setUserId(res.data?.userId || null);
+        setOrganizationId(res.data?.organizationId || null);
       } catch {
         toast.error("Failed to load profile");
       } finally {
@@ -176,6 +217,92 @@ export default function MyMeetingsPage() {
     };
     fetchProfile();
   }, []);
+
+  // ─── Fetch org employees for participant selection ──────────────────────
+  const fetchEmployees = useCallback(async () => {
+    if (!organizationId) return;
+    try {
+      const res = await getEmployees(organizationId);
+      const data = res.data?.data || res.data || [];
+      setEmployees(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error("Failed to load employees");
+    }
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (organizationId) fetchEmployees();
+  }, [organizationId, fetchEmployees]);
+
+  // ─── Create meeting ──────────────────────────────────────────────────────
+  const handleCreateMeeting = async () => {
+    if (!meetingForm.title.trim()) {
+      toast.error("Please enter a meeting title");
+      return;
+    }
+    if (!meetingForm.scheduledDate || !meetingForm.scheduledTime) {
+      toast.error("Please select date and time");
+      return;
+    }
+    if (!organizationId || !userId) {
+      toast.error("Profile not loaded");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const scheduledAt = new Date(
+        `${meetingForm.scheduledDate}T${meetingForm.scheduledTime}`
+      ).toISOString();
+
+      await createMeeting({
+        title: meetingForm.title.trim(),
+        description: meetingForm.description.trim() || undefined,
+        scheduledAt,
+        durationMinutes: parseInt(meetingForm.durationMinutes) || 30,
+        participantIds: meetingForm.participantIds,
+        organizationId,
+        createdById: userId,
+      });
+
+      toast.success("Meeting scheduled successfully");
+      setCreateDialogOpen(false);
+      setMeetingForm({
+        title: "",
+        description: "",
+        scheduledDate: "",
+        scheduledTime: "",
+        durationMinutes: "30",
+        participantIds: [],
+      });
+      fetchMeetings();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to create meeting");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // ─── Toggle participant selection ───────────────────────────────────────
+  const toggleParticipant = (empId: string) => {
+    setMeetingForm((prev) => ({
+      ...prev,
+      participantIds: prev.participantIds.includes(empId)
+        ? prev.participantIds.filter((id) => id !== empId)
+        : [...prev.participantIds, empId],
+    }));
+  };
+
+  // ─── Reset create form ───────────────────────────────────────────────────
+  const resetMeetingForm = () =>
+    setMeetingForm({
+      title: "",
+      description: "",
+      scheduledDate: "",
+      scheduledTime: "",
+      durationMinutes: "30",
+      participantIds: [],
+    });
 
   // ─── Fetch meetings for this user ─────────────────────────────────────────
   const fetchMeetings = useCallback(async () => {
@@ -210,14 +337,24 @@ export default function MyMeetingsPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Calendar1 className="h-7 w-7 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold">My Meetings</h1>
-          <p className="text-xs text-muted-foreground">
-            View meetings you are invited to
-          </p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <Calendar1 className="h-7 w-7 text-primary" />
+          <div>
+            <h1 className="text-2xl font-semibold">My Meetings</h1>
+            <p className="text-xs text-muted-foreground">
+              View and schedule meetings with your team
+            </p>
+          </div>
         </div>
+        <Button
+          onClick={() => setCreateDialogOpen(true)}
+          className="gap-2"
+          data-testid="schedule-meeting-open"
+        >
+          <Plus className="h-4 w-4" />
+          Schedule Meeting
+        </Button>
       </div>
 
       {meetingsLoading ? (
@@ -408,6 +545,147 @@ export default function MyMeetingsPage() {
             </div>
           </DialogContent>
         )}
+      </Dialog>
+
+      {/* Create Meeting Dialog */}
+      <Dialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open);
+          if (!open) resetMeetingForm();
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Schedule Meeting</DialogTitle>
+            <DialogDescription>
+              Create a meeting and invite your colleagues to join.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Meeting Title *</Label>
+              <Input
+                placeholder="e.g. Project sync"
+                value={meetingForm.title}
+                onChange={(e) =>
+                  setMeetingForm((prev) => ({ ...prev, title: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Description (optional)</Label>
+              <Input
+                placeholder="Meeting agenda or notes"
+                value={meetingForm.description}
+                onChange={(e) =>
+                  setMeetingForm((prev) => ({ ...prev, description: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Date *</Label>
+                <Input
+                  type="date"
+                  value={meetingForm.scheduledDate}
+                  onChange={(e) =>
+                    setMeetingForm((prev) => ({ ...prev, scheduledDate: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Time *</Label>
+                <Input
+                  type="time"
+                  value={meetingForm.scheduledTime}
+                  onChange={(e) =>
+                    setMeetingForm((prev) => ({ ...prev, scheduledTime: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Duration</Label>
+              <Select
+                value={meetingForm.durationMinutes}
+                onValueChange={(value) =>
+                  setMeetingForm((prev) => ({ ...prev, durationMinutes: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 minutes</SelectItem>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="45">45 minutes</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="90">1.5 hours</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Invite Colleagues</Label>
+              <div className="border rounded-md max-h-48 overflow-y-auto p-2 space-y-1">
+                {employees.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-2">
+                    No employees found in your organization
+                  </p>
+                ) : (
+                  employees
+                    .filter((emp) => emp.userId !== userId)
+                    .map((emp) => (
+                      <div
+                        key={emp.userId}
+                        className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer"
+                        onClick={() => toggleParticipant(emp.userId)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={meetingForm.participantIds.includes(emp.userId)}
+                          onChange={() => {}}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm">
+                          {emp.firstName} {emp.lastName}
+                        </span>
+                      </div>
+                    ))
+                )}
+              </div>
+              {meetingForm.participantIds.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {meetingForm.participantIds.length} colleague(s) invited
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateMeeting}
+              loading={creating}
+              className="gap-2"
+            >
+              {creating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              Schedule Meeting
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );
