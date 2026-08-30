@@ -207,7 +207,7 @@ export default function MobileTimeslipPage() {
 
         <MobileCard className="flex gap-1 p-1" padded={false}>
           {tabs.map((tab) => (
-            <motion.button
+            <button
               key={tab}
               onClick={() => setSelectedTab(tab)}
               className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-colors relative ${
@@ -215,14 +215,10 @@ export default function MobileTimeslipPage() {
               }`}
             >
               {selectedTab === tab && (
-                <motion.span
-                  layoutId="timeslipTabBg"
-                  className="absolute inset-0 bg-primary rounded-xl"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
+                <span className="absolute inset-0 bg-primary rounded-xl" />
               )}
               <span className="relative z-10">{tab}</span>
-            </motion.button>
+            </button>
           ))}
         </MobileCard>
 

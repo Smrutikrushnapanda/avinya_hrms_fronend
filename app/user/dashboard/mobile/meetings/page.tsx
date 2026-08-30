@@ -8,8 +8,6 @@ import {
   Users,
   Copy,
   Check,
-  ExternalLink,
-  Loader2,
   CalendarDays,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +16,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getProfile, getMeetingsForUser } from "@/app/api/api";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
+
+import MobileTabHeader from "../components/MobileTabHeader";
+import { MobileEmptyState } from "../components/MobileEmptyState";
+import { MobileSkeleton } from "../components/MobileSkeleton";
 
 interface Participant {
   id: string;
@@ -154,32 +156,18 @@ export default function MobileMeetingsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[100dvh] bg-background">
-        <Loader2 className="animate-spin h-8 w-8 text-muted-foreground" />
+      <div className="min-h-screen bg-background flex flex-col">
+        <MobileTabHeader title="My Meetings" />
+        <MobileSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-background">
-      {/* Header */}
-      <div className="shrink-0 border-b border-border bg-card px-4 pt-3 pb-3">
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => router.push("/user/dashboard/mobile")}
-            className="p-1 rounded-md text-foreground hover:bg-muted transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <Video className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-bold text-foreground">My Meetings</h1>
-        </div>
-      </div>
+    <div className="min-h-screen bg-background flex flex-col">
+      <MobileTabHeader title="My Meetings" backHref="/user/dashboard/mobile" />
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="px-4 mt-4 relative z-10 pb-24 space-y-6">
         {/* Upcoming Meetings */}
         <div>
           <h2 className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
@@ -187,7 +175,11 @@ export default function MobileMeetingsPage() {
             Upcoming ({upcomingMeetings.length})
           </h2>
           {upcomingMeetings.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No upcoming meetings</p>
+            <MobileEmptyState
+              icon={<CalendarDays size={24} />}
+              title="No upcoming meetings"
+              description="You have no scheduled meetings."
+            />
           ) : (
             <div className="space-y-3">
               {upcomingMeetings.map((meeting) => (

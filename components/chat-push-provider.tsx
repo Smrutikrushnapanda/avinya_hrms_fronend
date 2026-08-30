@@ -89,12 +89,12 @@ export default function ChatPushProvider() {
       });
     });
 
-    // Meeting / general in-app notifications via the message:new event.
+    // Meeting / post / general in-app notifications via the message:new event.
     // Played once per message ID to avoid duplicate sounds on reconnects.
     socket.on("message:new", (payload: { message?: { id?: string; title?: string; body?: string; type?: string } }) => {
       const msg = payload?.message;
       if (!msg?.id) return;
-      if (msg.type !== "meeting") return;
+      if (msg.type !== "meeting" && msg.type !== "post") return;
       if (notifiedMessageIds.has(msg.id)) return;
       notifiedMessageIds.add(msg.id);
       // Prevent unbounded growth — prune when over 200 entries

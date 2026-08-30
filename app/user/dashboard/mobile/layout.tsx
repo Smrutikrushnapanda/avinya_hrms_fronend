@@ -160,20 +160,17 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
 
       {hasServicesCenter && (
         <motion.div
-          drag="y"
-          dragConstraints={{ top: 0, bottom: 0 }}
-          onDragEnd={(_, info) => { if (info.offset.y > 80) setSheetOpen(false); }}
           initial={false}
           animate={sheetOpen ? "open" : "closed"}
           variants={{
             open: { y: 0 },
             closed: { y: "100%" },
           }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          transition={{ type: "spring", stiffness: 400, damping: 35 }}
           className="fixed left-0 w-full bg-card border-t border-border z-50 rounded-t-2xl shadow-2xl"
           style={{ bottom: "64px" }}
         >
-          <div className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing">
+          <div className="flex justify-center pt-3 pb-1">
             <div className="w-10 h-1 bg-border rounded-full" />
           </div>
 
