@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import {
   Users,
   Search,
@@ -21,6 +22,7 @@ import {
   Loader2,
   MessageSquare,
   Trash,
+  CalendarClock,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -116,6 +118,7 @@ export default function EmployeeTable({
   onViewEmployeeDetails,
   onSendMessage,
 }: EmployeeTableProps) {
+  const router = useRouter();
   const employees = employeeData?.employees || [];
   const pagination = employeeData?.pagination || { page: 1, total: 0, totalPages: 1, hasNext: false, hasPrev: false };
 
@@ -461,6 +464,10 @@ export default function EmployeeTable({
                                 <DropdownMenuItem onClick={() => onSendMessage(employee)}>
                                   <MessageSquare className="mr-2 h-4 w-4" />
                                   Send Message
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => router.push(`/admin/attendance/employee/${employee.id}`)}>
+                                  <CalendarClock className="mr-2 h-4 w-4" />
+                                  Attendance Monthly
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

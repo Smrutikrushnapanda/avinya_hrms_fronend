@@ -90,9 +90,11 @@ export default function EmployeeAttendanceDetailPage() {
         setEmployee(emp);
         setOrganizationId(emp.organizationId);
 
-        // Fetch monthly attendance
+        // Fetch monthly attendance — use emp.userId (the users.user_id FK),
+        // not employeeId (the employees.id PK). The backend attendance query
+        // joins on users.user_id.
         const attRes = await getMonthlyAttendance({
-          userId: employeeId,
+          userId: emp.userId,
           month,
           year,
           organizationId: emp.organizationId,
