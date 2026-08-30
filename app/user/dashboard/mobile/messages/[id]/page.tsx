@@ -104,6 +104,9 @@ export default function MobileChatPage() {
   const [meetingMiniPosition, setMeetingMiniPosition] = useState<{ x: number; y: number } | null>(null);
   const [meetingMiniDragging, setMeetingMiniDragging] = useState(false);
   const [showChatDetails, setShowChatDetails] = useState(false);
+  const [inputHidden, setInputHidden] = useState(false);
+  const lastScrollTop = useRef(0);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const jitsiContainerRef = useRef<HTMLDivElement | null>(null);
   const jitsiApiRef = useRef<any | null>(null);
   const meetingMiniDragOffsetRef = useRef({ x: 0, y: 0 });
@@ -955,9 +958,19 @@ export default function MobileChatPage() {
         ref={listRef}
         className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-3 bg-background space-y-2.5"
         onScroll={(event) => {
-          if (event.currentTarget.scrollTop < 80) {
+          const el = event.currentTarget;
+          const scrollTop = el.scrollTop;
+          if (scrollTop < 80) {
             void loadOlderMessages();
           }
+          // Hide input when scrolling down, show when scrolling up
+          if (scrollTop > lastScrollTop.current + 5 && scrollTop > 60) {
+            setInputHidden(true);
+            setShowEmojiMenu(false);
+          } else if (scrollTop < lastScrollTop.current - 5) {
+            setInputHidden(false);
+          }
+          lastScrollTop.current = scrollTop;
         }}
       >
         {loading ? (
@@ -1132,14 +1145,24 @@ export default function MobileChatPage() {
         )}
       </div>
 
-      {/* ── PINNED INPUT BAR (never scrolls, floats above keyboard) ── */}
-      {/*
-       * ✅ `shrink-0` makes this a fixed-height flex child.
-       * When the mobile keyboard opens, `h-[100dvh]` shrinks → the flex
-       * column shrinks → this bar naturally sits right above the keyboard.
-       * `pb-[env(safe-area-inset-bottom)]` handles iPhone home-indicator notch.
-       */}
-      <div className="shrink-0 border-t border-border bg-card px-3 py-2.5 pb-[max(8px,env(safe-area-inset-bottom))]">
+      {/* ── FLOATING COMPOSE BUTTON (shown when input is hidden) ── */}
+      {inputHidden && (
+        <button
+          onClick={() => {
+            setInputHidden(false);
+            setTimeout(() => textareaRef.current?.focus(), 50);
+          }}
+          className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+          aria-label="Type a message"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        </button>
+      )}
+
+      {/* ── INPUT BAR ── */}
+      <div className={`shrink-0 border-t border-border bg-card px-3 py-2.5 pb-[max(8px,env(safe-area-inset-bottom))] ${inputHidden ? "hidden" : ""}`}>
         {selectedFiles.length > 0 ? (
           <div className="mb-2 flex flex-wrap gap-2">
             {selectedFiles.map((file, index) => (
@@ -1195,10 +1218,18 @@ export default function MobileChatPage() {
           </button>
 
           <textarea
+            ref={textareaRef}
             value={composerText}
             onChange={(event) => setComposerText(event.target.value)}
-            onFocus={() => setShowEmojiMenu(false)}
-            onBlur={() => window.scrollTo(0, 0)}
+            onFocus={() => {
+              setShowEmojiMenu(false);
+              setInputHidden(false);
+            }}
+            onBlur={() => {
+              if (typeof window !== "undefined" && window.visualViewport) {
+                // only scroll reset if keyboard is actually closing
+              }
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
