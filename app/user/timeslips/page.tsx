@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -278,21 +279,33 @@ export default function UserTimeslipsPage() {
         id: "Action",
         header: "Action",
         enableSorting: false,
-        cell: ({ row }) =>
-          row.original.status === "PENDING" ? (
+        cell: ({ row }) => (
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
-              className="text-muted-foreground hover:text-red-600"
-              title="Withdraw request"
-              onClick={() => {
-                setDeleteTarget(row.original);
-                setDeleteDialogOpen(true);
-              }}
+              className="text-muted-foreground hover:text-primary"
+              title="View details"
+              onClick={() => router.push(`/user/timeslips/${row.original.id}`)}
             >
-              <Trash2 className="h-4 w-4" />
+              <Eye className="h-4 w-4" />
             </Button>
-          ) : null,
+            {row.original.status === "PENDING" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-red-600"
+                title="Withdraw request"
+                onClick={() => {
+                  setDeleteTarget(row.original);
+                  setDeleteDialogOpen(true);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ),
       },
     ],
     []
