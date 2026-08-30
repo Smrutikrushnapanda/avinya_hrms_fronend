@@ -16,20 +16,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import TimesheetRowForm from "@/components/timesheet/TimesheetRowForm";
 import { formatMinutes, newDraftRow, TimesheetProjectOption, TimesheetRowDraft } from "@/components/timesheet/types";
+import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 
 type StandaloneProjectApi = { id: string; name?: string; projectName?: string };
 type ClientProjectApi = { id: string; projectName?: string; projectCode?: string; name?: string };
 
 export default function AddTimesheetPage() {
   const router = useRouter();
-  const today = new Date();
-  const todayLabel = today.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-  const todayIso = today.toISOString().split("T")[0];
+  const { today: getOrgToday, toUtcISO: orgToUtcISO, formatOrgDate } = useOrganizationTimezone();
+  // Business "today" is the organization timezone's calendar date, never UTC/browser.
+  const todayIso = getOrgToday();
+  // Noon-UTC anchor keeps the wall-clock calendar date stable in every timezone.
+  const todayLabel = formatOrgDate(new Date(`${todayIso}T12:00:00Z`), "EEEE, MMMM d, yyyy");
 
   const [organizationId, setOrganizationId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
@@ -130,8 +128,8 @@ export default function AddTimesheetPage() {
         employeeId,
         date: todayIso,
         entries: rows.map((r) => ({
-          startTime: new Date(`${todayIso}T${r.startTime}:00`).toISOString(),
-          endTime: new Date(`${todayIso}T${r.endTime}:00`).toISOString(),
+          startTime: orgToUtcISO(todayIso, r.startTime),
+          endTime: orgToUtcISO(todayIso, r.endTime),
           projectName: r.projectName || undefined,
           moduleFeature: r.moduleFeature.trim() || undefined,
           pageScreen: r.pageScreen.trim() || undefined,

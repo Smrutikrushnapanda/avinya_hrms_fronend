@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,10 +15,13 @@ import {
   Camera,
   ArrowLeft,
   Briefcase,
+  Download,
+  ChevronDown,
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, parseISO } from "date-fns";
 import Link from "next/link";
 import Image from "next/image";
+import * as XLSX from "xlsx";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,8 +70,11 @@ const statusLabels: Record<string, string> = {
   pending: "Pending",
 };
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
 export default function EmployeeAttendanceDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const employeeId = params.employeeId as string;
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -77,6 +83,10 @@ export default function EmployeeAttendanceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [organizationId, setOrganizationId] = useState<string>("");
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const month = currentDate.getMonth() + 1;
   const year = currentDate.getFullYear();
 
@@ -84,15 +94,11 @@ export default function EmployeeAttendanceDetailPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Fetch employee details
         const empRes = await getEmployee(employeeId);
         const emp = empRes.data;
         setEmployee(emp);
         setOrganizationId(emp.organizationId);
 
-        // Fetch monthly attendance — use emp.userId (the users.user_id FK),
-        // not employeeId (the employees.id PK). The backend attendance query
-        // joins on users.user_id.
         const attRes = await getMonthlyAttendance({
           userId: emp.userId,
           month,
@@ -100,6 +106,7 @@ export default function EmployeeAttendanceDetailPage() {
           organizationId: emp.organizationId,
         });
         setRecords(attRes.data || []);
+        setPage(1);
       } catch (err) {
         console.error("Failed to fetch employee attendance:", err);
       } finally {
@@ -157,6 +164,14 @@ export default function EmployeeAttendanceDetailPage() {
     return [...padding, ...days];
   }, [currentDate]);
 
+  // Paginated records
+  const paginatedRecords = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return records.slice(start, start + pageSize);
+  }, [records, page, pageSize]);
+
+  const totalPages = Math.ceil(records.length / pageSize);
+
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 2, 1));
   };
@@ -182,6 +197,34 @@ export default function EmployeeAttendanceDetailPage() {
     return `${h}h ${m}m`;
   };
 
+  const exportToExcel = () => {
+    const data = records.map((rec) => ({
+      Date: format(parseISO(rec.date), "dd MMM yyyy"),
+      Day: format(parseISO(rec.date), "EEE"),
+      Status: statusLabels[rec.status] || rec.status,
+      "Clock In": rec.inTime || "-",
+      "Clock Out": rec.outTime || "-",
+      "Working Hours": rec.workingMinutes ? formatWorkingTime(rec.workingMinutes) : "-",
+      "In Location": rec.inLocationAddress || "-",
+      "Out Location": rec.outLocationAddress || "-",
+      Anomaly: rec.anomalyFlag ? "Yes" : "No",
+      "Anomaly Reason": rec.anomalyReason || "-",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+
+    // Auto-size columns
+    const colWidths = Object.keys(data[0] || {}).map((key) => ({
+      wch: Math.max(key.length, ...data.map((row) => String(row[key as keyof typeof row] || "").length)) + 2,
+    }));
+    ws["!cols"] = colWidths;
+
+    const fileName = `Attendance_${employee?.firstName || ""}_${employee?.lastName || ""}_${format(currentDate, "MMM_yyyy")}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   if (loading && !employee) {
     return (
       <div className="p-6">
@@ -202,17 +245,15 @@ export default function EmployeeAttendanceDetailPage() {
     <div className="p-6 space-y-6">
       {/* Back button + header */}
       <div className="flex items-center gap-4">
-        <Link href="/admin/attendance">
-          <Button variant="ghost" size="sm" className="gap-1">
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Button>
-        </Link>
+        <Button variant="ghost" size="sm" className="gap-1" onClick={() => router.back()}>
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold">Employee Attendance Detail</h1>
           {employee && (
             <p className="text-muted-foreground">
-              {employee.user?.firstName} {employee.user?.lastName} ({employee.employeeCode})
+              {employee.firstName} {employee.lastName} ({employee.employeeCode})
             </p>
           )}
         </div>
@@ -223,16 +264,22 @@ export default function EmployeeAttendanceDetailPage() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-6">
-              <img
-                src={employee.user?.profileImage || "/default-avatar.png"}
-                alt={`${employee.user?.firstName} ${employee.user?.lastName}`}
-                className="w-16 h-16 rounded-full object-cover ring-2 ring-muted"
-              />
+              {employee.photoUrl ? (
+                <img
+                  src={employee.photoUrl}
+                  alt={`${employee.firstName} ${employee.lastName}`}
+                  className="w-16 h-16 rounded-full object-cover ring-2 ring-muted"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center ring-2 ring-muted">
+                  <User className="w-8 h-8 text-muted-foreground" />
+                </div>
+              )}
               <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Employee</p>
                   <p className="font-semibold">
-                    {employee.user?.firstName} {employee.user?.lastName}
+                    {employee.firstName} {employee.lastName}
                   </p>
                 </div>
                 <div>
@@ -406,8 +453,12 @@ export default function EmployeeAttendanceDetailPage() {
 
       {/* Daily records table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Daily Attendance Records</CardTitle>
+          <Button variant="outline" size="sm" onClick={exportToExcel} disabled={records.length === 0}>
+            <Download className="w-4 h-4 mr-2" />
+            Export Excel
+          </Button>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -421,103 +472,166 @@ export default function EmployeeAttendanceDetailPage() {
               No attendance records for this month.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-2 font-medium">Date</th>
-                    <th className="text-left py-3 px-2 font-medium">Day</th>
-                    <th className="text-left py-3 px-2 font-medium">Status</th>
-                    <th className="text-left py-3 px-2 font-medium">Clock In</th>
-                    <th className="text-left py-3 px-2 font-medium">Clock Out</th>
-                    <th className="text-left py-3 px-2 font-medium">Working Hours</th>
-                    <th className="text-left py-3 px-2 font-medium">In Photo</th>
-                    <th className="text-left py-3 px-2 font-medium">Out Photo</th>
-                    <th className="text-left py-3 px-2 font-medium">Location</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((rec) => (
-                    <tr key={rec.date} className="border-b hover:bg-muted/50">
-                      <td className="py-3 px-2 font-medium">{format(parseISO(rec.date), "dd MMM yyyy")}</td>
-                      <td className="py-3 px-2">{format(parseISO(rec.date), "EEE")}</td>
-                      <td className="py-3 px-2">
-                        <Badge variant="outline" className={statusColors[rec.status]}>
-                          {statusLabels[rec.status] || rec.status}
-                        </Badge>
-                        {rec.anomalyFlag && (
-                          <Badge variant="destructive" className="ml-1 text-[10px]">
-                            Anomaly
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-2 font-medium">Date</th>
+                      <th className="text-left py-3 px-2 font-medium">Day</th>
+                      <th className="text-left py-3 px-2 font-medium">Status</th>
+                      <th className="text-left py-3 px-2 font-medium">Clock In</th>
+                      <th className="text-left py-3 px-2 font-medium">Clock Out</th>
+                      <th className="text-left py-3 px-2 font-medium">Working Hours</th>
+                      <th className="text-left py-3 px-2 font-medium">In Photo</th>
+                      <th className="text-left py-3 px-2 font-medium">Out Photo</th>
+                      <th className="text-left py-3 px-2 font-medium">Location</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRecords.map((rec) => (
+                      <tr key={rec.date} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-2 font-medium">{format(parseISO(rec.date), "dd MMM yyyy")}</td>
+                        <td className="py-3 px-2">{format(parseISO(rec.date), "EEE")}</td>
+                        <td className="py-3 px-2">
+                          <Badge variant="outline" className={statusColors[rec.status]}>
+                            {statusLabels[rec.status] || rec.status}
                           </Badge>
-                        )}
-                      </td>
-                      <td className="py-3 px-2 font-mono">{formatTime(rec.inTime)}</td>
-                      <td className="py-3 px-2 font-mono">{formatTime(rec.outTime)}</td>
-                      <td className="py-3 px-2">{formatWorkingTime(rec.workingMinutes)}</td>
-                      <td className="py-3 px-2">
-                        {rec.inPhotoUrl ? (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <div className="w-8 h-10 overflow-hidden rounded cursor-pointer hover:opacity-80">
+                          {rec.anomalyFlag && (
+                            <Badge variant="destructive" className="ml-1 text-[10px]">
+                              Anomaly
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 font-mono">{formatTime(rec.inTime)}</td>
+                        <td className="py-3 px-2 font-mono">{formatTime(rec.outTime)}</td>
+                        <td className="py-3 px-2">{formatWorkingTime(rec.workingMinutes)}</td>
+                        <td className="py-3 px-2">
+                          {rec.inPhotoUrl ? (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <div className="w-8 h-10 overflow-hidden rounded cursor-pointer hover:opacity-80">
+                                  <Image
+                                    src={rec.inPhotoUrl}
+                                    alt="In"
+                                    width={32}
+                                    height={40}
+                                    className="object-cover w-full h-full"
+                                  />
+                                </div>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-lg p-2">
                                 <Image
                                   src={rec.inPhotoUrl}
-                                  alt="In"
-                                  width={32}
-                                  height={40}
-                                  className="object-cover w-full h-full"
+                                  alt="In Full"
+                                  width={400}
+                                  height={500}
+                                  className="w-full h-auto object-contain rounded"
                                 />
-                              </div>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-lg p-2">
-                              <Image
-                                src={rec.inPhotoUrl}
-                                alt="In Full"
-                                width={400}
-                                height={500}
-                                className="w-full h-auto object-contain rounded"
-                              />
-                            </DialogContent>
-                          </Dialog>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="py-3 px-2">
-                        {rec.outPhotoUrl ? (
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <div className="w-8 h-10 overflow-hidden rounded cursor-pointer hover:opacity-80">
+                              </DialogContent>
+                            </Dialog>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="py-3 px-2">
+                          {rec.outPhotoUrl ? (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <div className="w-8 h-10 overflow-hidden rounded cursor-pointer hover:opacity-80">
+                                  <Image
+                                    src={rec.outPhotoUrl}
+                                    alt="Out"
+                                    width={32}
+                                    height={40}
+                                    className="object-cover w-full h-full"
+                                  />
+                                </div>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-lg p-2">
                                 <Image
                                   src={rec.outPhotoUrl}
-                                  alt="Out"
-                                  width={32}
-                                  height={40}
-                                  className="object-cover w-full h-full"
+                                  alt="Out Full"
+                                  width={400}
+                                  height={500}
+                                  className="w-full h-auto object-contain rounded"
                                 />
-                              </div>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-lg p-2">
-                              <Image
-                                src={rec.outPhotoUrl}
-                                alt="Out Full"
-                                width={400}
-                                height={500}
-                                className="w-full h-auto object-contain rounded"
-                              />
-                            </DialogContent>
-                          </Dialog>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="py-3 px-2 text-xs max-w-[200px] truncate">
-                        {rec.inLocationAddress || rec.outLocationAddress || "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                              </DialogContent>
+                            </Dialog>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-xs max-w-[200px] truncate">
+                          {rec.inLocationAddress || rec.outLocationAddress || "-"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination controls */}
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Showing</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="border rounded px-2 py-1 text-sm bg-background"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                  <span>
+                    of {records.length} records
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(1)}
+                    disabled={page === 1}
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="px-3 text-sm font-medium">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(totalPages)}
+                    disabled={page === totalPages}
+                  >
+                    Last
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

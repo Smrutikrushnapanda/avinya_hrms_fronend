@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clock, CheckCircle, AlertCircle, Sparkles } from "lucide-react";
 import { getTodayLogs } from "@/app/api/api";
+import { formatInTimezone } from "@/utils/timezone";
+import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
 
 type AttendanceState = "loading" | "late" | "on-time" | "no-record";
 
@@ -58,11 +60,12 @@ export default function AttendanceStatus({ userId, organizationId }: AttendanceS
         }
 
         if (firstCheckIn && !isNaN(firstCheckIn.getTime())) {
-          const timeStr = firstCheckIn.toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
+          // Display the punch-in time in the organization business timezone.
+          const timeStr = formatInTimezone(
+            firstCheckIn,
+            useOrganizationTimezoneStore.getState().timezone,
+            "hh:mm a",
+          );
 
           setLoginTime(timeStr);
 

@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 
 import {
   approveTimesheetDay,
@@ -120,9 +121,6 @@ function toTimeInput(isoStr: string): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function todayIso(): string {
-  return new Date().toISOString().split("T")[0];
-}
 
 function entryToDraft(entry: TimesheetEntry): TimesheetRowDraft {
   return {
@@ -153,6 +151,7 @@ export default function TimesheetSection({
   allowApproval = false,
   projectFilterEnabled = false,
 }: TimesheetSectionProps) {
+  const { today: getOrgToday, toUtcISO: orgToUtcISO } = useOrganizationTimezone();
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth());
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
@@ -163,7 +162,7 @@ export default function TimesheetSection({
 
   const [entries, setEntries] = useState<TimesheetEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set([todayIso()]));
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set([getOrgToday()]));
 
   const [projects, setProjects] = useState<TimesheetProjectOption[]>([]);
   const [editTarget, setEditTarget] = useState<TimesheetEntry | null>(null);
@@ -310,8 +309,8 @@ export default function TimesheetSection({
     setEditSaving(true);
     try {
       await updateTimesheetEntry(editTarget.id, {
-        startTime: new Date(`${editTarget.date}T${editDraft.startTime}:00`).toISOString(),
-        endTime: new Date(`${editTarget.date}T${editDraft.endTime}:00`).toISOString(),
+        startTime: orgToUtcISO(editTarget.date, editDraft.startTime),
+        endTime: orgToUtcISO(editTarget.date, editDraft.endTime),
         projectName: editDraft.projectName || undefined,
         moduleFeature: editDraft.moduleFeature.trim() || undefined,
         pageScreen: editDraft.pageScreen.trim() || undefined,
@@ -475,7 +474,7 @@ export default function TimesheetSection({
         <div className="space-y-3">
           {groupedByDate.map(([date, dayEntries]) => {
             const dayMinutes = dayEntries.reduce((sum, e) => sum + e.workingMinutes, 0);
-            const isToday = date === todayIso();
+            const isToday = date === getOrgToday();
             const canEditDay = mode === "self" && isToday;
             const dayStatuses = new Set(dayEntries.map((e) => e.approvalStatus));
             const dayStatus = dayStatuses.size === 1 ? [...dayStatuses][0] : "MIXED";

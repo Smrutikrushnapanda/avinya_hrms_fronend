@@ -16,6 +16,7 @@ import {
   Plus,
   Loader2,
 } from "lucide-react";
+import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -169,6 +170,7 @@ function MeetingTimeLabel({ dateStr }: { dateStr: string }) {
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function MyMeetingsPage() {
+  const { toUtcISO: orgToUtcISO } = useOrganizationTimezone();
   const [pageLoading, setPageLoading] = useState(true);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [meetingsLoading, setMeetingsLoading] = useState(false);
@@ -251,9 +253,7 @@ export default function MyMeetingsPage() {
 
     setCreating(true);
     try {
-      const scheduledAt = new Date(
-        `${meetingForm.scheduledDate}T${meetingForm.scheduledTime}`
-      ).toISOString();
+      const scheduledAt = orgToUtcISO(meetingForm.scheduledDate, meetingForm.scheduledTime);
 
       await createMeeting({
         title: meetingForm.title.trim(),

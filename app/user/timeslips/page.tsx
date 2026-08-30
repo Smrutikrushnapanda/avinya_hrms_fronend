@@ -54,6 +54,7 @@ import {
   deleteTimeslip,
 } from "@/app/api/api";
 import { format } from "date-fns";
+import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 
 // ------- Types -------
 interface TimeslipRow {
@@ -157,6 +158,7 @@ function PageSkeleton() {
 // ------- Main Component -------
 export default function UserTimeslipsPage() {
   const router = useRouter();
+  const { toUtcISO: orgToUtcISO } = useOrganizationTimezone();
   const [employeeId, setEmployeeId] = useState<string>("");
   const [organizationId, setOrganizationId] = useState<string>("");
   const [isApprover, setIsApprover] = useState(false);
@@ -444,9 +446,6 @@ export default function UserTimeslipsPage() {
       return;
     }
 
-    const toUTCDateTime = (date: string, time: string) =>
-      new Date(`${date}T${time}:00Z`).toISOString();
-
     setSubmitting(true);
     try {
       await createTimeslip({
@@ -456,11 +455,11 @@ export default function UserTimeslipsPage() {
         missingType: form.missing_type,
         correctedIn:
           form.missing_type === "IN" || form.missing_type === "BOTH"
-            ? toUTCDateTime(form.date, form.corrected_in_time)
+            ? orgToUtcISO(form.date, form.corrected_in_time)
             : undefined,
         correctedOut:
           form.missing_type === "OUT" || form.missing_type === "BOTH"
-            ? toUTCDateTime(form.date, form.corrected_out_time)
+            ? orgToUtcISO(form.date, form.corrected_out_time)
             : undefined,
         reason: form.reason.trim(),
       });

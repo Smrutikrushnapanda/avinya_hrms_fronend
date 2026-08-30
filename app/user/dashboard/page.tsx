@@ -26,6 +26,8 @@ import AttendanceDonutChart from "@/components/charts/AttendanceDonutChart";
 import AttendanceStatus from "@/components/AttendanceStatus";
 import { usePlanAccess } from "@/components/plan-access-provider";
 import { toast } from "sonner";
+import { getMinutesOfDayInZone } from "@/utils/timezone";
+import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
 import {
   getProfile,
   getDashboardStats,
@@ -70,8 +72,9 @@ function parseTimeToMinutes(timeStr?: string): number | null {
   try {
     if (timeStr.includes("T")) {
       const d = new Date(timeStr);
-      const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
-      return ist.getUTCHours() * 60 + ist.getUTCMinutes();
+      // Use the authenticated organization's business timezone (not hardcoded IST).
+      const tz = useOrganizationTimezoneStore.getState().timezone;
+      return getMinutesOfDayInZone(d, tz);
     }
     const clean = timeStr.trim();
     const isPM = clean.toUpperCase().includes("PM");

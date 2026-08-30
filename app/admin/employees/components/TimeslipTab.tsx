@@ -51,6 +51,7 @@ import {
   getProfile,
 } from "@/app/api/api";
 import { Employee } from "./types";
+import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 
 interface TimeslipTabProps {
   employeeId: string;
@@ -84,6 +85,7 @@ interface TimeslipApproval {
 }
 
 export default function TimeslipTab({ employeeId, employee }: TimeslipTabProps) {
+  const { toUtcISO: orgToUtcISO } = useOrganizationTimezone();
   const [timeslips, setTimeslips] = useState<Timeslip[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -148,8 +150,8 @@ export default function TimeslipTab({ employeeId, employee }: TimeslipTabProps) 
         organizationId: organizationId,
         date: formData.date,
         missingType: formData.missingType,
-        correctedIn: formData.correctedIn ? `${formData.date}T${formData.correctedIn}:00` : undefined,
-        correctedOut: formData.correctedOut ? `${formData.date}T${formData.correctedOut}:00` : undefined,
+        correctedIn: formData.correctedIn ? orgToUtcISO(formData.date, formData.correctedIn) : undefined,
+        correctedOut: formData.correctedOut ? orgToUtcISO(formData.date, formData.correctedOut) : undefined,
         reason: formData.reason || undefined,
       };
 
@@ -174,8 +176,8 @@ export default function TimeslipTab({ employeeId, employee }: TimeslipTabProps) 
       const updateData = {
         date: formData.date,
         missingType: formData.missingType,
-        correctedIn: formData.correctedIn ? `${formData.date}T${formData.correctedIn}:00` : undefined,
-        correctedOut: formData.correctedOut ? `${formData.date}T${formData.correctedOut}:00` : undefined,
+        correctedIn: formData.correctedIn ? orgToUtcISO(formData.date, formData.correctedIn) : undefined,
+        correctedOut: formData.correctedOut ? orgToUtcISO(formData.date, formData.correctedOut) : undefined,
         reason: formData.reason || undefined,
       };
 

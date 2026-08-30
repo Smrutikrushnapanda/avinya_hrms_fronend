@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { createTimeslip, getEmployeeByUserId, getProfile } from "@/app/api/api";
+import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 import { format } from "date-fns";
 import MobileTabHeader from "../../components/MobileTabHeader";
 
@@ -29,6 +30,7 @@ interface FormState {
 
 export default function MobileAddTimeslipPage() {
   const router = useRouter();
+  const { toUtcISO: orgToUtcISO } = useOrganizationTimezone();
   const today = format(new Date(), "yyyy-MM-dd");
 
   const [loading, setLoading] = useState(true);
@@ -104,9 +106,6 @@ export default function MobileAddTimeslipPage() {
       return;
     }
 
-    const toISO = (date: string, time: string) =>
-      new Date(`${date}T${time}:00`).toISOString();
-
     setSubmitting(true);
     try {
       await createTimeslip({
@@ -116,11 +115,11 @@ export default function MobileAddTimeslipPage() {
         missingType: form.missing_type,
         correctedIn:
           form.missing_type === "IN" || form.missing_type === "BOTH"
-            ? toISO(form.date, form.corrected_in_time)
+            ? orgToUtcISO(form.date, form.corrected_in_time)
             : undefined,
         correctedOut:
           form.missing_type === "OUT" || form.missing_type === "BOTH"
-            ? toISO(form.date, form.corrected_out_time)
+            ? orgToUtcISO(form.date, form.corrected_out_time)
             : undefined,
         reason: form.reason.trim(),
       });

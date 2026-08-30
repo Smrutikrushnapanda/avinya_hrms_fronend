@@ -19,6 +19,26 @@ import { getDepartments, getDesignations, createDepartment, createDesignation, u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AttendanceSettingsPage from "../attendance/settings/page";
 import { TourProvider, useTour, type StepType } from "@reactour/tour";
+import { isValidTimezone } from "@/utils/timezone";
+import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
+
+/**
+ * Curated IANA timezone options for the Organization Settings selector.
+ * Stored value is always the IANA identifier.
+ */
+const TIMEZONE_OPTIONS: { label: string; value: string }[] = [
+  { label: "India Standard Time (Asia/Kolkata)", value: "Asia/Kolkata" },
+  { label: "Eastern Time (America/New_York)", value: "America/New_York" },
+  { label: "Central Time (America/Chicago)", value: "America/Chicago" },
+  { label: "Mountain Time (America/Denver)", value: "America/Denver" },
+  { label: "Pacific Time (America/Los_Angeles)", value: "America/Los_Angeles" },
+  { label: "UTC", value: "UTC" },
+  { label: "London (Europe/London)", value: "Europe/London" },
+  { label: "Dubai (Asia/Dubai)", value: "Asia/Dubai" },
+  { label: "Singapore (Asia/Singapore)", value: "Asia/Singapore" },
+  { label: "Tokyo (Asia/Tokyo)", value: "Asia/Tokyo" },
+  { label: "Sydney (Australia/Sydney)", value: "Australia/Sydney" },
+];
 
 interface Department {
   id: string;
@@ -94,6 +114,7 @@ interface Organization {
   resignationNoticePeriodDays?: number;
   allowEarlyRelievingByAdmin?: boolean;
   sessionStartMonth?: number;
+  timezone?: string;
   leaveCarryForwardEnabled?: boolean;
   wfhCarryForwardEnabled?: boolean;
 }
@@ -181,6 +202,7 @@ const [orgForm, setOrgForm] = useState({
   resignationNoticePeriodDays: 30,
   allowEarlyRelievingByAdmin: false,
   sessionStartMonth: 4,
+  timezone: "Asia/Kolkata",
   leaveCarryForwardEnabled: false,
   wfhCarryForwardEnabled: false,
 });
@@ -439,6 +461,7 @@ const loadOrganization = async () => {
         resignationNoticePeriodDays: Number(res.data.resignationNoticePeriodDays || 30),
         allowEarlyRelievingByAdmin: Boolean(res.data.allowEarlyRelievingByAdmin),
         sessionStartMonth: Number(res.data.sessionStartMonth || 4),
+        timezone: res.data.timezone || "Asia/Kolkata",
         leaveCarryForwardEnabled: Boolean(res.data.leaveCarryForwardEnabled),
         wfhCarryForwardEnabled: Boolean(res.data.wfhCarryForwardEnabled),
       });
@@ -635,6 +658,9 @@ const loadOrganization = async () => {
     if (orgForm.sessionStartMonth < 1 || orgForm.sessionStartMonth > 12) {
       errors.sessionStartMonth = "Session start month must be between January and December";
     }
+    if (!orgForm.timezone || !isValidTimezone(orgForm.timezone)) {
+      errors.timezone = "Select a valid timezone";
+    }
 
     if (Object.keys(errors).length > 0) {
       setOrgErrors(errors);
@@ -647,6 +673,7 @@ const loadOrganization = async () => {
         ...orgForm,
         resignationNoticePeriodDays: Number(orgForm.resignationNoticePeriodDays || 0),
       });
+      useOrganizationTimezoneStore.getState().setTimezone(orgForm.timezone);
       toast.success("Organization updated");
       setIsOrgDialogOpen(false);
       loadOrganization();
@@ -698,6 +725,9 @@ const loadOrganization = async () => {
     if (orgForm.sessionStartMonth < 1 || orgForm.sessionStartMonth > 12) {
       errors.sessionStartMonth = "Session start month must be between January and December";
     }
+    if (!orgForm.timezone || !isValidTimezone(orgForm.timezone)) {
+      errors.timezone = "Select a valid timezone";
+    }
 
     if (Object.keys(errors).length > 0) {
       setOrgErrors(errors);
@@ -710,6 +740,7 @@ const loadOrganization = async () => {
         ...orgForm,
         resignationNoticePeriodDays: Number(orgForm.resignationNoticePeriodDays || 0),
       });
+      useOrganizationTimezoneStore.getState().setTimezone(orgForm.timezone);
       toast.success("Organization updated");
       loadOrganization();
     } catch (error) {
@@ -1189,6 +1220,27 @@ const loadOrganization = async () => {
                     Changing this month will automatically reload Leave and WFH session balances.
                   </p>
                   {orgErrors.sessionStartMonth && <p className="text-xs text-destructive mt-1">{orgErrors.sessionStartMonth}</p>}
+                </div>
+                <div>
+                  <Label>Timezone</Label>
+                  <select
+                    disabled={!isOrgEditing}
+                    className={`mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm ${orgErrors.timezone ? "border-destructive" : ""}`}
+                    value={orgForm.timezone}
+                    onChange={(e) =>
+                      setOrgForm({ ...orgForm, timezone: e.target.value })
+                    }
+                  >
+                    {TIMEZONE_OPTIONS.map((tz) => (
+                      <option key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    All business dates &amp; times (attendance, leave, timesheets, meetings) use this organization timezone.
+                  </p>
+                  {orgErrors.timezone && <p className="text-xs text-destructive mt-1">{orgErrors.timezone}</p>}
                 </div>
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
@@ -1941,6 +1993,26 @@ const loadOrganization = async () => {
                 Changing this month will automatically reload Leave and WFH session balances.
               </p>
               {orgErrors.sessionStartMonth && <p className="text-xs text-destructive mt-1">{orgErrors.sessionStartMonth}</p>}
+            </div>
+            <div>
+              <Label>Timezone</Label>
+              <select
+                className={`mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm ${orgErrors.timezone ? "border-destructive" : ""}`}
+                value={orgForm.timezone}
+                onChange={(e) =>
+                  setOrgForm({ ...orgForm, timezone: e.target.value })
+                }
+              >
+                {TIMEZONE_OPTIONS.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">
+                All business dates &amp; times (attendance, leave, timesheets, meetings) use this organization timezone.
+              </p>
+              {orgErrors.timezone && <p className="text-xs text-destructive mt-1">{orgErrors.timezone}</p>}
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>

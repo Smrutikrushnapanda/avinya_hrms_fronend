@@ -5,6 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Trophy, Clock, UserCheck, TrendingUp, Star, RefreshCw } from "lucide-react";
 import { getAttendanceReport2, getAttendanceSettings, getEmployees } from "@/app/api/api";
+import { getMinutesOfDayInZone } from "@/utils/timezone";
+import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,10 +83,10 @@ function parseTimeToMinutes(timeStr?: string): number | null {
   // Handles "09:15 AM", "09:15", "2026-03-08T03:45:00.000Z"
   try {
     if (timeStr.includes("T")) {
-      // ISO string – convert to IST
+      // ISO string – convert to the organization business timezone
       const d = new Date(timeStr);
-      const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
-      return ist.getUTCHours() * 60 + ist.getUTCMinutes();
+      const tz = useOrganizationTimezoneStore.getState().timezone;
+      return getMinutesOfDayInZone(d, tz);
     }
     // "HH:MM AM/PM" or "HH:MM"
     const clean = timeStr.trim();

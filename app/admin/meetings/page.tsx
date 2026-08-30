@@ -13,6 +13,7 @@ import {
   X,
   Link,
 } from "lucide-react";
+import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,6 +101,7 @@ function PageSkeleton() {
 
 // ------- Main Component -------
 export default function MeetingManagementPage() {
+  const { toUtcISO: orgToUtcISO } = useOrganizationTimezone();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
@@ -192,9 +194,7 @@ export default function MeetingManagementPage() {
 
     setCreating(true);
     try {
-      const scheduledAt = new Date(
-        `${meetingForm.scheduledDate}T${meetingForm.scheduledTime}`
-      ).toISOString();
+      const scheduledAt = orgToUtcISO(meetingForm.scheduledDate, meetingForm.scheduledTime);
 
       await createMeeting({
         title: meetingForm.title.trim(),
