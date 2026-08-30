@@ -104,8 +104,6 @@ export default function MobileChatPage() {
   const [meetingMiniPosition, setMeetingMiniPosition] = useState<{ x: number; y: number } | null>(null);
   const [meetingMiniDragging, setMeetingMiniDragging] = useState(false);
   const [showChatDetails, setShowChatDetails] = useState(false);
-  const [inputHidden, setInputHidden] = useState(false);
-  const lastScrollTop = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const jitsiContainerRef = useRef<HTMLDivElement | null>(null);
   const jitsiApiRef = useRef<any | null>(null);
@@ -796,46 +794,32 @@ export default function MobileChatPage() {
     return () => window.removeEventListener("resize", onResize);
   }, [clampMiniPosition, meetingMiniPosition]);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.visualViewport) return;
-    const viewport = window.visualViewport;
-    const onKeyboardChange = () => {
-      if (viewport.height >= window.innerHeight * 0.95) {
-        listRef.current?.scrollTo({ top: 0 });
-      }
-    };
-    viewport.addEventListener("resize", onKeyboardChange);
-    return () => viewport.removeEventListener("resize", onKeyboardChange);
-  }, []);
-
   const hasActiveMeeting = Boolean(activeMeetingUrl);
 
   return (
     /*
      * ✅ KEY LAYOUT FIXES:
      *
-     * 1. `h-[100dvh]` — uses the *dynamic* viewport height unit.
-     *    On mobile, when the software keyboard opens the browser shrinks
-     *    the viewport, so `100dvh` shrinks with it. The whole flex column
-     *    (header + messages + input) is always exactly the visible screen.
+     * 1. `h-full` — fills the parent which is constrained to the viewport via
+     *    `h-dvh` in user/layout.tsx. The whole flex column (header + messages +
+     *    input) is always exactly the visible screen height.
      *
      * 2. Header is `shrink-0` — it never compresses or scrolls.
      *
      * 3. Message list is `flex-1 min-h-0 overflow-y-auto` — takes remaining
      *    height and is the ONLY scrollable zone. `min-h-0` is critical to
      *    prevent the flex child from overflowing its parent.
-     *    No `pb-28` needed because the input is now a real flex child below.
      *
      * 4. Input bar is `shrink-0` — pinned at the bottom of the flex column.
-     *    When the keyboard opens, the viewport shrinks → the flex column
+     *    When the keyboard opens, the viewport shrinks → the flex chain
      *    shrinks → the input bar is pushed directly above the keyboard
      *    automatically. No JS or hacks required.
      */
     <div className="h-full bg-background text-foreground flex flex-col overflow-hidden">
 
-      {/* ── STICKY HEADER (never scrolls) ── */}
+      {/* ── HEADER (never scrolls) ── */}
       <div
-        className="sticky top-0 z-20 shrink-0 cursor-pointer bg-card dark:bg-card border-b border-border px-4 pt-3 pb-3 shadow-sm flex items-center gap-2.5 relative overflow-hidden"
+        className="shrink-0 z-20 cursor-pointer bg-card dark:bg-card border-b border-border px-4 pt-3 pb-3 shadow-sm flex items-center gap-2.5 relative overflow-hidden"
         onClick={() => setShowChatDetails(true)}
       >
         <AnimatedHeaderBg />
@@ -956,21 +940,13 @@ export default function MobileChatPage() {
       {/* ── SCROLLABLE MESSAGE LIST (only this zone scrolls) ── */}
       <div
         ref={listRef}
-        className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-3 bg-background space-y-2.5"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-4 pt-4 pb-3 bg-background space-y-2.5"
         onScroll={(event) => {
           const el = event.currentTarget;
           const scrollTop = el.scrollTop;
           if (scrollTop < 80) {
             void loadOlderMessages();
           }
-          // Hide input when scrolling down, show when scrolling up
-          if (scrollTop > lastScrollTop.current + 5 && scrollTop > 60) {
-            setInputHidden(true);
-            setShowEmojiMenu(false);
-          } else if (scrollTop < lastScrollTop.current - 5) {
-            setInputHidden(false);
-          }
-          lastScrollTop.current = scrollTop;
         }}
       >
         {loading ? (
@@ -1145,24 +1121,8 @@ export default function MobileChatPage() {
         )}
       </div>
 
-      {/* ── FLOATING COMPOSE BUTTON (shown when input is hidden) ── */}
-      {inputHidden && (
-        <button
-          onClick={() => {
-            setInputHidden(false);
-            setTimeout(() => textareaRef.current?.focus(), 50);
-          }}
-          className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
-          aria-label="Type a message"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-        </button>
-      )}
-
       {/* ── INPUT BAR ── */}
-      <div className={`shrink-0 border-t border-border bg-card px-3 py-2.5 pb-[max(8px,env(safe-area-inset-bottom))] ${inputHidden ? "hidden" : ""}`}>
+      <div className="shrink-0 border-t border-border bg-card px-3 py-2.5 pb-[max(8px,env(safe-area-inset-bottom))]">
         {selectedFiles.length > 0 ? (
           <div className="mb-2 flex flex-wrap gap-2">
             {selectedFiles.map((file, index) => (
@@ -1223,7 +1183,6 @@ export default function MobileChatPage() {
             onChange={(event) => setComposerText(event.target.value)}
             onFocus={() => {
               setShowEmojiMenu(false);
-              setInputHidden(false);
             }}
             onBlur={() => {
               if (typeof window !== "undefined" && window.visualViewport) {

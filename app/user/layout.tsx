@@ -20,11 +20,14 @@ function UserLayoutContent({ children }: { children: ReactNode }) {
   const { loading, isPathAllowed, getFallbackPath } = usePlanAccess();
   const isMobileDashboard = pathname.startsWith("/user/dashboard/mobile");
   const isMessages = pathname.startsWith("/user/messages");
+  const isMobileChatDetail = /^\/user\/dashboard\/mobile\/messages\/[^/]+/.test(pathname);
   const mainBaseClass = "flex-1 min-h-0 min-w-0";
   const desktopDashboardClasses =
     "overflow-y-auto scrollbar-hide p-3 sm:p-4 bg-background";
   const mobileClasses =
     "employee-mobile-shell overflow-y-auto scrollbar-hide bg-background";
+  const mobileChatDetailClasses =
+    "employee-mobile-shell overflow-hidden bg-background";
   const messagesClasses =
     "employee-messages-shell overflow-hidden bg-background flex flex-col";
   const isAllowedPath = isPathAllowed(pathname);
@@ -58,7 +61,9 @@ function UserLayoutContent({ children }: { children: ReactNode }) {
         )}
         <main
           className={
-            isMobileDashboard
+            isMobileChatDetail
+              ? `${mainBaseClass} ${mobileChatDetailClasses}`
+            : isMobileDashboard
               ? `${mainBaseClass} ${mobileClasses}`
             : isMessages
               ? `${mainBaseClass} ${messagesClasses}`
