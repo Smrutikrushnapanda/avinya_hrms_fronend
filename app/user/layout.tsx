@@ -27,7 +27,6 @@ function UserLayoutContent({ children }: { children: ReactNode }) {
     "employee-mobile-shell overflow-y-auto scrollbar-hide bg-background";
   const messagesClasses =
     "employee-messages-shell overflow-hidden bg-background flex flex-col";
-  const isMessagesSubRoute = pathname.startsWith("/user/messages") || pathname.startsWith("/user/dashboard/mobile/messages");
   const isAllowedPath = isPathAllowed(pathname);
 
   useEffect(() => {
