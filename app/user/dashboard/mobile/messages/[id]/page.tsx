@@ -798,7 +798,7 @@ export default function MobileChatPage() {
     const viewport = window.visualViewport;
     const onKeyboardChange = () => {
       if (viewport.height >= window.innerHeight * 0.95) {
-        window.scrollTo(0, 0);
+        listRef.current?.scrollTo({ top: 0 });
       }
     };
     viewport.addEventListener("resize", onKeyboardChange);
@@ -828,7 +828,7 @@ export default function MobileChatPage() {
      *    shrinks → the input bar is pushed directly above the keyboard
      *    automatically. No JS or hacks required.
      */
-    <div className="h-[100dvh] bg-background text-foreground flex flex-col overflow-hidden">
+    <div className="h-full bg-background text-foreground flex flex-col overflow-hidden">
 
       {/* ── STICKY HEADER (never scrolls) ── */}
       <div

@@ -134,7 +134,7 @@ export default function MobileLayout({ children }: { children: ReactNode }) {
   // Chat detail page: render children only, zero chrome from this layout.
   if (isChatDetailPage) {
     return (
-      <div className="employee-mobile-shell bg-background text-foreground">
+      <div className="employee-mobile-shell h-full flex flex-col bg-background text-foreground overflow-hidden">
         {children}
         <PwaInstallPrompt />
       </div>
