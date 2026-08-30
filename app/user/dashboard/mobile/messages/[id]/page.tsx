@@ -109,10 +109,7 @@ export default function MobileChatPage() {
   const jitsiApiRef = useRef<any | null>(null);
   const meetingMiniDragOffsetRef = useRef({ x: 0, y: 0 });
   const socketRef = useRef<ReturnType<typeof createMessageSocket> | null>(null);
-  const jitsiDomain = process.env.NEXT_PUBLIC_JITSI_DOMAIN || "8x8.vc";
-  const jitsiPrefix =
-    process.env.NEXT_PUBLIC_JITSI_ROOM_PREFIX || "vpaas-magic-cookie-13baaedb78ca4524a95bc3d4f7748bf4";
-  const jitsiJwt = process.env.NEXT_PUBLIC_JITSI_JWT;
+  const jitsiDomain = process.env.NEXT_PUBLIC_JITSI_DOMAIN || "meet.jit.si";
 
   const meetingStoreKey = "active_meetings";
   const getMeetingState = useCallback(
@@ -540,6 +537,19 @@ export default function MobileChatPage() {
       );
     });
 
+    socket.on("chat:meeting-end", (payload) => {
+      if (!payload?.conversationId || payload.conversationId !== conversationId) return;
+      if (jitsiApiRef.current) {
+        jitsiApiRef.current.dispose?.();
+        jitsiApiRef.current = null;
+      }
+      setMeetingOpen(false);
+      setMeetingMinimized(false);
+      setMeetingMiniPosition(null);
+      setActiveMeetingUrl(null);
+      setMeetingState(null);
+    });
+
     const handleVisibility = () => {
       if (document.hidden) {
         socket.disconnect();
@@ -615,17 +625,16 @@ export default function MobileChatPage() {
   );
 
   const meetingUrl = useMemo(
-    () => `https://${jitsiDomain}/${jitsiPrefix}/${roomName || "hrms-meet"}`,
-    [jitsiDomain, jitsiPrefix, roomName],
+    () => `https://${jitsiDomain}/${roomName || "hrms-meet"}`,
+    [jitsiDomain, roomName],
   );
 
   const loadJitsiScript = () =>
     new Promise<void>((resolve, reject) => {
       if (typeof window === "undefined") return reject(new Error("window unavailable"));
       if ((window as any).JitsiMeetExternalAPI) return resolve();
-      if (!jitsiPrefix) return reject(new Error("Jitsi room prefix not configured"));
       const script = document.createElement("script");
-      script.src = `https://${jitsiDomain}/${jitsiPrefix}/external_api.js`;
+      script.src = `https://${jitsiDomain}/external_api.js`;
       script.async = true;
       script.onload = () => resolve();
       script.onerror = () => reject(new Error("Failed to load Jitsi script"));
@@ -634,11 +643,7 @@ export default function MobileChatPage() {
 
   const startMeeting = async (mode: "create" | "join") => {
     if (!roomName || !selfUserId) return;
-    if (!jitsiPrefix) {
-      const msg = "Set NEXT_PUBLIC_JITSI_ROOM_PREFIX to your JAAS tenant prefix.";
-      setMeetingError(msg);
-      return;
-    }
+    if (meetingLoading) return;
     setMeetingLoading(true);
     setMeetingError("");
     try {
@@ -655,6 +660,10 @@ export default function MobileChatPage() {
       }
 
       await loadJitsiScript();
+      if (jitsiApiRef.current) {
+        jitsiApiRef.current.dispose?.();
+        jitsiApiRef.current = null;
+      }
       setMeetingOpen(true);
       setMeetingMinimized(false);
       const createMeeting = () => {
@@ -668,7 +677,6 @@ export default function MobileChatPage() {
           width: "100%",
           height: "100%",
           userInfo: { displayName: selfName || "Guest" },
-          jwt: jitsiJwt || undefined,
         });
       };
       requestAnimationFrame(createMeeting);
@@ -677,6 +685,7 @@ export default function MobileChatPage() {
         if (mode === "create" && !existing?.linkPosted) {
           const formData = new FormData();
           formData.append("text", `Join meeting: ${meetingRoomUrl}`);
+          formData.append("clientMessageId", `meeting-link-${conversationId}`);
           try {
             await sendChatMessage(conversationId, formData);
             socketRef.current?.emit("chat:meeting-start", {
@@ -693,6 +702,7 @@ export default function MobileChatPage() {
         try {
           const entered = new FormData();
           entered.append("text", "You entered");
+          entered.append("clientMessageId", `system-entered-${conversationId}-${selfUserId}`);
           await sendChatMessage(conversationId, entered);
         } catch {
           // ignore
@@ -717,6 +727,7 @@ export default function MobileChatPage() {
       try {
         const ended = new FormData();
         ended.append("text", "You left");
+        ended.append("clientMessageId", `system-left-${conversationId}-${selfUserId}`);
         void sendChatMessage(conversationId, ended);
         socketRef.current?.emit("chat:meeting-end", { conversationId });
       } catch {

@@ -865,6 +865,19 @@ export default function MessagesPage() {
       );
     });
 
+    socket.on("chat:meeting-end", (payload) => {
+      if (!payload?.conversationId) return;
+      if (payload.conversationId === selectedConversationRef.current && jitsiApiRef.current) {
+        jitsiApiRef.current.dispose?.();
+        jitsiApiRef.current = null;
+        setMeetingOpen(false);
+        setMeetingMinimized(false);
+        setMeetingMiniPosition(null);
+        setActiveMeetingUrl(null);
+        setMeetingState(null);
+      }
+    });
+
     const handleVisibility = () => {
       if (document.hidden) {
         socket.disconnect();
@@ -1017,14 +1030,11 @@ export default function MessagesPage() {
     }
   };
 
-  const jitsiDomain = process.env.NEXT_PUBLIC_JITSI_DOMAIN || "8x8.vc";
-  const jitsiPrefix =
-    process.env.NEXT_PUBLIC_JITSI_ROOM_PREFIX || "vpaas-magic-cookie-13baaedb78ca4524a95bc3d4f7748bf4";
-  const jitsiJwt = process.env.NEXT_PUBLIC_JITSI_JWT;
+  const jitsiDomain = process.env.NEXT_PUBLIC_JITSI_DOMAIN || "meet.jit.si";
 
   const meetingUrl = useMemo(() => {
-    return `https://${jitsiDomain}/${jitsiPrefix}/${roomName || "hrms-meet"}`;
-  }, [jitsiDomain, jitsiPrefix, roomName]);
+    return `https://${jitsiDomain}/${roomName || "hrms-meet"}`;
+  }, [jitsiDomain, roomName]);
 
   // ---- Meeting state helpers (persisted so button can show Join) ----
   const meetingStoreKey = "active_meetings";
@@ -1167,9 +1177,8 @@ export default function MessagesPage() {
     new Promise<void>((resolve, reject) => {
       if (typeof window === "undefined") return reject(new Error("window unavailable"));
       if ((window as any).JitsiMeetExternalAPI) return resolve();
-      if (!jitsiPrefix) return reject(new Error("Jitsi room prefix not configured"));
       const script = document.createElement("script");
-      script.src = `https://${jitsiDomain}/${jitsiPrefix}/external_api.js`;
+      script.src = `https://${jitsiDomain}/external_api.js`;
       script.async = true;
       script.onload = () => resolve();
       script.onerror = () => reject(new Error("Failed to load Jitsi script"));
@@ -1181,12 +1190,7 @@ export default function MessagesPage() {
       toast.error("Select a conversation first");
       return;
     }
-    if (!jitsiPrefix) {
-      const msg = "Set NEXT_PUBLIC_JITSI_ROOM_PREFIX to your JAAS tenant prefix.";
-      setMeetingError(msg);
-      toast.error(msg);
-      return;
-    }
+    if (meetingLoading) return;
     setMeetingLoading(true);
     setMeetingError("");
     try {
@@ -1203,6 +1207,10 @@ export default function MessagesPage() {
       }
 
       await loadJitsiScript();
+      if (jitsiApiRef.current) {
+        jitsiApiRef.current.dispose?.();
+        jitsiApiRef.current = null;
+      }
       setMeetingOpen(true);
       setMeetingMinimized(false);
       const createMeeting = () => {
@@ -1216,7 +1224,6 @@ export default function MessagesPage() {
           width: "100%",
           height: "100%",
           userInfo: { displayName: selfName || "Guest" },
-          jwt: jitsiJwt || undefined,
         });
       };
       requestAnimationFrame(createMeeting);
@@ -1225,6 +1232,7 @@ export default function MessagesPage() {
         if (mode === "create" && !existing?.linkPosted) {
           const formData = new FormData();
           formData.append("text", `Join meeting: ${meetingRoomUrl}`);
+          formData.append("clientMessageId", `meeting-link-${selectedConversationId}`);
           try {
             await sendChatMessage(selectedConversationId, formData);
             socketRef.current?.emit("chat:meeting-start", {
@@ -1241,6 +1249,7 @@ export default function MessagesPage() {
         try {
           const entered = new FormData();
           entered.append("text", "You entered");
+          entered.append("clientMessageId", `system-entered-${selectedConversationId}-${selfUserId}`);
           await sendChatMessage(selectedConversationId, entered);
         } catch {
           // non-blocking; ignore send errors
@@ -1270,6 +1279,7 @@ export default function MessagesPage() {
       try {
         const formData = new FormData();
         formData.append("text", "You left");
+        formData.append("clientMessageId", `system-left-${selectedConversationId}-${selfUserId}`);
         void sendChatMessage(selectedConversationId, formData);
         socketRef.current?.emit("chat:meeting-end", {
           conversationId: selectedConversationId,
