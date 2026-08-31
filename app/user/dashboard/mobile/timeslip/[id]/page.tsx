@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   LogIn,
@@ -11,12 +11,14 @@ import {
   AlertCircle,
   FileText,
   Send,
+  Trash2,
 } from "lucide-react";
-import { getTimeslip } from "@/app/api/api";
+import { getTimeslip, deleteTimeslip } from "@/app/api/api";
 import MobileTabHeader from "../../components/MobileTabHeader";
 import { MobileCard, MobileBadge } from "../../components/MobileCard";
 import { StaggerReveal, StaggerItem } from "../../components/animation-wrappers";
 import { MobileSkeleton } from "../../components/MobileSkeleton";
+import { toast } from "sonner";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -131,6 +133,21 @@ export default function MobileTimeslipDetailPage() {
   const [timeslip, setTimeslip] = useState<TimeslipDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
+
+  const handleWithdraw = useCallback(async () => {
+    if (!id || !timeslip) return;
+    setWithdrawing(true);
+    try {
+      await deleteTimeslip(id);
+      toast.success("Timeslip withdrawn successfully");
+      router.push("/user/dashboard/mobile/timeslip");
+    } catch {
+      toast.error("Failed to withdraw timeslip");
+    } finally {
+      setWithdrawing(false);
+    }
+  }, [id, timeslip, router]);
 
   useEffect(() => {
     if (!id) return;
@@ -452,6 +469,20 @@ export default function MobileTimeslipDetailPage() {
               </div>
             </MobileCard>
           </StaggerItem>
+
+          {/* ── Withdraw Button ── */}
+          {timeslip.status === "PENDING" && (
+            <StaggerItem>
+              <button
+                onClick={handleWithdraw}
+                disabled={withdrawing}
+                className="w-full py-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 text-rose-600 dark:text-rose-400 text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                {withdrawing ? "Withdrawing..." : "Withdraw Request"}
+              </button>
+            </StaggerItem>
+          )}
         </StaggerReveal>
       </div>
     </div>

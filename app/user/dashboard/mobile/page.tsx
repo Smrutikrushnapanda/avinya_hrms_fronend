@@ -436,8 +436,8 @@ const map: Record<string, { status: AttendanceStatus; inTime?: string; outTime?:
           const key = dateStr.split("T")[0];
           map[key] = {
             status: mapApiStatus(record.status),
-            inTime: record.inTime ? new Date(record.inTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : undefined,
-            outTime: record.outTime ? new Date(record.outTime).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }) : undefined,
+            inTime: record.inTime || undefined,
+            outTime: record.outTime || undefined,
           };
         }
       }
