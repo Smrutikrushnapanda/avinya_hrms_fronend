@@ -683,7 +683,8 @@ const map: Record<string, { status: AttendanceStatus; inTime?: string; outTime?:
     const map: Record<string, { status: AttendanceStatus; holidayName?: string; isOptional?: boolean }> = {};
     for (const holiday of holidays) {
       if (holiday.date) {
-        const key = new Date(holiday.date).toISOString().split("T")[0];
+        const d = new Date(holiday.date);
+        const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
         map[key] = { status: "holiday", holidayName: holiday.name, isOptional: holiday.isOptional ?? false };
       }
     }
@@ -748,7 +749,7 @@ const map: Record<string, { status: AttendanceStatus; inTime?: string; outTime?:
     const startMonth = startOfMonth(currentMonth);
     const endMonth = endOfMonth(currentMonth);
     for (let d = startMonth; d <= endMonth; d = addDays(d, 1)) {
-      const key = d.toISOString().split("T")[0];
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const dow = d.getDay();
       const weekNum = Math.ceil(d.getDate() / 7);
       const existing = merged[key];

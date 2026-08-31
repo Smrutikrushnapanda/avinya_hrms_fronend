@@ -243,6 +243,7 @@ export function mapApiStatus(status: string): AttendanceStatus {
     case "half-day":
     case "half_day": return "half-day";
     case "holiday": return "holiday";
+    case "weekend": return "weekend";
     case "on-leave":
     case "half-leave": return "half-leave";
     default: return "pending";
