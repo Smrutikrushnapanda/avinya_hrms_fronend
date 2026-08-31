@@ -294,7 +294,7 @@ export default function MobileTimeslipPage() {
 
                   <motion.button
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push(`/user/timeslips?id=${entry.id}`)}
+                    onClick={() => router.push(`/user/dashboard/mobile/timeslip/${entry.id}`)}
                     className="w-full flex items-center justify-between bg-muted/50 px-4 py-3 rounded-xl border border-border/50 mt-4"
                   >
                     <div className="flex items-center gap-2">
