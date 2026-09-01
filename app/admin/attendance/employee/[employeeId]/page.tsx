@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { getMonthlyAttendance, getEmployee } from "@/app/api/api";
+import { getMonthlyAttendance, getEmployee, getEmployeeByUserId } from "@/app/api/api";
 
 type MonthlyRecord = {
   date: string;
@@ -140,6 +140,43 @@ function calendarStatusCode(
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
+type ResolvedEmployee = {
+  id: string;
+  userId?: string;
+  organizationId?: string;
+  employeeCode?: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  photoUrl?: string;
+  department?: { name?: string } | null;
+  designation?: { name?: string } | null;
+  [key: string]: unknown;
+};
+
+/**
+ * The page can be reached with either a route identifier:
+ *  - `employees.id`  (from the Employees table -> "Attendance Monthly")
+ *  - `users.user_id` (from the main Admin Attendance table row names)
+ *
+ * `GET /employees/:id` only accepts an `employees.id`, so a `userId` 404s.
+ * Resolve the employee by trying the employee-id lookup first, then falling
+ * back to the by-user lookup so both entry points load the same record.
+ */
+async function resolveEmployee(id: string): Promise<ResolvedEmployee | null> {
+  try {
+    const res = await getEmployee(id);
+    return res?.data ?? null;
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status === 404) {
+      const byUser = await getEmployeeByUserId(id);
+      return byUser?.data ?? null;
+    }
+    throw err;
+  }
+}
+
 export default function EmployeeAttendanceDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -147,7 +184,7 @@ export default function EmployeeAttendanceDetailPage() {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [records, setRecords] = useState<MonthlyRecord[]>([]);
-  const [employee, setEmployee] = useState<any>(null);
+  const [employee, setEmployee] = useState<ResolvedEmployee | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [organizationId, setOrganizationId] = useState<string>("");
@@ -171,13 +208,12 @@ export default function EmployeeAttendanceDetailPage() {
       setRecords([]); // never show the previous month's data while loading the new one
 
       try {
-        const empRes = await getEmployee(employeeId);
-        const emp = empRes?.data;
+        const emp = await resolveEmployee(employeeId);
         if (cancelled) return;
 
         if (!emp) {
           setEmployee(null);
-          setError("Employee not found.");
+          setError("Employee not found for the given ID.");
           return;
         }
 
