@@ -102,6 +102,42 @@ function resolveCompoundStatusKey(
   return status;
 }
 
+/**
+ * Compact single-cell label per the application's attendance statuses so the
+ * monthly calendar clearly shows each day's state (P / A / Lv / Off / etc.).
+ */
+function calendarStatusCode(
+  status: string,
+  completionStatus?: string | null,
+  punctualityStatus?: string | null
+): string {
+  if (status === "present") {
+    if (punctualityStatus === "late") return "Late";
+    if (completionStatus === "incomplete-hours") return "Inc";
+    return "P";
+  }
+  switch (status) {
+    case "absent":
+      return "A";
+    case "half-day":
+      return "HD";
+    case "late":
+      return "Late";
+    case "on-leave":
+      return "Lv";
+    case "holiday":
+      return "Hol";
+    case "weekend":
+      return "Off";
+    case "work-from-home":
+      return "WFH";
+    case "pending":
+      return "Pnd";
+    default:
+      return status;
+  }
+}
+
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 export default function EmployeeAttendanceDetailPage() {
@@ -113,6 +149,7 @@ export default function EmployeeAttendanceDetailPage() {
   const [records, setRecords] = useState<MonthlyRecord[]>([]);
   const [employee, setEmployee] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [organizationId, setOrganizationId] = useState<string>("");
 
   // Pagination state
@@ -122,14 +159,37 @@ export default function EmployeeAttendanceDetailPage() {
   const month = currentDate.getMonth() + 1;
   const year = currentDate.getFullYear();
 
+  // Bump to trigger a refetch after an error (Retry button).
+  const [retryKey, setRetryKey] = useState(0);
+
   useEffect(() => {
+    let cancelled = false;
+
     const fetchData = async () => {
       setLoading(true);
+      setError(null);
+      setRecords([]); // never show the previous month's data while loading the new one
+
       try {
         const empRes = await getEmployee(employeeId);
-        const emp = empRes.data;
+        const emp = empRes?.data;
+        if (cancelled) return;
+
+        if (!emp) {
+          setEmployee(null);
+          setError("Employee not found.");
+          return;
+        }
+
         setEmployee(emp);
-        setOrganizationId(emp.organizationId);
+        setOrganizationId(emp.organizationId ?? "");
+
+        if (!emp.userId) {
+          setError(
+            "This employee has no linked user account, so attendance cannot be loaded."
+          );
+          return;
+        }
 
         const attRes = await getMonthlyAttendance({
           userId: emp.userId,
@@ -137,19 +197,31 @@ export default function EmployeeAttendanceDetailPage() {
           year,
           organizationId: emp.organizationId,
         });
-        setRecords(attRes.data || []);
+        if (cancelled) return;
+
+        const data = attRes?.data;
+        // The monthly endpoint returns one record per calendar day. Any real
+        // array of records (including synthesized absent/weekend/holiday rows)
+        // is applied verbatim so the summary and calendar mirror the backend.
+        setRecords(Array.isArray(data) ? data : []);
         setPage(1);
       } catch (err) {
+        if (cancelled) return;
         console.error("Failed to fetch employee attendance:", err);
+        setError("Failed to load attendance data. Please try again.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     if (employeeId) {
       fetchData();
     }
-  }, [employeeId, month, year]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [employeeId, month, year, retryKey]);
 
   const stats = useMemo(() => {
     const workingDays = records.filter(
@@ -290,6 +362,24 @@ export default function EmployeeAttendanceDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Error state — never silently render zeros when the fetch fails */}
+      {error && (
+        <Card className="border-destructive">
+          <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-6 h-6 text-destructive shrink-0" />
+              <div>
+                <p className="font-semibold text-destructive">Unable to load attendance data</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+              </div>
+            </div>
+            <Button variant="outline" onClick={() => setRetryKey((k) => k + 1)}>
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Employee info card */}
       {employee && (
@@ -467,14 +557,19 @@ export default function EmployeeAttendanceDetailPage() {
                   </span>
                   {record && (
                     <>
-                      <span className="text-[10px] mt-auto truncate">
-                        {record.inTime || record.status === "absent" ? "A" : ""}
+                      <span className="text-[10px] mt-auto truncate font-semibold">
+                        {calendarStatusCode(record.status, record.completionStatus, record.punctualityStatus)}
                       </span>
-                      {record.workingMinutes && (
-                        <span className="text-[10px]">
-                          {Math.floor(record.workingMinutes / 60)}h
+                      {(record.inTime || record.outTime) && (
+                        <span className="text-[10px] truncate">
+                          {record.inTime || record.outTime}
                         </span>
                       )}
+                      {record.workingMinutes ? (
+                        <span className="text-[10px] truncate">
+                          {Math.floor(record.workingMinutes / 60)}h {record.workingMinutes % 60}m
+                        </span>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -500,9 +595,14 @@ export default function EmployeeAttendanceDetailPage() {
                 <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />
               ))}
             </div>
+          ) : error ? (
+            <p className="text-center text-destructive py-8">
+              {error}
+            </p>
           ) : records.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              No attendance records for this month.
+              No attendance records found for this month. The employee has no
+              punches, leaves, or holiday/weekly-off data in {format(currentDate, "MMMM yyyy")}.
             </p>
           ) : (
             <>
