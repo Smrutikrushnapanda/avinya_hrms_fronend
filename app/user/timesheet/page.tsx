@@ -18,6 +18,26 @@ type DirectReport = {
   employeeCode?: string;
 };
 
+const ADMIN_ROLE_NAMES = new Set(["admin", "super_admin", "organization_admin"]);
+
+type RoleEntry = { roleName?: string } | string | null | undefined;
+
+function normalizeRoleNames(raw: unknown): string[] {
+  if (raw == null) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr
+    .map((r: RoleEntry) => {
+      if (typeof r === "string") return r;
+      if (r && typeof r === "object" && typeof r.roleName === "string") return r.roleName;
+      return null;
+    })
+    .filter((name): name is string => typeof name === "string");
+}
+
+function hasAdminRole(raw: unknown): boolean {
+  return normalizeRoleNames(raw).some((name) => ADMIN_ROLE_NAMES.has(name.toLowerCase()));
+}
+
 export default function TimesheetPage() {
   const router = useRouter();
   const [organizationId, setOrganizationId] = useState("");
@@ -34,17 +54,10 @@ export default function TimesheetPage() {
         const profile = profileRes.data || {};
         const orgId = profile.organizationId ?? "";
         const uid = profile.id ?? profile.userId ?? "";
-        const role = profile.role ?? profile.roles ?? "";
-        const userRoles = Array.isArray(role) ? role : role ? [role] : [];
-        const isAdminUser = userRoles.some(
-          (r: string) =>
-            r.toLowerCase() === "admin" ||
-            r.toLowerCase() === "super_admin" ||
-            r.toLowerCase() === "organization_admin",
-        );
+
         setOrganizationId(orgId);
         setIsApprover(Boolean(profile.isApprover));
-        setIsAdmin(isAdminUser);
+        setIsAdmin(hasAdminRole(profile.role ?? profile.roles));
 
         if (uid) {
           const employeeRes = await getEmployeeByUserId(uid);
