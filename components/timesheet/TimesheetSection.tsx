@@ -232,7 +232,7 @@ export default function TimesheetSection({
       } else {
         const res = await getTimesheets({
           organizationId,
-          employeeId: mode === "self" ? employeeId : undefined,
+          employeeId: mode === "self" || mode === "admin" ? employeeId : undefined,
           fromDate,
           toDate,
           status,
