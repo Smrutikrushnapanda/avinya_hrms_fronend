@@ -26,6 +26,8 @@ interface AttendanceItem {
   date: string;
   rawDate?: string;
   status: string;
+  completionStatus?: string | null;
+  punctualityStatus?: string | null;
   inTime: string;
   outTime: string;
   isSunday: boolean;
@@ -38,25 +40,48 @@ const monthNames = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+function resolveCompoundStatusKey(
+  status: string,
+  completionStatus?: string | null,
+  punctualityStatus?: string | null
+): string {
+  if (status === "present" && completionStatus) {
+    const parts = [`present-${completionStatus}`];
+    if (punctualityStatus === "late") parts.push("late");
+    return parts.join("-");
+  }
+  if (status === "present" && punctualityStatus === "late") {
+    return "present-late";
+  }
+  return status;
+}
+
 function getBadgeProps(
   status: string,
   isSunday: boolean,
   isHoliday: boolean,
   dateStr?: string,
+  completionStatus?: string | null,
+  punctualityStatus?: string | null,
 ) {
   if (isHoliday) return { color: "var(--primary)", text: "Holiday" };
   if (isSunday) {
-    // Show the ACTUAL weekday instead of hardcoding "Sunday" — the org's
-    // weekly off could be any weekday (e.g. a night/split batch resting on
-    // Monday).
     const day =
       typeof dateStr === "string" && dateStr
         ? new Date(dateStr).toLocaleDateString("en-US", { weekday: "long" })
         : "";
     return { color: "var(--primary)", text: day ? `Weekly Off (${day})` : "Weekly Off" };
   }
-  switch (status?.toLowerCase()) {
+  const compoundKey = resolveCompoundStatusKey(status, completionStatus, punctualityStatus);
+  switch (compoundKey) {
     case "present": return { color: "#10B981", text: "Present" };
+    case "present-complete": return { color: "#10B981", text: "Present — Complete" };
+    case "present-not-complete": return { color: "#F59E0B", text: "Present — Not Complete" };
+    case "present-incomplete-hours": return { color: "#F59E0B", text: "Present — Incomplete Hours" };
+    case "present-late": return { color: "#F59E0B", text: "Present — Late" };
+    case "present-complete-late": return { color: "#F59E0B", text: "Present — Complete, Late" };
+    case "present-not-complete-late": return { color: "#F59E0B", text: "Present — Not Complete, Late" };
+    case "present-incomplete-hours-late": return { color: "#F59E0B", text: "Present — Incomplete Hours, Late" };
     case "absent": return { color: "#EF4444", text: "Absent" };
     case "late": return { color: "#F59E0B", text: "Late" };
     case "halfday":
@@ -72,11 +97,25 @@ function getBadgeProps(
   }
 }
 
-function getIconConfig(status: string, isSunday: boolean, isHoliday: boolean) {
+function getIconConfig(
+  status: string,
+  isSunday: boolean,
+  isHoliday: boolean,
+  completionStatus?: string | null,
+  punctualityStatus?: string | null,
+) {
   if (isHoliday) return { icon: Gift, color: "var(--primary)", bg: "var(--primary-8, rgba(29,78,211,0.08))" };
   if (isSunday) return { icon: Sun, color: "var(--primary)", bg: "var(--primary-8, rgba(29,78,211,0.08))" };
-  switch (status?.toLowerCase()) {
-    case "present": return { icon: CheckCircle, color: "#10B981", bg: "#ECFDF5" };
+  const compoundKey = resolveCompoundStatusKey(status, completionStatus, punctualityStatus);
+  switch (compoundKey) {
+    case "present":
+    case "present-complete": return { icon: CheckCircle, color: "#10B981", bg: "#ECFDF5" };
+    case "present-not-complete":
+    case "present-incomplete-hours": return { icon: Timer, color: "#F59E0B", bg: "#FFFBEB" };
+    case "present-late":
+    case "present-complete-late": return { icon: Timer, color: "#F59E0B", bg: "#FFFBEB" };
+    case "present-not-complete-late":
+    case "present-incomplete-hours-late": return { icon: Timer, color: "#F59E0B", bg: "#FFFBEB" };
     case "absent": return { icon: XCircle, color: "#EF4444", bg: "#FEF2F2" };
     case "late": return { icon: Timer, color: "#F59E0B", bg: "#FFFBEB" };
     case "halfday":
@@ -142,6 +181,8 @@ export default function WebAttendancePage() {
             date: dateStr ? formatDisplayDate(dateStr) : "--",
             rawDate: dateStr,
             status,
+            completionStatus: record.completionStatus ?? null,
+            punctualityStatus: record.punctualityStatus ?? null,
             inTime: record.inTime ?? "--",
             outTime: record.outTime ?? "--",
             isSunday: isWeekend,
@@ -335,8 +376,8 @@ export default function WebAttendancePage() {
           ) : (
             <StaggerReveal className="space-y-3" staggerDelay={0.04}>
               {displayedItems.map((item, index) => {
-                const { color: badgeColor, text: badgeText } = getBadgeProps(item.status, item.isSunday, item.isHoliday, item.rawDate ?? item.date);
-                const { icon: Icon, color: iconColor, bg: iconBg } = getIconConfig(item.status, item.isSunday, item.isHoliday);
+                const { color: badgeColor, text: badgeText } = getBadgeProps(item.status, item.isSunday, item.isHoliday, item.rawDate ?? item.date, item.completionStatus, item.punctualityStatus);
+                const { icon: Icon, color: iconColor, bg: iconBg } = getIconConfig(item.status, item.isSunday, item.isHoliday, item.completionStatus, item.punctualityStatus);
 
                 return (
                   <StaggerItem key={index}>

@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Eye,
   Pencil,
   Trash2,
   X,
@@ -108,13 +109,6 @@ function formatDisplayDate(dateStr: string): string {
   return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatTime(isoStr?: string): string {
-  if (!isoStr) return "--";
-  const date = new Date(isoStr);
-  if (Number.isNaN(date.getTime())) return "--";
-  return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-}
-
 function toTimeInput(isoStr: string): string {
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return "";
@@ -151,7 +145,7 @@ export default function TimesheetSection({
   allowApproval = false,
   projectFilterEnabled = false,
 }: TimesheetSectionProps) {
-  const { today: getOrgToday, toUtcISO: orgToUtcISO } = useOrganizationTimezone();
+  const { today: getOrgToday, toUtcISO: orgToUtcISO, formatOrgTime } = useOrganizationTimezone();
   const currentDate = new Date();
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth());
   const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
@@ -166,6 +160,7 @@ export default function TimesheetSection({
 
   const [projects, setProjects] = useState<TimesheetProjectOption[]>([]);
   const [editTarget, setEditTarget] = useState<TimesheetEntry | null>(null);
+  const [viewTarget, setViewTarget] = useState<TimesheetEntry | null>(null);
   const [editDraft, setEditDraft] = useState<TimesheetRowDraft | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
@@ -528,7 +523,7 @@ export default function TimesheetSection({
                             <TableHead>Time</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Remarks</TableHead>
-                            {canEditDay && <TableHead className="text-right">Actions</TableHead>}
+                            <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -537,12 +532,19 @@ export default function TimesheetSection({
                               {showEmployee && (
                                 <TableCell className="text-sm font-medium">{employeeName(entry)}</TableCell>
                               )}
-                              <TableCell className="text-sm">{formatTime(entry.startTime)}</TableCell>
-                              <TableCell className="text-sm">{formatTime(entry.endTime)}</TableCell>
+                              <TableCell className="text-sm">{formatOrgTime(entry.startTime)}</TableCell>
+                              <TableCell className="text-sm">{formatOrgTime(entry.endTime)}</TableCell>
                               <TableCell className="text-sm">{entry.projectName || "--"}</TableCell>
                               <TableCell className="text-sm">{entry.moduleFeature || "--"}</TableCell>
                               <TableCell className="text-sm">{entry.pageScreen || "--"}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground max-w-[220px]">{entry.workDescription}</TableCell>
+                              <TableCell
+                                className="text-sm text-muted-foreground max-w-[220px] truncate"
+                                title={entry.workDescription}
+                              >
+                                {entry.workDescription && entry.workDescription.length > 100
+                                  ? entry.workDescription.slice(0, 100) + "..."
+                                  : entry.workDescription}
+                              </TableCell>
                               <TableCell className="text-sm font-medium">{formatMinutes(entry.workingMinutes)}</TableCell>
                               <TableCell>
                                 <Badge variant="outline" className={`text-[11px] ${WORK_STATUS_BADGE[entry.workStatus] || ""}`}>
@@ -555,21 +557,26 @@ export default function TimesheetSection({
                                   <div className="text-xs mt-1 italic">Manager: {entry.managerRemark}</div>
                                 )}
                               </TableCell>
-                              {canEditDay && (
-                                <TableCell className="text-right whitespace-nowrap">
-                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(entry)}>
-                                    <Pencil className="h-3.5 w-3.5" />
+                              <TableCell className="text-right whitespace-nowrap">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewTarget(entry)}>
+                                    <Eye className="h-3.5 w-3.5" />
                                   </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-destructive"
-                                    onClick={() => handleDelete(entry)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
+                                  {canEditDay && (
+                                    <>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(entry)}>
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 text-destructive"
+                                        onClick={() => handleDelete(entry)}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </>
+                                  )}
                                 </TableCell>
-                              )}
                             </TableRow>
                           ))}
                         </TableBody>
@@ -582,6 +589,80 @@ export default function TimesheetSection({
           })}
         </div>
       )}
+
+      {/* View entry dialog (read-only detail view) */}
+      <Dialog open={!!viewTarget} onOpenChange={(open) => { if (!open) setViewTarget(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Timesheet Entry Details</DialogTitle>
+          </DialogHeader>
+          {viewTarget && (
+            <div className="space-y-4">
+              {showEmployee && (
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Employee</span>
+                  <p className="text-sm">{employeeName(viewTarget)}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Date</span>
+                  <p className="text-sm">{formatDisplayDate(viewTarget.date)}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Duration</span>
+                  <p className="text-sm font-medium">{formatMinutes(viewTarget.workingMinutes)}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Start Time</span>
+                  <p className="text-sm">{formatOrgTime(viewTarget.startTime)}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">End Time</span>
+                  <p className="text-sm">{formatOrgTime(viewTarget.endTime)}</p>
+                </div>
+              </div>
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Project</span>
+                <p className="text-sm">{viewTarget.projectName || "--"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Module / Feature</span>
+                  <p className="text-sm">{viewTarget.moduleFeature || "--"}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Page / Screen</span>
+                  <p className="text-sm">{viewTarget.pageScreen || "--"}</p>
+                </div>
+              </div>
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Description</span>
+                <p className="text-sm whitespace-pre-wrap">{viewTarget.workDescription || "--"}</p>
+              </div>
+              <div>
+                <span className="text-xs font-medium text-muted-foreground">Work Status</span>
+                <p className="text-sm capitalize">{viewTarget.workStatus.replace("_", " ")}</p>
+              </div>
+              {viewTarget.employeeRemark && (
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Employee Remark</span>
+                  <p className="text-sm">{viewTarget.employeeRemark}</p>
+                </div>
+              )}
+              {viewTarget.managerRemark && (
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground">Manager Remark</span>
+                  <p className="text-sm italic">{viewTarget.managerRemark}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewTarget(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit entry dialog (today's own entries only) */}
       <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) { setEditTarget(null); setEditDraft(null); } }}>

@@ -32,6 +32,8 @@ type AttendanceRecord = {
   date: string;
   day: string;
   status: string;
+  completionStatus?: string | null;
+  punctualityStatus?: string | null;
   inTime: string;
   outTime: string;
   hours: string;
@@ -105,7 +107,30 @@ const statusConfig: Record<string, { label: string; icon: React.ElementType; cla
   weekend: { label: "Weekend",  icon: Sun,             className: "bg-gradient-to-r from-sky-100 to-blue-50 text-sky-700 border-sky-200" },
   leave:   { label: "On Leave", icon: HourglassIcon,   className: "bg-gradient-to-r from-blue-100 to-indigo-50 text-blue-700 border-blue-200" },
   wfh:     { label: "WFH",      icon: Wifi,            className: "bg-gradient-to-r from-cyan-100 to-teal-50 text-cyan-700 border-cyan-200" },
+  "present-complete": { label: "Present — Complete",  icon: CheckCircle2, className: "bg-gradient-to-r from-emerald-100 to-green-50 text-emerald-700 border-emerald-200" },
+  "present-not-complete": { label: "Present — Not Complete", icon: Timer, className: "bg-gradient-to-r from-amber-100 to-yellow-50 text-amber-700 border-amber-200" },
+  "present-incomplete-hours": { label: "Present — Incomplete Hours", icon: Timer, className: "bg-gradient-to-r from-amber-100 to-yellow-50 text-amber-700 border-amber-200" },
+  "present-complete-late": { label: "Present — Complete, Late", icon: Timer, className: "bg-gradient-to-r from-orange-100 to-amber-50 text-orange-700 border-orange-200" },
+  "present-not-complete-late": { label: "Present — Not Complete, Late", icon: Timer, className: "bg-gradient-to-r from-orange-100 to-amber-50 text-orange-700 border-orange-200" },
+  "present-incomplete-hours-late": { label: "Present — Incomplete Hours, Late", icon: Timer, className: "bg-gradient-to-r from-orange-100 to-amber-50 text-orange-700 border-orange-200" },
+  "present-late": { label: "Present — Late", icon: Timer, className: "bg-gradient-to-r from-orange-100 to-amber-50 text-orange-700 border-orange-200" },
 };
+
+function resolveCompoundStatusKey(
+  status: string,
+  completionStatus?: string | null,
+  punctualityStatus?: string | null
+): string {
+  if (status === "present" && completionStatus) {
+    const parts = [`present-${completionStatus}`];
+    if (punctualityStatus === "late") parts.push("late");
+    return parts.join("-");
+  }
+  if (status === "present" && punctualityStatus === "late") {
+    return "present-late";
+  }
+  return status;
+}
 
 function getStatusConfig(status: string) {
   return statusConfig[status] ?? {
@@ -140,7 +165,8 @@ const columns: ColumnDef<AttendanceRecord>[] = [
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => {
-      const cfg = getStatusConfig(row.original.status);
+      const compoundKey = resolveCompoundStatusKey(row.original.status, row.original.completionStatus, row.original.punctualityStatus);
+      const cfg = getStatusConfig(compoundKey);
       const Icon = cfg.icon;
       return (
         <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${cfg.className}`}>
@@ -161,7 +187,7 @@ const columns: ColumnDef<AttendanceRecord>[] = [
     cell: ({ row }) => {
       const time = row.original.inTime;
       if (time === "--") return <span className="text-sm text-muted-foreground">--</span>;
-      const isLate = row.original.status === "late";
+      const isLate = row.original.status === "late" || row.original.punctualityStatus === "late";
       return (
         <span className={`text-sm font-semibold ${isLate ? "text-orange-600" : "text-emerald-600"}`}>
           {time}
@@ -264,6 +290,8 @@ export default function EmployeeAttendancePage() {
           date,
           day,
           status,
+          completionStatus: record.completionStatus ?? null,
+          punctualityStatus: record.punctualityStatus ?? null,
           inTime: record.inTime ?? "--",
           outTime: record.outTime ?? "--",
           hours,

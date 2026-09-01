@@ -32,6 +32,8 @@ import { getMonthlyAttendance, getEmployee } from "@/app/api/api";
 type MonthlyRecord = {
   date: string;
   status: string;
+  completionStatus?: string | null;
+  punctualityStatus?: string | null;
   isSunday: boolean;
   isHoliday: boolean;
   holidayName?: string;
@@ -56,6 +58,13 @@ const statusColors: Record<string, string> = {
   weekend: "bg-gray-100 text-gray-800 border-gray-200",
   "work-from-home": "bg-cyan-100 text-cyan-800 border-cyan-200",
   pending: "bg-gray-100 text-gray-600 border-gray-200",
+  "present-complete": "bg-green-100 text-green-800 border-green-200",
+  "present-not-complete": "bg-amber-100 text-amber-800 border-amber-200",
+  "present-incomplete-hours": "bg-amber-100 text-amber-800 border-amber-200",
+  "present-complete-late": "bg-orange-100 text-orange-800 border-orange-200",
+  "present-not-complete-late": "bg-orange-100 text-orange-800 border-orange-200",
+  "present-incomplete-hours-late": "bg-orange-100 text-orange-800 border-orange-200",
+  "present-late": "bg-orange-100 text-orange-800 border-orange-200",
 };
 
 const statusLabels: Record<string, string> = {
@@ -68,7 +77,30 @@ const statusLabels: Record<string, string> = {
   weekend: "Weekend",
   "work-from-home": "WFH",
   pending: "Pending",
+  "present-complete": "Present — Complete",
+  "present-not-complete": "Present — Not Complete",
+  "present-incomplete-hours": "Present — Incomplete Hours",
+  "present-complete-late": "Present — Complete, Late",
+  "present-not-complete-late": "Present — Not Complete, Late",
+  "present-incomplete-hours-late": "Present — Incomplete Hours, Late",
+  "present-late": "Present — Late",
 };
+
+function resolveCompoundStatusKey(
+  status: string,
+  completionStatus?: string | null,
+  punctualityStatus?: string | null
+): string {
+  if (status === "present" && completionStatus) {
+    const parts = [`present-${completionStatus}`];
+    if (punctualityStatus === "late") parts.push("late");
+    return parts.join("-");
+  }
+  if (status === "present" && punctualityStatus === "late") {
+    return "present-late";
+  }
+  return status;
+}
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
@@ -201,7 +233,7 @@ export default function EmployeeAttendanceDetailPage() {
     const data = records.map((rec) => ({
       Date: format(parseISO(rec.date), "dd MMM yyyy"),
       Day: format(parseISO(rec.date), "EEE"),
-      Status: statusLabels[rec.status] || rec.status,
+      Status: statusLabels[resolveCompoundStatusKey(rec.status, rec.completionStatus, rec.punctualityStatus)] || statusLabels[rec.status] || rec.status,
       "Clock In": rec.inTime || "-",
       "Clock Out": rec.outTime || "-",
       "Working Hours": rec.workingMinutes ? formatWorkingTime(rec.workingMinutes) : "-",
@@ -420,7 +452,8 @@ export default function EmployeeAttendanceDetailPage() {
 
               const record = getRecordForDate(day);
               const isToday = isSameDay(day, new Date());
-              const statusClass = record ? statusColors[record.status] || "" : "";
+              const compoundKey = record ? resolveCompoundStatusKey(record.status, record.completionStatus, record.punctualityStatus) : "";
+              const statusClass = record ? statusColors[compoundKey] || statusColors[record.status] || "" : "";
 
               return (
                 <div
@@ -494,8 +527,8 @@ export default function EmployeeAttendanceDetailPage() {
                         <td className="py-3 px-2 font-medium">{format(parseISO(rec.date), "dd MMM yyyy")}</td>
                         <td className="py-3 px-2">{format(parseISO(rec.date), "EEE")}</td>
                         <td className="py-3 px-2">
-                          <Badge variant="outline" className={statusColors[rec.status]}>
-                            {statusLabels[rec.status] || rec.status}
+                          <Badge variant="outline" className={statusColors[resolveCompoundStatusKey(rec.status, rec.completionStatus, rec.punctualityStatus)] || statusColors[rec.status]}>
+                            {statusLabels[resolveCompoundStatusKey(rec.status, rec.completionStatus, rec.punctualityStatus)] || statusLabels[rec.status] || rec.status}
                           </Badge>
                           {rec.anomalyFlag && (
                             <Badge variant="destructive" className="ml-1 text-[10px]">

@@ -37,6 +37,7 @@ interface AttendanceSettings {
   workEndTime: string;
   graceMinutes: number;
   lateThresholdMinutes: number;
+  requiredWorkingMinutes: number | null;
   officeLatitude: number | null;
   officeLongitude: number | null;
   officeLocationName: string | null;
@@ -104,6 +105,7 @@ const defaultSettings: AttendanceSettings = {
   workEndTime: "18:00:00",
   graceMinutes: 15,
   lateThresholdMinutes: 30,
+  requiredWorkingMinutes: null,
   officeLatitude: null,
   officeLongitude: null,
   officeLocationName: null,
@@ -507,6 +509,7 @@ export default function AttendanceSettingsPage() {
         workEndTime: settings.workEndTime,
         graceMinutes: settings.graceMinutes,
         lateThresholdMinutes: settings.lateThresholdMinutes,
+        requiredWorkingMinutes: settings.requiredWorkingMinutes,
         officeLatitude: parseOptionalNumber(officeLatitudeInput),
         officeLongitude: parseOptionalNumber(officeLongitudeInput),
         officeLocationName: settings.officeLocationName,
@@ -1146,6 +1149,68 @@ export default function AttendanceSettingsPage() {
                       onChange={(e) => handleInputChange("halfDayCutoffTime", e.target.value + ":00")}
                     />
                     <p className="text-xs text-muted-foreground">Time after which half day is marked</p>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Minimum Working Hours for Full Day</Label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={23}
+                          className="w-20"
+                          placeholder="HH"
+                          value={settings.requiredWorkingMinutes != null ? Math.floor(settings.requiredWorkingMinutes / 60) : ""}
+                          onChange={(e) => {
+                            const hours = parseInt(e.target.value, 10) || 0;
+                            const currentMinutes = settings.requiredWorkingMinutes != null ? settings.requiredWorkingMinutes % 60 : 0;
+                            const total = hours * 60 + currentMinutes;
+                            handleInputChange("requiredWorkingMinutes", total > 0 ? total : null);
+                          }}
+                        />
+                        <span className="text-sm text-muted-foreground">h</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={59}
+                          className="w-20"
+                          placeholder="MM"
+                          value={settings.requiredWorkingMinutes != null ? settings.requiredWorkingMinutes % 60 : ""}
+                          onChange={(e) => {
+                            const minutes = parseInt(e.target.value, 10) || 0;
+                            const currentHours = settings.requiredWorkingMinutes != null ? Math.floor(settings.requiredWorkingMinutes / 60) : 0;
+                            const total = currentHours * 60 + minutes;
+                            handleInputChange("requiredWorkingMinutes", total > 0 ? total : null);
+                          }}
+                        />
+                        <span className="text-sm text-muted-foreground">m</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => handleInputChange("requiredWorkingMinutes", null)}
+                      >
+                        Reset
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Minimum working time required to mark an employee as Full Present.
+                      When not set, the full shift duration is used.
+                    </p>
+                    {settings.requiredWorkingMinutes != null && settings.requiredWorkingMinutes > 0 && (
+                      <div className="mt-2 rounded-md bg-muted/50 border px-3 py-2 text-xs text-muted-foreground space-y-0.5">
+                        <p>
+                          <span className="font-medium text-foreground">Calculated Half-Day Threshold: </span>
+                          {Math.floor((Math.floor(settings.requiredWorkingMinutes / 2) + 60) / 60)}h {(Math.floor(settings.requiredWorkingMinutes / 2) + 60) % 60}m
+                        </p>
+                        <p className="text-[11px]">
+                          Formula: ({Math.floor(settings.requiredWorkingMinutes / 60)}h {settings.requiredWorkingMinutes % 60}m ÷ 2) + 1h
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label>Working Days</Label>

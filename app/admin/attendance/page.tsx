@@ -35,6 +35,8 @@ type Attendance = {
   profileImageSigned?: string;
   employeeCode: string;
   status: string;
+  completionStatus?: string | null;
+  punctualityStatus?: string | null;
   workingMinutes?: number;
   inTime?: string;
   inPhotoUrl?: string;
@@ -69,6 +71,13 @@ const statusGradientMap: Record<string, string> = {
   holiday: "bg-gradient-to-r from-purple-200 to-purple-100 text-purple-800",
   weekend: "bg-gradient-to-r from-gray-200 to-gray-100 text-gray-800",
   "work-from-home": "bg-gradient-to-r from-cyan-200 to-cyan-100 text-cyan-800",
+  "present-complete": "bg-gradient-to-r from-green-200 to-green-100 text-green-800",
+  "present-not-complete": "bg-gradient-to-r from-amber-200 to-amber-100 text-amber-900",
+  "present-incomplete-hours": "bg-gradient-to-r from-amber-200 to-amber-100 text-amber-900",
+  "present-complete-late": "bg-gradient-to-r from-orange-200 to-orange-100 text-orange-800",
+  "present-not-complete-late": "bg-gradient-to-r from-orange-200 to-orange-100 text-orange-800",
+  "present-incomplete-hours-late": "bg-gradient-to-r from-orange-200 to-orange-100 text-orange-800",
+  "present-late": "bg-gradient-to-r from-orange-200 to-orange-100 text-orange-800",
 };
 
 const statusLabelMap: Record<string, string> = {
@@ -81,7 +90,30 @@ const statusLabelMap: Record<string, string> = {
   holiday: "Holiday",
   weekend: "Weekend",
   "work-from-home": "Work From Home",
+  "present-complete": "Present — Complete",
+  "present-not-complete": "Present — Not Complete",
+  "present-incomplete-hours": "Present — Incomplete Hours",
+  "present-complete-late": "Present — Complete, Late",
+  "present-not-complete-late": "Present — Not Complete, Late",
+  "present-incomplete-hours-late": "Present — Incomplete Hours, Late",
+  "present-late": "Present — Late",
 };
+
+function resolveCompoundStatusKey(
+  status: string,
+  completionStatus?: string | null,
+  punctualityStatus?: string | null
+): string {
+  if (status === "present" && completionStatus) {
+    const parts = [`present-${completionStatus}`];
+    if (punctualityStatus === "late") parts.push("late");
+    return parts.join("-");
+  }
+  if (status === "present" && punctualityStatus === "late") {
+    return "present-late";
+  }
+  return status;
+}
 
 const tripTypeLabelMap: Record<string, string> = {
   OFFICE_TRIP: "Office Trip",
@@ -457,9 +489,10 @@ function buildColumns(
       </div>
     ),
     cell: ({ row }) => {
-      const status = row.original.status;
-      const label = statusLabelMap[status] || status;
-      const gradientClass = statusGradientMap[status] || "bg-gradient-to-r from-gray-200 to-gray-100 text-gray-800";
+      const { status, completionStatus, punctualityStatus } = row.original;
+      const compoundKey = resolveCompoundStatusKey(status, completionStatus, punctualityStatus);
+      const label = statusLabelMap[compoundKey] || statusLabelMap[status] || status;
+      const gradientClass = statusGradientMap[compoundKey] || statusGradientMap[status] || "bg-gradient-to-r from-gray-200 to-gray-100 text-gray-800";
       const tripType = row.original.tripType;
 
       return (

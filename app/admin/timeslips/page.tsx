@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { getEmployees, getProfile, getTimeslips, getTimeslipsByApprover, approveTimeslip, batchUpdateTimeslipStatuses } from "@/app/api/api";
+import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 
 interface TimeslipApproval {
   id: string;
@@ -42,6 +43,7 @@ interface TimeslipRow {
 }
 
 export default function TimeslipsApprovalPage() {
+  const { formatOrgTime } = useOrganizationTimezone();
   const [approverEmployeeId, setApproverEmployeeId] = useState<string>("");
   const [adminOverride, setAdminOverride] = useState(false);
   const [timeslips, setTimeslips] = useState<TimeslipRow[]>([]);
@@ -134,20 +136,28 @@ export default function TimeslipsApprovalPage() {
   const handleAction = async () => {
     if (!actionTarget) return;
     try {
+      let response;
       if (adminOverride) {
-        await batchUpdateTimeslipStatuses({
+        response = await batchUpdateTimeslipStatuses({
           timeslipIds: [actionTarget.id],
           status: actionType,
         });
       } else {
-        await approveTimeslip(actionTarget.id, {
+        response = await approveTimeslip(actionTarget.id, {
           approverId: approverEmployeeId,
           action: actionType,
           remarks: remarks || undefined,
         });
       }
-      toast.success(`Timeslip ${actionType.toLowerCase()}`);
+
+      if (response.data?.errors?.length > 0) {
+        toast.error(response.data.errors[0]);
+      } else {
+        toast.success(`Timeslip ${actionType.toLowerCase()}`);
+      }
+
       setActionDialogOpen(false);
+      setRemarks("");
       fetchTimeslips();
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update timeslip");
@@ -220,15 +230,15 @@ export default function TimeslipsApprovalPage() {
                       {row.employee.firstName} {row.employee.lastName}
                     </td>
                     <td className="p-3">{row.missing_type}</td>
-                    <td className="p-3">
-                      {row.corrected_in
-                        ? new Date(row.corrected_in).toLocaleTimeString()
-                        : "-"}
-                    </td>
-                    <td className="p-3">
-                      {row.corrected_out
-                        ? new Date(row.corrected_out).toLocaleTimeString()
-                        : "-"}
+<td className="p-3">
+                    {row.corrected_in
+                      ? formatOrgTime(row.corrected_in)
+                      : "-"}
+                  </td>
+                  <td className="p-3">
+                    {row.corrected_out
+                      ? formatOrgTime(row.corrected_out)
+                      : "-"}
                     </td>
                     <td className="p-3">{statusBadge(row.status)}</td>
                     <td className="p-3 max-w-[240px] truncate">

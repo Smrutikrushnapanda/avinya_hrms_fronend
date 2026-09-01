@@ -9,7 +9,10 @@ export type AttendanceStatus =
   | "half-leave"
   | "pending"
   | "weekend"
-  | "holiday";
+  | "holiday"
+  | "on-leave"
+  | "work-from-home"
+  | "late";
 
 export interface AttendanceRecord {
   date: string;
@@ -245,7 +248,11 @@ export function mapApiStatus(status: string): AttendanceStatus {
     case "holiday": return "holiday";
     case "weekend": return "weekend";
     case "on-leave":
+    case "leave": return "on-leave";
     case "half-leave": return "half-leave";
+    case "work-from-home":
+    case "wfh": return "work-from-home";
+    case "late": return "late";
     default: return "pending";
   }
 }

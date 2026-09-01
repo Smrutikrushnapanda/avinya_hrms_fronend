@@ -26,7 +26,10 @@ type StatusType =
   | "weekend"
   | "pending"
   | "leave"
-  | "half-leave";
+  | "half-leave"
+  | "on-leave"
+  | "work-from-home"
+  | "late";
 
 interface AttendanceStatus {
   status: StatusType;
