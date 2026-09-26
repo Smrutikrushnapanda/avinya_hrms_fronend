@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlanAccess } from "@/components/plan-access-provider";
-import { getProfile, getChatConversations, getMenuItems } from "@/app/api/api";
+import { getProfile, getChatConversations, getMenuItems, getTimeslips, getAllWfhRequests, getAllExpenses, getAllOfficeTrips } from "@/app/api/api";
 import {
   Users,
   LayoutDashboard,
@@ -204,6 +204,10 @@ export default function Sidebar() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [pendingTimeslips, setPendingTimeslips] = useState(0);
+  const [pendingWfh, setPendingWfh] = useState(0);
+  const [pendingExpenses, setPendingExpenses] = useState(0);
+  const [pendingOfficeTrips, setPendingOfficeTrips] = useState(0);
   const sidebarIconGradientClass =
     "bg-gradient-to-r from-accent-brand-from to-accent-brand-to bg-clip-text text-transparent";
   const isExpanded = mode === "expanded";
@@ -267,6 +271,116 @@ export default function Sidebar() {
     window.addEventListener("chatUnreadUpdate", handler);
     return () => window.removeEventListener("chatUnreadUpdate", handler);
   }, [pathname]);
+
+  // Fetch pending approval counts for admin sidebar badges
+  useEffect(() => {
+    const isAdminRoute = pathname?.startsWith("/admin");
+    if (!isAdminRoute) return;
+
+    const fetchPendingCounts = async () => {
+      try {
+        const profileRes = await getProfile();
+        const userId = profileRes.data?.userId;
+        const orgId = profileRes.data?.organizationId;
+        if (!userId || !orgId) return;
+
+        const [tsRes, wfhRes, expRes, tripRes] = await Promise.all([
+          getTimeslips({ page: 1, limit: 1 }).catch(() => null),
+          getAllWfhRequests(orgId).catch(() => null),
+          getAllExpenses(orgId).catch(() => null),
+          getAllOfficeTrips(orgId).catch(() => null),
+        ]);
+
+        let tsCount = 0;
+        if (tsRes?.data) {
+          const allTs = tsRes.data?.data || tsRes.data || [];
+          tsCount = (Array.isArray(allTs) ? allTs : []).filter(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (t: any) => t.status === "PENDING"
+          ).length;
+        }
+
+        let wfhCount = 0;
+        if (wfhRes?.data) {
+          const allWfh = Array.isArray(wfhRes.data) ? wfhRes.data : [];
+          wfhCount = allWfh.filter(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (r: any) => r.status?.toUpperCase() === "PENDING"
+          ).length;
+        }
+
+        let expCount = 0;
+        if (expRes?.data) {
+          const allExp = Array.isArray(expRes.data) ? expRes.data : [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          expCount = allExp.filter((e: any) => e.status === "PENDING").length;
+        }
+
+        let tripCount = 0;
+        if (tripRes?.data) {
+          const allTrips = Array.isArray(tripRes.data) ? tripRes.data : [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          tripCount = allTrips.filter((t: any) => t.status === "PENDING").length;
+        }
+
+        setPendingTimeslips(tsCount);
+        setPendingWfh(wfhCount);
+        setPendingExpenses(expCount);
+        setPendingOfficeTrips(tripCount);
+      } catch {
+        // silent
+      }
+    };
+
+    fetchPendingCounts();
+  }, [pathname]);
+
+  // Helper to get pending count for a route (or sum of children for groups)
+  const getPendingCount = (item: MenuItem): number => {
+    if (item.href) {
+      if (item.href === "/admin/timeslips") return pendingTimeslips;
+      if (item.href === "/admin/wfh") return pendingWfh;
+      if (item.href === "/admin/expenses") return pendingExpenses;
+      if (item.href === "/admin/office-trips") return pendingOfficeTrips;
+    }
+    if (item.children?.length) {
+      return item.children.reduce(
+        (sum, child) => sum + getPendingCount(child),
+        0
+      );
+    }
+    return 0;
+  };
+
+  const renderBadge = (count: number) => {
+    if (count <= 0) return null;
+    const display = count > 99 ? "99+" : String(count);
+    return (
+      <span className="ml-auto min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+        {display}
+      </span>
+    );
+  };
+
+  const renderCollapsedBadge = (count: number) => {
+    if (count <= 0) return null;
+    const display = count > 99 ? "99+" : String(count);
+    return (
+      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
+        {display}
+      </span>
+    );
+  };
+
+  const renderTooltipBadge = (count: number) => {
+    if (count <= 0) return null;
+    const display = count > 99 ? "99+" : String(count);
+    return (
+      <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+        {display}
+      </span>
+    );
+  };
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -336,13 +450,17 @@ export default function Sidebar() {
                             : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
                         )}
                       >
-                        <AnimatedIcon
-                          icon={item.icon}
-                          animation={item.animation}
-                          isActive={isGroupActive}
-                          className={sidebarIconGradientClass}
-                          gradient
-                        />
+                        {/* Icon — with red badge in collapsed mode */}
+                        <div className="relative flex-shrink-0">
+                          <AnimatedIcon
+                            icon={item.icon}
+                            animation={item.animation}
+                            isActive={isGroupActive}
+                            className={sidebarIconGradientClass}
+                            gradient
+                          />
+                          {!isExpanded && renderCollapsedBadge(getPendingCount(item))}
+                        </div>
                         {isExpanded && (
                           <>
                             <span
@@ -355,6 +473,7 @@ export default function Sidebar() {
                             >
                               {item.name}
                             </span>
+                            {renderBadge(getPendingCount(item))}
                             <ChevronDown
                               className={cn(
                                 "ml-auto h-4 w-4 transition-transform duration-200",
@@ -375,7 +494,7 @@ export default function Sidebar() {
                             : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
                         )}
                       >
-                        {/* Icon — with red dot badge in collapsed mode */}
+                        {/* Icon — with red badge in collapsed mode */}
                         <div className="relative flex-shrink-0">
                           <AnimatedIcon
                             icon={item.icon}
@@ -384,13 +503,11 @@ export default function Sidebar() {
                             className={sidebarIconGradientClass}
                             gradient
                           />
-                          {!isExpanded &&
-                            item.href === "/user/messages" &&
-                            chatUnreadCount > 0 && (
-                              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">
-                                {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
-                              </span>
-                            )}
+                          {!isExpanded && renderCollapsedBadge(
+                            item.href === "/user/messages"
+                              ? chatUnreadCount
+                              : getPendingCount(item)
+                          )}
                         </div>
                         {isExpanded && (
                           <>
@@ -404,12 +521,11 @@ export default function Sidebar() {
                             >
                               {item.name}
                             </span>
-                            {item.href === "/user/messages" &&
-                              chatUnreadCount > 0 && (
-                                <span className="ml-auto min-w-[20px] h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                                  {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
-                                </span>
-                              )}
+                            {renderBadge(
+                              item.href === "/user/messages"
+                                ? chatUnreadCount
+                                : getPendingCount(item)
+                            )}
                           </>
                         )}
                       </Link>
@@ -422,11 +538,7 @@ export default function Sidebar() {
                           <div className="w-2 h-2 bg-gray-900 dark:bg-gray-100 rounded-full" />
                         )}
                         {item.name}
-                        {item.href === "/user/messages" && chatUnreadCount > 0 && (
-                          <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
-                            {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
-                          </span>
-                        )}
+                        {renderTooltipBadge(getPendingCount(item))}
                       </div>
                     </TooltipContent>
                   )}
@@ -447,23 +559,32 @@ export default function Sidebar() {
                             : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100"
                         )}
                       >
-                        <AnimatedIcon
-                          icon={child.icon}
-                          animation={child.animation}
-                          isActive={isChildActive}
-                          className={sidebarIconGradientClass}
-                          gradient
-                        />
-                        <span
-                          className={cn(
-                            "font-medium transition-colors duration-200",
-                            isChildActive
-                              ? "text-gray-900 dark:text-gray-100"
-                              : "text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
-                          )}
-                        >
-                          {child.name}
-                        </span>
+                        {/* Icon — with red badge in collapsed mode */}
+                        <div className="relative flex-shrink-0">
+                          <AnimatedIcon
+                            icon={child.icon}
+                            animation={child.animation}
+                            isActive={isChildActive}
+                            className={sidebarIconGradientClass}
+                            gradient
+                          />
+                          {!isExpanded && renderCollapsedBadge(getPendingCount(child))}
+                        </div>
+                        {isExpanded && (
+                          <>
+                            <span
+                              className={cn(
+                                "font-medium transition-colors duration-200",
+                                isChildActive
+                                  ? "text-gray-900 dark:text-gray-100"
+                                  : "text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100"
+                              )}
+                            >
+                              {child.name}
+                            </span>
+                            {renderBadge(getPendingCount(child))}
+                          </>
+                        )}
                       </Link>
                     );
                   })}
