@@ -505,6 +505,8 @@ export default function UserDashboardPage() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [leaderboardOnTimeCutoffMinutes, setLeaderboardOnTimeCutoffMinutes] = useState<number | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
+  const today = new Date();
+  const isLastDayOfMonth = today.getDate() === new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
   const [showSalaryAmount, setShowSalaryAmount] = useState(false);
   const [salaryMonthAmount, setSalaryMonthAmount] = useState<number>(0);
   const [salaryMonthLabel, setSalaryMonthLabel] = useState<string>("");
@@ -1390,7 +1392,7 @@ export default function UserDashboardPage() {
       </div>
 
       {/* ── CELEBRATION OVERLAY (Month-end #1) ── */}
-      {showCelebration && leaderboard.length > 0 && leaderboard[0].userId === userData?.id && (
+      {showCelebration && isLastDayOfMonth && leaderboard.length > 0 && leaderboard[0].userId === userData?.id && (
         <CelebrationOverlay
           name={leaderboard[0].name}
           score={leaderboard[0].score}
