@@ -121,7 +121,7 @@ export default function TimesheetPage() {
           <TabsContent value="my">
             <TimesheetSection
               title="My Timesheet"
-              description="Your daily work log — today's entries are editable, past days are read-only"
+              description="Monday through Saturday weekly timesheet — editable during active week before Saturday deadline"
               organizationId={organizationId}
               mode="self"
               employeeId={employeeId}
@@ -155,7 +155,7 @@ export default function TimesheetPage() {
       ) : (
         <TimesheetSection
           title="My Timesheet"
-          description="Your daily work log — today's entries are editable, past days are read-only"
+          description="Monday through Saturday weekly timesheet — editable during active week before Saturday deadline"
           organizationId={organizationId}
           mode="self"
           employeeId={employeeId}

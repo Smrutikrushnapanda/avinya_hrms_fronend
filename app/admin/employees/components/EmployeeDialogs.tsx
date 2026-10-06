@@ -111,7 +111,7 @@ interface EmployeeDialogsProps {
   projectAssignEmployee?: Employee | null;
   projectsList?: any[];
   employeeAssignments?: ProjectAssignment[];
-  onSaveProjectAssignment?: (data: { projectId: string; projectSource?: 'internal' | 'client'; managerId?: string; role?: string; assignmentId?: string }) => Promise<void>;
+  onSaveProjectAssignment?: (data: { projectId: string; projectSource?: 'internal' | 'client'; managerId?: string; managerType?: 'PRIMARY' | 'SECONDARY'; role?: string; assignmentId?: string }) => Promise<void>;
   onRemoveProjectAssignment?: (assignmentId: string) => Promise<void>;
   
   // Common
@@ -195,6 +195,7 @@ export default function EmployeeDialogs({
     projectId: "",
     projectSource: "internal" as "internal" | "client",
     managerId: "",
+    managerType: "SECONDARY" as "PRIMARY" | "SECONDARY",
     role: "member",
   });
   const [isEditingAssignment, setIsEditingAssignment] = useState(false);
@@ -2023,6 +2024,7 @@ export default function EmployeeDialogs({
               projectId: "",
               projectSource: "internal",
               managerId: "",
+              managerType: "SECONDARY",
               role: "member",
             });
             setAssignmentError("");
@@ -2080,7 +2082,7 @@ export default function EmployeeDialogs({
                           </td>
                           <td className="p-2.5">
                             {assignment.manager ? (
-                              <div className="flex items-center space-x-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <UserCheck className="h-3 w-3 text-muted-foreground" />
                                 <span>
                                   {`${assignment.manager.firstName} ${assignment.manager.lastName || ""}`.trim()}
@@ -2090,6 +2092,16 @@ export default function EmployeeDialogs({
                                     </span>
                                   )}
                                 </span>
+                                <Badge
+                                  variant={assignment.managerType === "PRIMARY" ? "default" : "secondary"}
+                                  className={`text-[9px] h-3.5 px-1 font-semibold ${
+                                    assignment.managerType === "PRIMARY"
+                                      ? "bg-blue-600 hover:bg-blue-600 text-white"
+                                      : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                                  }`}
+                                >
+                                  {assignment.managerType || "PRIMARY"}
+                                </Badge>
                               </div>
                             ) : (
                               <span className="text-muted-foreground italic">No manager</span>
@@ -2108,6 +2120,7 @@ export default function EmployeeDialogs({
                                   projectId: assignment.projectId,
                                   projectSource: assignment.projectSource || "internal",
                                   managerId: assignment.managerId || "",
+                                  managerType: (assignment.managerType as "PRIMARY" | "SECONDARY") || "SECONDARY",
                                   role: assignment.role || "member",
                                 });
                                 setAssignmentError("");
@@ -2157,6 +2170,7 @@ export default function EmployeeDialogs({
                         projectId: "",
                         projectSource: "internal",
                         managerId: "",
+                        managerType: "SECONDARY",
                         role: "member",
                       });
                       setAssignmentError("");
@@ -2233,8 +2247,32 @@ export default function EmployeeDialogs({
                   </Select>
                 </div>
 
+                {/* Manager Type (Shown if a manager is selected) */}
+                {assignmentForm.managerId && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Manager Type</Label>
+                    <Select
+                      value={assignmentForm.managerType || "SECONDARY"}
+                      onValueChange={(val: "PRIMARY" | "SECONDARY") => {
+                        setAssignmentForm({
+                          ...assignmentForm,
+                          managerType: val,
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Select manager type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PRIMARY">PRIMARY Manager</SelectItem>
+                        <SelectItem value="SECONDARY">SECONDARY Manager</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 {/* Role */}
-                <div className="space-y-1.5 sm:col-span-2">
+                <div className={`space-y-1.5 ${assignmentForm.managerId ? "" : "sm:col-span-2"}`}>
                   <Label className="text-xs">Project Role</Label>
                   <Input
                     placeholder="e.g. Developer, QA, Tech Lead, Contributor"
@@ -2264,6 +2302,7 @@ export default function EmployeeDialogs({
                           projectId: assignmentForm.projectId,
                           projectSource: assignmentForm.projectSource,
                           managerId: assignmentForm.managerId || undefined,
+                          managerType: assignmentForm.managerId ? assignmentForm.managerType : undefined,
                           role: assignmentForm.role || "member",
                           assignmentId: isEditingAssignment ? assignmentForm.assignmentId : undefined,
                         });
@@ -2273,6 +2312,7 @@ export default function EmployeeDialogs({
                           projectId: "",
                           projectSource: "internal",
                           managerId: "",
+                          managerType: "SECONDARY",
                           role: "member",
                         });
                       } catch (err: any) {
@@ -2311,6 +2351,7 @@ export default function EmployeeDialogs({
                   projectId: "",
                   projectSource: "internal",
                   managerId: "",
+                  managerType: "SECONDARY",
                   role: "member",
                 });
                 setAssignmentError("");

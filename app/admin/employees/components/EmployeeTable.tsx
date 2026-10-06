@@ -47,6 +47,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -439,33 +444,81 @@ export default function EmployeeTable({
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="min-w-[170px]">
+                          <TableCell className="min-w-[190px]">
                             {employee.managers && employee.managers.length > 0 ? (
                               <div className="flex flex-col space-y-1">
-                                {employee.managers.map((m: any, mIdx: number) => (
-                                  <div key={mIdx} className="flex items-center space-x-1.5">
-                                    <UserCheck className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                    <span className="text-xs truncate font-medium">
-                                      {`${m.firstName} ${m.lastName || ''}`.trim()}
-                                      {!m.isActive && (
-                                        <span className="text-[10px] text-amber-600 dark:text-amber-400 ml-1 font-normal">
-                                          (Inactive)
-                                        </span>
-                                      )}
-                                      {m.projectName && m.projectName !== 'General' && (
-                                        <span className="text-[10px] text-muted-foreground ml-1">
-                                          ({m.projectName})
-                                        </span>
-                                      )}
-                                    </span>
-                                  </div>
-                                ))}
+                                {employee.managers.slice(0, 2).map((m: any, mIdx: number) => {
+                                  const isPrimary = m.managerType === 'PRIMARY' || (!m.managerType && mIdx === 0);
+                                  return (
+                                    <div key={mIdx} className="flex items-center space-x-1.5 flex-wrap">
+                                      <UserCheck className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                      <span className="text-xs font-medium truncate max-w-[110px]">
+                                        {`${m.firstName} ${m.lastName || ''}`.trim()}
+                                      </span>
+                                      <span
+                                        className={`text-[9px] px-1.5 py-0.2 rounded font-semibold tracking-wider uppercase border ${
+                                          isPrimary
+                                            ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+                                            : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                                        }`}
+                                      >
+                                        {isPrimary ? 'PRIMARY' : 'SECONDARY'}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                                {employee.managers.length > 2 && (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-medium text-left mt-0.5">
+                                        +{employee.managers.length - 2} more manager{employee.managers.length - 2 > 1 ? 's' : ''}
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-64 p-3" align="start">
+                                      <div className="text-xs font-semibold mb-2 text-slate-900 dark:text-slate-100">
+                                        Assigned Managers ({employee.managers.length})
+                                      </div>
+                                      <div className="space-y-2">
+                                        {employee.managers.map((m: any, idx: number) => {
+                                          const isPrimary = m.managerType === 'PRIMARY' || (!m.managerType && idx === 0);
+                                          return (
+                                            <div key={idx} className="flex items-start justify-between border-b pb-1.5 last:border-b-0 last:pb-0">
+                                              <div>
+                                                <div className="text-xs font-medium">
+                                                  {`${m.firstName} ${m.lastName || ''}`.trim()}
+                                                </div>
+                                                {m.workEmail && (
+                                                  <div className="text-[10px] text-muted-foreground">{m.workEmail}</div>
+                                                )}
+                                                {m.projectName && (
+                                                  <div className="text-[10px] text-slate-500">Project: {m.projectName}</div>
+                                                )}
+                                              </div>
+                                              <span
+                                                className={`text-[9px] px-1.5 py-0.5 rounded font-semibold tracking-wider uppercase border shrink-0 ${
+                                                  isPrimary
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300'
+                                                    : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                                                }`}
+                                              >
+                                                {isPrimary ? 'PRIMARY' : 'SECONDARY'}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                )}
                               </div>
                             ) : employee.manager ? (
-                              <div className="flex items-center space-x-1">
+                              <div className="flex items-center space-x-1.5">
                                 <UserCheck className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                                <span className="text-sm truncate">
+                                <span className="text-xs font-medium truncate">
                                   {`${employee.manager.firstName} ${employee.manager.lastName}`}
+                                </span>
+                                <span className="text-[9px] px-1.5 py-0.2 rounded font-semibold tracking-wider uppercase border bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300">
+                                  PRIMARY
                                 </span>
                               </div>
                             ) : (

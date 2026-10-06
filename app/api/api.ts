@@ -167,12 +167,65 @@ export const updateEmployee = (id: string, data: any) => api.put(`/employees/${i
 export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
 export const getEmployeeByUserId = (userId: string) => api.get(`/employees/by-user/${userId}`);
 export const getEmployeeProjects = (id: string) => api.get(`/employees/${id}/projects`);
-export const assignEmployeeProject = (id: string, data: { projectId: string; projectSource?: 'internal' | 'client'; managerId?: string; role?: string }) =>
+export const assignEmployeeProject = (id: string, data: { projectId: string; projectSource?: 'internal' | 'client'; managerId?: string; managerType?: 'PRIMARY' | 'SECONDARY'; role?: string }) =>
   api.post(`/employees/${id}/projects`, data);
-export const updateEmployeeProject = (id: string, assignmentId: string, data: { projectId?: string; projectSource?: 'internal' | 'client'; managerId?: string | null; role?: string }) =>
+export const updateEmployeeProject = (id: string, assignmentId: string, data: { projectId?: string; projectSource?: 'internal' | 'client'; managerId?: string | null; managerType?: 'PRIMARY' | 'SECONDARY'; role?: string }) =>
   api.put(`/employees/${id}/projects/${assignmentId}`, data);
 export const removeEmployeeProject = (id: string, assignmentId: string) =>
   api.delete(`/employees/${id}/projects/${assignmentId}`);
+
+// 👥 Multi-Manager APIs
+export const getEmployeeManagers = (employeeId: string) =>
+  api.get(`/employees/${employeeId}/managers`);
+export const assignEmployeeManager = (
+  employeeId: string,
+  data: {
+    managerId: string;
+    projectId?: string;
+    projectSource?: 'internal' | 'client';
+    role?: string;
+    managerType?: 'PRIMARY' | 'SECONDARY';
+  },
+) => api.post(`/employees/${employeeId}/managers`, data);
+export const removeEmployeeManager = (employeeId: string, managerId: string) =>
+  api.delete(`/employees/${employeeId}/managers/${managerId}`);
+export const setPrimaryEmployeeManager = (employeeId: string, managerId: string) =>
+  api.patch(`/employees/${employeeId}/primary-manager/${managerId}`);
+
+// 💻 Company Assets & Clearance APIs
+export const getEmployeeAssets = (employeeId: string) =>
+  api.get(`/employees/${employeeId}/assets`);
+export const createEmployeeAsset = (employeeId: string, data: any) =>
+  api.post(`/employees/${employeeId}/assets`, data);
+export const updateEmployeeAsset = (employeeId: string, assetId: string, data: any) =>
+  api.patch(`/employees/${employeeId}/assets/${assetId}`, data);
+export const returnEmployeeAsset = (employeeId: string, assetId: string, data: any) =>
+  api.post(`/employees/${employeeId}/assets/${assetId}/return`, data);
+export const deleteEmployeeAsset = (employeeId: string, assetId: string) =>
+  api.delete(`/employees/${employeeId}/assets/${assetId}`);
+export const getEmployeeClearance = (employeeId: string) =>
+  api.get(`/employees/${employeeId}/clearance`);
+
+// 📁 Real Employee Documents APIs
+export const getEmployeeDocuments = (employeeId: string, category?: string) =>
+  api.get(`/employees/${employeeId}/documents`, {
+    params: category ? { category } : {},
+  });
+export const createEmployeeDocument = (employeeId: string, data: any) =>
+  api.post(`/employees/${employeeId}/documents`, data);
+export const deleteEmployeeDocument = (employeeId: string, documentId: string) =>
+  api.delete(`/employees/${employeeId}/documents/${documentId}`);
+
+// 📄 Full & Final Settlement APIs
+export const getEmployeeSettlement = (employeeId: string) =>
+  api.get(`/employees/${employeeId}/final-settlement`);
+export const saveEmployeeSettlement = (employeeId: string, data: any) =>
+  api.post(`/employees/${employeeId}/final-settlement`, data);
+export const downloadSettlementPdf = (employeeId: string) =>
+  api.get(`/employees/${employeeId}/final-settlement/pdf`, {
+    responseType: 'blob',
+  });
+
 export const updateMyPassword = (userId: string, data: { password: string; currentPassword: string }) =>
   api.patch(`/users/${userId}`, data);
 export const getEmployeeHierarchy = (organizationId: string, employeeId?: string) =>
@@ -244,6 +297,7 @@ export const getTodayAnomalies = () => api.get("/attendance/anomalies/today");
 export const createTimesheet = (data: any) => api.post("/timesheets", data);
 export const createTimesheetBatch = (data: any) => api.post("/timesheets/batch", data);
 export const getTimesheets = (params: any) => api.get("/timesheets", { params });
+export const getCurrentTimesheetWeek = () => api.get("/timesheets/current-week");
 export const getManagerTimesheets = (params: any) => api.get("/timesheets/manager", { params });
 export const updateTimesheetEntry = (id: string, data: any) => api.patch(`/timesheets/${id}`, data);
 export const deleteTimesheetEntry = (id: string) => api.delete(`/timesheets/${id}`);
