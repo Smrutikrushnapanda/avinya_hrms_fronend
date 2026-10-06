@@ -33,6 +33,14 @@ import {
   DollarSign,
   Tag,
   Laptop,
+  RefreshCw,
+  Sparkles,
+  Copy,
+  FileSignature,
+  ScrollText,
+  Check,
+  ExternalLink,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -64,6 +72,7 @@ import {
   EmployeeAsset,
   AssetClearance,
   EmployeeDocument,
+  EmployeeDocumentTemplate,
   EmployeeSettlement,
   ManagerInfo,
 } from "./types";
@@ -88,6 +97,12 @@ import {
   getEmployeeSettlement,
   saveEmployeeSettlement,
   downloadSettlementPdf,
+  getDocumentTemplates,
+  getDocumentTemplateByType,
+  saveDocumentTemplate,
+  resetDocumentTemplate,
+  previewEmployeeLetter,
+  downloadEmployeeLetterPdf,
   uploadFile,
 } from "@/app/api/api";
 import TimeslipTab from "./TimeslipTab";
@@ -1548,33 +1563,54 @@ function AssetsTab({ employeeId, employee }: { employeeId: string; employee: Emp
 }
 
 // ------------------------------------------------------------------------------------------------
-// Tab: Full & Final Settlement
+// Tab: Settlement & Relieving Documents (Full & Final, Experience Letter, Relieving Letter)
 // ------------------------------------------------------------------------------------------------
 function SettlementTab({ employeeId, employee }: { employeeId: string; employee: Employee }) {
+  const [activeSubTab, setActiveSubTab] = useState<"settlement" | "experience" | "relieving">("settlement");
   const [settlement, setSettlement] = useState<EmployeeSettlement | null>(null);
   const [clearance, setClearance] = useState<AssetClearance | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Settlement Form State
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-
   const [form, setForm] = useState({
     resignationDate: "",
     lastWorkingDate: "",
-    noticePeriodDays: 30,
-    salaryDue: 0,
-    pendingSalary: 0,
-    leaveEncashment: 0,
-    bonus: 0,
-    performanceIncentive: 0,
-    otherPayables: 0,
-    noticePeriodRecovery: 0,
-    loanRecovery: 0,
-    assetDeduction: 0,
-    otherDeductions: 0,
+    noticePeriodDays: "30",
+    salaryDue: "",
+    pendingSalary: "",
+    leaveEncashmentAmount: "",
+    leaveEncashmentDays: "",
+    bonusAmount: "",
+    incentiveAmount: "",
+    otherPayableAmount: "",
+    noticePeriodRecoveryAmount: "",
+    loanRecoveryAmount: "",
+    assetDeductionAmount: "",
+    otherDeductionsAmount: "",
+    deductionsRemarks: "",
     remarks: "",
     status: "DRAFT",
   });
+
+  // Letter Templates & Previews State
+  const [experienceTemplate, setExperienceTemplate] = useState<EmployeeDocumentTemplate | null>(null);
+  const [relievingTemplate, setRelievingTemplate] = useState<EmployeeDocumentTemplate | null>(null);
+  const [experiencePreview, setExperiencePreview] = useState<any>(null);
+  const [relievingPreview, setRelievingPreview] = useState<any>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [isLetterDownloading, setIsLetterDownloading] = useState(false);
+
+  // Template Edit Modal State
+  const [isTemplateEditOpen, setIsTemplateEditOpen] = useState(false);
+  const [editingTemplateType, setEditingTemplateType] = useState<"EXPERIENCE_LETTER" | "RELIEVING_LETTER">("EXPERIENCE_LETTER");
+  const [templateForm, setTemplateForm] = useState({
+    templateName: "",
+    content: "",
+  });
+  const [isTemplateSaving, setIsTemplateSaving] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -1583,32 +1619,44 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [settlementRes, clearanceRes] = await Promise.all([
-        getEmployeeSettlement(employeeId),
-        getEmployeeClearance(employeeId),
+      const [settlementRes, clearanceRes, expTemplateRes, relTemplateRes] = await Promise.all([
+        getEmployeeSettlement(employeeId).catch(() => ({ data: null })),
+        getEmployeeClearance(employeeId).catch(() => ({ data: null })),
+        getDocumentTemplateByType("EXPERIENCE_LETTER").catch(() => ({ data: null })),
+        getDocumentTemplateByType("RELIEVING_LETTER").catch(() => ({ data: null })),
       ]);
-      setSettlement(settlementRes.data);
-      setClearance(clearanceRes.data);
-      if (settlementRes.data) {
-        const s = settlementRes.data;
+
+      const sData = settlementRes?.data?.settlement || settlementRes?.data;
+      const cData = clearanceRes?.data;
+      setSettlement(sData);
+      setClearance(cData);
+      setExperienceTemplate(expTemplateRes?.data || null);
+      setRelievingTemplate(relTemplateRes?.data || null);
+
+      if (sData) {
         setForm({
-          resignationDate: s.resignationDate || "",
-          lastWorkingDate: s.lastWorkingDate || "",
-          noticePeriodDays: s.noticePeriodDays ?? 30,
-          salaryDue: Number(s.salaryDue || 0),
-          pendingSalary: Number(s.pendingSalary || 0),
-          leaveEncashment: Number(s.leaveEncashment || 0),
-          bonus: Number(s.bonus || 0),
-          performanceIncentive: Number(s.performanceIncentive || 0),
-          otherPayables: Number(s.otherPayables || 0),
-          noticePeriodRecovery: Number(s.noticePeriodRecovery || 0),
-          loanRecovery: Number(s.loanRecovery || 0),
-          assetDeduction: Number(s.assetDeduction || 0),
-          otherDeductions: Number(s.otherDeductions || 0),
-          remarks: s.remarks || "",
-          status: s.status || "DRAFT",
+          resignationDate: sData.resignationDate || "",
+          lastWorkingDate: sData.lastWorkingDate || "",
+          noticePeriodDays: sData.noticePeriodDays !== null && sData.noticePeriodDays !== undefined ? String(sData.noticePeriodDays) : "30",
+          salaryDue: sData.salaryDue !== null && sData.salaryDue !== undefined ? String(sData.salaryDue) : "",
+          pendingSalary: sData.pendingSalary !== null && sData.pendingSalary !== undefined ? String(sData.pendingSalary) : "",
+          leaveEncashmentAmount: sData.leaveEncashmentAmount !== null && sData.leaveEncashmentAmount !== undefined ? String(sData.leaveEncashmentAmount) : (sData.leaveEncashment !== null && sData.leaveEncashment !== undefined ? String(sData.leaveEncashment) : ""),
+          leaveEncashmentDays: sData.leaveEncashmentDays !== null && sData.leaveEncashmentDays !== undefined ? String(sData.leaveEncashmentDays) : "",
+          bonusAmount: sData.bonusAmount !== null && sData.bonusAmount !== undefined ? String(sData.bonusAmount) : (sData.bonus !== null && sData.bonus !== undefined ? String(sData.bonus) : ""),
+          incentiveAmount: sData.incentiveAmount !== null && sData.incentiveAmount !== undefined ? String(sData.incentiveAmount) : (sData.performanceIncentive !== null && sData.performanceIncentive !== undefined ? String(sData.performanceIncentive) : ""),
+          otherPayableAmount: sData.otherPayableAmount !== null && sData.otherPayableAmount !== undefined ? String(sData.otherPayableAmount) : (sData.otherPayables !== null && sData.otherPayables !== undefined ? String(sData.otherPayables) : ""),
+          noticePeriodRecoveryAmount: sData.noticePeriodRecoveryAmount !== null && sData.noticePeriodRecoveryAmount !== undefined ? String(sData.noticePeriodRecoveryAmount) : (sData.noticePeriodRecovery !== null && sData.noticePeriodRecovery !== undefined ? String(sData.noticePeriodRecovery) : ""),
+          loanRecoveryAmount: sData.loanRecoveryAmount !== null && sData.loanRecoveryAmount !== undefined ? String(sData.loanRecoveryAmount) : (sData.loanRecovery !== null && sData.loanRecovery !== undefined ? String(sData.loanRecovery) : ""),
+          assetDeductionAmount: sData.assetDeductionAmount !== null && sData.assetDeductionAmount !== undefined ? String(sData.assetDeductionAmount) : (sData.assetDeduction !== null && sData.assetDeduction !== undefined ? String(sData.assetDeduction) : ""),
+          otherDeductionsAmount: sData.otherDeductionsAmount !== null && sData.otherDeductionsAmount !== undefined ? String(sData.otherDeductionsAmount) : (sData.otherDeductions !== null && sData.otherDeductions !== undefined ? String(sData.otherDeductions) : ""),
+          deductionsRemarks: sData.deductionsRemarks || "",
+          remarks: sData.remarks || "",
+          status: sData.status || "DRAFT",
         });
       }
+
+      // Load live previews
+      loadLetterPreviews();
     } catch (error) {
       console.error("Error loading settlement data:", error);
     } finally {
@@ -1616,10 +1664,52 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
     }
   };
 
+  const loadLetterPreviews = async () => {
+    try {
+      setIsPreviewLoading(true);
+      const [expPrev, relPrev] = await Promise.all([
+        previewEmployeeLetter(employeeId, { templateType: "EXPERIENCE_LETTER" }).catch(() => ({ data: null })),
+        previewEmployeeLetter(employeeId, { templateType: "RELIEVING_LETTER" }).catch(() => ({ data: null })),
+      ]);
+      setExperiencePreview(expPrev?.data || null);
+      setRelievingPreview(relPrev?.data || null);
+    } catch (e) {
+      console.warn("Could not load letter previews:", e);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const parseNullableNum = (val: string): number | null => {
+    if (val === "" || val === null || val === undefined) return null;
+    const num = Number(val);
+    return isNaN(num) ? null : num;
+  };
+
   const handleSaveSettlement = async () => {
     try {
       setIsSaving(true);
-      await saveEmployeeSettlement(employeeId, form);
+      const payload: any = {
+        resignationDate: form.resignationDate || null,
+        lastWorkingDate: form.lastWorkingDate || null,
+        noticePeriodDays: form.noticePeriodDays !== "" ? Number(form.noticePeriodDays) : null,
+        salaryDue: parseNullableNum(form.salaryDue),
+        pendingSalary: parseNullableNum(form.pendingSalary),
+        leaveEncashmentAmount: parseNullableNum(form.leaveEncashmentAmount),
+        leaveEncashmentDays: parseNullableNum(form.leaveEncashmentDays),
+        bonusAmount: parseNullableNum(form.bonusAmount),
+        incentiveAmount: parseNullableNum(form.incentiveAmount),
+        otherPayableAmount: parseNullableNum(form.otherPayableAmount),
+        noticePeriodRecoveryAmount: parseNullableNum(form.noticePeriodRecoveryAmount),
+        loanRecoveryAmount: parseNullableNum(form.loanRecoveryAmount),
+        assetDeductionAmount: parseNullableNum(form.assetDeductionAmount),
+        otherDeductionsAmount: parseNullableNum(form.otherDeductionsAmount),
+        deductionsRemarks: form.deductionsRemarks || null,
+        remarks: form.remarks || null,
+        status: form.status,
+      };
+
+      await saveEmployeeSettlement(employeeId, payload);
       toast.success("Settlement details saved successfully");
       setIsEditOpen(false);
       await fetchData();
@@ -1631,7 +1721,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
   };
 
   const handleDownloadPdf = async () => {
-    if (clearance && clearance.hasPendingAssets) {
+    if (isLocked) {
       toast.error("Final settlement is locked. All company assets must be returned first.");
       return;
     }
@@ -1661,8 +1751,97 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
     }
   };
 
-  const formatCurrency = (amount: number | string | undefined) => {
-    const val = Number(amount || 0);
+  const handleDownloadLetter = async (type: "EXPERIENCE_LETTER" | "RELIEVING_LETTER") => {
+    try {
+      setIsLetterDownloading(true);
+      const res = await downloadEmployeeLetterPdf(employeeId, type);
+      const blob = res.data;
+      const url = window.URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      const docTitle = type === "EXPERIENCE_LETTER" ? "Experience_Certificate" : "Relieving_Letter";
+      link.setAttribute(
+        "download",
+        `${docTitle}_${employee.employeeCode || employeeId}.pdf`
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success(`${type === "EXPERIENCE_LETTER" ? "Experience Certificate" : "Relieving Letter"} downloaded successfully`);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to download letter PDF");
+    } finally {
+      setIsLetterDownloading(false);
+    }
+  };
+
+  const openTemplateEditor = (type: "EXPERIENCE_LETTER" | "RELIEVING_LETTER") => {
+    const tmpl = type === "EXPERIENCE_LETTER" ? experienceTemplate : relievingTemplate;
+    setEditingTemplateType(type);
+    setTemplateForm({
+      templateName: tmpl?.templateName || (type === "EXPERIENCE_LETTER" ? "Default Experience Letter" : "Default Relieving Letter"),
+      content: tmpl?.content || "",
+    });
+    setIsTemplateEditOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateForm.templateName.trim() || !templateForm.content.trim()) {
+      toast.error("Template name and content are required");
+      return;
+    }
+    try {
+      setIsTemplateSaving(true);
+      await saveDocumentTemplate({
+        templateType: editingTemplateType,
+        templateName: templateForm.templateName.trim(),
+        content: templateForm.content,
+        isActive: true,
+      });
+      toast.success("Template saved successfully");
+      setIsTemplateEditOpen(false);
+      await fetchData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to save template");
+    } finally {
+      setIsTemplateSaving(false);
+    }
+  };
+
+  const handleResetTemplate = async () => {
+    if (!confirm(`Are you sure you want to reset the ${editingTemplateType === "EXPERIENCE_LETTER" ? "Experience Letter" : "Relieving Letter"} template to system default?`)) {
+      return;
+    }
+    try {
+      setIsTemplateSaving(true);
+      const res = await resetDocumentTemplate(editingTemplateType);
+      if (res?.data) {
+        setTemplateForm({
+          templateName: res.data.templateName,
+          content: res.data.content,
+        });
+      }
+      toast.success("Template reset to system default");
+      await fetchData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Failed to reset template");
+    } finally {
+      setIsTemplateSaving(false);
+    }
+  };
+
+  const insertVariable = (variable: string) => {
+    setTemplateForm((prev) => ({
+      ...prev,
+      content: prev.content + variable,
+    }));
+  };
+
+  const formatSettlementCurrency = (amount: number | string | null | undefined) => {
+    if (amount === null || amount === undefined || amount === "") return "";
+    const val = Number(amount);
+    if (isNaN(val)) return "";
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
@@ -1670,282 +1849,585 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
     }).format(val);
   };
 
-  const isLocked = clearance ? clearance.hasPendingAssets : false;
+  const formatSettlementDate = (dateVal: string | null | undefined) => {
+    if (!dateVal) return "";
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return "";
+      return format(d, "MMM dd, yyyy");
+    } catch (e) {
+      return "";
+    }
+  };
+
+  // Check if clearance is locked
+  const totalRequiredAssets = clearance?.totalRequired ?? clearance?.returnRequiredAssets ?? 0;
+  const pendingAssetsList = clearance?.pendingAssets || [];
+  const pendingAssetsCount = clearance?.pendingCount ?? clearance?.pendingAssetsCount ?? pendingAssetsList.length;
+  const isLocked = totalRequiredAssets > 0 && pendingAssetsCount > 0;
+
+  const supportedVariables = [
+    { label: "Employee Name", variable: "{{employee_name}}" },
+    { label: "Employee ID", variable: "{{employee_id}}" },
+    { label: "Designation", variable: "{{designation}}" },
+    { label: "Department", variable: "{{department}}" },
+    { label: "Joining Date", variable: "{{joining_date}}" },
+    { label: "Last Working Date", variable: "{{last_working_date}}" },
+    { label: "Resignation Date", variable: "{{resignation_date}}" },
+    { label: "Experience Duration", variable: "{{experience_duration}}" },
+    { label: "Experience Years", variable: "{{experience_years}}" },
+    { label: "Experience Months", variable: "{{experience_months}}" },
+    { label: "Experience Days", variable: "{{experience_days}}" },
+    { label: "Reporting Manager", variable: "{{reporting_manager}}" },
+    { label: "Organization Name", variable: "{{organization_name}}" },
+    { label: "Organization Address", variable: "{{organization_address}}" },
+    { label: "Organization Logo", variable: "{{organization_logo}}" },
+    { label: "Net Settlement Amount", variable: "{{final_settlement_amount}}" },
+    { label: "Current Date", variable: "{{current_date}}" },
+  ];
 
   if (loading) {
-    return <div className="py-12 text-center text-muted-foreground">Loading Full & Final Settlement...</div>;
+    return <div className="py-12 text-center text-muted-foreground">Loading Settlement & Documents...</div>;
   }
 
   return (
     <div className="space-y-6">
-      {/* Clearance Gate Banner */}
-      {isLocked ? (
-        <Card className="border-2 border-amber-400 bg-amber-50/50 dark:bg-amber-950/20">
-          <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-start space-x-3">
-              <div className="p-2 bg-amber-200 dark:bg-amber-900 rounded-full text-amber-800 dark:text-amber-200 mt-0.5">
-                <Lock className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-amber-900 dark:text-amber-200">
-                  Final Settlement Locked — Asset Clearance Pending
-                </h4>
-                <p className="text-xs text-amber-800 dark:text-amber-300">
-                  Final settlement statement generation and download are locked because {clearance?.pendingAssetsCount} company asset(s) are still pending return.
-                </p>
-                {clearance?.pendingAssets && (
-                  <p className="text-xs font-medium text-amber-900 dark:text-amber-200 mt-1">
-                    Pending: {clearance.pendingAssets.map((a) => a.assetName).join(", ")}
-                  </p>
-                )}
-              </div>
-            </div>
-            <Button variant="outline" size="sm" disabled className="gap-1.5 opacity-60">
-              <Lock className="h-4 w-4" />
-              Download Locked
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="border-2 border-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
-          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-emerald-200 dark:bg-emerald-900 rounded-full text-emerald-800 dark:text-emerald-200">
-                <Unlock className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-emerald-900 dark:text-emerald-200">
-                  Exit Clearance Complete — Settlement Available
-                </h4>
-                <p className="text-xs text-emerald-800 dark:text-emerald-300">
-                  All required company assets have been marked as returned. You can now generate, edit, and download the official PDF.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditOpen(true)}
-                className="gap-1.5 text-xs"
-              >
-                <Edit className="h-3.5 w-3.5" />
-                Customize Values
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleDownloadPdf}
-                disabled={isDownloading}
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-              >
-                {isDownloading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <FileDown className="h-3.5 w-3.5" />
-                )}
-                Download Settlement PDF
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* 3-Section Settlement Sub-Tabs */}
+      <div className="flex flex-wrap items-center justify-between border-b pb-3 gap-2">
+        <div className="inline-flex rounded-lg bg-muted p-1 text-xs">
+          <button
+            onClick={() => setActiveSubTab("settlement")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+              activeSubTab === "settlement"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <FileDown className="h-3.5 w-3.5" />
+            Full & Final Settlement
+          </button>
+          <button
+            onClick={() => setActiveSubTab("experience")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+              activeSubTab === "experience"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Award className="h-3.5 w-3.5" />
+            Experience Letter
+          </button>
+          <button
+            onClick={() => setActiveSubTab("relieving")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+              activeSubTab === "relieving"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ScrollText className="h-3.5 w-3.5" />
+            Relieving Letter
+          </button>
+        </div>
 
-      {/* Statement Preview */}
-      <Card className="border shadow-md">
-        <CardHeader className="border-b bg-muted/20">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-            <div>
-              <CardTitle className="text-lg uppercase tracking-wide">
-                Full & Final Settlement Statement
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Official employee settlement calculation sheet
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge
-                variant={settlement?.status === "PAID" ? "default" : "outline"}
-                className="text-xs uppercase"
-              >
-                Status: {settlement?.status || "DRAFT"}
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditOpen(true)}
-                className="text-xs gap-1"
-              >
-                <Edit className="h-3.5 w-3.5" />
-                Edit Details
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6 space-y-6">
-          {/* Employee Basic Overview Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg text-xs">
-            <div>
-              <span className="text-muted-foreground">Employee Name</span>
-              <p className="font-semibold text-sm">
-                {employee.firstName} {employee.lastName || ""}
-              </p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Employee Code</span>
-              <p className="font-semibold text-sm">{employee.employeeCode}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Designation</span>
-              <p className="font-semibold text-sm">{employee.designation?.name || "—"}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Department</span>
-              <p className="font-semibold text-sm">{employee.department?.name || "—"}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Date of Joining</span>
-              <p className="font-semibold">
-                {employee.dateOfJoining ? format(new Date(employee.dateOfJoining), "MMM dd, yyyy") : "—"}
-              </p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Resignation Date</span>
-              <p className="font-semibold">
-                {settlement?.resignationDate
-                  ? format(new Date(settlement.resignationDate), "MMM dd, yyyy")
-                  : "—"}
-              </p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Last Working Date</span>
-              <p className="font-semibold">
-                {settlement?.lastWorkingDate
-                  ? format(new Date(settlement.lastWorkingDate), "MMM dd, yyyy")
-                  : "—"}
-              </p>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Notice Period</span>
-              <p className="font-semibold">{settlement?.noticePeriodDays || 30} Days</p>
-            </div>
-          </div>
-
-          {/* Earnings & Deductions Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-            {/* Earnings Section */}
-            <div className="border rounded-lg p-4 space-y-3 bg-card">
-              <h4 className="font-bold text-sm text-emerald-700 dark:text-emerald-400 border-b pb-2 flex items-center justify-between">
-                <span>1. PAYABLE DUES & EARNINGS</span>
-                <span>Amount (₹)</span>
-              </h4>
-              <div className="space-y-2">
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Salary Due</span>
-                  <span className="font-medium">{formatCurrency(settlement?.salaryDue)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Pending / Hold Salary</span>
-                  <span className="font-medium">{formatCurrency(settlement?.pendingSalary)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Leave Encashment</span>
-                  <span className="font-medium">{formatCurrency(settlement?.leaveEncashment)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Bonus</span>
-                  <span className="font-medium">{formatCurrency(settlement?.bonus)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Performance Incentive</span>
-                  <span className="font-medium">{formatCurrency(settlement?.performanceIncentive)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Other Payable Amounts</span>
-                  <span className="font-medium">{formatCurrency(settlement?.otherPayables)}</span>
-                </div>
-                <div className="flex justify-between pt-2 font-bold text-sm text-emerald-700 dark:text-emerald-400">
-                  <span>TOTAL EARNINGS (A)</span>
-                  <span>{formatCurrency(settlement?.totalEarnings)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Deductions Section */}
-            <div className="border rounded-lg p-4 space-y-3 bg-card">
-              <h4 className="font-bold text-sm text-red-700 dark:text-red-400 border-b pb-2 flex items-center justify-between">
-                <span>2. RECOVERIES & DEDUCTIONS</span>
-                <span>Amount (₹)</span>
-              </h4>
-              <div className="space-y-2">
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Notice Period Recovery</span>
-                  <span className="font-medium">{formatCurrency(settlement?.noticePeriodRecovery)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Loan / Advance Recovery</span>
-                  <span className="font-medium">{formatCurrency(settlement?.loanRecovery)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Asset Loss / Damage Deduction</span>
-                  <span className="font-medium">{formatCurrency(settlement?.assetDeduction)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-dashed">
-                  <span className="text-muted-foreground">Other Deductions</span>
-                  <span className="font-medium">{formatCurrency(settlement?.otherDeductions)}</span>
-                </div>
-                <div className="flex justify-between pt-8 font-bold text-sm text-red-700 dark:text-red-400">
-                  <span>TOTAL DEDUCTIONS (B)</span>
-                  <span>{formatCurrency(settlement?.totalDeductions)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Final Net Calculation Box */}
-          <div className="p-4 bg-primary/5 border-2 border-primary/20 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
-              <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
-                Net Final Settlement Amount (A - B)
-              </span>
-              <p className="text-2xl font-extrabold text-primary">
-                {formatCurrency(settlement?.finalSettlementAmount)}
-              </p>
-            </div>
+        {activeSubTab === "settlement" ? (
+          <div className="flex items-center gap-2">
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditOpen(true)}
+              className="gap-1.5 text-xs h-8"
+            >
+              <Edit className="h-3.5 w-3.5" />
+              Customize Values
+            </Button>
+            <Button
+              size="sm"
               onClick={handleDownloadPdf}
               disabled={isLocked || isDownloading}
-              className="gap-2 bg-primary text-white text-xs"
+              className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8"
             >
-              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Download Official PDF
+              {isDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              Download Settlement PDF
             </Button>
           </div>
-
-          {/* Physical Signatures & Stamp Placeholders */}
-          <div className="pt-4 border-t grid grid-cols-2 sm:grid-cols-4 gap-4 text-center text-xs text-muted-foreground">
-            <div className="border border-dashed p-4 rounded-md">
-              <div className="h-12" />
-              <p className="font-semibold text-foreground">Employee Signature</p>
-              <span className="text-[10px]">Date: ____________</span>
-            </div>
-            <div className="border border-dashed p-4 rounded-md">
-              <div className="h-12" />
-              <p className="font-semibold text-foreground">Prepared By</p>
-              <span className="text-[10px]">HR Executive</span>
-            </div>
-            <div className="border border-dashed p-4 rounded-md">
-              <div className="h-12" />
-              <p className="font-semibold text-foreground">HR Approval</p>
-              <span className="text-[10px]">Head of HR</span>
-            </div>
-            <div className="border border-dashed p-4 rounded-md">
-              <div className="h-12" />
-              <p className="font-semibold text-foreground">Finance Approval</p>
-              <span className="text-[10px]">Finance Department</span>
-            </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openTemplateEditor(activeSubTab === "experience" ? "EXPERIENCE_LETTER" : "RELIEVING_LETTER")}
+              className="gap-1.5 text-xs h-8"
+            >
+              <Settings className="h-3.5 w-3.5" />
+              Edit Template
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleDownloadLetter(activeSubTab === "experience" ? "EXPERIENCE_LETTER" : "RELIEVING_LETTER")}
+              disabled={isLetterDownloading}
+              className="gap-1.5 bg-primary text-white text-xs h-8"
+            >
+              {isLetterDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              Download {activeSubTab === "experience" ? "Experience Letter" : "Relieving Letter"} PDF
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
+
+      {/* SUB-TAB 1: FULL & FINAL SETTLEMENT STATEMENT */}
+      {activeSubTab === "settlement" && (
+        <div className="space-y-6">
+          {/* Clearance Status Banner */}
+          {isLocked ? (
+            <Card className="border-2 border-amber-400 bg-amber-50/50 dark:bg-amber-950/20">
+              <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start space-x-3">
+                  <div className="p-2 bg-amber-200 dark:bg-amber-900 rounded-full text-amber-800 dark:text-amber-200 mt-0.5">
+                    <Lock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-amber-900 dark:text-amber-200">
+                      Final Settlement Locked — Asset Clearance Pending
+                    </h4>
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      Final settlement statement generation is locked because {pendingAssetsCount} company asset(s) are still pending return.
+                    </p>
+                    {pendingAssetsList.length > 0 && (
+                      <p className="text-xs font-medium text-amber-900 dark:text-amber-200 mt-1">
+                        Pending Assets: {pendingAssetsList.map((a: any) => a.assetName).join(", ")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" disabled className="gap-1.5 opacity-60 text-xs">
+                  <Lock className="h-4 w-4" />
+                  Download Locked
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-2 border-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
+              <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-emerald-200 dark:bg-emerald-900 rounded-full text-emerald-800 dark:text-emerald-200">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-emerald-900 dark:text-emerald-200">
+                      Exit Clearance Complete — Settlement Available
+                    </h4>
+                    <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                      {totalRequiredAssets === 0
+                        ? "No company return-required assets assigned to this employee. Settlement is fully cleared and ready for generation."
+                        : "All required company assets have been marked as returned. Settlement statement is fully cleared."}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 text-xs font-semibold py-1">
+                    ✓ CLEARED
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Statement Preview Card */}
+          <Card className="border shadow-md">
+            <CardHeader className="border-b bg-muted/20">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-lg uppercase tracking-wide">
+                    Full & Final Settlement Statement
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Official employee full and final exit settlement calculation sheet
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={settlement?.status === "PAID" ? "default" : "outline"}
+                    className="text-xs uppercase"
+                  >
+                    Status: {settlement?.status || "DRAFT"}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditOpen(true)}
+                    className="text-xs gap-1"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                    Edit Details
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              {/* Employee Basic Overview Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg text-xs">
+                <div>
+                  <span className="text-muted-foreground">Employee Name</span>
+                  <p className="font-semibold text-sm">
+                    {employee.firstName} {employee.lastName || ""}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Employee Code</span>
+                  <p className="font-semibold text-sm">{employee.employeeCode || ""}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Designation</span>
+                  <p className="font-semibold text-sm">{employee.designation?.name || ""}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Department</span>
+                  <p className="font-semibold text-sm">{employee.department?.name || ""}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Date of Joining</span>
+                  <p className="font-semibold">
+                    {formatSettlementDate(employee.dateOfJoining)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Resignation Date</span>
+                  <p className="font-semibold">
+                    {formatSettlementDate(settlement?.resignationDate)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Last Working Date</span>
+                  <p className="font-semibold">
+                    {formatSettlementDate(settlement?.lastWorkingDate)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Notice Period</span>
+                  <p className="font-semibold">
+                    {settlement?.noticePeriodDays !== null && settlement?.noticePeriodDays !== undefined
+                      ? `${settlement.noticePeriodDays} Days`
+                      : ""}
+                  </p>
+                </div>
+              </div>
+
+              {/* Earnings & Deductions Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                {/* Earnings Section */}
+                <div className="border rounded-lg p-4 space-y-3 bg-card">
+                  <h4 className="font-bold text-sm text-emerald-700 dark:text-emerald-400 border-b pb-2 flex items-center justify-between">
+                    <span>1. PAYABLE DUES & EARNINGS</span>
+                    <span>Amount</span>
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Salary Due for Worked Days</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.salaryDue)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Pending / Hold Salary</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.pendingSalary)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">
+                        Leave Encashment {settlement?.leaveEncashmentDays !== null && settlement?.leaveEncashmentDays !== undefined ? `(${settlement.leaveEncashmentDays} days)` : ""}
+                      </span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.leaveEncashmentAmount ?? settlement?.leaveEncashment)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Bonus / Ex-Gratia</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.bonusAmount ?? settlement?.bonus)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Performance Incentive</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.incentiveAmount ?? settlement?.performanceIncentive)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Other Payable Amounts</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.otherPayableAmount ?? settlement?.otherPayables)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 font-bold text-sm text-emerald-700 dark:text-emerald-400">
+                      <span>TOTAL EARNINGS (A)</span>
+                      <span>{formatSettlementCurrency(settlement?.totalEarnings)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Deductions Section */}
+                <div className="border rounded-lg p-4 space-y-3 bg-card">
+                  <h4 className="font-bold text-sm text-red-700 dark:text-red-400 border-b pb-2 flex items-center justify-between">
+                    <span>2. RECOVERIES & DEDUCTIONS</span>
+                    <span>Amount</span>
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Notice Period Recovery</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.noticePeriodRecoveryAmount ?? settlement?.noticePeriodRecovery)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Loan / Advance Recovery</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.loanRecoveryAmount ?? settlement?.loanRecovery)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Asset Loss / Damage Deduction</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.assetDeductionAmount ?? settlement?.assetDeduction)}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-dashed">
+                      <span className="text-muted-foreground">Other Deductions</span>
+                      <span className="font-medium">{formatSettlementCurrency(settlement?.otherDeductionsAmount ?? settlement?.otherDeductions)}</span>
+                    </div>
+                    {settlement?.deductionsRemarks && (
+                      <div className="py-1 text-[11px] text-muted-foreground">
+                        Note: {settlement.deductionsRemarks}
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-6 font-bold text-sm text-red-700 dark:text-red-400">
+                      <span>TOTAL DEDUCTIONS (B)</span>
+                      <span>{formatSettlementCurrency(settlement?.totalDeductions)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Final Net Calculation Box */}
+              <div className="p-4 bg-primary/5 border-2 border-primary/20 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
+                    Net Final Settlement Amount (A - B)
+                  </span>
+                  <p className="text-2xl font-extrabold text-primary">
+                    {formatSettlementCurrency(settlement?.finalSettlementAmount ?? settlement?.netSettlementAmount)}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleDownloadPdf}
+                  disabled={isLocked || isDownloading}
+                  className="gap-2 bg-primary text-white text-xs"
+                >
+                  {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Download Official PDF
+                </Button>
+              </div>
+
+              {/* Physical Signatures & Stamp Placeholders */}
+              <div className="pt-4 border-t grid grid-cols-2 sm:grid-cols-4 gap-4 text-center text-xs text-muted-foreground">
+                <div className="border border-dashed p-4 rounded-md">
+                  <div className="h-10" />
+                  <p className="font-semibold text-foreground">Employee Signature</p>
+                  <span className="text-[10px]">Date: ____________</span>
+                </div>
+                <div className="border border-dashed p-4 rounded-md">
+                  <div className="h-10" />
+                  <p className="font-semibold text-foreground">Prepared By</p>
+                  <span className="text-[10px]">{settlement?.preparedBy || "HR Executive"}</span>
+                </div>
+                <div className="border border-dashed p-4 rounded-md">
+                  <div className="h-10" />
+                  <p className="font-semibold text-foreground">HR Approval</p>
+                  <span className="text-[10px]">{settlement?.hrApprovalName || "Head of HR"}</span>
+                </div>
+                <div className="border border-dashed p-4 rounded-md">
+                  <div className="h-10 flex items-center justify-center text-[10px] text-muted-foreground">
+                    ORGANIZATION STAMP
+                  </div>
+                  <p className="font-semibold text-foreground">Finance Approval</p>
+                  <span className="text-[10px]">{settlement?.financeApprovalName || "Finance Head"}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* SUB-TAB 2: EXPERIENCE LETTER */}
+      {activeSubTab === "experience" && (
+        <div className="space-y-6">
+          <Card className="border shadow-sm">
+            <CardHeader className="bg-muted/20 border-b">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <Award className="h-4 w-4 text-primary" />
+                    Experience Certificate / Letter
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Auto-generated experience letter with calculated duration and verified tenure
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openTemplateEditor("EXPERIENCE_LETTER")}
+                    className="gap-1.5 text-xs h-8"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    Edit Template
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleDownloadLetter("EXPERIENCE_LETTER")}
+                    disabled={isLetterDownloading}
+                    className="gap-1.5 bg-primary text-white text-xs h-8"
+                  >
+                    {isLetterDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    Download PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isPreviewLoading ? (
+                <div className="py-16 text-center text-muted-foreground flex flex-col items-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="text-xs">Generating Experience Letter Preview...</span>
+                </div>
+              ) : (
+                <div className="max-w-3xl mx-auto border rounded-lg bg-background p-8 shadow-sm space-y-6 text-xs text-foreground font-serif leading-relaxed">
+                  {/* Organization Letterhead Header */}
+                  <div className="flex justify-between items-center border-b pb-4">
+                    <div>
+                      <h3 className="font-sans font-extrabold text-base tracking-wide text-foreground uppercase">
+                        {experiencePreview?.organization?.name || "Organization Name"}
+                      </h3>
+                      {experiencePreview?.organization?.address && (
+                        <p className="font-sans text-[11px] text-muted-foreground">
+                          {experiencePreview.organization.address}
+                        </p>
+                      )}
+                    </div>
+                    {experiencePreview?.organization?.logoUrl && (
+                      <img
+                        src={experiencePreview.organization.logoUrl}
+                        alt="Logo"
+                        className="max-h-12 max-w-[120px] object-contain"
+                      />
+                    )}
+                  </div>
+
+                  {/* Rendered Letter Content */}
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed space-y-3"
+                    dangerouslySetInnerHTML={{
+                      __html: experiencePreview?.renderedHtml || "<p>No template content found.</p>",
+                    }}
+                  />
+
+                  {/* Signatory & Stamp Area */}
+                  <div className="pt-8 border-t flex justify-between items-end font-sans">
+                    <div className="space-y-1">
+                      <div className="w-40 border-b border-foreground/40 mb-2 h-10" />
+                      <p className="font-bold text-xs">Authorized Signatory</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {experiencePreview?.organization?.name || "HR Operations"}
+                      </p>
+                    </div>
+                    <div className="w-28 h-20 border-2 border-dashed border-muted-foreground/40 rounded flex items-center justify-center text-[10px] text-muted-foreground font-bold uppercase text-center p-1">
+                      OFFICIAL STAMP
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* SUB-TAB 3: RELIEVING LETTER */}
+      {activeSubTab === "relieving" && (
+        <div className="space-y-6">
+          <Card className="border shadow-sm">
+            <CardHeader className="bg-muted/20 border-b">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <ScrollText className="h-4 w-4 text-primary" />
+                    Official Relieving Letter
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Auto-generated relieving letter confirming exit date and relieving formalities
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openTemplateEditor("RELIEVING_LETTER")}
+                    className="gap-1.5 text-xs h-8"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    Edit Template
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleDownloadLetter("RELIEVING_LETTER")}
+                    disabled={isLetterDownloading}
+                    className="gap-1.5 bg-primary text-white text-xs h-8"
+                  >
+                    {isLetterDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    Download PDF
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isPreviewLoading ? (
+                <div className="py-16 text-center text-muted-foreground flex flex-col items-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="text-xs">Generating Relieving Letter Preview...</span>
+                </div>
+              ) : (
+                <div className="max-w-3xl mx-auto border rounded-lg bg-background p-8 shadow-sm space-y-6 text-xs text-foreground font-serif leading-relaxed">
+                  {/* Organization Letterhead Header */}
+                  <div className="flex justify-between items-center border-b pb-4">
+                    <div>
+                      <h3 className="font-sans font-extrabold text-base tracking-wide text-foreground uppercase">
+                        {relievingPreview?.organization?.name || "Organization Name"}
+                      </h3>
+                      {relievingPreview?.organization?.address && (
+                        <p className="font-sans text-[11px] text-muted-foreground">
+                          {relievingPreview.organization.address}
+                        </p>
+                      )}
+                    </div>
+                    {relievingPreview?.organization?.logoUrl && (
+                      <img
+                        src={relievingPreview.organization.logoUrl}
+                        alt="Logo"
+                        className="max-h-12 max-w-[120px] object-contain"
+                      />
+                    )}
+                  </div>
+
+                  {/* Rendered Letter Content */}
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed space-y-3"
+                    dangerouslySetInnerHTML={{
+                      __html: relievingPreview?.renderedHtml || "<p>No template content found.</p>",
+                    }}
+                  />
+
+                  {/* Signatory & Stamp Area */}
+                  <div className="pt-8 border-t flex justify-between items-end font-sans">
+                    <div className="space-y-1">
+                      <div className="w-40 border-b border-foreground/40 mb-2 h-10" />
+                      <p className="font-bold text-xs">Authorized Signatory</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {relievingPreview?.organization?.name || "HR Operations"}
+                      </p>
+                    </div>
+                    <div className="w-28 h-20 border-2 border-dashed border-muted-foreground/40 rounded flex items-center justify-center text-[10px] text-muted-foreground font-bold uppercase text-center p-1">
+                      OFFICIAL STAMP
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Edit Settlement Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
@@ -1953,7 +2435,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
           <DialogHeader>
             <DialogTitle>Edit Full & Final Settlement Details</DialogTitle>
             <DialogDescription>
-              Adjust earnings, dues, leave encashment, and deductions for {employee.firstName}.
+              Configure or clear payable dues, leave encashment, and deductions for {employee.firstName}. Unconfigured fields remain empty.
             </DialogDescription>
           </DialogHeader>
 
@@ -2007,8 +2489,9 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                   <Label className="text-[11px]">Salary Due</Label>
                   <Input
                     type="number"
+                    placeholder="Leave blank if not set"
                     value={form.salaryDue}
-                    onChange={(e) => setForm({ ...form, salaryDue: Number(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, salaryDue: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -2016,26 +2499,39 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                   <Label className="text-[11px]">Pending / Hold Salary</Label>
                   <Input
                     type="number"
+                    placeholder="Leave blank if not set"
                     value={form.pendingSalary}
-                    onChange={(e) => setForm({ ...form, pendingSalary: Number(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, pendingSalary: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
                 <div>
-                  <Label className="text-[11px]">Leave Encashment</Label>
+                  <Label className="text-[11px]">Leave Encashment Amount</Label>
                   <Input
                     type="number"
-                    value={form.leaveEncashment}
-                    onChange={(e) => setForm({ ...form, leaveEncashment: Number(e.target.value) })}
+                    placeholder="Leave blank if not set"
+                    value={form.leaveEncashmentAmount}
+                    onChange={(e) => setForm({ ...form, leaveEncashmentAmount: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
                 <div>
-                  <Label className="text-[11px]">Bonus</Label>
+                  <Label className="text-[11px]">Leave Encashment Days</Label>
                   <Input
                     type="number"
-                    value={form.bonus}
-                    onChange={(e) => setForm({ ...form, bonus: Number(e.target.value) })}
+                    placeholder="Leave blank if not set"
+                    value={form.leaveEncashmentDays}
+                    onChange={(e) => setForm({ ...form, leaveEncashmentDays: e.target.value })}
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px]">Bonus / Ex-Gratia</Label>
+                  <Input
+                    type="number"
+                    placeholder="Leave blank if not set"
+                    value={form.bonusAmount}
+                    onChange={(e) => setForm({ ...form, bonusAmount: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -2043,10 +2539,9 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                   <Label className="text-[11px]">Performance Incentive</Label>
                   <Input
                     type="number"
-                    value={form.performanceIncentive}
-                    onChange={(e) =>
-                      setForm({ ...form, performanceIncentive: Number(e.target.value) })
-                    }
+                    placeholder="Leave blank if not set"
+                    value={form.incentiveAmount}
+                    onChange={(e) => setForm({ ...form, incentiveAmount: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -2054,8 +2549,9 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                   <Label className="text-[11px]">Other Payables</Label>
                   <Input
                     type="number"
-                    value={form.otherPayables}
-                    onChange={(e) => setForm({ ...form, otherPayables: Number(e.target.value) })}
+                    placeholder="Leave blank if not set"
+                    value={form.otherPayableAmount}
+                    onChange={(e) => setForm({ ...form, otherPayableAmount: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -2072,9 +2568,10 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                   <Label className="text-[11px]">Notice Period Recovery</Label>
                   <Input
                     type="number"
-                    value={form.noticePeriodRecovery}
+                    placeholder="Leave blank if not set"
+                    value={form.noticePeriodRecoveryAmount}
                     onChange={(e) =>
-                      setForm({ ...form, noticePeriodRecovery: Number(e.target.value) })
+                      setForm({ ...form, noticePeriodRecoveryAmount: e.target.value })
                     }
                     className="h-8 text-xs"
                   />
@@ -2083,8 +2580,9 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                   <Label className="text-[11px]">Loan / Advance Recovery</Label>
                   <Input
                     type="number"
-                    value={form.loanRecovery}
-                    onChange={(e) => setForm({ ...form, loanRecovery: Number(e.target.value) })}
+                    placeholder="Leave blank if not set"
+                    value={form.loanRecoveryAmount}
+                    onChange={(e) => setForm({ ...form, loanRecoveryAmount: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -2092,8 +2590,9 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                   <Label className="text-[11px]">Asset Loss / Damage</Label>
                   <Input
                     type="number"
-                    value={form.assetDeduction}
-                    onChange={(e) => setForm({ ...form, assetDeduction: Number(e.target.value) })}
+                    placeholder="Leave blank if not set"
+                    value={form.assetDeductionAmount}
+                    onChange={(e) => setForm({ ...form, assetDeductionAmount: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
@@ -2101,11 +2600,21 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                   <Label className="text-[11px]">Other Deductions</Label>
                   <Input
                     type="number"
-                    value={form.otherDeductions}
-                    onChange={(e) => setForm({ ...form, otherDeductions: Number(e.target.value) })}
+                    placeholder="Leave blank if not set"
+                    value={form.otherDeductionsAmount}
+                    onChange={(e) => setForm({ ...form, otherDeductionsAmount: e.target.value })}
                     className="h-8 text-xs"
                   />
                 </div>
+              </div>
+              <div>
+                <Label className="text-[11px]">Deductions Note</Label>
+                <Input
+                  placeholder="Optional deduction description..."
+                  value={form.deductionsRemarks}
+                  onChange={(e) => setForm({ ...form, deductionsRemarks: e.target.value })}
+                  className="h-8 text-xs"
+                />
               </div>
             </div>
 
@@ -2133,301 +2642,262 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Template Configuration Modal */}
+      <Dialog open={isTemplateEditOpen} onOpenChange={setIsTemplateEditOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between pr-6">
+              <span>
+                Configure {editingTemplateType === "EXPERIENCE_LETTER" ? "Experience Letter" : "Relieving Letter"} Template
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetTemplate}
+                className="text-xs h-7 text-amber-700 hover:text-amber-800"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Reset to Default
+              </Button>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure your reusable organization template. Dynamic variables in {`{{brackets}}`} are automatically replaced with employee and settlement data when generating the document.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-xs">
+            {/* Editor Area */}
+            <div className="md:col-span-2 space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Template Name</Label>
+                <Input
+                  value={templateForm.templateName}
+                  onChange={(e) => setTemplateForm({ ...templateForm, templateName: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs">Letter HTML / Text Content</Label>
+                <Textarea
+                  value={templateForm.content}
+                  onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })}
+                  className="font-mono text-xs min-h-[350px] leading-relaxed"
+                  placeholder="Enter template HTML or text with dynamic variables..."
+                />
+              </div>
+            </div>
+
+            {/* Dynamic Variables Sidebar */}
+            <div className="border rounded-lg p-3 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <span className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Insert Variables
+                </span>
+                <span className="text-[10px] text-muted-foreground">Click to add</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Click any variable below to append it to your template:
+              </p>
+              <div className="flex flex-wrap gap-1.5 max-h-[340px] overflow-y-auto pr-1">
+                {supportedVariables.map((v) => (
+                  <Button
+                    key={v.variable}
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    onClick={() => insertVariable(v.variable)}
+                    className="h-7 px-2 text-[11px] font-mono hover:bg-primary/10 hover:border-primary/40 text-left justify-start"
+                  >
+                    <Plus className="h-2.5 w-2.5 mr-1 text-primary" />
+                    {v.variable}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setIsTemplateEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSaveTemplate} disabled={isTemplateSaving} className="bg-primary text-white">
+              {isTemplateSaving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+              Save Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 // ------------------------------------------------------------------------------------------------
-// Tab: Real Employee Documents
+// Tab: Official Employee Documents (Aadhar, PAN, Passport, Photo uploaded during add/edit)
 // ------------------------------------------------------------------------------------------------
 function DocumentsTab({ employeeId, employee }: { employeeId: string; employee: Employee }) {
-  const [documents, setDocuments] = useState<EmployeeDocument[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState<string>("");
 
-  const [uploadForm, setUploadForm] = useState({
-    documentName: "",
-    documentType: "Identity",
-    remarks: "",
-    file: null as File | null,
-  });
-
-  const categories = [
-    "All",
-    "Identity",
-    "Joining",
-    "Employment",
-    "Salary",
-    "Leave",
-    "Performance",
-    "Resignation",
-    "Exit",
-    "Settlement",
-    "Other",
+  const officialDocuments = [
+    {
+      id: "aadhar",
+      name: "Aadhar Card",
+      type: "Identity Proof (UIDAI)",
+      url: employee.aadharPhotoUrl || null,
+      icon: CreditCard,
+      description: "Government-issued Aadhar identification card uploaded during onboarding.",
+    },
+    {
+      id: "pan",
+      name: "PAN Card",
+      type: "Tax Identification (Income Tax Dept)",
+      url: employee.panCardPhotoUrl || null,
+      icon: CreditCard,
+      description: "Permanent Account Number card used for statutory tax filing and payroll.",
+    },
+    {
+      id: "passport",
+      name: "Passport / Address Proof",
+      type: "Address & Travel Document",
+      url: employee.passportPhotoUrl || null,
+      icon: Briefcase,
+      description: "Valid passport or government address verification document.",
+    },
+    {
+      id: "photo",
+      name: "Official Profile Photo",
+      type: "ID & Profile Picture",
+      url: employee.photoUrl || null,
+      icon: User,
+      description: "Official identity card passport-sized profile photograph.",
+    },
   ];
 
-  useEffect(() => {
-    fetchDocuments();
-  }, [employeeId]);
-
-  const fetchDocuments = async () => {
-    try {
-      setLoading(true);
-      const res = await getEmployeeDocuments(employeeId);
-      setDocuments(Array.isArray(res.data) ? res.data : []);
-    } catch (error) {
-      console.error("Error fetching documents:", error);
-    } finally {
-      setLoading(false);
-    }
+  const handleOpenPreview = (title: string, url: string) => {
+    setPreviewTitle(title);
+    setPreviewModalUrl(url);
   };
-
-  const handleUpload = async () => {
-    if (!uploadForm.documentName.trim()) {
-      toast.error("Document title is required");
-      return;
-    }
-    if (!uploadForm.file) {
-      toast.error("Please select a file to upload");
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      const fileData = new FormData();
-      fileData.append("file", uploadForm.file);
-
-      // Upload using existing /common/upload API
-      const uploadRes = await uploadFile(fileData);
-      const fileUrl = uploadRes.data?.url || uploadRes.data?.fileUrl || uploadRes.data;
-
-      if (!fileUrl) {
-        throw new Error("Failed to receive uploaded file URL");
-      }
-
-      await createEmployeeDocument(employeeId, {
-        documentName: uploadForm.documentName.trim(),
-        documentType: uploadForm.documentType,
-        documentUrl: fileUrl,
-        fileType: uploadForm.file.type || uploadForm.file.name.split(".").pop(),
-        fileSize: uploadForm.file.size,
-        remarks: uploadForm.remarks.trim() || undefined,
-      });
-
-      toast.success("Document uploaded successfully");
-      setIsUploadOpen(false);
-      setUploadForm({
-        documentName: "",
-        documentType: "Identity",
-        remarks: "",
-        file: null,
-      });
-      await fetchDocuments();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || error?.message || "Failed to upload document");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleDelete = async (docId: string) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
-    try {
-      await deleteEmployeeDocument(employeeId, docId);
-      toast.success("Document deleted");
-      await fetchDocuments();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Failed to delete document");
-    }
-  };
-
-  const filteredDocs =
-    selectedCategory === "All"
-      ? documents
-      : documents.filter((d) => (d.documentType || "Other").toLowerCase() === selectedCategory.toLowerCase());
-
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return "—";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  if (loading) {
-    return <div className="py-12 text-center text-muted-foreground">Loading employee documents...</div>;
-  }
 
   return (
     <div className="space-y-6">
-      {/* Category Pills & Upload Button */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1">
-          {categories.map((cat) => (
-            <Button
-              key={cat}
-              variant={selectedCategory === cat ? "default" : "outline"}
-              size="sm"
-              className="text-xs h-7 px-2.5"
-              onClick={() => setSelectedCategory(cat)}
-            >
-              {cat}
-            </Button>
-          ))}
-        </div>
-        <Button onClick={() => setIsUploadOpen(true)} size="sm" className="gap-1.5 text-xs shrink-0">
-          <Plus className="h-3.5 w-3.5" />
-          Upload Document
-        </Button>
+      <div>
+        <h3 className="text-base font-bold flex items-center gap-2">
+          <FolderOpen className="h-5 w-5 text-primary" />
+          Official Employee Documents
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Official verification and identification documents uploaded by administrator during employee registration or profile update.
+        </p>
       </div>
 
-      {/* Document List */}
-      {filteredDocs.length === 0 ? (
-        <div className="border border-dashed rounded-lg p-10 text-center space-y-3">
-          <FolderOpen className="h-10 w-10 mx-auto text-muted-foreground/40" />
-          <p className="font-medium text-sm">
-            {selectedCategory === "All"
-              ? "No documents uploaded yet for this employee"
-              : `No documents in "${selectedCategory}" category`}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => setIsUploadOpen(true)}>
-            + Upload Document
-          </Button>
-        </div>
-      ) : (
-        <div className="border rounded-lg overflow-hidden bg-card">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/50 border-b">
-              <tr>
-                <th className="p-3 text-left font-semibold">Document Title</th>
-                <th className="p-3 text-left font-semibold">Category</th>
-                <th className="p-3 text-left font-semibold">File Type / Size</th>
-                <th className="p-3 text-left font-semibold">Uploaded Date</th>
-                <th className="p-3 text-right font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filteredDocs.map((doc) => (
-                <tr key={doc.id} className="hover:bg-muted/30">
-                  <td className="p-3">
-                    <div className="font-semibold text-foreground flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span>{doc.documentName}</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {officialDocuments.map((doc) => {
+          const Icon = doc.icon;
+          const isAvailable = Boolean(doc.url);
+
+          return (
+            <Card key={doc.id} className="border shadow-sm overflow-hidden flex flex-col justify-between">
+              <CardHeader className="p-4 bg-muted/10 border-b pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`p-2 rounded-lg ${isAvailable ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Icon className="h-5 w-5" />
                     </div>
-                    {doc.remarks && (
-                      <div className="text-[11px] text-muted-foreground pl-5">{doc.remarks}</div>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="outline" className="text-[10px]">
-                      {doc.documentType || "Other"}
+                    <div>
+                      <CardTitle className="text-sm font-semibold">{doc.name}</CardTitle>
+                      <CardDescription className="text-[11px]">{doc.type}</CardDescription>
+                    </div>
+                  </div>
+                  {isAvailable ? (
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] font-semibold">
+                      ✓ Uploaded & Verified
                     </Badge>
-                  </td>
-                  <td className="p-3 text-muted-foreground uppercase text-[11px]">
-                    {doc.fileType?.split("/").pop() || "file"} • {formatFileSize(doc.fileSize)}
-                  </td>
-                  <td className="p-3 text-muted-foreground">
-                    {doc.createdAt ? format(new Date(doc.createdAt), "MMM dd, yyyy") : "—"}
-                  </td>
-                  <td className="p-3 text-right space-x-1">
+                  ) : (
+                    <Badge variant="outline" className="bg-muted text-muted-foreground text-[10px]">
+                      Not Provided
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {doc.description}
+                </p>
+
+                {isAvailable && doc.url ? (
+                  <div className="pt-2 flex items-center justify-between gap-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenPreview(doc.name, doc.url!)}
+                      className="text-xs h-8 gap-1.5"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View Document
+                    </Button>
                     <a
-                      href={doc.documentUrl}
+                      href={doc.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center"
+                      download
+                      className="inline-flex"
                     >
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                        <Download className="h-3.5 w-3.5 mr-1" />
+                      <Button size="sm" variant="default" className="text-xs h-8 gap-1.5">
+                        <Download className="h-3.5 w-3.5" />
                         Download
                       </Button>
                     </a>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
-                      onClick={() => handleDelete(doc.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  </div>
+                ) : (
+                  <div className="pt-2 border-t text-[11px] text-muted-foreground italic">
+                    No document file attached for this employee.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-      {/* Upload Dialog */}
-      <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-        <DialogContent className="max-w-md">
+      {/* Document View Modal */}
+      <Dialog open={Boolean(previewModalUrl)} onOpenChange={(open) => !open && setPreviewModalUrl(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Upload Employee Document</DialogTitle>
-            <DialogDescription>
-              Upload identity, contract, settlement, or salary document for {employee.firstName}.
-            </DialogDescription>
+            <DialogTitle className="flex items-center justify-between pr-6">
+              <span>{previewTitle}</span>
+              {previewModalUrl && (
+                <a
+                  href={previewModalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary underline flex items-center gap-1"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open in New Tab
+                </a>
+              )}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 pt-2 text-xs">
-            <div className="space-y-1">
-              <Label className="text-xs">Document Title *</Label>
-              <Input
-                value={uploadForm.documentName}
-                onChange={(e) => setUploadForm({ ...uploadForm, documentName: e.target.value })}
-                placeholder="e.g. Appointment Letter, Degree Certificate, PAN Card"
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Category *</Label>
-              <Select
-                value={uploadForm.documentType}
-                onValueChange={(val) => setUploadForm({ ...uploadForm, documentType: val })}
-              >
-                <SelectTrigger className="h-9 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories
-                    .filter((c) => c !== "All")
-                    .map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Select File * (PDF, Images, Docs up to 10MB)</Label>
-              <Input
-                type="file"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] || null;
-                  setUploadForm({ ...uploadForm, file: f });
-                }}
-                className="h-9 text-xs cursor-pointer"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Remarks / Notes</Label>
-              <Textarea
-                value={uploadForm.remarks}
-                onChange={(e) => setUploadForm({ ...uploadForm, remarks: e.target.value })}
-                placeholder="Optional notes or reference number..."
-                className="text-xs"
-                rows={2}
-              />
-            </div>
+          <div className="flex items-center justify-center p-4 bg-muted/20 rounded-lg min-h-[300px]">
+            {previewModalUrl && (
+              previewModalUrl.toLowerCase().endsWith(".pdf") ? (
+                <iframe
+                  src={previewModalUrl}
+                  className="w-full h-[500px] rounded border"
+                  title={previewTitle}
+                />
+              ) : (
+                <img
+                  src={previewModalUrl}
+                  alt={previewTitle}
+                  className="max-h-[500px] max-w-full object-contain rounded shadow-sm"
+                />
+              )
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setIsUploadOpen(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" onClick={handleUpload} disabled={isUploading}>
-              {isUploading ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
-              Upload
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

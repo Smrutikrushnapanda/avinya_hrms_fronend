@@ -226,6 +226,25 @@ export const downloadSettlementPdf = (employeeId: string) =>
     responseType: 'blob',
   });
 
+// 📝 Document Templates & Letters APIs
+export const getDocumentTemplates = () =>
+  api.get('/employees/document-templates');
+export const getDocumentTemplateByType = (type: string) =>
+  api.get(`/employees/document-templates/${type}`);
+export const saveDocumentTemplate = (data: { templateType: string; templateName: string; content: string; isActive?: boolean }) =>
+  api.post('/employees/document-templates', data);
+export const updateDocumentTemplate = (id: string, data: { templateName?: string; content?: string; isActive?: boolean }) =>
+  api.put(`/employees/document-templates/${id}`, data);
+export const resetDocumentTemplate = (templateType: string) =>
+  api.post('/employees/document-templates/reset-default', { templateType });
+export const previewEmployeeLetter = (employeeId: string, data: { templateType: string; templateId?: string; customContent?: string }) =>
+  api.post(`/employees/${employeeId}/letters/preview`, data);
+export const downloadEmployeeLetterPdf = (employeeId: string, type: string, customContent?: string) =>
+  api.get(`/employees/${employeeId}/letters/${type}/pdf`, {
+    params: customContent ? { customContent } : {},
+    responseType: 'blob',
+  });
+
 export const updateMyPassword = (userId: string, data: { password: string; currentPassword: string }) =>
   api.patch(`/users/${userId}`, data);
 export const getEmployeeHierarchy = (organizationId: string, employeeId?: string) =>

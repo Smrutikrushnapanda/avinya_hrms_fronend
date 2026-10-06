@@ -125,19 +125,26 @@ export interface EmployeeAsset {
 }
 
 export interface AssetClearance {
-  clearanceStatus: 'NOT_STARTED' | 'PARTIALLY_CLEARED' | 'CLEARED';
-  hasPendingAssets: boolean;
-  totalAssets: number;
-  returnRequiredAssets: number;
-  returnedAssets: number;
-  pendingAssetsCount: number;
-  pendingAssets: {
+  clearanceStatus?: 'NOT_STARTED' | 'PARTIALLY_CLEARED' | 'CLEARED';
+  status?: 'NOT_STARTED' | 'PARTIALLY_CLEARED' | 'CLEARED';
+  isCleared?: boolean;
+  hasPendingAssets?: boolean;
+  totalAssets?: number;
+  totalRequired?: number;
+  returnRequiredAssets?: number;
+  returnedAssets?: number;
+  returnedCount?: number;
+  pendingCount?: number;
+  pendingAssetsCount?: number;
+  pendingAssets?: {
     id: string;
     assetName: string;
-    assetType: string;
+    assetType?: string;
+    assetId?: string;
     serialNumber?: string | null;
     status: string;
   }[];
+  assets?: EmployeeAsset[];
 }
 
 export interface EmployeeDocument {
@@ -158,30 +165,53 @@ export interface EmployeeDocument {
   updatedAt?: string;
 }
 
+export interface EmployeeDocumentTemplate {
+  id: string;
+  organizationId: string;
+  templateType: 'EXPERIENCE_LETTER' | 'RELIEVING_LETTER';
+  templateName: string;
+  content: string;
+  isActive: boolean;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface EmployeeSettlement {
   id?: string;
   organizationId: string;
   employeeId: string;
   resignationRequestId?: string | null;
   resignationDate?: string | null;
-  noticePeriodDays?: number;
+  noticePeriodDays?: number | null;
   lastWorkingDate?: string | null;
   reasonForLeaving?: string | null;
-  salaryDue?: number;
-  pendingSalary?: number;
-  leaveEncashment?: number;
-  leaveEncashmentDays?: number;
-  bonus?: number;
-  performanceIncentive?: number;
-  otherPayables?: number;
-  totalEarnings?: number;
-  noticePeriodRecovery?: number;
-  loanRecovery?: number;
-  assetDeduction?: number;
-  otherDeductions?: number;
-  totalDeductions?: number;
-  finalSettlementAmount?: number;
-  status?: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED' | 'PAID' | 'REJECTED';
+  salaryDue?: number | null;
+  pendingSalary?: number | null;
+  leaveEncashment?: number | null;
+  leaveEncashmentAmount?: number | null;
+  leaveEncashmentDays?: number | null;
+  bonus?: number | null;
+  bonusAmount?: number | null;
+  performanceIncentive?: number | null;
+  incentiveAmount?: number | null;
+  otherPayables?: number | null;
+  otherPayableAmount?: number | null;
+  totalEarnings?: number | null;
+  noticePeriodRecovery?: number | null;
+  noticePeriodRecoveryAmount?: number | null;
+  loanRecovery?: number | null;
+  loanRecoveryAmount?: number | null;
+  assetDeduction?: number | null;
+  assetDeductionAmount?: number | null;
+  otherDeductions?: number | null;
+  otherDeductionsAmount?: number | null;
+  totalDeductions?: number | null;
+  finalSettlementAmount?: number | null;
+  netSettlementAmount?: number | null;
+  deductionsRemarks?: string | null;
+  status?: 'DRAFT' | 'UNDER_REVIEW' | 'APPROVED' | 'PAID' | 'REJECTED' | 'FINALIZED';
   preparedBy?: string | null;
   hrApprovalName?: string | null;
   financeApprovalName?: string | null;
