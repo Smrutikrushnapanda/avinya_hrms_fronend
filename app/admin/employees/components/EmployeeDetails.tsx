@@ -107,6 +107,7 @@ import {
 } from "@/app/api/api";
 import TimeslipTab from "./TimeslipTab";
 import WorkflowManagement from "./WorkflowManagement";
+import VisualDocumentEditor from "./VisualDocumentEditor";
 import { toast } from "sonner";
 
 interface EmployeeDetailsProps {
@@ -1963,6 +1964,16 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
               Edit Template
             </Button>
             <Button
+              variant="outline"
+              size="sm"
+              onClick={loadLetterPreviews}
+              disabled={isPreviewLoading}
+              className="gap-1.5 text-xs h-8"
+            >
+              {isPreviewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Preview
+            </Button>
+            <Button
               size="sm"
               onClick={() => handleDownloadLetter(activeSubTab === "experience" ? "EXPERIENCE_LETTER" : "RELIEVING_LETTER")}
               disabled={isLetterDownloading}
@@ -2243,39 +2254,53 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
 
       {/* SUB-TAB 2: EXPERIENCE LETTER */}
       {activeSubTab === "experience" && (
-        <div className="space-y-6">
+        <div className="space-y-4">
+          {/* Employee Context & Template Header Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-muted/30 border rounded-lg text-xs">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Employee</span>
+              <p className="font-semibold text-sm text-foreground">
+                {employee.firstName} {employee.lastName || ""}
+              </p>
+              <p className="text-[11px] text-muted-foreground font-mono">
+                {employee.employeeCode || "—"} • {employee.designation?.name || "—"}
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tenure & Duration</span>
+              <p className="font-semibold text-sm text-primary">
+                {experiencePreview?.employee?.experienceDuration || "Calculated dynamically"}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Joined: {formatSettlementDate(employee.dateOfJoining)} → Exit: {formatSettlementDate(settlement?.lastWorkingDate || new Date().toISOString())}
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Template</span>
+              <p className="font-semibold text-xs text-foreground">
+                {experienceTemplate?.templateName || "Default Experience Letter"}
+              </p>
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] mt-0.5">
+                ✓ Ready to Generate
+              </Badge>
+            </div>
+          </div>
+
           <Card className="border shadow-sm">
-            <CardHeader className="bg-muted/20 border-b">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <CardHeader className="bg-muted/20 border-b py-3 px-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
                     <Award className="h-4 w-4 text-primary" />
-                    Experience Certificate / Letter
+                    Experience Certificate / Letter Preview
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Auto-generated experience letter with calculated duration and verified tenure
+                    Live document preview with dynamic employee & experience duration values replaced
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openTemplateEditor("EXPERIENCE_LETTER")}
-                    className="gap-1.5 text-xs h-8"
-                  >
-                    <Settings className="h-3.5 w-3.5" />
-                    Edit Template
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => handleDownloadLetter("EXPERIENCE_LETTER")}
-                    disabled={isLetterDownloading}
-                    className="gap-1.5 bg-primary text-white text-xs h-8"
-                  >
-                    {isLetterDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                    Download PDF
-                  </Button>
-                </div>
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 text-[10px] font-semibold">
+                  Official Document Preview
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-6">
@@ -2337,39 +2362,53 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
 
       {/* SUB-TAB 3: RELIEVING LETTER */}
       {activeSubTab === "relieving" && (
-        <div className="space-y-6">
+        <div className="space-y-4">
+          {/* Employee Context & Template Header Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-muted/30 border rounded-lg text-xs">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Employee</span>
+              <p className="font-semibold text-sm text-foreground">
+                {employee.firstName} {employee.lastName || ""}
+              </p>
+              <p className="text-[11px] text-muted-foreground font-mono">
+                {employee.employeeCode || "—"} • {employee.designation?.name || "—"}
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Exit & Relieving Date</span>
+              <p className="font-semibold text-sm text-primary">
+                {formatSettlementDate(settlement?.lastWorkingDate || new Date().toISOString())}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Resigned: {formatSettlementDate(settlement?.resignationDate)}
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Template</span>
+              <p className="font-semibold text-xs text-foreground">
+                {relievingTemplate?.templateName || "Default Relieving Letter"}
+              </p>
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] mt-0.5">
+                ✓ Ready to Generate
+              </Badge>
+            </div>
+          </div>
+
           <Card className="border shadow-sm">
-            <CardHeader className="bg-muted/20 border-b">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <CardHeader className="bg-muted/20 border-b py-3 px-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
                     <ScrollText className="h-4 w-4 text-primary" />
-                    Official Relieving Letter
+                    Official Relieving Letter Preview
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Auto-generated relieving letter confirming exit date and relieving formalities
+                    Live document preview confirming relieving formalities and official exit
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openTemplateEditor("RELIEVING_LETTER")}
-                    className="gap-1.5 text-xs h-8"
-                  >
-                    <Settings className="h-3.5 w-3.5" />
-                    Edit Template
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => handleDownloadLetter("RELIEVING_LETTER")}
-                    disabled={isLetterDownloading}
-                    className="gap-1.5 bg-primary text-white text-xs h-8"
-                  >
-                    {isLetterDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                    Download PDF
-                  </Button>
-                </div>
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 text-[10px] font-semibold">
+                  Official Document Preview
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-6">
@@ -2645,85 +2684,56 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
 
       {/* Template Configuration Modal */}
       <Dialog open={isTemplateEditOpen} onOpenChange={setIsTemplateEditOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[85vw] min-w-[80vw] max-w-6xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between pr-6">
-              <span>
-                Configure {editingTemplateType === "EXPERIENCE_LETTER" ? "Experience Letter" : "Relieving Letter"} Template
-              </span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pr-6 gap-2">
+              <div>
+                <DialogTitle className="text-lg font-bold">
+                  Configure {editingTemplateType === "EXPERIENCE_LETTER" ? "Experience Letter" : "Relieving Letter"} Template
+                </DialogTitle>
+                <DialogDescription className="text-xs mt-1">
+                  Design your organization letter template visually. Use &quot;+ Insert Employee Field&quot; to insert dynamic placeholder chips.
+                </DialogDescription>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleResetTemplate}
-                className="text-xs h-7 text-amber-700 hover:text-amber-800"
+                className="text-xs h-8 text-amber-700 hover:text-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30 border-amber-300 gap-1.5 shrink-0"
               >
-                <RefreshCw className="h-3 w-3 mr-1" />
+                <RefreshCw className="h-3.5 w-3.5" />
                 Reset to Default
               </Button>
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Configure your reusable organization template. Dynamic variables in {`{{brackets}}`} are automatically replaced with employee and settlement data when generating the document.
-            </DialogDescription>
+            </div>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-xs">
-            {/* Editor Area */}
-            <div className="md:col-span-2 space-y-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Template Name</Label>
-                <Input
-                  value={templateForm.templateName}
-                  onChange={(e) => setTemplateForm({ ...templateForm, templateName: e.target.value })}
-                  className="h-8 text-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs">Letter HTML / Text Content</Label>
-                <Textarea
-                  value={templateForm.content}
-                  onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })}
-                  className="font-mono text-xs min-h-[350px] leading-relaxed"
-                  placeholder="Enter template HTML or text with dynamic variables..."
-                />
-              </div>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Template Name</Label>
+              <Input
+                value={templateForm.templateName}
+                onChange={(e) => setTemplateForm({ ...templateForm, templateName: e.target.value })}
+                className="h-9 text-xs"
+                placeholder="e.g. Standard Experience Certificate"
+              />
             </div>
 
-            {/* Dynamic Variables Sidebar */}
-            <div className="border rounded-lg p-3 bg-muted/20 space-y-3">
-              <div className="flex items-center justify-between border-b pb-2">
-                <span className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                  <Sparkles className="h-3.5 w-3.5 text-primary" />
-                  Insert Variables
-                </span>
-                <span className="text-[10px] text-muted-foreground">Click to add</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Click any variable below to append it to your template:
-              </p>
-              <div className="flex flex-wrap gap-1.5 max-h-[340px] overflow-y-auto pr-1">
-                {supportedVariables.map((v) => (
-                  <Button
-                    key={v.variable}
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    onClick={() => insertVariable(v.variable)}
-                    className="h-7 px-2 text-[11px] font-mono hover:bg-primary/10 hover:border-primary/40 text-left justify-start"
-                  >
-                    <Plus className="h-2.5 w-2.5 mr-1 text-primary" />
-                    {v.variable}
-                  </Button>
-                ))}
-              </div>
+            {/* Visual Document Editor */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Document Editor</Label>
+              <VisualDocumentEditor
+                initialHtml={templateForm.content}
+                onChange={(content) => setTemplateForm((prev) => ({ ...prev, content }))}
+                templateType={editingTemplateType}
+              />
             </div>
           </div>
 
-          <DialogFooter className="pt-2">
+          <DialogFooter className="pt-3 border-t">
             <Button variant="outline" size="sm" onClick={() => setIsTemplateEditOpen(false)}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSaveTemplate} disabled={isTemplateSaving} className="bg-primary text-white">
+            <Button size="sm" onClick={handleSaveTemplate} disabled={isTemplateSaving} className="bg-primary text-white gap-1.5">
               {isTemplateSaving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
               Save Template
             </Button>
