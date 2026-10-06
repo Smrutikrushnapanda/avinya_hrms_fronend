@@ -12,6 +12,11 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Plus,
+  Trash2,
+  UserCheck,
+  UserX,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,7 +44,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, parseISO, differenceInDays } from 'date-fns';
 import { uploadFile } from "@/app/api/api";
-import { Employee, EmployeeFormData, ExportFields } from "./types";
+import { Employee, EmployeeFormData, ExportFields, ProjectAssignment } from "./types";
 
 interface EmployeeDialogsProps {
   // Create Dialog
@@ -93,6 +98,21 @@ interface EmployeeDialogsProps {
   setMessageForm: (value: { title: string; body: string }) => void;
   messageRecipientIds: string[];
   onSendMessage: () => void;
+
+  // Deactivate Confirmation Dialog
+  deactivateConfirmEmployee?: Employee | null;
+  setDeactivateConfirmEmployee?: (emp: Employee | null) => void;
+  onConfirmDeactivate?: () => void;
+  isDeactivating?: boolean;
+
+  // Project Assignment Dialog
+  isProjectAssignmentOpen?: boolean;
+  setIsProjectAssignmentOpen?: (value: boolean) => void;
+  projectAssignEmployee?: Employee | null;
+  projectsList?: any[];
+  employeeAssignments?: ProjectAssignment[];
+  onSaveProjectAssignment?: (data: { projectId: string; projectSource?: 'internal' | 'client'; managerId?: string; role?: string; assignmentId?: string }) => Promise<void>;
+  onRemoveProjectAssignment?: (assignmentId: string) => Promise<void>;
   
   // Common
   initialFormData: EmployeeFormData;
@@ -149,12 +169,37 @@ export default function EmployeeDialogs({
   setMessageForm,
   messageRecipientIds,
   onSendMessage,
+
+  // Deactivate Confirmation Dialog props
+  deactivateConfirmEmployee,
+  setDeactivateConfirmEmployee,
+  onConfirmDeactivate,
+  isDeactivating = false,
+
+  // Project Assignment Dialog props
+  isProjectAssignmentOpen = false,
+  setIsProjectAssignmentOpen,
+  projectAssignEmployee,
+  projectsList = [],
+  employeeAssignments = [],
+  onSaveProjectAssignment,
+  onRemoveProjectAssignment,
   
   // Common props
   initialFormData,
 }: EmployeeDialogsProps) {
   
   const [exportMonthFilter, setExportMonthFilter] = useState("all");
+  const [assignmentForm, setAssignmentForm] = useState({
+    assignmentId: "",
+    projectId: "",
+    projectSource: "internal" as "internal" | "client",
+    managerId: "",
+    role: "member",
+  });
+  const [isEditingAssignment, setIsEditingAssignment] = useState(false);
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
+  const [assignmentError, setAssignmentError] = useState("");
   
   const departments = employeeData?.filters?.departments || [];
   const designations = employeeData?.filters?.designations || [];
@@ -1906,6 +1951,372 @@ export default function EmployeeDialogs({
             </Button>
             <Button onClick={onSendMessage} disabled={!messageForm.title || !messageForm.body || messageRecipientIds.length === 0}>
               Send Message
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate Employee Confirmation Dialog */}
+      <Dialog
+        open={!!deactivateConfirmEmployee}
+        onOpenChange={(open) => !open && setDeactivateConfirmEmployee && setDeactivateConfirmEmployee(null)}
+      >
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-red-600 dark:text-red-400 flex items-center gap-2">
+              <UserX className="h-5 w-5" />
+              Deactivate Employee?
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-sm text-foreground/90 space-y-2">
+              <p>
+                Are you sure you want to deactivate{" "}
+                <strong>
+                  {deactivateConfirmEmployee
+                    ? `${deactivateConfirmEmployee.firstName} ${deactivateConfirmEmployee.lastName || ""}`.trim()
+                    : "this employee"}
+                </strong>
+                ?
+              </p>
+              <p className="text-muted-foreground text-xs">
+                This employee will no longer appear in active employee lists and selection fields.
+              </p>
+              <p className="text-muted-foreground font-medium text-xs">
+                Historical records will be preserved.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeactivateConfirmEmployee && setDeactivateConfirmEmployee(null)}
+              disabled={isDeactivating}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={onConfirmDeactivate}
+              disabled={isDeactivating}
+            >
+              {isDeactivating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deactivating...
+                </>
+              ) : (
+                "Deactivate"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Project & Multi-Manager Assignment Dialog */}
+      <Dialog
+        open={isProjectAssignmentOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsProjectAssignmentOpen && setIsProjectAssignmentOpen(false);
+            setIsEditingAssignment(false);
+            setAssignmentForm({
+              assignmentId: "",
+              projectId: "",
+              projectSource: "internal",
+              managerId: "",
+              role: "member",
+            });
+            setAssignmentError("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-primary" />
+              Project & Manager Assignments
+            </DialogTitle>
+            <DialogDescription>
+              Assign projects and project-specific managers for{" "}
+              <strong>
+                {projectAssignEmployee
+                  ? `${projectAssignEmployee.firstName} ${projectAssignEmployee.lastName || ""}`.trim()
+                  : "Employee"}
+              </strong>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 pt-2">
+            {/* Existing Assignments Table */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Current Project Assignments ({employeeAssignments.length})
+              </Label>
+              {employeeAssignments.length === 0 ? (
+                <div className="border border-dashed rounded-lg p-6 text-center text-sm text-muted-foreground">
+                  No projects currently assigned to this employee.
+                </div>
+              ) : (
+                <div className="border rounded-md overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/50 border-b">
+                      <tr>
+                        <th className="p-2.5 text-left font-semibold">Project</th>
+                        <th className="p-2.5 text-left font-semibold">Type</th>
+                        <th className="p-2.5 text-left font-semibold">Assigned Manager</th>
+                        <th className="p-2.5 text-left font-semibold">Role</th>
+                        <th className="p-2.5 text-right font-semibold">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {employeeAssignments.map((assignment) => (
+                        <tr key={assignment.id} className="hover:bg-muted/30">
+                          <td className="p-2.5 font-medium">
+                            {assignment.project?.name || "Project"}
+                          </td>
+                          <td className="p-2.5">
+                            <Badge variant="outline" className="text-[10px] capitalize">
+                              {assignment.projectSource || "internal"}
+                            </Badge>
+                          </td>
+                          <td className="p-2.5">
+                            {assignment.manager ? (
+                              <div className="flex items-center space-x-1">
+                                <UserCheck className="h-3 w-3 text-muted-foreground" />
+                                <span>
+                                  {`${assignment.manager.firstName} ${assignment.manager.lastName || ""}`.trim()}
+                                  {!assignment.manager.isActive && (
+                                    <span className="text-amber-600 dark:text-amber-400 ml-1">
+                                      (Inactive)
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground italic">No manager</span>
+                            )}
+                          </td>
+                          <td className="p-2.5 capitalize">{assignment.role || "member"}</td>
+                          <td className="p-2.5 text-right space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => {
+                                setIsEditingAssignment(true);
+                                setAssignmentForm({
+                                  assignmentId: assignment.id,
+                                  projectId: assignment.projectId,
+                                  projectSource: assignment.projectSource || "internal",
+                                  managerId: assignment.managerId || "",
+                                  role: assignment.role || "member",
+                                });
+                                setAssignmentError("");
+                              }}
+                            >
+                              <Edit className="h-3.5 w-3.5 mr-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                              onClick={async () => {
+                                if (onRemoveProjectAssignment) {
+                                  await onRemoveProjectAssignment(assignment.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <Separator />
+
+            {/* Add / Edit Assignment Form */}
+            <div className="space-y-3 bg-muted/20 border rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">
+                  {isEditingAssignment ? "Edit Project Assignment" : "+ Add Project Assignment"}
+                </Label>
+                {isEditingAssignment && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs"
+                    onClick={() => {
+                      setIsEditingAssignment(false);
+                      setAssignmentForm({
+                        assignmentId: "",
+                        projectId: "",
+                        projectSource: "internal",
+                        managerId: "",
+                        role: "member",
+                      });
+                      setAssignmentError("");
+                    }}
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
+              </div>
+
+              {assignmentError && (
+                <Alert variant="destructive" className="py-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">{assignmentError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Project Selector */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Project *</Label>
+                  <Select
+                    value={assignmentForm.projectId ? `${assignmentForm.projectSource}:${assignmentForm.projectId}` : ""}
+                    onValueChange={(val) => {
+                      const [source, pid] = val.split(":");
+                      setAssignmentForm({
+                        ...assignmentForm,
+                        projectSource: (source as "internal" | "client") || "internal",
+                        projectId: pid || val,
+                      });
+                      setAssignmentError("");
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select a project" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56">
+                      {projectsList.map((p) => (
+                        <SelectItem key={`${p.source || "internal"}:${p.id}`} value={`${p.source || "internal"}:${p.id}`}>
+                          {p.name} {p.code ? `(${p.code})` : ""} {p.source === "client" ? "• Client" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Manager Selector */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Project Manager (Active)</Label>
+                  <Select
+                    value={assignmentForm.managerId || "none"}
+                    onValueChange={(val) => {
+                      setAssignmentForm({
+                        ...assignmentForm,
+                        managerId: val === "none" ? "" : val,
+                      });
+                      setAssignmentError("");
+                    }}
+                  >
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select active manager" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56">
+                      <SelectItem value="none">No Manager Assigned</SelectItem>
+                      {managers
+                        .filter((m: any) => m.id !== projectAssignEmployee?.id && (m.status || "active") === "active")
+                        .map((m: any) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {`${m.firstName} ${m.lastName || ""}`.trim()}
+                            {m.designation?.name ? ` (${m.designation.name})` : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Role */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Project Role</Label>
+                  <Input
+                    placeholder="e.g. Developer, QA, Tech Lead, Contributor"
+                    value={assignmentForm.role}
+                    onChange={(e) =>
+                      setAssignmentForm({ ...assignmentForm, role: e.target.value })
+                    }
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  size="sm"
+                  disabled={!assignmentForm.projectId || isSavingAssignment}
+                  onClick={async () => {
+                    if (!assignmentForm.projectId) {
+                      setAssignmentError("Please select a project.");
+                      return;
+                    }
+                    if (onSaveProjectAssignment) {
+                      try {
+                        setIsSavingAssignment(true);
+                        setAssignmentError("");
+                        await onSaveProjectAssignment({
+                          projectId: assignmentForm.projectId,
+                          projectSource: assignmentForm.projectSource,
+                          managerId: assignmentForm.managerId || undefined,
+                          role: assignmentForm.role || "member",
+                          assignmentId: isEditingAssignment ? assignmentForm.assignmentId : undefined,
+                        });
+                        setIsEditingAssignment(false);
+                        setAssignmentForm({
+                          assignmentId: "",
+                          projectId: "",
+                          projectSource: "internal",
+                          managerId: "",
+                          role: "member",
+                        });
+                      } catch (err: any) {
+                        setAssignmentError(
+                          err?.response?.data?.message || err?.message || "Failed to save project assignment"
+                        );
+                      } finally {
+                        setIsSavingAssignment(false);
+                      }
+                    }
+                  }}
+                >
+                  {isSavingAssignment ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : isEditingAssignment ? (
+                    "Update Assignment"
+                  ) : (
+                    "+ Add Assignment"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsProjectAssignmentOpen && setIsProjectAssignmentOpen(false);
+                setIsEditingAssignment(false);
+                setAssignmentForm({
+                  assignmentId: "",
+                  projectId: "",
+                  projectSource: "internal",
+                  managerId: "",
+                  role: "member",
+                });
+                setAssignmentError("");
+              }}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

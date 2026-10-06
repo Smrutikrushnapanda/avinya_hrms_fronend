@@ -14,7 +14,8 @@ import {
   FileText,
   CreditCard,
   FolderOpen,
-  Settings, // Add this import
+  Settings,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -324,6 +325,29 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
                   <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                   <span className="text-sm">Joined {safeFormatDate(employee.dateOfJoining)}</span>
                 </div>
+
+                {/* Managers and Projects summary */}
+                {employee.managers && employee.managers.length > 0 && (
+                  <div className="pt-3 border-t space-y-2">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Briefcase className="h-3.5 w-3.5 text-primary" />
+                      Managers & Projects ({employee.managers.length})
+                    </span>
+                    <div className="space-y-1.5">
+                      {employee.managers.map((m, idx) => (
+                        <div key={idx} className="flex flex-col bg-muted/40 p-2 rounded-md border text-xs">
+                          <div className="flex items-center justify-between font-medium">
+                            <span>{m.name || `${m.firstName} ${m.lastName || ""}`.trim()}</span>
+                            {m.status === "inactive" && (
+                              <Badge variant="destructive" className="text-[10px] h-4 px-1">Inactive</Badge>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">{m.projectName || "General"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -384,10 +408,14 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
         <Card>
           <CardContent className="p-6">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-7">
+              <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 gap-1 h-auto">
                 <TabsTrigger value="timeslip" className="flex items-center space-x-2">
                   <Clock className="h-4 w-4" />
                   <span>Time Slip</span>
+                </TabsTrigger>
+                <TabsTrigger value="projects" className="flex items-center space-x-2">
+                  <Briefcase className="h-4 w-4" />
+                  <span>Projects</span>
                 </TabsTrigger>
                 <TabsTrigger value="leave" className="flex items-center space-x-2">
                   <Calendar className="h-4 w-4" />
@@ -399,11 +427,11 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
                 </TabsTrigger>
                 <TabsTrigger value="personal" className="flex items-center space-x-2">
                   <User className="h-4 w-4" />
-                  <span>Personal Details</span>
+                  <span>Personal</span>
                 </TabsTrigger>
                 <TabsTrigger value="documents" className="flex items-center space-x-2">
                   <FolderOpen className="h-4 w-4" />
-                  <span>Documents</span>
+                  <span>Docs</span>
                 </TabsTrigger>
                 <TabsTrigger value="workflows" className="flex items-center space-x-2">
                   <Settings className="h-4 w-4" />
@@ -417,6 +445,10 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
 
               <TabsContent value="timeslip" className="mt-6">
                 <TimeslipTab employeeId={employeeId} employee={employee} />
+              </TabsContent>
+
+              <TabsContent value="projects" className="mt-6">
+                <ProjectsTab employee={employee} />
               </TabsContent>
 
               <TabsContent value="leave" className="mt-6">
@@ -778,3 +810,102 @@ function DocumentsTab({ employeeId, employee }: { employeeId: string; employee: 
     </div>
   );
 }
+
+function ProjectsTab({ employee }: { employee: Employee }) {
+  const assignments = employee.projectAssignments || [];
+  const managers = employee.managers || [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Assigned Projects & Managers</h3>
+          <p className="text-sm text-muted-foreground">
+            Projects worked on by {employee.firstName} and their respective reporting managers
+          </p>
+        </div>
+      </div>
+
+      {assignments.length === 0 && managers.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-muted-foreground space-y-3">
+            <Briefcase className="h-12 w-12 mx-auto text-muted-foreground/40" />
+            <p className="font-medium text-base">No project assignments configured</p>
+            <p className="text-sm">
+              Use the "Projects & Managers" action in the main Employee Directory to assign projects and managers.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {assignments.map((assignment) => (
+            <Card key={assignment.id} className="border hover:shadow-sm transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold">
+                      {assignment.project?.name || "Unnamed Project"}
+                    </CardTitle>
+                    {assignment.project?.code && (
+                      <span className="text-xs text-muted-foreground font-mono">
+                        Code: {assignment.project.code}
+                      </span>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-xs capitalize">
+                    {assignment.projectSource === "client" ? "Client Project" : "Internal"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-muted-foreground">Assigned Manager:</span>
+                  <div className="flex items-center gap-1.5 font-medium">
+                    {assignment.manager ? (
+                      <>
+                        <span>
+                          {assignment.manager.firstName} {assignment.manager.lastName || ""}
+                        </span>
+                        {assignment.manager.status === "inactive" && (
+                          <Badge variant="destructive" className="text-[10px] h-4 px-1">
+                            Inactive
+                          </Badge>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground italic">No Manager</span>
+                    )}
+                  </div>
+                </div>
+
+                {assignment.role && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Role on Project:</span>
+                    <span className="font-medium">{assignment.role}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+
+          {assignments.length === 0 && managers.length > 0 && (
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base">Direct Reporting Manager</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {managers.map((m, idx) => (
+                  <div key={idx} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                    <span className="font-medium">{m.name || `${m.firstName} ${m.lastName || ""}`.trim()}</span>
+                    <span className="text-muted-foreground text-sm">{m.projectName || "General"}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+

@@ -33,11 +33,56 @@ export interface Employee {
   branch?: { id: string; name: string };
   shift?: { id: string; name: string };
   manager?: { id: string; firstName: string; lastName: string };
+  managers?: ManagerInfo[];
+  projectAssignments?: ProjectAssignment[];
   user?: { id: string; lastLogin?: string; isActive: boolean };
   roles?: { id: string; roleName: string }[];
   roleId?: string | null;
   primaryRole?: string | null;
   createdAt: string;
+}
+
+export interface ProjectAssignment {
+  id: string;
+  employeeId: string;
+  projectId: string;
+  projectSource?: 'internal' | 'client';
+  managerId?: string | null;
+  role?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  project?: {
+    id: string;
+    name: string;
+    code?: string;
+    status?: string;
+    source?: 'internal' | 'client';
+  };
+  manager?: {
+    id: string;
+    firstName: string;
+    lastName?: string;
+    workEmail?: string;
+    photoUrl?: string | null;
+    status?: string;
+    isActive?: boolean;
+  } | null;
+}
+
+export interface ManagerInfo {
+  id: string;
+  name?: string;
+  firstName: string;
+  lastName?: string;
+  workEmail?: string;
+  photoUrl?: string | null;
+  status?: string;
+  isActive?: boolean;
+  projectId?: string;
+  projectName?: string;
+  projectSource?: string;
+  assignmentId?: string;
+  role?: string;
 }
 
 export interface EmployeeFormData {

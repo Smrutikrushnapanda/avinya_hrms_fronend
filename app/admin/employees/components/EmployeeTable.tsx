@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Trash,
   CalendarClock,
+  Briefcase,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,8 @@ interface EmployeeTableProps {
   onDeleteEmployee: (employee: Employee) => void;
   onAssignEmployee: (employee: Employee) => void;
   onIndividualStatusUpdate: (employee: Employee, status: string) => void;
+  onManageProjects?: (employee: Employee) => void;
+  onDeactivateRequest?: (employee: Employee) => void;
   onCreateEmployee: () => void;
   onViewEmployeeDetails: (employeeId: string) => void; // Add this line
   onSendMessage: (employee: Employee) => void;
@@ -114,6 +117,8 @@ export default function EmployeeTable({
   onDeleteEmployee,
   onAssignEmployee,
   onIndividualStatusUpdate,
+  onManageProjects,
+  onDeactivateRequest,
   onCreateEmployee,
   onViewEmployeeDetails,
   onSendMessage,
@@ -187,84 +192,100 @@ export default function EmployeeTable({
             </Button>
           </div>
 
-          {/* Advanced Filters */}
-          <div className="flex flex-wrap items-center gap-4 mt-4">
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search employees..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
+          {/* Status quick tabs & Advanced Filters */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
+            <div className="flex items-center space-x-1 border rounded-lg p-1 bg-muted/40">
+              <Button
+                variant={statusFilter === "active" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 text-xs font-medium"
+                onClick={() => setStatusFilter("active")}
+              >
+                Active
+              </Button>
+              <Button
+                variant={statusFilter === "inactive" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 text-xs font-medium"
+                onClick={() => setStatusFilter("inactive")}
+              >
+                Inactive
+              </Button>
+              <Button
+                variant={statusFilter === "all" ? "default" : "ghost"}
+                size="sm"
+                className="h-8 text-xs font-medium"
+                onClick={() => setStatusFilter("all")}
+              >
+                All
+              </Button>
             </div>
 
-            {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All ({pagination.total})</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="new">New</SelectItem>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative w-64">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search employees..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 h-9"
+                />
+              </div>
 
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {uniqueDepartments.map((dept) => (
-                  <SelectItem key={String(dept)} value={String(dept)}>{String(dept)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                <SelectTrigger className="w-36 h-9">
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {uniqueDepartments.map((dept) => (
+                    <SelectItem key={String(dept)} value={String(dept)}>{String(dept)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select value={designationFilter} onValueChange={setDesignationFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Designation" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Designations</SelectItem>
-                {uniqueDesignations.map((desig) => (
-                  <SelectItem key={String(desig)} value={String(desig)}>{String(desig)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={designationFilter} onValueChange={setDesignationFilter}>
+                <SelectTrigger className="w-36 h-9">
+                  <SelectValue placeholder="Designation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Designations</SelectItem>
+                  {uniqueDesignations.map((desig) => (
+                    <SelectItem key={String(desig)} value={String(desig)}>{String(desig)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select value={joinDateFilter} onValueChange={setJoinDateFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="Join Date" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="last30">Last 30 days</SelectItem>
-                <SelectItem value="last90">Last 90 days</SelectItem>
-                <SelectItem value="thisYear">This Year</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={joinDateFilter} onValueChange={setJoinDateFilter}>
+                <SelectTrigger className="w-32 h-9">
+                  <SelectValue placeholder="Join Date" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="last30">Last 30 days</SelectItem>
+                  <SelectItem value="last90">Last 90 days</SelectItem>
+                  <SelectItem value="thisYear">This Year</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {(searchTerm || statusFilter !== "all" || departmentFilter !== "all" || designationFilter !== "all" || joinDateFilter !== "all") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearchTerm("");
-                  setStatusFilter("all");
-                  setDepartmentFilter("all");
-                  setDesignationFilter("all");
-                  setJoinDateFilter("all");
-                }}
-              >
-                <X className="w-4 h-4 mr-2" />
-                Clear
-              </Button>
-            )}
+              {(searchTerm || statusFilter !== "active" || departmentFilter !== "all" || designationFilter !== "all" || joinDateFilter !== "all") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setStatusFilter("active");
+                    setDepartmentFilter("all");
+                    setDesignationFilter("all");
+                    setJoinDateFilter("all");
+                  }}
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Reset
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
 
@@ -418,8 +439,29 @@ export default function EmployeeTable({
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="w-[140px]">
-                            {employee.manager ? (
+                          <TableCell className="min-w-[170px]">
+                            {employee.managers && employee.managers.length > 0 ? (
+                              <div className="flex flex-col space-y-1">
+                                {employee.managers.map((m: any, mIdx: number) => (
+                                  <div key={mIdx} className="flex items-center space-x-1.5">
+                                    <UserCheck className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                    <span className="text-xs truncate font-medium">
+                                      {`${m.firstName} ${m.lastName || ''}`.trim()}
+                                      {!m.isActive && (
+                                        <span className="text-[10px] text-amber-600 dark:text-amber-400 ml-1 font-normal">
+                                          (Inactive)
+                                        </span>
+                                      )}
+                                      {m.projectName && m.projectName !== 'General' && (
+                                        <span className="text-[10px] text-muted-foreground ml-1">
+                                          ({m.projectName})
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : employee.manager ? (
                               <div className="flex items-center space-x-1">
                                 <UserCheck className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-sm truncate">
@@ -447,12 +489,18 @@ export default function EmployeeTable({
                                   <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuContent align="end" className="w-52">
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuItem onClick={() => onViewEmployeeDetails(employee.id)}>
                                   <Eye className="h-4 w-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
+                                {onManageProjects && (
+                                  <DropdownMenuItem onClick={() => onManageProjects(employee)}>
+                                    <Briefcase className="mr-2 h-4 w-4" />
+                                    Projects & Managers
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={() => onEditEmployee(employee)}>
                                   <Edit className="mr-2 h-4 w-4" />
                                   Edit Employee
@@ -488,7 +536,16 @@ export default function EmployeeTable({
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
-                                  onClick={() => onIndividualStatusUpdate(employee, employee.status === 'active' ? 'inactive' : 'active')}
+                                  onClick={() => {
+                                    if (employee.status === 'active' && onDeactivateRequest) {
+                                      onDeactivateRequest(employee);
+                                    } else {
+                                      onIndividualStatusUpdate(
+                                        employee,
+                                        employee.status === 'active' ? 'inactive' : 'active',
+                                      );
+                                    }
+                                  }}
                                   className={employee.status === 'active' ? 'text-orange-600' : 'text-green-600'}
                                 >
                                   {employee.status === 'active' ? (
@@ -499,7 +556,7 @@ export default function EmployeeTable({
                                   ) : (
                                     <>
                                       <UserCheck className="mr-2 h-4 w-4" />
-                                      Activate
+                                      Reactivate
                                     </>
                                   )}
                                 </DropdownMenuItem>

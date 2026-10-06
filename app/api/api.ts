@@ -158,13 +158,21 @@ export const getDashboardStats = (organizationId?: string) => {
 };
 
 export const createEmployee = (data: any) => api.post("/employees", data);
-export const getEmployees = (organizationId: string) => api.get("/employees", { params: { organizationId } });
+export const getEmployees = (organizationId: string, status?: string) =>
+  api.get("/employees", { params: { organizationId, ...(status ? { status } : {}) } });
 export const getEmployeeSelector = (params: { organizationId: string; search?: string; departmentId?: string; designationId?: string; limit?: number }) =>
   api.get("/employees/selector", { params });
 export const getEmployee = (id: string) => api.get(`/employees/${id}`);
 export const updateEmployee = (id: string, data: any) => api.put(`/employees/${id}`, data);
 export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
 export const getEmployeeByUserId = (userId: string) => api.get(`/employees/by-user/${userId}`);
+export const getEmployeeProjects = (id: string) => api.get(`/employees/${id}/projects`);
+export const assignEmployeeProject = (id: string, data: { projectId: string; projectSource?: 'internal' | 'client'; managerId?: string; role?: string }) =>
+  api.post(`/employees/${id}/projects`, data);
+export const updateEmployeeProject = (id: string, assignmentId: string, data: { projectId?: string; projectSource?: 'internal' | 'client'; managerId?: string | null; role?: string }) =>
+  api.put(`/employees/${id}/projects/${assignmentId}`, data);
+export const removeEmployeeProject = (id: string, assignmentId: string) =>
+  api.delete(`/employees/${id}/projects/${assignmentId}`);
 export const updateMyPassword = (userId: string, data: { password: string; currentPassword: string }) =>
   api.patch(`/users/${userId}`, data);
 export const getEmployeeHierarchy = (organizationId: string, employeeId?: string) =>

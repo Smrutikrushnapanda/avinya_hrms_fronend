@@ -25,6 +25,12 @@ import {
   createUserActivity,
   createMessage,
   validateEmployee,
+  getEmployeeProjects,
+  assignEmployeeProject,
+  updateEmployeeProject,
+  removeEmployeeProject,
+  getProjects,
+  getClientProjects,
 } from "@/app/api/api";
 import { exportEmployeesToExcel, ExportFields } from "@/utils/exportToExcel";
 import { format } from "date-fns";
@@ -32,7 +38,7 @@ import EmployeeStats from "./components/EmployeeStats";
 import EmployeeTable from "./components/EmployeeTable";
 import EmployeeDialogs from "./components/EmployeeDialogs";
 import EmployeeDetails from "./components/EmployeeDetails";
-import { Employee, EmployeeFormData } from "./components/types";
+import { Employee, EmployeeFormData, ProjectAssignment } from "./components/types";
 
 // LiveClock Component
 function LiveClock() {
@@ -209,7 +215,7 @@ export default function EmployeesPage() {
 
   // Filter states (same as before)
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [designationFilter, setDesignationFilter] = useState("all");
   const [joinDateFilter, setJoinDateFilter] = useState("all");
@@ -231,6 +237,16 @@ export default function EmployeesPage() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [organizationName, setOrganizationName] = useState("");
   const [isEmployeeCodeTouched, setIsEmployeeCodeTouched] = useState(false);
+
+  // Deactivate confirmation dialog state
+  const [deactivateConfirmEmployee, setDeactivateConfirmEmployee] = useState<Employee | null>(null);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+
+  // Project Assignments dialog state
+  const [isProjectAssignmentOpen, setIsProjectAssignmentOpen] = useState(false);
+  const [projectAssignEmployee, setProjectAssignEmployee] = useState<Employee | null>(null);
+  const [employeeAssignments, setEmployeeAssignments] = useState<ProjectAssignment[]>([]);
+  const [projectsList, setProjectsList] = useState<any[]>([]);
 
   // Form validation state (same as before)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -894,6 +910,122 @@ export default function EmployeesPage() {
     }
   };
 
+  // Projects list fetching
+  useEffect(() => {
+    const fetchProjects = async () => {
+      if (!userProfile?.organizationId) return;
+      try {
+        const [internalRes, clientRes] = await Promise.allSettled([
+          getProjects(),
+          getClientProjects({ organizationId: userProfile.organizationId }),
+        ]);
+
+        const formattedProjects: any[] = [];
+        if (internalRes.status === "fulfilled") {
+          const internalData = internalRes.value?.data?.projects || internalRes.value?.data || [];
+          if (Array.isArray(internalData)) {
+            internalData.forEach((p: any) => {
+              formattedProjects.push({
+                id: p.id,
+                name: p.name || p.projectName,
+                source: "internal",
+              });
+            });
+          }
+        }
+        if (clientRes.status === "fulfilled") {
+          const clientData = clientRes.value?.data?.projects || clientRes.value?.data || [];
+          if (Array.isArray(clientData)) {
+            clientData.forEach((p: any) => {
+              formattedProjects.push({
+                id: p.id,
+                name: p.projectName || p.name,
+                code: p.projectCode,
+                source: "client",
+              });
+            });
+          }
+        }
+        setProjectsList(formattedProjects);
+      } catch (error) {
+        console.error("Failed to fetch projects list:", error);
+      }
+    };
+    fetchProjects();
+  }, [userProfile?.organizationId]);
+
+  const handleManageProjects = async (employee: Employee) => {
+    setProjectAssignEmployee(employee);
+    setIsProjectAssignmentOpen(true);
+    try {
+      const res = await getEmployeeProjects(employee.id);
+      setEmployeeAssignments(res.data?.data || res.data || []);
+    } catch (err) {
+      console.error("Failed to load employee projects", err);
+      setEmployeeAssignments([]);
+    }
+  };
+
+  const handleSaveProjectAssignment = async (data: any) => {
+    if (!projectAssignEmployee) return;
+    try {
+      if (data.assignmentId) {
+        await updateEmployeeProject(projectAssignEmployee.id, data.assignmentId, data);
+        toast.success("Project assignment updated successfully");
+      } else {
+        await assignEmployeeProject(projectAssignEmployee.id, data);
+        toast.success("Project assigned successfully");
+      }
+      const res = await getEmployeeProjects(projectAssignEmployee.id);
+      setEmployeeAssignments(res.data?.data || res.data || []);
+      await refreshData();
+    } catch (error: any) {
+      const msg = error.response?.data?.message || error.message || "Failed to save project assignment";
+      toast.error(msg);
+      throw error;
+    }
+  };
+
+  const handleRemoveProjectAssignment = async (assignmentId: string) => {
+    if (!projectAssignEmployee) return;
+    try {
+      await removeEmployeeProject(projectAssignEmployee.id, assignmentId);
+      toast.success("Project assignment removed");
+      const res = await getEmployeeProjects(projectAssignEmployee.id);
+      setEmployeeAssignments(res.data?.data || res.data || []);
+      await refreshData();
+    } catch (error: any) {
+      const msg = error.response?.data?.message || "Failed to remove project assignment";
+      toast.error(msg);
+    }
+  };
+
+  const handleDeactivateRequest = (employee: Employee) => {
+    setDeactivateConfirmEmployee(employee);
+  };
+
+  const handleConfirmDeactivate = async () => {
+    if (!deactivateConfirmEmployee) return;
+    try {
+      setIsDeactivating(true);
+      await updateEmployee(deactivateConfirmEmployee.id, { status: "inactive" });
+      await logActivity(
+        "STATUS_UPDATE",
+        `Deactivated employee: ${deactivateConfirmEmployee.firstName} ${deactivateConfirmEmployee.lastName || ""}`
+      );
+      toast.success(
+        `Employee ${deactivateConfirmEmployee.firstName} ${deactivateConfirmEmployee.lastName || ""} deactivated`
+      );
+      setDeactivateConfirmEmployee(null);
+      await refreshData();
+    } catch (error: any) {
+      console.error("Failed to deactivate employee:", error);
+      toast.error(error.response?.data?.message || "Failed to deactivate employee");
+    } finally {
+      setIsDeactivating(false);
+    }
+  };
+
   const handleAssignEmployee = (employee: Employee) => {
     setSelectedEmployee(employee);
     setBulkAssignData({
@@ -1172,6 +1304,8 @@ export default function EmployeesPage() {
           onDeleteEmployee={handleDeleteEmployee}
           onAssignEmployee={handleAssignEmployee}
           onIndividualStatusUpdate={handleIndividualStatusUpdate}
+          onManageProjects={handleManageProjects}
+          onDeactivateRequest={handleDeactivateRequest}
           onCreateEmployee={() => setIsCreateDialogOpen(true)}
           onViewEmployeeDetails={handleViewEmployeeDetails}
           onSendMessage={(employee) => openMessageDialog([employee.id])}
@@ -1224,6 +1358,19 @@ export default function EmployeesPage() {
           setMessageForm={setMessageForm}
           messageRecipientIds={messageRecipientIds}
           onSendMessage={handleSendMessage}
+          // Deactivate Confirmation Dialog
+          deactivateConfirmEmployee={deactivateConfirmEmployee}
+          setDeactivateConfirmEmployee={setDeactivateConfirmEmployee}
+          onConfirmDeactivate={handleConfirmDeactivate}
+          isDeactivating={isDeactivating}
+          // Project Assignment Dialog
+          isProjectAssignmentOpen={isProjectAssignmentOpen}
+          setIsProjectAssignmentOpen={setIsProjectAssignmentOpen}
+          projectAssignEmployee={projectAssignEmployee}
+          projectsList={projectsList}
+          employeeAssignments={employeeAssignments}
+          onSaveProjectAssignment={handleSaveProjectAssignment}
+          onRemoveProjectAssignment={handleRemoveProjectAssignment}
           // Common
           initialFormData={initialFormData}
         />
