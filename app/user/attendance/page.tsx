@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Progress } from "@/components/ui/progress";
-import { getProfile, getMonthlyAttendance } from "@/app/api/api";
+import { getProfile, getMonthlyAttendance, getAttendanceSettings } from "@/app/api/api";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -65,14 +65,62 @@ function formatWorkingMinutes(minutes: number): { hours: string; hoursNum: numbe
   return { hours: `${h}h ${m}m`, hoursNum: parseFloat((minutes / 60).toFixed(2)) };
 }
 
-function formatOvertime(workingMinutes: number): string {
-  const overtime = workingMinutes - 480; // 8 hours = 480 minutes
-  if (!workingMinutes || overtime <= 0) return "--";
-  const h = Math.floor(overtime / 60);
-  const m = overtime % 60;
-  if (h > 0 && m > 0) return `${h}h ${m}m`;
-  if (h > 0) return `${h}h`;
-  return `${m}m`;
+// Overtime calculation uses the configured work end time from attendance settings.
+// Overtime = max(0, punchOutTime - configuredWorkEndTime)
+// This replaces the old hardcoded "workingMinutes - 480" (8 hours) threshold.
+// The calculation formula is the authoritative source-of-truth defined in the backend:
+// AttendanceCalculationService.calculateOvertimeMinutes()
+// Never hardcode 7 PM, 6 PM, 18:00, 19:00, etc.
+type OvertimeCalculation = {
+  minutes: number;
+  formatted: string;
+};
+
+function calculateOvertimeDynamically(
+  outTimeStr: string | null | undefined,
+  workEndTimeStr: string | null | undefined,
+): OvertimeCalculation {
+  if (!outTimeStr || !workEndTimeStr) return { minutes: 0, formatted: "--" };
+
+  // Parse outTime (format: "H:MM AM"/"H:MM PM" or "HH:MM")
+  let outMinutes = 0;
+  const outMatch = outTimeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (outMatch) {
+    const [, hRaw, mRaw, ampm] = outMatch;
+    let h = parseInt(hRaw, 10);
+    const m = parseInt(mRaw, 10);
+    if (ampm.toUpperCase() === 'PM' && h !== 12) h += 12;
+    if (ampm.toUpperCase() === 'AM' && h === 12) h = 0;
+    outMinutes = h * 60 + m;
+  } else {
+    // Try HH:MM format
+    const hmMatch = outTimeStr.match(/^(\d+):(\d+)$/);
+    if (hmMatch) {
+      const [, h, m] = hmMatch;
+      outMinutes = parseInt(h, 10) * 60 + parseInt(m, 10);
+    }
+  }
+
+  // Parse work end time (format: "HH:MM" or "HH:MM:SS")
+  let workEndMinutes = 0;
+  const weMatch = workEndTimeStr.match(/^(\d+):(\d+)(?::\d+)?$/);
+  if (weMatch) {
+    const [, wh, wm] = weMatch;
+    workEndMinutes = parseInt(wh, 10) * 60 + parseInt(wm, 10);
+  }
+
+  const overtimeMinutes = Math.max(0, outMinutes - workEndMinutes);
+
+  let formatted = "--";
+  if (overtimeMinutes > 0) {
+    const h = Math.floor(overtimeMinutes / 60);
+    const m = overtimeMinutes % 60;
+    if (h > 0 && m > 0) formatted = `${h}h ${m}m`;
+    else if (h > 0) formatted = `${h}h`;
+    else formatted = `${m}m`;
+  }
+
+  return { minutes: overtimeMinutes, formatted };
 }
 
 function formatDisplayDate(dateStr: string): { date: string; day: string } {
@@ -200,7 +248,7 @@ const columns: ColumnDef<AttendanceRecord>[] = [
     header: () => (
       <div className="flex items-center gap-1.5">
         <LogOut className="w-3.5 h-3.5" />
-        <span>Punch Out</span>
+        <span>Last Punch</span>
       </div>
     ),
     cell: ({ row }) => {
@@ -263,6 +311,7 @@ export default function EmployeeAttendancePage() {
   const [rawRecords, setRawRecords] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [workEndTimeStr, setWorkEndTimeStr] = useState<string | null>(null);
 
   // ── Map raw records → typed AttendanceRecord rows (exclude future dates)
   const attendanceRecords = useMemo<AttendanceRecord[]>(() => {
@@ -296,10 +345,14 @@ export default function EmployeeAttendancePage() {
           outTime: record.outTime ?? "--",
           hours,
           hoursNum,
-          overtime: formatOvertime(record.workingMinutes ?? 0),
+          overtime: record.outTime !== "--" && (record.workEndTime || workEndTimeStr)
+            ? calculateOvertimeDynamically(record.outTime, record.workEndTime || workEndTimeStr).formatted
+            : "--",
         };
       });
-  }, [rawRecords]);
+  }, [rawRecords, workEndTimeStr]);
+
+  // ── Summary stats derived from real data
 
   // ── Summary stats derived from real data
   const summary = useMemo(() => {
@@ -359,6 +412,14 @@ export default function EmployeeAttendancePage() {
         setOrganizationId(orgId);
         setUserId(uid);
         if (orgId && uid) {
+          // Fetch attendance settings to get configured work end time
+          try {
+            const settingsRes = await getAttendanceSettings(orgId);
+            const s = settingsRes.data || {};
+            setWorkEndTimeStr(s.workEndTime ?? null);
+          } catch (settingsError) {
+            console.warn('Failed to fetch attendance settings, using default', settingsError);
+          }
           await fetchAttendance(orgId, uid, selectedMonth, selectedYear);
         }
       } catch (e) {

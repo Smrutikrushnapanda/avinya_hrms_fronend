@@ -1594,6 +1594,8 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
     deductionsRemarks: "",
     remarks: "",
     status: "DRAFT",
+    resignationDateError: "" as string,
+    lastWorkingDateError: "" as string,
   });
 
   // Letter Templates & Previews State
@@ -1635,9 +1637,18 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
       setRelievingTemplate(relTemplateRes?.data || null);
 
       if (sData) {
+        const loadedRd = sData.resignationDate || "";
+        const loadedLwd = sData.lastWorkingDate || "";
+        const lwdBeforeRd = !!(
+          loadedRd &&
+          loadedLwd &&
+          new Date(String(loadedLwd).slice(0, 10)) < new Date(String(loadedRd).slice(0, 10))
+        );
         setForm({
-          resignationDate: sData.resignationDate || "",
-          lastWorkingDate: sData.lastWorkingDate || "",
+          resignationDate: loadedRd,
+          lastWorkingDate: loadedLwd,
+          resignationDateError: "",
+          lastWorkingDateError: lwdBeforeRd ? "Last Working Date must be >= Resignation Date" : "",
           noticePeriodDays: sData.noticePeriodDays !== null && sData.noticePeriodDays !== undefined ? String(sData.noticePeriodDays) : "30",
           salaryDue: sData.salaryDue !== null && sData.salaryDue !== undefined ? String(sData.salaryDue) : "",
           pendingSalary: sData.pendingSalary !== null && sData.pendingSalary !== undefined ? String(sData.pendingSalary) : "",
@@ -1689,6 +1700,12 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
 
   const handleSaveSettlement = async () => {
     try {
+      // 🔐 Frontend validation: Last Working Date >= Resignation Date
+      if (form.resignationDateError || form.lastWorkingDateError) {
+        toast.error(form.resignationDateError || form.lastWorkingDateError);
+        setIsSaving(false);
+        return;
+      }
       setIsSaving(true);
       const payload: any = {
         resignationDate: form.resignationDate || null,
@@ -2486,18 +2503,48 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                 <Input
                   type="date"
                   value={form.resignationDate}
-                  onChange={(e) => setForm({ ...form, resignationDate: e.target.value })}
+                  onChange={(e) => {
+                    const newResDate = e.target.value;
+                    let error = "";
+                    if (newResDate && form.lastWorkingDate) {
+                      const lwd = new Date(form.lastWorkingDate);
+                      const rd = new Date(newResDate);
+                      if (lwd < rd) {
+                        error = "Last Working Date must be >= Resignation Date";
+                      }
+                    }
+                    setForm({ ...form, resignationDate: newResDate, resignationDateError: error });
+                  }}
                   className="h-8 text-xs"
+                  max={form.lastWorkingDate || undefined}
                 />
+                {form.resignationDateError && (
+                  <p className="text-red-500 text-xs mt-1">{form.resignationDateError}</p>
+                )}
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Last Working Date</Label>
                 <Input
                   type="date"
                   value={form.lastWorkingDate}
-                  onChange={(e) => setForm({ ...form, lastWorkingDate: e.target.value })}
+                  onChange={(e) => {
+                    const newLwdDate = e.target.value;
+                    let error = "";
+                    if (newLwdDate && form.resignationDate) {
+                      const lwd = new Date(newLwdDate);
+                      const rd = new Date(form.resignationDate);
+                      if (lwd < rd) {
+                        error = "Last Working Date must be >= Resignation Date";
+                      }
+                    }
+                    setForm({ ...form, lastWorkingDate: newLwdDate, lastWorkingDateError: error });
+                  }}
                   className="h-8 text-xs"
+                  min={form.resignationDate ? new Date(form.resignationDate).toISOString().split('T')[0] : undefined}
                 />
+                {form.lastWorkingDateError && (
+                  <p className="text-red-500 text-xs mt-1">{form.lastWorkingDateError}</p>
+                )}
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Settlement Status</Label>

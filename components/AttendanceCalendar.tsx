@@ -221,7 +221,7 @@ export default function AttendanceCalendar({
                               <span className="text-red-500 text-base">↙</span>
                             </div>
                             <div>
-                              <p className="text-[11px] text-muted-foreground font-medium">Punch Out</p>
+                              <p className="text-[11px] text-muted-foreground font-medium">Last Punch</p>
                               <p className="font-bold text-sm">{dayData?.outTime || "N/A"}</p>
                             </div>
                           </div>
