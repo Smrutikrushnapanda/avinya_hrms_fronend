@@ -168,7 +168,7 @@ export interface EmployeeDocument {
 export interface EmployeeDocumentTemplate {
   id: string;
   organizationId: string;
-  templateType: 'EXPERIENCE_LETTER' | 'RELIEVING_LETTER';
+  templateType: 'EXPERIENCE_LETTER' | 'RELIEVING_LETTER' | 'JOINING_LETTER';
   templateName: string;
   content: string;
   isActive: boolean;

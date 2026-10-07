@@ -540,7 +540,7 @@ export default function EmployeeDetails({ employeeId, onBack }: EmployeeDetailsP
                 </TabsTrigger>
                 <TabsTrigger value="settlement" className="flex items-center space-x-1.5 text-xs py-2">
                   <FileText className="h-3.5 w-3.5" />
-                  <span>Settlement</span>
+                  <span>Emp. Documents</span>
                 </TabsTrigger>
                 <TabsTrigger value="documents" className="flex items-center space-x-1.5 text-xs py-2">
                   <FolderOpen className="h-3.5 w-3.5" />
@@ -1564,10 +1564,23 @@ function AssetsTab({ employeeId, employee }: { employeeId: string; employee: Emp
 }
 
 // ------------------------------------------------------------------------------------------------
-// Tab: Settlement & Relieving Documents (Full & Final, Experience Letter, Relieving Letter)
+// Tab: Settlement & Relieving Documents (Full & Final, Experience Letter, Relieving Letter, Joining Letter)
 // ------------------------------------------------------------------------------------------------
+type LetterType = "EXPERIENCE_LETTER" | "RELIEVING_LETTER" | "JOINING_LETTER";
+
 function SettlementTab({ employeeId, employee }: { employeeId: string; employee: Employee }) {
-  const [activeSubTab, setActiveSubTab] = useState<"settlement" | "experience" | "relieving">("settlement");
+  const [activeSubTab, setActiveSubTab] = useState<"settlement" | "experience" | "relieving" | "joining">("settlement");
+
+  const letterTypeForSubTab = (tab: string): LetterType =>
+    tab === "experience" ? "EXPERIENCE_LETTER" : tab === "relieving" ? "RELIEVING_LETTER" : "JOINING_LETTER";
+
+  const letterLabelForType = (type: LetterType): string =>
+    type === "EXPERIENCE_LETTER"
+      ? "Experience Letter"
+      : type === "RELIEVING_LETTER"
+        ? "Relieving Letter"
+        : "Joining Letter";
+
   const [settlement, setSettlement] = useState<EmployeeSettlement | null>(null);
   const [clearance, setClearance] = useState<AssetClearance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1601,14 +1614,16 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
   // Letter Templates & Previews State
   const [experienceTemplate, setExperienceTemplate] = useState<EmployeeDocumentTemplate | null>(null);
   const [relievingTemplate, setRelievingTemplate] = useState<EmployeeDocumentTemplate | null>(null);
+  const [joiningTemplate, setJoiningTemplate] = useState<EmployeeDocumentTemplate | null>(null);
   const [experiencePreview, setExperiencePreview] = useState<any>(null);
   const [relievingPreview, setRelievingPreview] = useState<any>(null);
+  const [joiningPreview, setJoiningPreview] = useState<any>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [isLetterDownloading, setIsLetterDownloading] = useState(false);
 
   // Template Edit Modal State
   const [isTemplateEditOpen, setIsTemplateEditOpen] = useState(false);
-  const [editingTemplateType, setEditingTemplateType] = useState<"EXPERIENCE_LETTER" | "RELIEVING_LETTER">("EXPERIENCE_LETTER");
+  const [editingTemplateType, setEditingTemplateType] = useState<LetterType>("EXPERIENCE_LETTER");
   const [templateForm, setTemplateForm] = useState({
     templateName: "",
     content: "",
@@ -1622,11 +1637,12 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [settlementRes, clearanceRes, expTemplateRes, relTemplateRes] = await Promise.all([
+      const [settlementRes, clearanceRes, expTemplateRes, relTemplateRes, joinTemplateRes] = await Promise.all([
         getEmployeeSettlement(employeeId).catch(() => ({ data: null })),
         getEmployeeClearance(employeeId).catch(() => ({ data: null })),
         getDocumentTemplateByType("EXPERIENCE_LETTER").catch(() => ({ data: null })),
         getDocumentTemplateByType("RELIEVING_LETTER").catch(() => ({ data: null })),
+        getDocumentTemplateByType("JOINING_LETTER").catch(() => ({ data: null })),
       ]);
 
       const sData = settlementRes?.data?.settlement || settlementRes?.data;
@@ -1635,6 +1651,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
       setClearance(cData);
       setExperienceTemplate(expTemplateRes?.data || null);
       setRelievingTemplate(relTemplateRes?.data || null);
+      setJoiningTemplate(joinTemplateRes?.data || null);
 
       if (sData) {
         const loadedRd = sData.resignationDate || "";
@@ -1679,12 +1696,14 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
   const loadLetterPreviews = async () => {
     try {
       setIsPreviewLoading(true);
-      const [expPrev, relPrev] = await Promise.all([
+      const [expPrev, relPrev, joinPrev] = await Promise.all([
         previewEmployeeLetter(employeeId, { templateType: "EXPERIENCE_LETTER" }).catch(() => ({ data: null })),
         previewEmployeeLetter(employeeId, { templateType: "RELIEVING_LETTER" }).catch(() => ({ data: null })),
+        previewEmployeeLetter(employeeId, { templateType: "JOINING_LETTER" }).catch(() => ({ data: null })),
       ]);
       setExperiencePreview(expPrev?.data || null);
       setRelievingPreview(relPrev?.data || null);
+      setJoiningPreview(joinPrev?.data || null);
     } catch (e) {
       console.warn("Could not load letter previews:", e);
     } finally {
@@ -1769,7 +1788,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
     }
   };
 
-  const handleDownloadLetter = async (type: "EXPERIENCE_LETTER" | "RELIEVING_LETTER") => {
+  const handleDownloadLetter = async (type: LetterType) => {
     try {
       setIsLetterDownloading(true);
       const res = await downloadEmployeeLetterPdf(employeeId, type);
@@ -1777,7 +1796,12 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
       const url = window.URL.createObjectURL(new Blob([blob], { type: "application/pdf" }));
       const link = document.createElement("a");
       link.href = url;
-      const docTitle = type === "EXPERIENCE_LETTER" ? "Experience_Certificate" : "Relieving_Letter";
+      const docTitle =
+        type === "EXPERIENCE_LETTER"
+          ? "Experience_Certificate"
+          : type === "JOINING_LETTER"
+            ? "Joining_Letter"
+            : "Relieving_Letter";
       link.setAttribute(
         "download",
         `${docTitle}_${employee.employeeCode || employeeId}.pdf`
@@ -1786,7 +1810,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
       link.click();
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
-      toast.success(`${type === "EXPERIENCE_LETTER" ? "Experience Certificate" : "Relieving Letter"} downloaded successfully`);
+      toast.success(`${letterLabelForType(type)} downloaded successfully`);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to download letter PDF");
     } finally {
@@ -1794,11 +1818,16 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
     }
   };
 
-  const openTemplateEditor = (type: "EXPERIENCE_LETTER" | "RELIEVING_LETTER") => {
-    const tmpl = type === "EXPERIENCE_LETTER" ? experienceTemplate : relievingTemplate;
+  const openTemplateEditor = (type: LetterType) => {
+    const tmpl =
+      type === "EXPERIENCE_LETTER"
+        ? experienceTemplate
+        : type === "RELIEVING_LETTER"
+          ? relievingTemplate
+          : joiningTemplate;
     setEditingTemplateType(type);
     setTemplateForm({
-      templateName: tmpl?.templateName || (type === "EXPERIENCE_LETTER" ? "Default Experience Letter" : "Default Relieving Letter"),
+      templateName: tmpl?.templateName || `Default ${letterLabelForType(type)}`,
       content: tmpl?.content || "",
     });
     setIsTemplateEditOpen(true);
@@ -1828,7 +1857,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
   };
 
   const handleResetTemplate = async () => {
-    if (!confirm(`Are you sure you want to reset the ${editingTemplateType === "EXPERIENCE_LETTER" ? "Experience Letter" : "Relieving Letter"} template to system default?`)) {
+    if (!confirm(`Are you sure you want to reset the ${letterLabelForType(editingTemplateType)} template to system default?`)) {
       return;
     }
     try {
@@ -1905,7 +1934,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
   ];
 
   if (loading) {
-    return <div className="py-12 text-center text-muted-foreground">Loading Settlement & Documents...</div>;
+    return <div className="py-12 text-center text-muted-foreground">Loading Employee Documents...</div>;
   }
 
   return (
@@ -1946,6 +1975,17 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
             <ScrollText className="h-3.5 w-3.5" />
             Relieving Letter
           </button>
+          <button
+            onClick={() => setActiveSubTab("joining")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+              activeSubTab === "joining"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <FileSignature className="h-3.5 w-3.5" />
+            Joining Letter
+          </button>
         </div>
 
         {activeSubTab === "settlement" ? (
@@ -1974,7 +2014,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
             <Button
               variant="outline"
               size="sm"
-              onClick={() => openTemplateEditor(activeSubTab === "experience" ? "EXPERIENCE_LETTER" : "RELIEVING_LETTER")}
+              onClick={() => openTemplateEditor(letterTypeForSubTab(activeSubTab))}
               className="gap-1.5 text-xs h-8"
             >
               <Settings className="h-3.5 w-3.5" />
@@ -1992,12 +2032,12 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
             </Button>
             <Button
               size="sm"
-              onClick={() => handleDownloadLetter(activeSubTab === "experience" ? "EXPERIENCE_LETTER" : "RELIEVING_LETTER")}
+              onClick={() => handleDownloadLetter(letterTypeForSubTab(activeSubTab))}
               disabled={isLetterDownloading}
               className="gap-1.5 bg-primary text-white text-xs h-8"
             >
               {isLetterDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              Download {activeSubTab === "experience" ? "Experience Letter" : "Relieving Letter"} PDF
+              Download {letterLabelForType(letterTypeForSubTab(activeSubTab))} PDF
             </Button>
           </div>
         )}
@@ -2485,6 +2525,114 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
         </div>
       )}
 
+      {/* SUB-TAB 4: JOINING LETTER */}
+      {activeSubTab === "joining" && (
+        <div className="space-y-4">
+          {/* Employee Context & Template Header Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-muted/30 border rounded-lg text-xs">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Employee</span>
+              <p className="font-semibold text-sm text-foreground">
+                {employee.firstName} {employee.lastName || ""}
+              </p>
+              <p className="text-[11px] text-muted-foreground font-mono">
+                {employee.employeeCode || "—"} • {employee.designation?.name || "—"}
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date of Joining</span>
+              <p className="font-semibold text-sm text-primary">
+                {formatSettlementDate(joiningPreview?.employee?.dateOfJoining || employee.dateOfJoining)}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Department: {employee.department?.name || joiningPreview?.employee?.department || "—"}
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Template</span>
+              <p className="font-semibold text-xs text-foreground">
+                {joiningTemplate?.templateName || "Default Joining Letter"}
+              </p>
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] mt-0.5">
+                ✓ Ready to Generate
+              </Badge>
+            </div>
+          </div>
+
+          <Card className="border shadow-sm">
+            <CardHeader className="bg-muted/20 border-b py-3 px-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold flex items-center gap-2">
+                    <FileSignature className="h-4 w-4 text-primary" />
+                    Official Joining Letter Preview
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Live document preview with dynamic employee &amp; joining details replaced
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 text-[10px] font-semibold">
+                  Official Document Preview
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {isPreviewLoading ? (
+                <div className="py-16 text-center text-muted-foreground flex flex-col items-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <span className="text-xs">Generating Joining Letter Preview...</span>
+                </div>
+              ) : (
+                <div className="max-w-3xl mx-auto border rounded-lg bg-background p-8 shadow-sm space-y-6 text-xs text-foreground font-serif leading-relaxed">
+                  {/* Organization Letterhead Header */}
+                  <div className="flex justify-between items-center border-b pb-4">
+                    <div>
+                      <h3 className="font-sans font-extrabold text-base tracking-wide text-foreground uppercase">
+                        {joiningPreview?.organization?.name || "Organization Name"}
+                      </h3>
+                      {joiningPreview?.organization?.address && (
+                        <p className="font-sans text-[11px] text-muted-foreground">
+                          {joiningPreview.organization.address}
+                        </p>
+                      )}
+                    </div>
+                    {joiningPreview?.organization?.logoUrl && (
+                      <img
+                        src={joiningPreview.organization.logoUrl}
+                        alt="Logo"
+                        className="max-h-12 max-w-[120px] object-contain"
+                      />
+                    )}
+                  </div>
+
+                  {/* Rendered Letter Content */}
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed space-y-3"
+                    dangerouslySetInnerHTML={{
+                      __html: joiningPreview?.renderedHtml || "<p>No template content found.</p>",
+                    }}
+                  />
+
+                  {/* Signatory & Stamp Area */}
+                  <div className="pt-8 border-t flex justify-between items-end font-sans">
+                    <div className="space-y-1">
+                      <div className="w-40 border-b border-foreground/40 mb-2 h-10" />
+                      <p className="font-bold text-xs">Authorized Signatory</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {joiningPreview?.organization?.name || "HR Operations"}
+                      </p>
+                    </div>
+                    <div className="w-28 h-20 border-2 border-dashed border-muted-foreground/40 rounded flex items-center justify-center text-[10px] text-muted-foreground font-bold uppercase text-center p-1">
+                      OFFICIAL STAMP
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Edit Settlement Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -2736,7 +2884,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pr-6 gap-2">
               <div>
                 <DialogTitle className="text-lg font-bold">
-                  Configure {editingTemplateType === "EXPERIENCE_LETTER" ? "Experience Letter" : "Relieving Letter"} Template
+                  Configure {letterLabelForType(editingTemplateType)} Template
                 </DialogTitle>
                 <DialogDescription className="text-xs mt-1">
                   Design your organization letter template visually. Use &quot;+ Insert Employee Field&quot; to insert dynamic placeholder chips.
@@ -2761,7 +2909,7 @@ function SettlementTab({ employeeId, employee }: { employeeId: string; employee:
                 value={templateForm.templateName}
                 onChange={(e) => setTemplateForm({ ...templateForm, templateName: e.target.value })}
                 className="h-9 text-xs"
-                placeholder="e.g. Standard Experience Certificate"
+                placeholder={`e.g. Standard ${letterLabelForType(editingTemplateType)}`}
               />
             </div>
 

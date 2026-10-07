@@ -165,7 +165,10 @@ export function convertVisualChipsToVariables(editorHtml: string): string {
 interface VisualDocumentEditorProps {
   initialHtml: string;
   onChange: (htmlWithVariables: string) => void;
-  templateType: "EXPERIENCE_LETTER" | "RELIEVING_LETTER";
+  templateType:
+    | "EXPERIENCE_LETTER"
+    | "RELIEVING_LETTER"
+    | "JOINING_LETTER";
 }
 
 export default function VisualDocumentEditor({
