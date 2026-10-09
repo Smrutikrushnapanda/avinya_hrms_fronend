@@ -36,9 +36,6 @@ export default function LoginPage() {
       return "/superadmin/dashboard";
     }
     if (role === "ADMIN") {
-      if (Boolean(userParams?.mustChangePassword)) {
-        return "/admin/settings?force_credentials=1";
-      }
       return "/admin/dashboard";
     }
     return isLikelyMobileDevice() ? "/user/dashboard/mobile" : "/user/dashboard";
@@ -50,12 +47,10 @@ export default function LoginPage() {
     chosenRole: "ADMIN" | "EMPLOYEE" | "SUPERADMIN",
     cookieMaxAge: number
   ) => {
-    const mustChangePassword = Boolean(userParams?.mustChangePassword);
     const cookieFlags = `path=/; max-age=${cookieMaxAge}; SameSite=Lax${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
     document.cookie = `user=${encodeURIComponent(JSON.stringify(userParams))}; ${cookieFlags}`;
     document.cookie = `user_role=${chosenRole}; ${cookieFlags}`;
     document.cookie = `auth_token=${token}; ${cookieFlags}`;
-    document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; ${cookieFlags}`;
     if (chosenRole === "EMPLOYEE") {
       document.cookie = `dashboard-view=${isLikelyMobileDevice() ? "mobile" : "desktop"}; ${cookieFlags}`;
     }

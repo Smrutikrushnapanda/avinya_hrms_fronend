@@ -28,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { getMonthlyAttendance, getEmployee, getEmployeeByUserId } from "@/app/api/api";
+import { getFullName } from "@/lib/utils";
 
 type MonthlyRecord = {
   date: string;
@@ -393,7 +394,7 @@ export default function EmployeeAttendanceDetailPage() {
           <h1 className="text-2xl font-bold">Employee Attendance Detail</h1>
           {employee && (
             <p className="text-muted-foreground">
-              {employee.firstName} {employee.lastName} ({employee.employeeCode})
+              {getFullName(employee)} ({employee.employeeCode})
             </p>
           )}
         </div>
@@ -425,7 +426,7 @@ export default function EmployeeAttendanceDetailPage() {
               {employee.photoUrl ? (
                 <img
                   src={employee.photoUrl}
-                  alt={`${employee.firstName} ${employee.lastName}`}
+                  alt={getFullName(employee)}
                   className="w-16 h-16 rounded-full object-cover ring-2 ring-muted"
                 />
               ) : (
@@ -437,7 +438,7 @@ export default function EmployeeAttendanceDetailPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">Employee</p>
                   <p className="font-semibold">
-                    {employee.firstName} {employee.lastName}
+                    {getFullName(employee)}
                   </p>
                 </div>
                 <div>

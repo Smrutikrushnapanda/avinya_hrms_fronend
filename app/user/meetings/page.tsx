@@ -52,6 +52,7 @@ import {
   getMeetingsForUser,
 } from "@/app/api/api";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
+import { getFullName } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -535,7 +536,7 @@ export default function MyMeetingsPage() {
                             key={p.id}
                             className="text-xs bg-muted rounded-full px-3 py-1"
                           >
-                            {p.firstName} {p.lastName}
+                            {getFullName(p)}
                           </span>
                         ))}
                       </div>
@@ -654,7 +655,7 @@ export default function MyMeetingsPage() {
                           className="h-4 w-4"
                         />
                         <span className="text-sm">
-                          {emp.firstName} {emp.lastName}
+                          {getFullName(emp)}
                         </span>
                       </div>
                     ))

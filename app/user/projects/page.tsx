@@ -30,6 +30,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { getFullName } from "@/lib/utils";
 import {
   FolderKanban,
   Calendar,
@@ -893,10 +894,10 @@ export default function UserProjectsPage() {
                           {selected.members.map((m) => (
                             <div key={m.userId} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2">
                               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary flex-shrink-0">
-                                {memberName(m).charAt(0).toUpperCase()}
+                                {getFullName(m.user).charAt(0).toUpperCase()}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{memberName(m)}</p>
+                                <p className="text-sm font-medium truncate">{getFullName(m.user)}</p>
                                 <p className="text-xs text-muted-foreground truncate">{m.user?.email}</p>
                               </div>
                               <Badge variant="outline" className="text-[10px] px-1.5 capitalize flex-shrink-0">{m.role}</Badge>
@@ -979,7 +980,7 @@ export default function UserProjectsPage() {
                               </div>
                               {task.assignedToUser && (
                                 <p className="text-xs text-muted-foreground">
-                                  Assigned to: {task.assignedToUser.firstName} {task.assignedToUser.lastName}
+                                  Assigned to: {getFullName(task.assignedToUser)}
                                 </p>
                               )}
                               {/* Status update for task owner/manager */}
@@ -1055,7 +1056,7 @@ export default function UserProjectsPage() {
                                     </div>
                                     <div>
                                       <p className="text-sm font-medium">
-                                        {emp.firstName} {emp.lastName}
+                                        {getFullName(emp)}
                                       </p>
                                       <p className="text-xs text-muted-foreground">
                                         {emp.workEmail || emp.email}
@@ -1266,7 +1267,7 @@ export default function UserProjectsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">
-                        {tm.firstName} {tm.lastName}
+                        {getFullName(tm)}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {tm.workEmail || tm.email}
@@ -1373,7 +1374,7 @@ export default function UserProjectsPage() {
                   <option value="">Select team member...</option>
                   {projectEmployees.map((emp) => (
                     <option key={emp.userId} value={emp.userId}>
-                      {emp.firstName} {emp.lastName}
+                      {getFullName(emp)}
                     </option>
                   ))}
                 </select>

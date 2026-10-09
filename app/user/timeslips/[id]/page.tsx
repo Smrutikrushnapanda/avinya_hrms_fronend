@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -148,7 +149,7 @@ export default function TimeslipDetailPage() {
     (timeslip.approvals || []).forEach((approval, index) => {
       const status = approval.action === "APPROVED" ? "completed" : approval.action === "REJECTED" ? "rejected" : "pending";
       const stepNo = approval.step_no || index + 1;
-      const approverName = approval.approver ? `${approval.approver.firstName} ${approval.approver.lastName}` : "Approver";
+      const approverName = approval.approver ? getFullName(approval.approver) : "Approver";
       events.push({
         id: `approval_${approval.id}`,
         title: `Step ${stepNo} - ${approval.action}`,

@@ -62,6 +62,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { format, isValid, parseISO, differenceInDays } from 'date-fns';
 import { Employee } from "./types";
+import { getFullName } from "@/lib/utils";
 
 interface EmployeeTableProps {
   employeeData: any;
@@ -410,7 +411,7 @@ export default function EmployeeTable({
                                     employee.photoUrl ||
                                     "/avatar.jpg"
                                   }
-                                  alt={`${employee.firstName} ${employee.lastName}`}
+                                  alt={getFullName(employee)}
                                 />
                                 <AvatarFallback>
                                   {`${employee.firstName.charAt(0)}${(employee.lastName || '').charAt(0)}`}
@@ -418,7 +419,7 @@ export default function EmployeeTable({
                               </Avatar>
                               <div className="min-w-0 flex-1">
                                 <div className="font-medium flex items-center space-x-2">
-                                  <span className="truncate">{`${employee.firstName} ${employee.lastName || ''}`}</span>
+                                  <span className="truncate">{getFullName(employee)}</span>
                                   {isNew && <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 flex-shrink-0">New</Badge>}
                                   {isUnassigned && <Badge variant="outline" className="text-xs text-orange-600 border-orange-300 flex-shrink-0">Unassigned</Badge>}
                                 </div>
@@ -453,7 +454,7 @@ export default function EmployeeTable({
                                     <div key={mIdx} className="flex items-center space-x-1.5 flex-wrap">
                                       <UserCheck className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                                       <span className="text-xs font-medium truncate max-w-[110px]">
-                                        {`${m.firstName} ${m.lastName || ''}`.trim()}
+                                        {getFullName(m)}
                                       </span>
                                       <span
                                         className={`text-[9px] px-1.5 py-0.2 rounded font-semibold tracking-wider uppercase border ${
@@ -485,7 +486,7 @@ export default function EmployeeTable({
                                             <div key={idx} className="flex items-start justify-between border-b pb-1.5 last:border-b-0 last:pb-0">
                                               <div>
                                                 <div className="text-xs font-medium">
-                                                  {`${m.firstName} ${m.lastName || ''}`.trim()}
+                                                  {getFullName(m)}
                                                 </div>
                                                 {m.workEmail && (
                                                   <div className="text-[10px] text-muted-foreground">{m.workEmail}</div>
@@ -515,7 +516,7 @@ export default function EmployeeTable({
                               <div className="flex items-center space-x-1.5">
                                 <UserCheck className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs font-medium truncate">
-                                  {`${employee.manager.firstName} ${employee.manager.lastName}`}
+                                  {getFullName(employee.manager)}
                                 </span>
                                 <span className="text-[9px] px-1.5 py-0.2 rounded font-semibold tracking-wider uppercase border bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300">
                                   PRIMARY

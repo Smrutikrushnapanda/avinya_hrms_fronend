@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -201,7 +202,7 @@ export default function MobileTimeslipDetailPage() {
             ? ("rejected" as const)
             : ("pending" as const);
       const approverName = approval.approver
-        ? `${approval.approver.firstName} ${approval.approver.lastName}`
+        ? getFullName(approval.approver)
         : "Approver";
       const stepNo = approval.step_no || index + 1;
 

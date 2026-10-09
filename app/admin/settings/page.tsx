@@ -2,8 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,6 @@ import { Plus, Pencil, Trash2, Building2, Calendar, Users, Mail, ClipboardList, 
 import { getDepartments, getDesignations, createDepartment, createDesignation, updateDepartment, updateDesignation, deleteDepartment, deleteDesignation, getProfile, getHolidays, createHoliday, updateHoliday, deleteHoliday, createRole, updateRole, deleteRole, getOrgRoles, getOrganization, updateOrganization, deleteOrganization, changeOrgAdminCredentials, getOrgResignationRequests, reviewResignationRequest, getUsers, createUser, updateUser, deleteUser, getEmployees, assignRole } from "@/app/api/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import AttendanceSettingsPage from "../attendance/settings/page";
-import { TourProvider, useTour, type StepType } from "@reactour/tour";
 import { isValidTimezone } from "@/utils/timezone";
 import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
 
@@ -140,31 +139,8 @@ interface ResignationRequest {
 const EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Intern", "Consultant"];
 const DEFAULT_HOME_HEADER_COLOR = "#1D4ED8";
 
-function CredentialsTourBootstrap({ enabled }: { enabled: boolean }) {
-  const hasStartedRef = useRef(false);
-  const { setIsOpen, setCurrentStep } = useTour();
-
-  useEffect(() => {
-    if (!enabled) {
-      hasStartedRef.current = false;
-      setCurrentStep(0);
-      setIsOpen(false);
-      return;
-    }
-
-    if (hasStartedRef.current) return;
-    hasStartedRef.current = true;
-    setCurrentStep(0);
-    setIsOpen(true);
-  }, [enabled, setCurrentStep, setIsOpen]);
-
-  return null;
-}
-
 export default function SettingsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const forceCredentialsFromQuery = searchParams.get("force_credentials") === "1";
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -230,8 +206,6 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
 
   const [showCredPassword, setShowCredPassword] = useState(false);
   const [showCredConfirmPassword, setShowCredConfirmPassword] = useState(false);
-  const [isCredentialsTourEnabled, setIsCredentialsTourEnabled] = useState(false);
-  const [hasCheckedCredentialsFlow, setHasCheckedCredentialsFlow] = useState(false);
   const [isResignationReviewDialogOpen, setIsResignationReviewDialogOpen] = useState(false);
   const [reviewingResignation, setReviewingResignation] = useState<ResignationRequest | null>(null);
   const [resignationReviewForm, setResignationReviewForm] = useState({
@@ -243,27 +217,6 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
   const adminUserCount = useMemo(
     () => users.filter((user) => user.roles?.some((role) => role.roleName === "ADMIN")).length,
     [users],
-  );
-
-  const credentialsTourSteps = useMemo<StepType[]>(
-    () => [
-      {
-        selector: "[data-tour='change-admin-credentials-btn']",
-        content:
-          "First-time setup: start here and update the default admin credentials before using the rest of the admin panel.",
-        position: "bottom",
-        action: () => setIsCredentialsDialogOpen(false),
-      },
-      {
-        selector: "#change-admin-credentials-dialog",
-        content:
-          "Set a new admin username/password and save. This completes first-time organization setup.",
-        position: "left",
-        mutationObservables: ["#change-admin-credentials-dialog"],
-        action: () => setIsCredentialsDialogOpen(true),
-      },
-    ],
-    []
   );
 
   useEffect(() => {
@@ -295,29 +248,6 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
     if (!organizationId) return;
     loadResignationRequests(resignationStatusFilter);
   }, [resignationStatusFilter, organizationId]);
-
-  useEffect(() => {
-    if (hasCheckedCredentialsFlow) return;
-
-    let mustChangeFromLocalStorage = false;
-    if (typeof window !== "undefined") {
-      try {
-        const rawUser = localStorage.getItem("user");
-        if (rawUser) {
-          const parsedUser = JSON.parse(rawUser);
-          mustChangeFromLocalStorage = Boolean(parsedUser?.mustChangePassword);
-        }
-      } catch {
-        mustChangeFromLocalStorage = false;
-      }
-    }
-
-    if (forceCredentialsFromQuery || mustChangeFromLocalStorage) {
-      setIsCredentialsTourEnabled(true);
-    }
-
-    setHasCheckedCredentialsFlow(true);
-  }, [forceCredentialsFromQuery, hasCheckedCredentialsFlow]);
 
   const loadDepartments = async () => {
     try {
@@ -572,14 +502,12 @@ const loadOrganization = async () => {
         newUserName: credentialsForm.newUserName || undefined,
         newPassword: credentialsForm.newPassword || undefined,
       });
-      const mustChangePassword = Boolean(response?.data?.mustChangePassword);
 
       if (typeof window !== "undefined") {
         try {
           const rawUser = localStorage.getItem("user");
           if (rawUser) {
             const parsedUser = JSON.parse(rawUser);
-            parsedUser.mustChangePassword = mustChangePassword;
             if (response?.data?.userName) {
               parsedUser.userName = response.data.userName;
             }
@@ -588,17 +516,11 @@ const loadOrganization = async () => {
         } catch {
           // no-op: malformed local user payload should not block credentials update
         }
-
-        document.cookie = `must_change_password=${mustChangePassword ? "1" : "0"}; path=/; max-age=2592000; SameSite=Lax${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
       }
 
       toast.success("Admin credentials updated");
       setIsCredentialsDialogOpen(false);
-      setIsCredentialsTourEnabled(mustChangePassword);
       setCredentialsForm({ newUserName: "", newPassword: "", confirmPassword: "" });
-      if (!mustChangePassword) {
-        router.replace("/admin/settings");
-      }
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to update credentials");
     }
@@ -979,16 +901,7 @@ const loadOrganization = async () => {
   };
 
   return (
-    <TourProvider
-      steps={credentialsTourSteps}
-      showDots={false}
-      showBadge
-      showNavigation
-      showCloseButton
-      scrollSmooth
-    >
-      <CredentialsTourBootstrap enabled={isCredentialsTourEnabled} />
-      <div className="p-6">
+    <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
       
       <Tabs defaultValue="organization" className="w-full">
@@ -2357,6 +2270,5 @@ const loadOrganization = async () => {
         </DialogContent>
       </Dialog>
       </div>
-    </TourProvider>
   );
 }

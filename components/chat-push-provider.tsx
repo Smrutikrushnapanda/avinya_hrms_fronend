@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
@@ -75,7 +76,7 @@ export default function ChatPushProvider() {
       if (activeConversationIdRef.current === conversationId) return;
 
       const senderName = msg.sender?.firstName
-        ? `${msg.sender.firstName} ${msg.sender.lastName || ""}`.trim()
+        ? getFullName(msg.sender)
         : "New message";
       const body = msg.text || (msg.attachments?.length ? "Sent an attachment" : "New message");
 

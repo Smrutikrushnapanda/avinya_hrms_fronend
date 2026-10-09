@@ -4,6 +4,7 @@ import Sidebar from "@/components/sidebar";
 import Topbar from "@/components/topbar";
 import { PlanAccessProvider, usePlanAccess } from "@/components/plan-access-provider";
 import { usePathname, useRouter } from "next/navigation";
+import AssetAcknowledgementModal from "@/components/asset-acknowledgement-modal";
 import "../globals.css";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -73,6 +74,7 @@ function UserLayoutContent({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      <AssetAcknowledgementModal />
     </div>
   );
 }

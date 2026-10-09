@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { getFullName } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
@@ -113,7 +114,7 @@ export default function UserAssignWorkPage() {
   const employeeName = (userId: string | null) => {
     if (!userId) return "—";
     const emp = options?.employees.find((e) => e.userId === userId);
-    const name = emp ? `${emp.firstName} ${emp.lastName}`.trim() : "";
+    const name = emp ? getFullName(emp) : "";
     return name || userId.slice(0, 8);
   };
 
@@ -188,8 +189,8 @@ export default function UserAssignWorkPage() {
     if (!q) return list;
     return list.filter(
       (e) =>
-        `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-        e.firstName.toLowerCase().includes(q) ||
+        getFullName(e).toLowerCase().includes(q) ||
+        (e.firstName || "").toLowerCase().includes(q) ||
         (e.lastName || "").toLowerCase().includes(q),
     );
   }, [form.employeeSearch, options]);
@@ -366,6 +367,11 @@ export default function UserAssignWorkPage() {
                   </span>
                 </div>
 
+                <div className="text-sm font-semibold text-foreground">
+                  Assigned on{" "}
+                  {formatDate(assignment.assignedAt ?? assignment.createdAt ?? assignment.dueDate)}
+                </div>
+
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   {isMine ? (
                     <span>
@@ -383,11 +389,12 @@ export default function UserAssignWorkPage() {
                     </span>
                   )}
                   <span>
-                    Due: <span className="text-foreground font-medium">{formatDate(assignment.dueDate)}</span>
-                  </span>
-                  <Badge variant="outline" className={`${pr.color} ${pr.bg}`}>
-                    {pr.label}
-                  </Badge>
+                      Due: <span className="text-foreground font-medium">{formatDate(assignment.dueDate)}</span>
+                    </span>
+
+                    <Badge variant="outline" className={`${pr.color} ${pr.bg}`}>
+                      {pr.label}
+                    </Badge>
                 </div>
 
                 {assignment.workReport ? (
@@ -539,7 +546,7 @@ export default function UserAssignWorkPage() {
                           className="h-4 w-4 accent-foreground"
                         />
                         <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        {emp.firstName} {emp.lastName}
+                        {getFullName(emp)}
                       </button>
                     );
                   })

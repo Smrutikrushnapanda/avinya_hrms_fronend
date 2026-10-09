@@ -1,3 +1,4 @@
+import { getFullName } from "@/lib/utils";
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
@@ -37,7 +38,7 @@ export const exportEmployeeReport = (employees: any[]) => {
     'Phone': emp.contactNumber || '',
     'Joining Date': emp.dateOfJoining ? format(new Date(emp.dateOfJoining), 'yyyy-MM-dd') : '',
     'Status': emp.status || '',
-    'Manager': emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName}` : 'No Manager',
+    'Manager': emp.manager ? getFullName(emp.manager) : 'No Manager',
     'Employment Type': emp.employmentType || '',
   }));
 

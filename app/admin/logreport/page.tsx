@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -207,7 +208,7 @@ export default function LogReportPage() {
                     <SelectItem value="all">All</SelectItem>
                     {employees.map((emp: any) => (
                       <SelectItem key={emp.userId} value={emp.userId}>
-                        {emp.firstName} {emp.lastName || ""}
+                        {getFullName(emp)}
                       </SelectItem>
                     ))}
                   </SelectContent>

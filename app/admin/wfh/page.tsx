@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useState, useCallback } from "react";
 import {
   Home,
@@ -786,7 +787,7 @@ export default function WfhManagementPage() {
   ): string => {
     const emp = userId ? employees.find((e) => e.userId === userId) : undefined;
     if (emp) {
-      const name = `${emp.firstName} ${emp.lastName || ""}`.trim();
+      const name = getFullName(emp);
       if (name) return name;
     }
     if (fallbackUser) {
@@ -1488,7 +1489,7 @@ export default function WfhManagementPage() {
                           <TableRow key={employee.userId}>
                             <TableCell className="font-medium">{index + 1}</TableCell>
                             <TableCell className="font-medium">
-                              {employee.firstName} {employee.lastName || ""}
+                              {getFullName(employee)}
                             </TableCell>
                             <TableCell>
                               <ArrangementTypeBadge
@@ -1616,7 +1617,7 @@ export default function WfhManagementPage() {
                 <SelectContent>
                   {employees.map((emp) => (
                     <SelectItem key={emp.userId} value={emp.userId}>
-                      {emp.firstName} {emp.lastName || ""}{" "}
+                      {getFullName(emp)}{" "}
                       {emp.employeeCode ? `(${emp.employeeCode})` : ""}
                     </SelectItem>
                   ))}
@@ -1639,7 +1640,7 @@ export default function WfhManagementPage() {
                 <SelectContent>
                   {employees.map((emp) => (
                     <SelectItem key={emp.userId} value={emp.userId}>
-                      {emp.firstName} {emp.lastName || ""}{" "}
+                      {getFullName(emp)}{" "}
                       {emp.employeeCode ? `(${emp.employeeCode})` : ""}
                     </SelectItem>
                   ))}

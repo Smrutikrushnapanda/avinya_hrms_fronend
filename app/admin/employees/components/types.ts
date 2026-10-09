@@ -16,6 +16,8 @@ export interface Employee {
   dateOfBirth?: string;
   dateOfJoining: string;
   contactNumber?: string;
+  panNumber?: string;
+  aadhaarNumber?: string;
   personalEmail?: string;
   workEmail: string;
   photoUrl?: string;
@@ -118,6 +120,8 @@ export interface EmployeeAsset {
   returnCondition?: string | null;
   status: 'ASSIGNED' | 'RETURN_PENDING' | 'RETURNED' | 'LOST' | 'DAMAGED';
   isReturnRequired: boolean;
+  acknowledged?: boolean;
+  acknowledgedAt?: string | null;
   notes?: string | null;
   remarks?: string | null;
   createdAt?: string;
@@ -241,6 +245,8 @@ export interface EmployeeFormData {
   workEmail: string;
   personalEmail?: string;
   contactNumber?: string;
+  panNumber?: string;
+  aadhaarNumber?: string;
   photoUrl?: string;
   aadharPhotoUrl?: string;
   passportPhotoUrl?: string;

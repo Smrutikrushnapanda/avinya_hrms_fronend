@@ -34,7 +34,6 @@ export function middleware(req: NextRequest) {
   const userCookie = req.cookies.get("user")?.value;
   const userRoleCookie = req.cookies.get("user_role")?.value;
   const authTokenCookie = req.cookies.get("auth_token")?.value;
-  const mustChangePassword = req.cookies.get("must_change_password")?.value === "1";
   const isSigninRoute = pathname === "/signin";
 
   // Protected routes
@@ -67,21 +66,11 @@ export function middleware(req: NextRequest) {
       if (isSuperadminSideRole) {
         url.pathname = "/superadmin/dashboard";
       } else if (isAdminSideRole) {
-        url.pathname = mustChangePassword ? "/admin/settings" : "/admin/dashboard";
-        if (mustChangePassword) {
-          url.searchParams.set("force_credentials", "1");
-        } else {
-          url.searchParams.delete("force_credentials");
-        }
+        url.pathname = "/admin/dashboard";
       } else {
-        // Employees land on their profile page when a password change is
-        // required (it has the self-service "Account Security" form) instead
-        // of an admin-only page they can't open.
-        url.pathname = mustChangePassword
-          ? "/user/profile"
-          : isMobile
-          ? "/user/dashboard/mobile"
-          : "/user/dashboard";
+        // Employees land on their dashboard the same way regardless of
+        // whether a password change was requested.
+        url.pathname = isMobile ? "/user/dashboard/mobile" : "/user/dashboard";
       }
       const response = NextResponse.redirect(url);
       if (isEmployeeRole) {

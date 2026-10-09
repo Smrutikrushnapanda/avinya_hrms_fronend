@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -506,7 +507,7 @@ export default function ReportsPage() {
               const adaptedLeaveData = leaveData.map((leave: any) => ({
                 employeeId: leave.user?.id || leave.employeeId || leave.userId || '',
                 employeeName: leave.user ? 
-                  `${leave.user.firstName} ${leave.user.lastName || ''}` : 
+                  getFullName(leave.user) : 
                   leave.employeeName || leave.userName || 'Unknown',
                 employeeCode: leave.employeeCode || leave.user?.employeeCode || 'N/A',
                 leaveType: leave.leaveType?.name || leave.leaveType || leave.type || 'General Leave',

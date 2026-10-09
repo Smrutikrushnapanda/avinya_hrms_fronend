@@ -1,3 +1,4 @@
+import { getFullName } from "@/lib/utils";
 import * as XLSX from 'xlsx';
 import { format, parseISO, isValid } from 'date-fns';
 
@@ -127,7 +128,7 @@ export const exportEmployeesToExcel = (
     if (selectedFields.employment) {
       row['Department'] = emp.department?.name || 'Not Assigned';
       row['Designation'] = emp.designation?.name || 'Not Assigned';
-      row['Manager'] = emp.manager ? `${emp.manager.firstName} ${emp.manager.lastName || ''}` : 'No Manager';
+      row['Manager'] = emp.manager ? getFullName(emp.manager) : 'No Manager';
       row['Employment Type'] = emp.employmentType || '';
       row['Status'] = emp.status || '';
     }

@@ -77,6 +77,7 @@ import {
   reconcileLeaveRequest,
 } from "@/app/api/api";
 import { format } from "date-fns";
+import { getFullName as importGetFullName } from "@/lib/utils";
 
 // ------- Types -------
 interface LeaveRequest {
@@ -198,10 +199,10 @@ function StatusBadge({ status }: { status?: string }) {
 
 // ------- Helper: get employee full name -------
 function getFullName(
-  user?: { firstName: string; lastName: string } | null
+  user?: { firstName?: string | null; middleName?: string | null; lastName?: string | null } | null
 ): string {
   if (!user) return "Unknown";
-  return `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Unknown";
+  return importGetFullName(user) || "Unknown";
 }
 
 // ------- Main Component -------
@@ -1422,7 +1423,7 @@ export default function LeaveManagementPage() {
                 <SelectContent>
                   {employees.map((emp) => (
                     <SelectItem key={emp.userId} value={emp.userId}>
-                      {emp.firstName} {emp.lastName}
+                      {getFullName(emp)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1442,7 +1443,7 @@ export default function LeaveManagementPage() {
                 <SelectContent>
                   {employees.map((emp) => (
                     <SelectItem key={emp.userId} value={emp.userId}>
-                      {emp.firstName} {emp.lastName}
+                      {getFullName(emp)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1509,7 +1510,7 @@ export default function LeaveManagementPage() {
                 <SelectContent>
                   {employees.map((emp) => (
                     <SelectItem key={emp.userId} value={emp.userId}>
-                      {emp.firstName} {emp.lastName}
+                      {getFullName(emp)}
                     </SelectItem>
                   ))}
                 </SelectContent>

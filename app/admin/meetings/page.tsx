@@ -52,6 +52,7 @@ import {
   sendMeetingNotification,
 } from "@/app/api/api";
 import { format } from "date-fns";
+import { getFullName } from "@/lib/utils";
 
 // ------- Types -------
 interface Meeting {
@@ -541,7 +542,7 @@ export default function MeetingManagementPage() {
                         className="h-4 w-4"
                       />
                       <span className="text-sm">
-                        {emp.firstName} {emp.lastName}
+                        {getFullName(emp)}
                       </span>
                     </div>
                   ))

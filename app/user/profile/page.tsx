@@ -20,6 +20,7 @@ import {
   Hash,
   Clock,
   Shield,
+  Pencil,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,7 @@ import {
   getMyResignationRequests,
   getOrganization,
   getProfile,
+  updateMyEmployeeProfile,
   updateMyPassword,
 } from "@/app/api/api";
 
@@ -59,6 +61,7 @@ type ProfileData = {
 };
 
 type EmployeeData = {
+  id?: string;
   employeeCode?: string;
   employee_code?: string;
   firstName?: string;
@@ -66,6 +69,9 @@ type EmployeeData = {
   lastName?: string;
   phone?: string;
   mobile?: string;
+  contactNumber?: string;
+  panNumber?: string;
+  aadhaarNumber?: string;
   joiningDate?: string;
   dateOfJoining?: string;
   joining_date?: string;
@@ -141,6 +147,13 @@ function formatDate(value?: string) {
   });
 }
 
+function maskId(value?: string | null, visible = 4) {
+  if (!value) return "—";
+  const normalized = value.replace(/\s/g, "").toUpperCase();
+  if (normalized.length <= visible) return normalized;
+  return `${"•".repeat(normalized.length - visible)}${normalized.slice(-visible)}`;
+}
+
 function getTenure(value?: string) {
   if (!value) return "—";
   const start = new Date(value);
@@ -207,6 +220,13 @@ export default function UserProfilePage() {
     confirmPassword: "",
   });
   const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const [savingIdentity, setSavingIdentity] = useState(false);
+  const [identityForm, setIdentityForm] = useState({
+    contactNumber: "",
+    panNumber: "",
+    aadhaarNumber: "",
+  });
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -302,7 +322,63 @@ export default function UserProfilePage() {
   const joiningDate = formatDate(rawJoining);
   const tenure = getTenure(rawJoining);
   const phone =
-    employee?.phone || employee?.mobile || profile?.phone || profile?.phoneNumber || "—";
+    employee?.contactNumber ||
+    employee?.phone ||
+    employee?.mobile ||
+    profile?.phone ||
+    profile?.phoneNumber ||
+    "—";
+
+  const openIdentityEditor = () => {
+    setIdentityForm({
+      contactNumber: employee?.contactNumber || employee?.phone || "",
+      panNumber: employee?.panNumber || "",
+      aadhaarNumber: employee?.aadhaarNumber || "",
+    });
+    setEditingIdentity(true);
+  };
+
+  const handleSaveIdentity = async () => {
+    const contact = identityForm.contactNumber.trim();
+    const pan = identityForm.panNumber.trim();
+    const aadhaar = identityForm.aadhaarNumber.trim();
+    if (contact && (contact.length < 5 || contact.length > 20)) {
+      toast.error("Phone number must be 5–20 characters.");
+      return;
+    }
+    if (pan && pan.length < 10) {
+      toast.error("PAN must be at least 10 characters.");
+      return;
+    }
+    if (aadhaar && aadhaar.length < 12) {
+      toast.error("Aadhaar must be at least 12 digits.");
+      return;
+    }
+    setSavingIdentity(true);
+    try {
+      const res = await updateMyEmployeeProfile({
+        contactNumber: contact || undefined,
+        panNumber: pan || undefined,
+        aadhaarNumber: aadhaar || undefined,
+      });
+      setEmployee((prev) => ({
+        ...(prev || {}),
+        contactNumber: res.data?.contactNumber || contact || "",
+        panNumber: res.data?.panNumber || pan || "",
+        aadhaarNumber: res.data?.aadhaarNumber || aadhaar || "",
+      }));
+      setEditingIdentity(false);
+      toast.success("Phone & identity details updated.");
+    } catch (err: unknown) {
+      const maybeAxiosError = err as { response?: { data?: { message?: string } } };
+      toast.error(
+        maybeAxiosError?.response?.data?.message ||
+          "Failed to update identity details."
+      );
+    } finally {
+      setSavingIdentity(false);
+    }
+  };
 
   const roleColorClass =
     ROLE_COLORS[primaryRole] || ROLE_COLORS["EMPLOYEE"];
@@ -496,14 +572,86 @@ export default function UserProfilePage() {
         {/* Contact */}
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Contact Information
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <span>Contact Information</span>
+              {employee && !editingIdentity && (
+                <button
+                  type="button"
+                  onClick={openIdentityEditor}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Edit
+                </button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <InfoRow icon={Mail} label="Email Address" value={profile.email || "—"} />
             <Separator />
-            <InfoRow icon={Phone} label="Phone Number" value={phone} />
+            {editingIdentity ? (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Phone Number
+                  </Label>
+                  <Input
+                    value={identityForm.contactNumber}
+                    onChange={(e) =>
+                      setIdentityForm((prev) => ({ ...prev, contactNumber: e.target.value }))
+                    }
+                    placeholder="10-digit phone"
+                    className="mt-1.5"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    PAN Number
+                  </Label>
+                  <Input
+                    value={identityForm.panNumber}
+                    onChange={(e) =>
+                      setIdentityForm((prev) => ({ ...prev, panNumber: e.target.value }))
+                    }
+                    placeholder="Alphanumeric 10-char PAN"
+                    className="mt-1.5"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Aadhaar Number
+                  </Label>
+                  <Input
+                    value={identityForm.aadhaarNumber}
+                    onChange={(e) =>
+                      setIdentityForm((prev) => ({ ...prev, aadhaarNumber: e.target.value }))
+                    }
+                    placeholder="12-digit Aadhaar"
+                    className="mt-1.5"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingIdentity(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleSaveIdentity} loading={savingIdentity}>
+                    Save
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <InfoRow icon={Phone} label="Phone Number" value={phone} />
+                <Separator />
+                <InfoRow icon={IdCard} label="PAN Number" value={maskId(employee?.panNumber)} />
+                <Separator />
+                <InfoRow icon={IdCard} label="Aadhaar Number" value={maskId(employee?.aadhaarNumber)} />
+              </>
+            )}
             <Separator />
             <InfoRow icon={UserRound} label="Username" value={profile.userName || "—"} />
           </CardContent>

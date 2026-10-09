@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { Check, X, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -227,7 +228,7 @@ export default function TimeslipsApprovalPage() {
                       {new Date(row.date).toLocaleDateString()}
                     </td>
                     <td className="p-3">
-                      {row.employee.firstName} {row.employee.lastName}
+                      {getFullName(row.employee)}
                     </td>
                     <td className="p-3">{row.missing_type}</td>
 <td className="p-3">

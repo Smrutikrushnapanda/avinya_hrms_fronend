@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -190,7 +191,7 @@ export default function BankDetailsPage() {
                       : "border-border hover:bg-muted/50"
                   }`}
                 >
-                  <div className="font-medium text-sm">{emp.firstName} {emp.lastName || ""}</div>
+                  <div className="font-medium text-sm">{getFullName(emp)}</div>
                   <div className="text-xs text-muted-foreground">
                     {emp.employeeCode}
                     {emp.designation?.name && ` · ${emp.designation.name}`}
@@ -213,7 +214,7 @@ export default function BankDetailsPage() {
               Bank & Statutory Details
               {selectedEmployee && (
                 <span className="text-muted-foreground font-normal ml-2">
-                  — {selectedEmployee.firstName} {selectedEmployee.lastName || ""}
+                  — {getFullName(selectedEmployee)}
                 </span>
               )}
             </CardTitle>

@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { getFullName } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
@@ -140,9 +141,7 @@ export default function AssignWorkPage() {
       (a) =>
         a.title.toLowerCase().includes(q) ||
         a.projectName.toLowerCase().includes(q) ||
-        `${a.assignedToUser?.firstName || ""} ${a.assignedToUser?.lastName || ""}`
-          .toLowerCase()
-          .includes(q),
+        getFullName(a.assignedToUser).toLowerCase().includes(q),
     );
   }, [activeTab, all, assignedByMe, assignedToMe, search]);
 
@@ -161,8 +160,8 @@ export default function AssignWorkPage() {
     if (!q) return list;
     return list.filter(
       (e) =>
-        `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-        e.firstName.toLowerCase().includes(q) ||
+        getFullName(e).toLowerCase().includes(q) ||
+        (e.firstName || "").toLowerCase().includes(q) ||
         (e.lastName || "").toLowerCase().includes(q),
     );
   }, [form.employeeSearch, options]);
@@ -170,7 +169,7 @@ export default function AssignWorkPage() {
   const employeeName = (userId: string | null) => {
     if (!userId) return "—";
     const emp = options?.employees.find((e) => e.userId === userId);
-    return emp ? `${emp.firstName} ${emp.lastName}`.trim() : userId.slice(0, 8);
+    return emp ? getFullName(emp) : userId.slice(0, 8);
   };
 
   const formatDate = (d: string | null) => {
@@ -391,6 +390,7 @@ export default function AssignWorkPage() {
                 <th className="text-left px-3 py-2 border-b border-border">Project</th>
                 <th className="text-left px-3 py-2 border-b border-border">Assigned To</th>
                 <th className="text-left px-3 py-2 border-b border-border">Assigned By</th>
+                <th className="text-left px-3 py-2 border-b border-border">Assigned Date</th>
                 <th className="text-left px-3 py-2 border-b border-border">Due Date</th>
                 <th className="text-left px-3 py-2 border-b border-border">Priority</th>
                 <th className="text-left px-3 py-2 border-b border-border">Status</th>
@@ -433,6 +433,9 @@ export default function AssignWorkPage() {
                     </td>
                     <td className="px-3 py-2">{employeeName(assignment.assignedToUserId)}</td>
                     <td className="px-3 py-2">{employeeName(assignment.assignedByUserId)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {formatDate(assignment.assignedAt ?? assignment.createdAt ?? assignment.dueDate)}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {formatDate(assignment.dueDate)}
                     </td>
@@ -620,7 +623,7 @@ export default function AssignWorkPage() {
                           className="h-4 w-4 accent-foreground"
                         />
                         <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        {emp.firstName} {emp.lastName}
+                        {getFullName(emp)}
                       </button>
                     );
                   })

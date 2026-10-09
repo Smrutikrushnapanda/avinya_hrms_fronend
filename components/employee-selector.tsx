@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, X, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getFullName} from "@/lib/utils";
 import {
   getEmployeeSelector,
   getDepartments,
@@ -166,7 +166,7 @@ export default function EmployeeSelector({
   };
 
   const displayName = selectedEmployee
-    ? `${selectedEmployee.firstName} ${selectedEmployee.lastName || ""} (${selectedEmployee.employeeCode || ""})`
+    ? `${getFullName(selectedEmployee)} (${selectedEmployee.employeeCode || ""})`
     : "";
 
   return (
@@ -284,7 +284,7 @@ export default function EmployeeSelector({
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">
-                        {emp.firstName} {emp.lastName || ""}
+                        {getFullName(emp)}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
                         {emp.employeeCode && <span>{emp.employeeCode}</span>}

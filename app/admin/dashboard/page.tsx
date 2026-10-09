@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import api, {
@@ -199,7 +200,7 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
                       )}
                       <div className="min-w-0">
                         <p className="text-sm font-semibold truncate">
-                          {anomaly.user ? `${anomaly.user.firstName} ${anomaly.user.lastName}`.trim() : 'Unknown Employee'}
+                          {anomaly.user ? getFullName(anomaly.user) : 'Unknown Employee'}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">{anomaly.user?.email || ''}</p>
                       </div>
@@ -297,7 +298,7 @@ function AttendanceAnomaliesWidget({ anomalies }: { anomalies: any[] }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">
-                  {anomaly.user ? `${anomaly.user.firstName} ${anomaly.user.lastName}`.trim() : 'Unknown'}
+                  {anomaly.user ? getFullName(anomaly.user) : 'Unknown'}
                 </p>
                 <p className="text-xs text-red-600 dark:text-red-400 truncate">
                   {anomaly.anomalyReason || 'Attendance Anomaly'}

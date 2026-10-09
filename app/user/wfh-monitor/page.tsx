@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWfhMonitor } from "@/hooks/useWfhMonitor";
-import { getWfhToday, wfhToggleLunch, wfhToggleWork } from "@/app/api/api";
+import {
+  getWfhToday,
+  getWfhTimeline,
+  wfhToggleLunch,
+  wfhToggleWork,
+} from "@/app/api/api";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -19,6 +24,10 @@ import {
   Activity,
   Clock,
   Play,
+  RefreshCw,
+  Keyboard,
+  Layers,
+  MousePointerClick,
   Square,
   ShieldCheck,
   ShieldX,
@@ -27,6 +36,10 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  ComposedChart,
+  Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip as ChartTooltip,
   XAxis,
@@ -45,6 +58,143 @@ interface ActivityData {
   workEndedAt: string | null;
   isWorking: boolean;
   hasApprovedWfh: boolean;
+}
+
+interface TimelineBucket {
+  time: string;
+  start: string;
+  end: string;
+  mouse: number;
+  keyboard: number;
+  tabs: number;
+  total: number;
+  activeMinutes: number;
+  breakMinutes: number;
+  status: "active" | "break" | "outside";
+}
+
+interface TimelineData {
+  date: string;
+  workStartedAt: string | null;
+  workEndedAt: string | null;
+  isWorking: boolean;
+  lunchStart: string | null;
+  lunchEnd: string | null;
+  isLunch: boolean;
+  lastActiveAt: string | null;
+  totals: {
+    mouse: number;
+    keyboard: number;
+    tabs: number;
+    activeMinutes: number;
+    breakMinutes: number;
+  };
+  buckets: TimelineBucket[];
+}
+
+const STATUS_COLORS: Record<TimelineBucket["status"], string> = {
+  active: "#16a34a",
+  break: "#f59e0b",
+  outside: "#94a3b8",
+};
+
+const STATUS_LABELS: Record<TimelineBucket["status"], string> = {
+  active: "Working",
+  break: "On break",
+  outside: "Outside session",
+};
+
+function formatSlotRange(bucket: TimelineBucket) {
+  const opts = { hour: "2-digit", minute: "2-digit" } as const;
+  const start = new Date(bucket.start).toLocaleTimeString([], opts);
+  const end = new Date(bucket.end).toLocaleTimeString([], opts);
+  return `${start} – ${end}`;
+}
+
+function formatMinutes(total: number) {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+/** Custom hover tooltip for the work session timeline. */
+function SessionTooltip(props: {
+  active?: boolean;
+  payload?: Array<{ payload?: TimelineBucket }>;
+}) {
+  const bucket = props.payload?.[0]?.payload;
+  if (!props.active || !bucket) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-md text-xs space-y-1 min-w-[180px]">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-semibold text-foreground">
+          {formatSlotRange(bucket)}
+        </span>
+        <span
+          className="rounded-full px-1.5 py-0.5 font-medium"
+          style={{
+            color: STATUS_COLORS[bucket.status],
+            backgroundColor: `${STATUS_COLORS[bucket.status]}1a`,
+          }}
+        >
+          {STATUS_LABELS[bucket.status]}
+        </span>
+      </div>
+      <div className="flex items-center justify-between text-muted-foreground">
+        <span>Active time</span>
+        <span className="font-medium text-green-600 dark:text-green-400">
+          {bucket.activeMinutes} min
+        </span>
+      </div>
+      <div className="flex items-center justify-between text-muted-foreground">
+        <span>Break time</span>
+        <span className="font-medium text-amber-600 dark:text-amber-400">
+          {bucket.breakMinutes} min
+        </span>
+      </div>
+      <div className="border-t border-border pt-1 flex items-center justify-between text-muted-foreground">
+        <span>Input events</span>
+        <span className="font-medium text-foreground">{bucket.total}</span>
+      </div>
+      <div className="flex items-center justify-between text-muted-foreground">
+        <span>Mouse · Keys · Tabs</span>
+        <span className="font-medium text-foreground">
+          {bucket.mouse} · {bucket.keyboard} · {bucket.tabs}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Toggleable legend chip below the chart. */
+function LegendChip({
+  color,
+  label,
+  visible,
+  onClick,
+}: {
+  color: string;
+  label: string;
+  visible: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={visible}
+      className={`flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted ${
+        visible ? "" : "opacity-40"
+      }`}
+    >
+      <span
+        className="w-2.5 h-2.5 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+      {label}
+    </button>
+  );
 }
 
 export default function WfhMonitorPage() {
@@ -66,6 +216,27 @@ export default function WfhMonitorPage() {
   const [inactiveDialogOpen, setInactiveDialogOpen] = useState(false);
   const [lunchLoading, setLunchLoading] = useState(false);
   const [workLoading, setWorkLoading] = useState(false);
+  const [timeline, setTimeline] = useState<TimelineData | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [visibleSeries, setVisibleSeries] = useState({
+    active: true,
+    break: true,
+    events: true,
+  });
+
+  const fetchTimeline = useCallback(async () => {
+    setTimelineLoading(true);
+    try {
+      const res = await getWfhTimeline();
+      setTimeline(res.data as TimelineData);
+    } catch {
+      // keep whatever timeline we already have; graph falls back to summary
+    } finally {
+      setTimelineLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     getWfhToday()
@@ -77,7 +248,30 @@ export default function WfhMonitorPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+    fetchTimeline();
+  }, [fetchTimeline]);
+
+  // Auto-refresh the graph while a work session is running so the employee
+  // always sees their latest activity.
+  useEffect(() => {
+    if (!activity.isWorking) return;
+    const timer = setInterval(() => {
+      fetchTimeline();
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [activity.isWorking, fetchTimeline]);
+
+  const handleManualRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [todayRes] = await Promise.all([getWfhToday(), fetchTimeline()]);
+      setActivity(todayRes.data);
+    } catch {
+      toast.error("Failed to refresh. Please try again.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchTimeline]);
 
   const handleInactive = useCallback(() => {
     setInactiveDialogOpen(true);
@@ -101,6 +295,7 @@ export default function WfhMonitorPage() {
       } else {
         toast.success("Work session ended. Have a great rest of your day!");
       }
+      fetchTimeline();
     } catch {
       toast.error("Failed to toggle work session. Please try again.");
     } finally {
@@ -126,6 +321,7 @@ export default function WfhMonitorPage() {
       } else {
         toast.success("Welcome back! Lunch break ended.");
       }
+      fetchTimeline();
     } catch (error: unknown) {
       const message =
         (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -168,9 +364,41 @@ export default function WfhMonitorPage() {
   const lunchMinutes = getDurationMinutes(activity.lunchStart, activity.lunchEnd);
   const activeMinutes = Math.max(0, workMinutes - lunchMinutes);
   const lunchCompleted = Boolean(activity.lunchEnd && !activity.isLunch);
-  const sessionGraphData = [
-    { name: "Today", active: activeMinutes, break: lunchMinutes },
-  ];
+
+  // Interactive graph data: 30-min buckets for today's work session.
+  const buckets = timeline?.buckets ?? [];
+  const hasBuckets = buckets.length > 0;
+  const sessionGraphData = hasBuckets
+    ? buckets
+    : [{ name: "Today", active: activeMinutes, break: lunchMinutes }];
+
+  const selectedBucket = selectedSlot
+    ? buckets.find((b) => b.time === selectedSlot) ?? null
+    : null;
+
+  // "Now" marker slot while the session is running (matches bucket labels HH:MM).
+  const nowDate = new Date();
+  const nowSlot =
+    activity.isWorking && hasBuckets
+      ? `${String(nowDate.getHours()).padStart(2, "0")}:${
+          nowDate.getMinutes() < 30 ? "00" : "30"
+        }`
+      : null;
+  const nowInRange =
+    nowSlot !== null &&
+    buckets.some((b) => b.time === nowSlot);
+
+  const summaryTotals = timeline?.totals ?? {
+    mouse: activity.mouseEvents,
+    keyboard: activity.keyboardEvents,
+    tabs: activity.tabSwitches,
+    activeMinutes,
+    breakMinutes: lunchMinutes,
+  };
+
+  const toggleSeries = (key: "active" | "break" | "events") => {
+    setVisibleSeries((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   if (loading) {
     return (
@@ -314,35 +542,285 @@ export default function WfhMonitorPage() {
         </div>
       )}
 
-      {/* Session Graph — only shown when work has been started */}
+      {/* Session Graph — interactive timeline, only shown when work has been started */}
       {activity.workStartedAt && (
         <div className="rounded-xl border p-4 bg-card">
-          <div className="mb-3">
-            <p className="text-sm font-semibold text-foreground">Work Session Graph</p>
-            <p className="text-xs text-muted-foreground">
-              Visual summary of your active time and break time today.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Work Session Graph</p>
+              <p className="text-xs text-muted-foreground">
+                {hasBuckets
+                  ? "Hover a slot for details, click it to inspect. Updates every minute while you work."
+                  : "Visual summary of your active time and break time today."}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {hasBuckets && (
+                <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Live
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleManualRefresh}
+                loading={refreshing || timelineLoading}
+                className="gap-1.5 text-xs h-8"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+
+          {/* Summary chips */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Activity className="w-3.5 h-3.5 text-green-600" />
+                Active
+              </div>
+              <p className="text-sm font-semibold text-foreground mt-0.5">
+                {formatMinutes(summaryTotals.activeMinutes)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <UtensilsCrossed className="w-3.5 h-3.5 text-amber-600" />
+                Break
+              </div>
+              <p className="text-sm font-semibold text-foreground mt-0.5">
+                {formatMinutes(summaryTotals.breakMinutes)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <MousePointerClick className="w-3.5 h-3.5 text-blue-600" />
+                Mouse
+              </div>
+              <p className="text-sm font-semibold text-foreground mt-0.5">
+                {summaryTotals.mouse.toLocaleString()}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Keyboard className="w-3.5 h-3.5 text-violet-600" />
+                Keystrokes
+              </div>
+              <p className="text-sm font-semibold text-foreground mt-0.5">
+                {summaryTotals.keyboard.toLocaleString()}
+              </p>
+            </div>
           </div>
 
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sessionGraphData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <ChartTooltip />
-                <Bar dataKey="active" stackId="time" fill="#16a34a" name="Active (min)" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="break" stackId="time" fill="#f59e0b" name="Break (min)" radius={[6, 6, 0, 0]} />
-              </BarChart>
+              {hasBuckets ? (
+                <ComposedChart
+                  data={buckets}
+                  margin={{ top: 8, right: 8, left: -8, bottom: 0 }}
+                  onClick={(state) => {
+                    const idx = state.activeIndex;
+                    if (typeof idx === "number" && idx >= 0 && idx < buckets.length) {
+                      const slot = buckets[idx];
+                      setSelectedSlot((prev) =>
+                        prev === slot.time ? null : slot.time,
+                      );
+                    }
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    tick={{ fontSize: 11 }}
+                    interval="preserveStartEnd"
+                    minTickGap={16}
+                  />
+                  <YAxis yAxisId="minutes" tick={{ fontSize: 11 }} width={40} />
+                  <YAxis
+                    yAxisId="events"
+                    orientation="right"
+                    tick={{ fontSize: 11 }}
+                    width={40}
+                    allowDecimals={false}
+                  />
+                  <ChartTooltip content={<SessionTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+                  {nowInRange && nowSlot && (
+                    <ReferenceLine
+                      yAxisId="minutes"
+                      x={nowSlot}
+                      stroke="#2563eb"
+                      strokeDasharray="4 4"
+                      label={{
+                        value: "Now",
+                        position: "insideTopRight",
+                        fontSize: 10,
+                        fill: "#2563eb",
+                      }}
+                    />
+                  )}
+                  <Bar
+                    yAxisId="minutes"
+                    dataKey="activeMinutes"
+                    stackId="time"
+                    name="Active (min)"
+                    hide={!visibleSeries.active}
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                  >
+                    {buckets.map((bucket) => (
+                      <Cell
+                        key={bucket.time}
+                        fill={
+                          selectedSlot === bucket.time
+                            ? "#15803d"
+                            : STATUS_COLORS[bucket.status === "outside" ? "active" : bucket.status]
+                        }
+                      />
+                    ))}
+                  </Bar>
+                  <Bar
+                    yAxisId="minutes"
+                    dataKey="breakMinutes"
+                    stackId="time"
+                    name="Break (min)"
+                    hide={!visibleSeries.break}
+                    radius={[4, 4, 0, 0]}
+                    cursor="pointer"
+                  >
+                    {buckets.map((bucket) => (
+                      <Cell
+                        key={bucket.time}
+                        fill={selectedSlot === bucket.time ? "#d97706" : "#f59e0b"}
+                      />
+                    ))}
+                  </Bar>
+                  <Line
+                    yAxisId="events"
+                    type="monotone"
+                    dataKey="total"
+                    name="Input events"
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    dot={{ r: 2, fill: "#2563eb" }}
+                    hide={!visibleSeries.events}
+                  />
+                </ComposedChart>
+              ) : (
+                <BarChart data={sessionGraphData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <ChartTooltip />
+                  <Bar dataKey="active" stackId="time" fill="#16a34a" name="Active (min)" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="break" stackId="time" fill="#f59e0b" name="Break (min)" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              )}
             </ResponsiveContainer>
           </div>
 
-          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="w-4 h-4" />
-            Last active:{" "}
-            {activity.lastActiveAt
-              ? new Date(activity.lastActiveAt).toLocaleTimeString()
-              : "No activity recorded yet"}
+          {/* Interactive legend — click to show/hide series */}
+          {hasBuckets && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <LegendChip
+                color="#16a34a"
+                label="Active (min)"
+                visible={visibleSeries.active}
+                onClick={() => toggleSeries("active")}
+              />
+              <LegendChip
+                color="#f59e0b"
+                label="Break (min)"
+                visible={visibleSeries.break}
+                onClick={() => toggleSeries("break")}
+              />
+              <LegendChip
+                color="#2563eb"
+                label="Input events"
+                visible={visibleSeries.events}
+                onClick={() => toggleSeries("events")}
+              />
+            </div>
+          )}
+
+          {/* Selected slot drill-down */}
+          {selectedBucket && (
+            <div className="mt-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/30 p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  <p className="text-xs font-semibold text-blue-800 dark:text-blue-200">
+                    {formatSlotRange(selectedBucket)}
+                  </p>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    style={{
+                      color: STATUS_COLORS[selectedBucket.status],
+                      backgroundColor: `${STATUS_COLORS[selectedBucket.status]}1a`,
+                    }}
+                  >
+                    {STATUS_LABELS[selectedBucket.status]}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedSlot(null)}
+                  className="h-6 px-2 text-xs"
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                <div>
+                  <p className="text-muted-foreground">Active</p>
+                  <p className="font-semibold text-green-600 dark:text-green-400">
+                    {selectedBucket.activeMinutes} min
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Break</p>
+                  <p className="font-semibold text-amber-600 dark:text-amber-400">
+                    {selectedBucket.breakMinutes} min
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Mouse</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedBucket.mouse.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Keystrokes</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedBucket.keyboard.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Tab switches</p>
+                  <p className="font-semibold text-foreground">
+                    {selectedBucket.tabs.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" />
+              Last active:{" "}
+              {activity.lastActiveAt
+                ? new Date(activity.lastActiveAt).toLocaleTimeString()
+                : "No activity recorded yet"}
+            </span>
+            {hasBuckets && !selectedSlot && (
+              <span className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" />
+                Click a slot on the chart to see details.
+              </span>
+            )}
           </div>
         </div>
       )}

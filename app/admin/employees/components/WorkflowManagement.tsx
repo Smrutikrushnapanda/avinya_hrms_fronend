@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { getFullName } from "@/lib/utils";
 import {
   getWorkflows,
   createWorkflow,
@@ -718,7 +719,7 @@ const handleSaveApprovers = async () => {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                          {employee.firstName} {employee.lastName}
+                          {getFullName(employee)}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
                           {employee.employeeCode}

@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
@@ -322,7 +323,7 @@ export default function TimeslipTab({ employeeId, employee }: TimeslipTabProps) 
                         <div key={approval.id} className="text-xs">
                           {approval.approver ? (
                             <span>
-                              {approval.approver.firstName} {approval.approver.lastName}: {approval.action}
+                              {getFullName(approval.approver)}: {approval.action}
                             </span>
                           ) : (
                             <span>Pending approval: {approval.action}</span>

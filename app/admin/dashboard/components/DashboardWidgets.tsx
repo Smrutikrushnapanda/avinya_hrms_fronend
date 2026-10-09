@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { format, isAfter, isBefore } from "date-fns";
 import { 
@@ -611,11 +612,11 @@ export function BirthdayWidget({ upcomingBirthdays }: { upcomingBirthdays: any[]
                     <Avatar className="h-8 w-8">
                       <AvatarImage src={person.photoUrl || ''} />
                       <AvatarFallback className="bg-pink-200 text-pink-800">
-                        {`${person.firstName} ${person.lastName || ''}`.split(' ').map((n: string) => n[0]).join('')}
+                        {getFullName(person).split(' ').map((n: string) => n[0]).join('')}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <div className="font-medium text-sm">{`${person.firstName} ${person.lastName || ''}`.trim()}</div>
+                      <div className="font-medium text-sm">{getFullName(person)}</div>
                       <div className="text-xs opacity-70">{person.department?.name || 'Unknown Department'}</div>
                     </div>
                     <Cake className="h-4 w-4 text-pink-500" />
@@ -636,11 +637,11 @@ export function BirthdayWidget({ upcomingBirthdays }: { upcomingBirthdays: any[]
                     <Avatar className="h-7 w-7">
                       <AvatarImage src={person.photoUrl || ''} />
                       <AvatarFallback className="text-xs">
-                        {`${person.firstName} ${person.lastName || ''}`.split(' ').map((n: string) => n[0]).join('')}
+                        {getFullName(person).split(' ').map((n: string) => n[0]).join('')}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <div className="font-medium text-sm">{`${person.firstName} ${person.lastName || ''}`.trim()}</div>
+                      <div className="font-medium text-sm">{getFullName(person)}</div>
                       <div className="text-xs opacity-70">{person.department?.name || 'Unknown Department'}</div>
                     </div>
                     <div className="text-right text-xs opacity-70">

@@ -1,3 +1,4 @@
+import { getFullName } from "@/lib/utils";
 import { format } from 'date-fns';
 
 export interface AttendanceRecord {
@@ -85,7 +86,7 @@ export const generateMockAttendanceData = (employees: any[], dateRange: { fromDa
     
     return {
       employeeId: emp.id,
-      employeeName: `${emp.firstName} ${emp.lastName || ''}`,
+      employeeName: getFullName(emp),
       employeeCode: emp.employeeCode || `EMP${String(index + 1).padStart(3, '0')}`,
       email: emp.workEmail || emp.email || `employee${index + 1}@company.com`,
       department: emp.department?.name || 'Engineering',

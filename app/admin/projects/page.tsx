@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { getFullName } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -132,7 +133,7 @@ const priorityConfig: Record<ProjectPriority, { label: string; color: string }> 
 
 function memberName(m: ProjectMemberItem) {
   if (!m.user) return "Unknown";
-  return [m.user.firstName, m.user.lastName].filter(Boolean).join(" ") || m.user.email;
+  return getFullName(m.user);
 }
 
 function projectName(p: any) {
@@ -140,7 +141,7 @@ function projectName(p: any) {
 }
 
 function userName(u: UserOption) {
-  return [u.firstName, u.lastName].filter(Boolean).join(" ") || u.email;
+  return getFullName(u);
 }
 
 function ProgressBar({ value }: { value: number }) {

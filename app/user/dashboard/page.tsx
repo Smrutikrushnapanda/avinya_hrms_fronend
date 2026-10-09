@@ -25,6 +25,7 @@ import { Calendar } from "@/components/ui/calendar";
 import AttendanceDonutChart from "@/components/charts/AttendanceDonutChart";
 import AttendanceStatus from "@/components/AttendanceStatus";
 import { usePlanAccess } from "@/components/plan-access-provider";
+import AssetAcknowledgementModal from "@/components/AssetAcknowledgementModal";
 import { toast } from "sonner";
 import { getMinutesOfDayInZone } from "@/utils/timezone";
 import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
@@ -981,6 +982,7 @@ export default function UserDashboardPage() {
 
   return (
     <div className="min-h-screen bg-background p-6 font-sans">
+      <AssetAcknowledgementModal />
       {/* ── PAGE HEADER ── */}
       <div className="flex items-center justify-between mb-7">
         <div>

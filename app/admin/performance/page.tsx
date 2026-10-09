@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { ColumnDef } from "@tanstack/react-table";
+import { getFullName } from "@/lib/utils";
 import {
   Plus,
   Trash2,
@@ -182,7 +183,7 @@ export default function AdminPerformancePage() {
       return;
     }
     const rows = aggregated.map((emp) => ({
-      "Employee": `${emp.firstName} ${emp.lastName}`,
+      "Employee": getFullName(emp),
       "Email": emp.workEmail,
       "Self Rating (/10)": emp.selfReview?.rating ?? "",
       "Self Remark": emp.selfReview?.remark ?? "",
@@ -244,7 +245,7 @@ export default function AdminPerformancePage() {
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">
-                  {emp.firstName} {emp.lastName}
+                  {getFullName(emp)}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">{emp.workEmail}</p>
               </div>

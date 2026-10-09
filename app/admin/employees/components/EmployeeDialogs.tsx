@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useState } from "react";
 import {
   User,
@@ -468,6 +469,48 @@ export default function EmployeeDialogs({
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="panNumber">PAN Number</Label>
+                <Input
+                  id="panNumber"
+                  value={newEmployee.panNumber}
+                  onChange={(e) =>
+                    setNewEmployee({
+                      ...newEmployee,
+                      panNumber: e.target.value.toUpperCase(),
+                    })
+                  }
+                  maxLength={10}
+                  placeholder="ABCDE1234F"
+                  className={formErrors.panNumber ? "border-red-500" : ""}
+                />
+                {formErrors.panNumber && (
+                  <p className="text-sm text-red-500">{formErrors.panNumber}</p>
+                )}
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="aadhaarNumber">Aadhaar Number</Label>
+                <Input
+                  id="aadhaarNumber"
+                  value={newEmployee.aadhaarNumber}
+                  onChange={(e) =>
+                    setNewEmployee({
+                      ...newEmployee,
+                      aadhaarNumber: e.target.value.replace(/\D/g, "").slice(0, 12),
+                    })
+                  }
+                  inputMode="numeric"
+                  maxLength={12}
+                  placeholder="123456789012"
+                  className={formErrors.aadhaarNumber ? "border-red-500" : ""}
+                />
+                {formErrors.aadhaarNumber && (
+                  <p className="text-sm text-red-500">{formErrors.aadhaarNumber}</p>
+                )}
+              </div>
+            </div>
+
             <Separator />
 
             {/* Emergency Contact */}
@@ -652,7 +695,7 @@ export default function EmployeeDialogs({
                           <SelectItem value="none" disabled>No managers available yet</SelectItem>
                         ) : (
                           managers.map((mgr: any) => (
-                            <SelectItem key={mgr.id} value={mgr.id}>{`${mgr.firstName} ${mgr.lastName || ''}`}</SelectItem>
+                            <SelectItem key={mgr.id} value={mgr.id}>{getFullName(mgr)}</SelectItem>
                           ))
                         )}
                       </SelectContent>
@@ -1015,6 +1058,48 @@ export default function EmployeeDialogs({
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="editPanNumber">PAN Number</Label>
+                <Input
+                  id="editPanNumber"
+                  value={editEmployee.panNumber}
+                  onChange={(e) =>
+                    setEditEmployee({
+                      ...editEmployee,
+                      panNumber: e.target.value.toUpperCase(),
+                    })
+                  }
+                  maxLength={10}
+                  placeholder="ABCDE1234F"
+                  className={formErrors.panNumber ? "border-red-500" : ""}
+                />
+                {formErrors.panNumber && (
+                  <p className="text-sm text-red-500">{formErrors.panNumber}</p>
+                )}
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editAadhaarNumber">Aadhaar Number</Label>
+                <Input
+                  id="editAadhaarNumber"
+                  value={editEmployee.aadhaarNumber}
+                  onChange={(e) =>
+                    setEditEmployee({
+                      ...editEmployee,
+                      aadhaarNumber: e.target.value.replace(/\D/g, "").slice(0, 12),
+                    })
+                  }
+                  inputMode="numeric"
+                  maxLength={12}
+                  placeholder="123456789012"
+                  className={formErrors.aadhaarNumber ? "border-red-500" : ""}
+                />
+                {formErrors.aadhaarNumber && (
+                  <p className="text-sm text-red-500">{formErrors.aadhaarNumber}</p>
+                )}
+              </div>
+            </div>
+
             <Separator />
 
             {/* Emergency Contact */}
@@ -1199,7 +1284,7 @@ export default function EmployeeDialogs({
                           ) : (
                             filtered.map((mgr: any) => (
                               <SelectItem key={mgr.id} value={mgr.id}>
-                                {`${mgr.firstName} ${mgr.lastName || ''}`}
+                                {getFullName(mgr)}
                               </SelectItem>
                             ))
                           );
@@ -1440,7 +1525,7 @@ export default function EmployeeDialogs({
                 </Avatar>
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold">
-                    {`${selectedEmployee.firstName} ${selectedEmployee.lastName || ''}`}
+                    {getFullName(selectedEmployee)}
                   </h3>
                   <p className="text-muted-foreground">{selectedEmployee.designation?.name || 'No designation'}</p>
                   <p className="text-sm text-muted-foreground">{selectedEmployee.workEmail}</p>
@@ -1471,7 +1556,7 @@ export default function EmployeeDialogs({
                     <div>
                       <Label className="text-sm font-medium">Full Name</Label>
                       <p className="text-sm text-muted-foreground">
-                        {`${selectedEmployee.firstName} ${selectedEmployee.middleName || ''} ${selectedEmployee.lastName || ''}`.trim()}
+                        {getFullName(selectedEmployee)}
                       </p>
                     </div>
                     <div>
@@ -1535,7 +1620,7 @@ export default function EmployeeDialogs({
                       <Label className="text-sm font-medium">Reporting Manager</Label>
                       <p className="text-sm text-muted-foreground">
                         {selectedEmployee.manager ?
-                          `${selectedEmployee.manager.firstName} ${selectedEmployee.manager.lastName}` :
+                          getFullName(selectedEmployee.manager) :
                           "No manager assigned"
                         }
                       </p>
@@ -1739,7 +1824,7 @@ export default function EmployeeDialogs({
                   <SelectItem value="no-change">No change</SelectItem>
                   {managers.map((mgr: any) => (
                     <SelectItem key={mgr.id} value={mgr.id}>
-                      {`${mgr.firstName} ${mgr.lastName || ''}`}
+                      {getFullName(mgr)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1920,7 +2005,7 @@ export default function EmployeeDialogs({
                 <div className="flex flex-wrap gap-2">
                   {messageRecipients.map((emp) => (
                     <Badge key={emp.id} variant="secondary">
-                      {`${emp.firstName} ${emp.lastName || ""}`.trim() || emp.workEmail}
+                      {getFullName(emp) || emp.workEmail}
                     </Badge>
                   ))}
                 </div>
@@ -1973,7 +2058,7 @@ export default function EmployeeDialogs({
                 Are you sure you want to deactivate{" "}
                 <strong>
                   {deactivateConfirmEmployee
-                    ? `${deactivateConfirmEmployee.firstName} ${deactivateConfirmEmployee.lastName || ""}`.trim()
+                    ? getFullName(deactivateConfirmEmployee)
                     : "this employee"}
                 </strong>
                 ?
@@ -2041,7 +2126,7 @@ export default function EmployeeDialogs({
               Assign projects and project-specific managers for{" "}
               <strong>
                 {projectAssignEmployee
-                  ? `${projectAssignEmployee.firstName} ${projectAssignEmployee.lastName || ""}`.trim()
+                  ? getFullName(projectAssignEmployee)
                   : "Employee"}
               </strong>
             </DialogDescription>
@@ -2085,7 +2170,7 @@ export default function EmployeeDialogs({
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <UserCheck className="h-3 w-3 text-muted-foreground" />
                                 <span>
-                                  {`${assignment.manager.firstName} ${assignment.manager.lastName || ""}`.trim()}
+                                  {getFullName(assignment.manager)}
                                   {!assignment.manager.isActive && (
                                     <span className="text-amber-600 dark:text-amber-400 ml-1">
                                       (Inactive)
@@ -2239,7 +2324,7 @@ export default function EmployeeDialogs({
                         .filter((m: any) => m.id !== projectAssignEmployee?.id && (m.status || "active") === "active")
                         .map((m: any) => (
                           <SelectItem key={m.id} value={m.id}>
-                            {`${m.firstName} ${m.lastName || ""}`.trim()}
+                            {getFullName(m)}
                             {m.designation?.name ? ` (${m.designation.name})` : ""}
                           </SelectItem>
                         ))}

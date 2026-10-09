@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import {
   MessageSquare,
@@ -206,7 +207,7 @@ export default function AdminMessagesPage() {
   const filteredEmployees = employees.filter((emp) => {
     if (!recipientSearch.trim()) return true;
     const s = recipientSearch.toLowerCase();
-    const name = `${emp.firstName} ${emp.lastName || ""}`.toLowerCase();
+    const name = getFullName(emp).toLowerCase();
     return name.includes(s) || (emp.workEmail || "").toLowerCase().includes(s);
   });
 
@@ -455,7 +456,7 @@ export default function AdminMessagesPage() {
                     if (!emp) return null;
                     return (
                       <Badge key={empId} variant="secondary" className="gap-1 pr-1">
-                        {`${emp.firstName} ${emp.lastName || ""}`.trim()}
+                        {getFullName(emp)}
                         <button
                           onClick={() => toggleRecipient(empId)}
                           className="ml-1 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 p-0.5"
@@ -505,7 +506,7 @@ export default function AdminMessagesPage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium">
-                            {`${emp.firstName} ${emp.lastName || ""}`.trim()}
+                            {getFullName(emp)}
                           </p>
                           {emp.workEmail && (
                             <p className="text-xs text-gray-500 dark:text-gray-400">{emp.workEmail}</p>

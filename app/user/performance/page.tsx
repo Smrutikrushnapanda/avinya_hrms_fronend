@@ -25,6 +25,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { getFullName } from "@/lib/utils";
 import {
   TrendingUp,
   Plus,
@@ -405,7 +406,7 @@ function TeamReviewSection({
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">
-                  {member.firstName} {member.lastName}
+                  {getFullName(member)}
                 </p>
                 <p className="text-xs text-muted-foreground">{member.workEmail}</p>
               </div>
@@ -569,7 +570,7 @@ function HrRateSection({
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">
-                  {emp.firstName} {emp.lastName}
+                  {getFullName(emp)}
                 </p>
                 <p className="text-xs text-muted-foreground">{emp.workEmail}</p>
               </div>

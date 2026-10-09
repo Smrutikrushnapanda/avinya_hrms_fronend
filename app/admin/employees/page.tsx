@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Download, Upload, Settings, Zap, UserCheck, UserX, X } from "lucide-react";
@@ -280,6 +281,8 @@ export default function EmployeesPage() {
     workEmail: "",
     personalEmail: "",
     contactNumber: "",
+    panNumber: "",
+    aadhaarNumber: "",
     photoUrl: "",
     aadharPhotoUrl: "",
     passportPhotoUrl: "",
@@ -545,6 +548,17 @@ export default function EmployeesPage() {
       errors.contactNumber = "Contact number must be exactly 10 digits";
     }
 
+    if (
+      data.panNumber?.trim() &&
+      !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(data.panNumber.trim().toUpperCase())
+    ) {
+      errors.panNumber = "PAN must be 10 characters in the format ABCDE1234F";
+    }
+
+    if (data.aadhaarNumber?.trim() && !/^\d{12}$/.test(data.aadhaarNumber.trim().replace(/\s+/g, ""))) {
+      errors.aadhaarNumber = "Aadhaar must be exactly 12 digits";
+    }
+
     if (data.emergencyContactPhone?.trim() && !isValidEmergencyPhone(data.emergencyContactPhone)) {
       errors.emergencyContactPhone = "Emergency phone must be a valid Indian number";
     }
@@ -593,6 +607,9 @@ export default function EmployeesPage() {
     if (data.dateOfBirth) cleanData.dateOfBirth = new Date(data.dateOfBirth).toISOString();
     if (data.personalEmail?.trim()) cleanData.personalEmail = data.personalEmail.trim().toLowerCase();
     if (data.contactNumber?.trim()) cleanData.contactNumber = data.contactNumber.trim();
+    if (data.panNumber?.trim()) cleanData.panNumber = data.panNumber.trim().toUpperCase();
+    if (data.aadhaarNumber?.trim())
+      cleanData.aadhaarNumber = data.aadhaarNumber.trim().replace(/\s+/g, "");
     if (data.photoUrl?.trim()) cleanData.photoUrl = data.photoUrl.trim();
     if (data.aadharPhotoUrl?.trim()) cleanData.aadharPhotoUrl = data.aadharPhotoUrl.trim();
     if (data.panCardPhotoUrl?.trim()) cleanData.panCardPhotoUrl = data.panCardPhotoUrl.trim();
@@ -666,7 +683,7 @@ export default function EmployeesPage() {
 
       await logActivity(
         "CREATE_EMPLOYEE",
-        `Created employee: ${cleanData.firstName} ${cleanData.lastName || ""}`
+        `Created employee: ${getFullName(cleanData)}`
       );
 
       setIsCreateDialogOpen(false);
@@ -731,7 +748,7 @@ export default function EmployeesPage() {
       // Log activity after success (non-blocking)
       logActivity(
         "UPDATE_EMPLOYEE",
-        `Updated employee: ${cleanData.firstName} ${cleanData.lastName || ""}`
+        `Updated employee: ${getFullName(cleanData)}`
       ).catch(() => {});
     } catch (error: any) {
       console.error("Failed to update employee:", error);
@@ -749,14 +766,14 @@ export default function EmployeesPage() {
   };
 
   const handleDeleteEmployee = async (employee: Employee) => {
-    if (!window.confirm(`Are you sure you want to delete ${employee.firstName} ${employee.lastName || ""}?`)) {
+    if (!window.confirm(`Are you sure you want to delete ${getFullName(employee)}?`)) {
       return;
     }
 
     try {
       await deleteEmployee(employee.id);
 
-      await logActivity("DELETE_EMPLOYEE", `Deleted employee: ${employee.firstName} ${employee.lastName || ""}`);
+      await logActivity("DELETE_EMPLOYEE", `Deleted employee: ${getFullName(employee)}`);
 
       await refreshData();
       toast.success("Employee deleted successfully");
@@ -899,7 +916,7 @@ export default function EmployeesPage() {
       );
 
       toast.success(
-        `Employee ${employee.firstName} ${employee.lastName || ""} ${
+        `Employee ${getFullName(employee)} ${
           newStatus === "active" ? "activated" : "deactivated"
         }`
       );
@@ -1011,10 +1028,10 @@ export default function EmployeesPage() {
       await updateEmployee(deactivateConfirmEmployee.id, { status: "inactive" });
       await logActivity(
         "STATUS_UPDATE",
-        `Deactivated employee: ${deactivateConfirmEmployee.firstName} ${deactivateConfirmEmployee.lastName || ""}`
+        `Deactivated employee: ${getFullName(deactivateConfirmEmployee)}`
       );
       toast.success(
-        `Employee ${deactivateConfirmEmployee.firstName} ${deactivateConfirmEmployee.lastName || ""} deactivated`
+        `Employee ${getFullName(deactivateConfirmEmployee)} deactivated`
       );
       setDeactivateConfirmEmployee(null);
       await refreshData();
@@ -1115,7 +1132,7 @@ export default function EmployeesPage() {
     setSelectedEmployee(employee);
     setIsViewDialogOpen(true);
 
-    logActivity("VIEW_EMPLOYEE", `Viewed employee: ${employee.firstName} ${employee.lastName || ""}`);
+    logActivity("VIEW_EMPLOYEE", `Viewed employee: ${getFullName(employee)}`);
   };
 
   const handleEditEmployee = (employee: Employee) => {
@@ -1151,6 +1168,8 @@ export default function EmployeesPage() {
       workEmail: employee.workEmail,
       personalEmail: employee.personalEmail || "",
       contactNumber: employee.contactNumber || "",
+      panNumber: employee.panNumber || "",
+      aadhaarNumber: employee.aadhaarNumber || "",
       photoUrl: employee.photoUrl || "",
       aadharPhotoUrl: employee.aadharPhotoUrl || "",
       passportPhotoUrl: employee.passportPhotoUrl || "",

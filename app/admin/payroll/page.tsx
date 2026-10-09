@@ -1,5 +1,6 @@
 "use client";
 
+import { getFullName } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -823,7 +824,7 @@ export default function PayrollPage() {
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>
-              Bank Details {bankEmployee ? `— ${bankEmployee.firstName} ${bankEmployee.lastName || ""}` : ""}
+              Bank Details {bankEmployee ? `— ${getFullName(bankEmployee)}` : ""}
             </DialogTitle>
           </DialogHeader>
           {loadingBankDetail ? (

@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getProfile, getEmployees } from "@/app/api/api";
+import { getFullName } from "@/lib/utils";
 
 interface Employee {
   employeeCode: string;
@@ -42,7 +43,7 @@ export default function EmployeesPage() {
   }, []);
 
   const filteredEmployees = employees.filter((emp) =>
-    `${emp.firstName} ${emp.lastName} ${emp.employeeCode}`
+    `${getFullName(emp)} ${emp.employeeCode}`
       .toLowerCase()
       .includes(search.toLowerCase())
   );

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Briefcase, Building2, PlusCircle, ArrowLeft } from "lucide-react";
+import { Briefcase, Building2, PlusCircle, ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 
 import {
   createClient,
@@ -25,6 +25,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getFullName } from "@/lib/utils";
+
+const DEFAULT_PROJECT_FORM = {
+  clientId: "",
+  projectName: "",
+  status: "ACTIVE",
+  startDate: "",
+  endDate: "",
+  description: "",
+  managerId: "",
+  additionalManagerIds: [] as string[],
+  projectCost: "",
+  hourlyRate: "",
+  workOrderAssigned: "no" as "yes" | "no",
+  parentProjectId: "",
+};
 
 export default function ClientsProjectsPage() {
   const router = useRouter();
@@ -32,11 +48,13 @@ export default function ClientsProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [workOrderFilter, setWorkOrderFilter] = useState<"all" | "assigned" | "pending">("all");
   const [managers, setManagers] = useState<any[]>([]);
   const [clientSubmitting, setClientSubmitting] = useState(false);
   const [projectSubmitting, setProjectSubmitting] = useState(false);
   const [editClientId, setEditClientId] = useState<string | null>(null);
   const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  const [expandedStreams, setExpandedStreams] = useState<Record<string, boolean>>({});
 
   const [clientForm, setClientForm] = useState({
     clientName: "",
@@ -58,8 +76,11 @@ export default function ClientsProjectsPage() {
     endDate: "",
     description: "",
     managerId: "",
+    additionalManagerIds: [] as string[],
     projectCost: "",
     hourlyRate: "",
+    workOrderAssigned: "no" as "yes" | "no",
+    parentProjectId: "",
   });
 
   const loadData = async (orgId: string) => {
@@ -85,7 +106,13 @@ export default function ClientsProjectsPage() {
       .filter((e: any) => reportsSet.has(e.id))
       .map((e: any) => ({
         id: e.id,
-        name: [e.firstName, e.lastName].filter(Boolean).join(" ") || e.user?.firstName || "",
+        userId: e.userId ?? e.user?.id ?? "",
+        name:
+          getFullName(e) ||
+          getFullName(e.user) ||
+          e.firstName ||
+          e.user?.firstName ||
+          "",
         email: e.user?.email ?? e.workEmail ?? "",
       }));
 
@@ -294,21 +321,17 @@ export default function ClientsProjectsPage() {
         endDate: projectForm.endDate || undefined,
         description: projectForm.description || undefined,
         managerId: projectForm.managerId || undefined,
+        additionalManagerIds:
+          projectForm.additionalManagerIds.length > 0
+            ? projectForm.additionalManagerIds
+            : undefined,
         projectCost: projectForm.projectCost ? parseFloat(projectForm.projectCost) : undefined,
         hourlyRate: projectForm.hourlyRate ? parseFloat(projectForm.hourlyRate) : undefined,
+        workOrderAssigned: projectForm.workOrderAssigned === "yes",
+        parentProjectId: projectForm.parentProjectId || undefined,
       });
       toast.success("Project added");
-      setProjectForm({
-        clientId: "",
-        projectName: "",
-        status: "ACTIVE",
-        startDate: "",
-        endDate: "",
-        description: "",
-        managerId: "",
-        projectCost: "",
-        hourlyRate: "",
-      });
+      setProjectForm({ ...DEFAULT_PROJECT_FORM });
       await loadData(organizationId);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to add project");
@@ -319,6 +342,16 @@ export default function ClientsProjectsPage() {
 
   const openEditProject = (project: any) => {
     setEditProjectId(project.id);
+    const primaryManagerUserId =
+      project.manager?.user?.id ?? project.manager?.userId ?? "";
+    const additionalManagerIds = (project.members ?? [])
+      .filter(
+        (m: any) =>
+          String(m.role || "").toLowerCase() === "manager" &&
+          (m.userId ?? m.user?.id ?? "") !== primaryManagerUserId,
+      )
+      .map((m: any) => m.userId ?? m.user?.id ?? "")
+      .filter(Boolean);
     setProjectForm({
       clientId: project.clientId || "",
       projectName: project.projectName || "",
@@ -327,8 +360,11 @@ export default function ClientsProjectsPage() {
       endDate: project.endDate || "",
       description: project.description || "",
       managerId: project.managerId || project.manager?.id || "",
+      additionalManagerIds,
       projectCost: project.projectCost?.toString() || "",
       hourlyRate: project.hourlyRate?.toString() || "",
+      workOrderAssigned: project.workOrderAssigned === false ? "no" : "yes",
+      parentProjectId: project.parentProjectId || "",
     });
   };
 
@@ -355,22 +391,18 @@ export default function ClientsProjectsPage() {
         endDate: projectForm.endDate || undefined,
         description: projectForm.description || undefined,
         managerId: projectForm.managerId || undefined,
+        additionalManagerIds:
+          projectForm.additionalManagerIds.length > 0
+            ? projectForm.additionalManagerIds
+            : undefined,
         projectCost: projectForm.projectCost ? parseFloat(projectForm.projectCost) : undefined,
         hourlyRate: projectForm.hourlyRate ? parseFloat(projectForm.hourlyRate) : undefined,
+        workOrderAssigned: projectForm.workOrderAssigned === "yes",
+        parentProjectId: projectForm.parentProjectId || undefined,
       });
       toast.success("Project updated");
       setEditProjectId(null);
-      setProjectForm({
-        clientId: "",
-        projectName: "",
-        status: "ACTIVE",
-        startDate: "",
-        endDate: "",
-        description: "",
-        managerId: "",
-        projectCost: "",
-        hourlyRate: "",
-      });
+      setProjectForm({ ...DEFAULT_PROJECT_FORM });
       await loadData(organizationId);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to update project");
@@ -684,6 +716,52 @@ export default function ClientsProjectsPage() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
+                  <Label>Additional Managers</Label>
+                  <div className="max-h-40 overflow-auto border border-border rounded-md p-2 space-y-1.5">
+                    {managers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No managers available</p>
+                    ) : (
+                      managers.map((mgr) => {
+                        const checked = projectForm.additionalManagerIds.includes(mgr.userId);
+                        const isPrimary = mgr.id === projectForm.managerId;
+                        return (
+                          <label
+                            key={mgr.userId}
+                            className={`flex items-center gap-2 cursor-pointer rounded px-2 py-1 ${
+                              isPrimary ? "opacity-50 pointer-events-none" : "hover:bg-muted/60"
+                            }`}
+                            title={isPrimary ? "Primary manager is already assigned" : undefined}
+                          >
+                            <input
+                              type="checkbox"
+                              disabled={isPrimary}
+                              checked={checked || isPrimary}
+                              onChange={(e) =>
+                                setProjectForm((prev) => ({
+                                  ...prev,
+                                  additionalManagerIds: e.target.checked
+                                    ? [...prev.additionalManagerIds, mgr.userId]
+                                    : prev.additionalManagerIds.filter(
+                                        (id) => id !== mgr.userId,
+                                      ),
+                                }))
+                              }
+                            />
+                            <span className="text-sm truncate">
+                              {mgr.name || "Unnamed"} {mgr.email ? `• ${mgr.email}` : ""}
+                            </span>
+                            {isPrimary && (
+                              <span className="ml-auto text-[10px] text-muted-foreground">
+                                Primary
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
                   <Label>Project Name</Label>
                   <Input
                     value={projectForm.projectName}
@@ -703,6 +781,53 @@ export default function ClientsProjectsPage() {
                       <SelectItem value="ACTIVE">ACTIVE</SelectItem>
                       <SelectItem value="ON_HOLD">ON_HOLD</SelectItem>
                       <SelectItem value="COMPLETED">COMPLETED</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Work Order Assigned</Label>
+                  <Select
+                    value={projectForm.workOrderAssigned}
+                    onValueChange={(value) =>
+                      setProjectForm((prev) => ({ ...prev, workOrderAssigned: value as "yes" | "no" }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes — Work order issued</SelectItem>
+                      <SelectItem value="no">No — Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Parent Work Stream (optional)</Label>
+                  <Select
+                    value={projectForm.parentProjectId}
+                    onValueChange={(value) =>
+                      setProjectForm((prev) => ({
+                        ...prev,
+                        parentProjectId: value === "none-stream" ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="None (standalone project)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none-stream">None (standalone)</SelectItem>
+                      {projects
+                        .filter(
+                          (p) =>
+                            !p.parentProjectId &&
+                            (!editProjectId || p.id !== editProjectId)
+                        )
+                        .map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.projectName}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -766,17 +891,7 @@ export default function ClientsProjectsPage() {
                     disabled={projectSubmitting}
                     onClick={() => {
                       setEditProjectId(null);
-                      setProjectForm({
-                        clientId: "",
-                        projectName: "",
-                        status: "ACTIVE",
-                        startDate: "",
-                        endDate: "",
-                        description: "",
-                        managerId: "",
-                        projectCost: "",
-                        hourlyRate: "",
-                      });
+                      setProjectForm({ ...DEFAULT_PROJECT_FORM });
                     }}
                   >
                     Cancel
@@ -788,17 +903,37 @@ export default function ClientsProjectsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Project List</CardTitle>
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle>Project List</CardTitle>
+                <div className="w-44">
+                  <Select
+                    value={workOrderFilter}
+                    onValueChange={(value) =>
+                      setWorkOrderFilter(value as "all" | "assigned" | "pending")
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Work Orders</SelectItem>
+                      <SelectItem value="assigned">Work Order Assigned</SelectItem>
+                      <SelectItem value="pending">Work Order Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <CardDescription>Manage active projects</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Sl#</TableHead>
+                    <TableHead className="w-8"> </TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead>Client</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Work Order</TableHead>
                     <TableHead>Manager</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -806,36 +941,123 @@ export default function ClientsProjectsPage() {
                 <TableBody>
                   {projects.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-sm text-muted-foreground">
+                      <TableCell colSpan={7} className="text-sm text-muted-foreground">
                         No projects added yet.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    projects.map((project, index) => (
-                      <TableRow key={project.id}>
-                        <TableCell className="font-medium">{index + 1}</TableCell>
-                        <TableCell>
-                          <div className="font-medium">{project.projectName}</div>
-                        </TableCell>
-                        <TableCell>{project.client?.clientName || "--"}</TableCell>
-                        <TableCell>{project.status || "--"}</TableCell>
-                        <TableCell>
-                          {project.manager?.firstName || project.manager?.lastName
-                            ? `${project.manager?.firstName ?? ""} ${project.manager?.lastName ?? ""}`.trim()
-                            : project.manager?.email || "--"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditProject(project)}>
-                              Edit
-                            </Button>
-                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteProject(project.id)}>
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    (() => {
+                      const childrenMap: Record<string, any[]> = {};
+                      const parents: any[] = [];
+                      projects.forEach((project) => {
+                        if (project.parentProjectId && projects.some((p) => p.id === project.parentProjectId)) {
+                          childrenMap[project.parentProjectId] = [
+                            ...(childrenMap[project.parentProjectId] || []),
+                            project,
+                          ];
+                        } else if (
+                          workOrderFilter === "assigned"
+                            ? project.workOrderAssigned !== false
+                            : workOrderFilter === "pending"
+                              ? project.workOrderAssigned === false
+                              : true
+                        ) {
+                          parents.push(project);
+                        }
+                      });
+
+                      const renderProjectRow = (
+                        project: any,
+                        nested: boolean,
+                        streamName?: string
+                      ) => {
+                        const children = childrenMap[project.id] || [];
+                        const expanded = expandedStreams[project.id] !== false;
+                        const workOrderAssigned = project.workOrderAssigned !== false;
+                        return (
+                          <Fragment key={project.id}>
+                            <TableRow className={nested ? "bg-muted/30" : undefined}>
+                              <TableCell className="font-medium">
+                                {nested ? "↳" : children.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedStreams((prev) => ({
+                                        ...prev,
+                                        [project.id]: !expanded,
+                                      }))
+                                    }
+                                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                                    aria-label="Toggle work streams"
+                                  >
+                                    {expanded ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                ) : null}
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium">{project.projectName}</div>
+                                {nested && streamName && (
+                                  <div className="text-[11px] text-muted-foreground truncate">
+                                    Work stream of {streamName}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell>{project.client?.clientName || "--"}</TableCell>
+                              <TableCell>
+                                {project.status === "ACTIVE" ? (
+                                  <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
+                                    {project.status}
+                                  </span>
+                                ) : project.status === "ON_HOLD" ? (
+                                  <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
+                                    {project.status}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                    {project.status || "--"}
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {workOrderAssigned ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
+                                    Assigned
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
+                                    Work Order Pending
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {getFullName(project.manager) || project.manager?.email || "--"}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Button variant="outline" size="sm" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => openEditProject(project)}>
+                                    Edit
+                                  </Button>
+                                  <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteProject(project.id)}>
+                                    Delete
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            {children.length > 0 &&
+                              expanded &&
+                              children.map((child) =>
+                                renderProjectRow(child, true, project.projectName)
+                              )}
+                          </Fragment>
+                        );
+                      };
+
+                      return parents.map((project) => renderProjectRow(project, false));
+                    })()
                   )}
                 </TableBody>
               </Table>

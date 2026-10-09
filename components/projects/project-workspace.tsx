@@ -15,6 +15,7 @@ import {
   getClientProjectLinks,
   getClientProjectTimesheetsSummary,
   getAllOrgEmployees,
+  getEmployeeAssignedProjects,
   getProfile,
   getProject,
   getProjectEmployees,
@@ -47,11 +48,13 @@ import {
   Tooltip,
   Cell,
 } from "recharts";
+import { getFullName } from "@/lib/utils";
 import {
   ArrowLeft,
   AlertTriangle,
   Calendar,
   Clock,
+  Eye,
   FolderKanban,
   Plus,
   Save,
@@ -67,6 +70,13 @@ import {
   ExternalLink,
   Trash2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 type ProjectStatus = "planning" | "active" | "on_hold" | "completed";
 type ProjectPriority = "low" | "medium" | "high" | "critical";
@@ -104,6 +114,16 @@ type ProjectEmployee = {
   workEmail: string;
   designation?: string | null;
   managerName: string | null;
+};
+
+type ProjectHistoryRow = {
+  id: string;
+  projectId: string;
+  source: "internal" | "client";
+  name: string;
+  role: string | null;
+  designation: string | null;
+  assignedAt: string;
 };
 
 type TeamMember = {
@@ -229,8 +249,13 @@ const clientTaskPriorityOptions: Array<{ value: ClientTaskPriority; label: strin
   { value: "urgent", label: "Urgent" },
 ];
 
-function fullName(data: { firstName?: string; lastName?: string; email?: string }) {
-  const name = [data.firstName, data.lastName].filter(Boolean).join(" ").trim();
+function fullName(data: {
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  email?: string;
+}) {
+  const name = getFullName(data, "");
   return name || data.email || "Unknown";
 }
 
@@ -337,9 +362,11 @@ function formatMinutes(minutes?: number) {
   return `${h}h ${m}m`;
 }
 
-function formatUserName(user?: { firstName?: string; lastName?: string; email?: string } | null) {
+function formatUserName(
+  user?: { firstName?: string; middleName?: string; lastName?: string; email?: string } | null,
+) {
   if (!user) return "--";
-  const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+  const name = getFullName(user, "");
   return name || user.email || "--";
 }
 
@@ -441,7 +468,10 @@ export default function ProjectWorkspace({
   const [showAssignPanel, setShowAssignPanel] = useState(false);
   const [showQaPanel, setShowQaPanel] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [selectedQaUserId, setSelectedQaUserId] = useState("");
+  const [selectedQaUserIds, setSelectedQaUserIds] = useState<string[]>([]);
+  const [historyMember, setHistoryMember] = useState<ProjectEmployee | null>(null);
+  const [historyRows, setHistoryRows] = useState<ProjectHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<Record<string, MemberRole>>({});
   const [employeeSearch, setEmployeeSearch] = useState("");
 
@@ -509,7 +539,8 @@ export default function ProjectWorkspace({
     );
   }, [isClientProject, profileUserId, project?.createdBy?.id, projectEmployees]);
 
-  const canManageTeam = !isReadOnlyAdminView && (hasManagerRole || isCurrentUserProjectManager);
+  const canManageTeam =
+    hasAdminRole || hasManagerRole || isCurrentUserProjectManager;
   const canEditProgress = canManageTeam;
   const canCreateIssue = canManageTeam && !isClientProject;
   const canManageDocuments =
@@ -522,8 +553,8 @@ export default function ProjectWorkspace({
     hasAdminRole || hasManagerRole || isCurrentUserProjectManager || isAssignedProjectMember;
   const quickLinkLimitReached = quickLinks.length >= MAX_PROJECT_QUICK_LINKS;
   const canAssignQa = canManageTeam;
-  const currentProjectQaMember = useMemo(
-    () => projectEmployees.find((member) => isQaTesterRole(member.role)) || null,
+  const projectQaMembers = useMemo(
+    () => projectEmployees.filter((member) => isQaTesterRole(member.role)),
     [projectEmployees],
   );
 
@@ -560,7 +591,7 @@ export default function ProjectWorkspace({
       .filter((e) => {
         if (!q) return true;
         return (
-          `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+          getFullName(e).toLowerCase().includes(q) ||
           (e.email || "").toLowerCase().includes(q) ||
           (e.workEmail || "").toLowerCase().includes(q) ||
           (e.employeeCode || "").toLowerCase().includes(q)
@@ -574,7 +605,7 @@ export default function ProjectWorkspace({
       .filter((e) => {
         if (!q) return true;
         return (
-          `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+          getFullName(e).toLowerCase().includes(q) ||
           (e.email || "").toLowerCase().includes(q) ||
           (e.workEmail || "").toLowerCase().includes(q) ||
           (e.employeeCode || "").toLowerCase().includes(q)
@@ -851,7 +882,7 @@ export default function ProjectWorkspace({
       toast.success("Members assigned");
       setSelectedIds([]);
       setSelectedRoles({});
-      setSelectedQaUserId("");
+      setSelectedQaUserIds([]);
       setEmployeeSearch("");
       setShowAssignPanel(false);
       const membersRes = isClientProject
@@ -866,7 +897,7 @@ export default function ProjectWorkspace({
   };
 
   const handleAssignQa = async () => {
-    if (!project || !selectedQaUserId) return;
+    if (!project || selectedQaUserIds.length === 0) return;
     if (!canAssignQa) {
       toast.error("Only managers can assign QA/Tester");
       return;
@@ -875,12 +906,9 @@ export default function ProjectWorkspace({
       setAssigning(true);
       const existingQaMembers = projectEmployees
         .filter((member) => isQaTesterRole(member.role))
-        .map((member) => member.userId)
-        .filter((userId) => userId !== selectedQaUserId);
-      const assignments = [
-        { userId: selectedQaUserId, role: "tester" },
-        ...existingQaMembers.map((userId) => ({ userId, role: "member" })),
-      ];
+        .map((member) => member.userId);
+      const combinedSet = new Set([...existingQaMembers, ...selectedQaUserIds]);
+      const assignments = Array.from(combinedSet).map((userId) => ({ userId, role: "tester" }));
       if (isClientProject) {
         await assignClientProjectEmployees(project.id, assignments);
       } else {
@@ -888,7 +916,7 @@ export default function ProjectWorkspace({
       }
       toast.success("QA/Tester assigned");
       setSelectedIds([]);
-      setSelectedQaUserId("");
+      setSelectedQaUserIds([]);
       setEmployeeSearch("");
       setShowQaPanel(false);
       const membersRes = isClientProject
@@ -899,6 +927,24 @@ export default function ProjectWorkspace({
       toast.error("Failed to assign QA/Tester");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleOpenHistory = async (emp: ProjectEmployee) => {
+    if (!emp.employeeId) {
+      toast.error("No employee record linked to this member");
+      return;
+    }
+    setHistoryMember(emp);
+    setHistoryRows([]);
+    setHistoryLoading(true);
+    try {
+      const res = await getEmployeeAssignedProjects(emp.employeeId);
+      setHistoryRows(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      toast.error("Failed to load project history");
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -1127,7 +1173,7 @@ export default function ProjectWorkspace({
     setShowAssignPanel(false);
     setSelectedIds([]);
     setSelectedRoles({});
-    setSelectedQaUserId("");
+    setSelectedQaUserIds([]);
     setEmployeeSearch("");
   };
 
@@ -1135,7 +1181,7 @@ export default function ProjectWorkspace({
     const nextValue = !showAssignPanel;
     setShowAssignPanel(nextValue);
     setShowQaPanel(false);
-    setSelectedQaUserId("");
+    setSelectedQaUserIds([]);
     setSelectedIds([]);
     setSelectedRoles({});
     setEmployeeSearch("");
@@ -1173,7 +1219,7 @@ export default function ProjectWorkspace({
             </p>
           </div>
         </div>
-        {currentProjectQaMember ? (
+        {projectQaMembers.length > 0 ? (
           <Button
             size="sm"
             variant="outline"
@@ -1673,19 +1719,24 @@ export default function ProjectWorkspace({
                 <div className="p-3 text-sm text-muted-foreground">No team members found.</div>
               ) : (
                 availableQaEmployees.map((emp) => {
-                  const checked = selectedQaUserId === emp.userId;
+                  const checked = selectedQaUserIds.includes(emp.userId);
                   const isAlreadyTester = isQaTesterRole(emp.role);
                   return (
                     <div key={emp.userId} className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border last:border-b-0">
                       <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
                         <input
-                          type="radio"
-                          name="qa-tester-assignment"
+                          type="checkbox"
                           checked={checked}
-                          onChange={() => setSelectedQaUserId(emp.userId)}
+                          onChange={() =>
+                            setSelectedQaUserIds((prev) =>
+                              prev.includes(emp.userId)
+                                ? prev.filter((id) => id !== emp.userId)
+                                : [...prev, emp.userId],
+                            )
+                          }
                         />
                         <span className="text-sm truncate">
-                          {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.employeeId || "—"})
+                          {getFullName(emp)} ({emp.employeeCode || emp.employeeId || "—"})
                         </span>
                       </label>
                       <Badge variant={isAlreadyTester ? "default" : "outline"} className="text-[10px] px-1.5">
@@ -1696,9 +1747,9 @@ export default function ProjectWorkspace({
                 })
               )}
             </div>
-            {currentProjectQaMember ? (
+            {projectQaMembers.length > 0 ? (
               <p className="text-xs text-muted-foreground">
-                Current QA/Tester: {currentProjectQaMember.firstName} {currentProjectQaMember.lastName}
+                Current QA/Tester: {projectQaMembers.map((m) => getFullName(m)).join(", ")}
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -1709,7 +1760,7 @@ export default function ProjectWorkspace({
               size="sm"
               onClick={handleAssignQa}
               loading={assigning}
-              disabled={!selectedQaUserId}
+              disabled={selectedQaUserIds.length === 0}
             >
               Assign as QA/Tester
             </Button>
@@ -1744,7 +1795,7 @@ export default function ProjectWorkspace({
                           }
                         />
                         <span className="text-sm truncate">
-                          {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.employeeId || "—"})
+                          {getFullName(emp)} ({emp.employeeCode || emp.employeeId || "—"})
                         </span>
                       </label>
                       {isClientProject ? (
@@ -1805,7 +1856,7 @@ export default function ProjectWorkspace({
               ) : (
                 projectEmployees.map((emp) => (
                   <tr key={emp.userId} className="border-b border-border last:border-b-0">
-                    <td className="px-3 py-2">{emp.firstName} {emp.lastName}</td>
+                    <td className="px-3 py-2">{getFullName(emp)}</td>
                     <td className="px-3 py-2">{emp.designation || "—"}</td>
                     <td className="px-3 py-2">{emp.workEmail || emp.email}</td>
                     <td className="px-3 py-2">
@@ -1832,6 +1883,14 @@ export default function ProjectWorkspace({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Project history"
+                          onClick={() => handleOpenHistory(emp)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
                         {!isClientProject && (
                           <Button
                             variant="ghost"
@@ -2005,8 +2064,7 @@ export default function ProjectWorkspace({
                       assignableMembers={projectEmployees}
                       canEditFields={canManageTeam}
                       canChangeStatus={
-                        !isReadOnlyAdminView &&
-                        (canManageTeam || issue.assigneeUserId === profileUserId)
+                        canManageTeam || issue.assigneeUserId === profileUserId
                       }
                       onStatusChange={handleIssueStatusChange}
                       onSave={handleIssueFieldSave}
@@ -2114,8 +2172,8 @@ export default function ProjectWorkspace({
             )
           ) : (
             <p className="text-xs text-muted-foreground">
-              {isReadOnlyAdminView
-                ? "Admin project detail is view-only. Only the assigned project manager can create tasks."
+              {canManageTeam
+                ? "You can manage team members, assign QA, and create tasks from this view."
                 : "Only the assigned project manager can create tasks. You can still update your assigned task status."}
             </p>
           )}
@@ -2133,6 +2191,7 @@ export default function ProjectWorkspace({
                     <th className="text-left px-3 py-2 border-b border-border">Assigned To</th>
                     <th className="text-left px-3 py-2 border-b border-border">Priority</th>
                     <th className="text-left px-3 py-2 border-b border-border">Due Date</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Assigned Date</th>
                     <th className="text-left px-3 py-2 border-b border-border">Status</th>
                     <th className="text-left px-3 py-2 border-b border-border">Progress</th>
                     <th className="text-left px-3 py-2 border-b border-border">Work Report</th>
@@ -2143,7 +2202,7 @@ export default function ProjectWorkspace({
                 <tbody>
                   {clientTasks.length === 0 ? (
                     <tr>
-                      <td className="px-3 py-4 text-muted-foreground" colSpan={9}>
+                      <td className="px-3 py-4 text-muted-foreground" colSpan={10}>
                         No tasks created for this project yet.
                       </td>
                     </tr>
@@ -2152,10 +2211,8 @@ export default function ProjectWorkspace({
                       const statusMeta = clientTaskStatusConfig[task.status];
                       const StatusIcon = statusMeta.icon;
                       const canUpdateStatus =
-                        !isReadOnlyAdminView &&
-                        (canManageTeam || task.assignedToUserId === profileUserId);
-                      const canDeleteTask =
-                        !isReadOnlyAdminView && canManageTeam;
+                        canManageTeam || task.assignedToUserId === profileUserId;
+                      const canDeleteTask = canManageTeam;
 
                       return (
                         <tr key={task.id} className="border-b border-border last:border-b-0 align-top">
@@ -2168,6 +2225,7 @@ export default function ProjectWorkspace({
                           <td className="px-3 py-2">{formatUserName(task.assignedToUser) || "--"}</td>
                           <td className="px-3 py-2 capitalize">{task.priority}</td>
                           <td className="px-3 py-2">{task.dueDate ? formatDisplayDate(task.dueDate) : "--"}</td>
+                          <td className="px-3 py-2">{formatDisplayDate(task.createdAt)}</td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
                               <Badge
@@ -2236,6 +2294,57 @@ export default function ProjectWorkspace({
           )}
         </div>
       )}
+
+      <Dialog
+        open={!!historyMember}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHistoryMember(null);
+            setHistoryRows([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Project History</DialogTitle>
+            <DialogDescription>
+              {historyMember
+                ? `${getFullName(historyMember)}${
+                    historyMember.designation ? ` — ${historyMember.designation}` : ""
+                  }`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {historyLoading ? (
+            <p className="text-sm text-muted-foreground">Loading history...</p>
+          ) : historyRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No project assignments found.</p>
+          ) : (
+            <div className="max-h-80 overflow-auto border border-border rounded-md">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2 border-b border-border">Project</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Type</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Role</th>
+                    <th className="text-left px-3 py-2 border-b border-border">Assigned On</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyRows.map((row) => (
+                    <tr key={row.id} className="border-b border-border last:border-b-0">
+                      <td className="px-3 py-2">{row.name || "—"}</td>
+                      <td className="px-3 py-2 capitalize">{row.source}</td>
+                      <td className="px-3 py-2 capitalize">{row.role || "member"}</td>
+                      <td className="px-3 py-2">{formatDisplayDate(row.assignedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

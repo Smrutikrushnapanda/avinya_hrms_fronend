@@ -166,6 +166,8 @@ export const getEmployee = (id: string) => api.get(`/employees/${id}`);
 export const updateEmployee = (id: string, data: any) => api.put(`/employees/${id}`, data);
 export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
 export const getEmployeeByUserId = (userId: string) => api.get(`/employees/by-user/${userId}`);
+export const updateMyEmployeeProfile = (data: { contactNumber?: string; panNumber?: string; aadhaarNumber?: string }) =>
+  api.put("/employees/me", data);
 export const getEmployeeProjects = (id: string) => api.get(`/employees/${id}/projects`);
 export const assignEmployeeProject = (id: string, data: { projectId: string; projectSource?: 'internal' | 'client'; managerId?: string; managerType?: 'PRIMARY' | 'SECONDARY'; role?: string }) =>
   api.post(`/employees/${id}/projects`, data);
@@ -203,8 +205,14 @@ export const returnEmployeeAsset = (employeeId: string, assetId: string, data: a
   api.post(`/employees/${employeeId}/assets/${assetId}/return`, data);
 export const deleteEmployeeAsset = (employeeId: string, assetId: string) =>
   api.delete(`/employees/${employeeId}/assets/${assetId}`);
+export const getMyPendingAssets = () => api.get("/employees/me/assets/pending");
+export const acknowledgeAsset = (assetId: string) =>
+  api.post(`/employees/me/assets/${assetId}/acknowledge`);
 export const getEmployeeClearance = (employeeId: string) =>
   api.get(`/employees/${employeeId}/clearance`);
+
+export const getEmployeeAssignedProjects = (employeeId: string) =>
+  api.get(`/employees/${employeeId}/assigned-projects`);
 
 // 📁 Real Employee Documents APIs
 export const getEmployeeDocuments = (employeeId: string, category?: string) =>
@@ -618,6 +626,7 @@ export interface WorkAssignment {
   assignedToUser: { id: string; firstName: string; lastName: string } | null;
   assignedByUser: { id: string; firstName: string; lastName: string } | null;
   completedAt: string | null;
+  assignedAt: string | null;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -1064,6 +1073,8 @@ export const wfhHeartbeat = (data: { mouseEvents: number; keyboardEvents: number
 export const wfhToggleLunch = () => api.post('/wfh-monitoring/lunch/toggle');
 export const wfhToggleWork = () => api.post('/wfh-monitoring/work/toggle');
 export const getWfhToday = () => api.get('/wfh-monitoring/today');
+export const getWfhTimeline = (date?: string) =>
+  api.get('/wfh-monitoring/timeline', { params: { date } });
 export const getEmployeeWfhActivity = (userId: string, date?: string) =>
   api.get(`/wfh-monitoring/employee/${userId}`, { params: { date } });
 export const getTeamWfhActivity = (date?: string) =>
