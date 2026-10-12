@@ -307,6 +307,9 @@ export const updateShift = (id: string, data: any) => api.put(`/attendance/shift
 export const deleteShift = (id: string) => api.delete(`/attendance/shifts/${id}`);
 export const registerDevice = (data: any) => api.post("/attendance/devices", data);
 export const logAttendance = (data: any) => api.post("/attendance/log", data);
+export const logAttendanceBypass = (data: FormData) => api.post("/attendance/bypass", data, {
+  headers: { 'Content-Type': 'multipart/form-data' },
+});
 export const getTodayLogs = (params: any) => api.get("/attendance/today-logs", { params });
 export const toggleBreakStatus = (data: any) => api.post("/attendance/break/toggle", data);
 export const getBreakStatus = (params: { organizationId: string; userId: string }) =>
