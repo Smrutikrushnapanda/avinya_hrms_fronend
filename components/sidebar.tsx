@@ -208,6 +208,7 @@ export default function Sidebar() {
   const [pendingWfh, setPendingWfh] = useState(0);
   const [pendingExpenses, setPendingExpenses] = useState(0);
   const [pendingOfficeTrips, setPendingOfficeTrips] = useState(0);
+  const [pendingLeave, setPendingLeave] = useState(0);
   const sidebarIconGradientClass =
     "bg-gradient-to-r from-accent-brand-from to-accent-brand-to bg-clip-text text-transparent";
   const isExpanded = mode === "expanded";
@@ -284,11 +285,12 @@ export default function Sidebar() {
         const orgId = profileRes.data?.organizationId;
         if (!userId || !orgId) return;
 
-        const [tsRes, wfhRes, expRes, tripRes] = await Promise.all([
+        const [tsRes, wfhRes, expRes, tripRes, leaveRes] = await Promise.all([
           getTimeslips({ page: 1, limit: 1 }).catch(() => null),
           getAllWfhRequests(orgId).catch(() => null),
           getAllExpenses(orgId).catch(() => null),
           getAllOfficeTrips(orgId).catch(() => null),
+          getAllLeaveRequests(orgId).catch(() => null),
         ]);
 
         let tsCount = 0;
@@ -323,10 +325,18 @@ export default function Sidebar() {
           tripCount = allTrips.filter((t: any) => t.status === "PENDING").length;
         }
 
+        let leaveCount = 0;
+        if (leaveRes?.data) {
+          const allLeave = Array.isArray(leaveRes.data) ? leaveRes.data : [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          leaveCount = allLeave.filter((l: any) => l.status === "PENDING").length;
+        }
+
         setPendingTimeslips(tsCount);
         setPendingWfh(wfhCount);
         setPendingExpenses(expCount);
         setPendingOfficeTrips(tripCount);
+        setPendingLeave(leaveCount);
       } catch {
         // silent
       }
@@ -342,6 +352,7 @@ export default function Sidebar() {
       if (item.href === "/admin/wfh") return pendingWfh;
       if (item.href === "/admin/expenses") return pendingExpenses;
       if (item.href === "/admin/office-trips") return pendingOfficeTrips;
+      if (item.href === "/admin/leave") return pendingLeave;
     }
     if (item.children?.length) {
       return item.children.reduce(

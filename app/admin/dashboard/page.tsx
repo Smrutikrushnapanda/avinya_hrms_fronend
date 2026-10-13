@@ -596,7 +596,7 @@ getHolidays({ organizationId: orgId }),
       {/* Statistics Cards */}
       {isWidgetEnabled('dashboard-stats') && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <StatCard title="Total Employees" value={stats?.totalEmployees?.value || employees.length || 0} subtitle="Active workforce" icon={Users} trend={stats?.totalEmployees?.change} color="blue" />
+          <StatCard title="Total Employees" value={employees.filter((e: any) => e.status !== 'inactive').length || 0} subtitle="Active workforce" icon={Users} trend={stats?.totalEmployees?.change} color="blue" />
           <StatCard title="Present Today" value={stats?.presentToday?.value || dailyStats?.presentSummary?.total_present || 0} subtitle="Currently in office" icon={UserCheck} trend={stats?.presentToday?.change || dailyStats?.presentSummary?.total_presentDiff} color="green" />
           <StatCard title="On Leave Today" value={stats?.onLeaveToday?.value || 0} subtitle="Taking leave" icon={Calendar} trend={stats?.onLeaveToday?.change} color="orange" />
           <StatCard title="Pending Requests" value={stats?.pendingLeaveRequests?.value || 0} subtitle="Leave requests" icon={Clock} trend={stats?.pendingLeaveRequests?.change} color="red" />

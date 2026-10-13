@@ -342,13 +342,18 @@ export default function MeetingManagementPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {meetings.map((meeting) => (
-            <Card key={meeting.id} className="p-4">
+          {meetings.map((meeting) => {
+    const isCompleted = meeting.status === "COMPLETED";
+    const isDisabled = isCompleted;
+    return (
+            <Card key={meeting.id} className="p-4 opacity-50 cursor-not-allowed" style={{ opacity: isCompleted ? 0.5 : 1 }}>
               <div className="space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <Video className="h-4 w-4 text-blue-500" />
-                    <h3 className="font-semibold">{meeting.title}</h3>
+                    <h3 className={isCompleted ? "line-through text-muted-foreground" : "font-semibold"}>
+                      {meeting.title}
+                    </h3>
                   </div>
                   {getStatusBadge(meeting.status)}
                 </div>
@@ -399,27 +404,35 @@ export default function MeetingManagementPage() {
                   )}
                   
                   <div className="flex gap-1">
-                    {!meeting.notificationSent && meeting.status === "SCHEDULED" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleSendNotification(meeting.id)}
-                        loading={actionLoading === meeting.id}
-                        className="h-8 gap-1"
-                      >
-                        <Send className="h-3 w-3" />
-                        Notify
-                      </Button>
+                    {isCompleted ? (
+                      <span className="text-xs text-muted-foreground">
+                        Completed - no actions available
+                      </span>
+                    ) : (
+                      <>
+                        {!meeting.notificationSent && meeting.status === "SCHEDULED" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSendNotification(meeting.id)}
+                            loading={actionLoading === meeting.id}
+                            className="h-8 gap-1"
+                          >
+                            <Send className="h-3 w-3" />
+                            Notify
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteMeeting(meeting.id)}
+                          loading={actionLoading === meeting.id}
+                          className="h-8 gap-1"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </>
                     )}
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDeleteMeeting(meeting.id)}
-                      loading={actionLoading === meeting.id}
-                      className="h-8 gap-1"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
                   </div>
                 </div>
               </div>

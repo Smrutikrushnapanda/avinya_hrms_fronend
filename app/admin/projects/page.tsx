@@ -161,7 +161,11 @@ function ProgressBar({ value }: { value: number }) {
 function mapClientProject(cp: any): Project {
   const today = new Date().toISOString().split("T")[0];
   const endDate: string | null = cp.endDate ?? null;
-  const isOverdue = !!endDate && endDate < today && cp.status !== "INACTIVE";
+  const completionPercent = cp.completionPercent ?? 0;
+  // A project is "completed" if completionPercent is 100% OR if it has a completion date that has passed
+  const isProjectCompleted = completionPercent >= 100;
+  // isOverdue: project is overdue only if it's NOT 100% completed AND end date has passed
+  const isOverdue = !isProjectCompleted && !!endDate && endDate < today && cp.status !== "INACTIVE";
   const daysRemaining = endDate
     ? Math.ceil(
         (new Date(endDate).getTime() - new Date(today).getTime()) /
@@ -378,8 +382,8 @@ export default function AdminProjectsPage() {
   const summary = {
     total: projects.length,
     active: projects.filter((p) => p.status === "active").length,
-    completed: projects.filter((p) => p.status === "completed").length,
-    overdue: projects.filter((p) => p.isOverdue).length,
+    completed: projects.filter((p) => p.status === "completed" || p.completionPercent >= 100).length,
+    overdue: projects.filter((p) => p.isOverdue && p.completionPercent < 100).length,
   };
 
   const pagedData = useMemo(() => {
@@ -391,7 +395,13 @@ export default function AdminProjectsPage() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / tableState.pageSize));
 
   const pieData = (["planning","active","on_hold","completed"] as ProjectStatus[])
-    .map((s) => ({ name: statusConfig[s].label, value: projects.filter((p) => p.status === s).length, color: statusConfig[s].hex }))
+    .map((s) => {
+      let count = projects.filter((p) => p.status === s).length;
+      if (s === "completed") {
+        count += projects.filter((p) => p.completionPercent >= 100 && p.status !== "completed").length;
+      }
+      return { name: statusConfig[s].label, value: count, color: statusConfig[s].hex };
+    })
     .filter((d) => d.value > 0);
 
   const barData = filtered.map((p) => {
@@ -528,7 +538,14 @@ export default function AdminProjectsPage() {
                     Client
                   </Badge>
                 )}
-                {p.isOverdue && (
+                {/* Show "Completed" badge when project is 100% completed and completion date has passed */}
+                {p.completionPercent >= 100 && p.estimatedEndDate && new Date(p.estimatedEndDate) <= new Date() && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 text-green-600 border-green-200 bg-green-50">
+                    Completed
+                  </Badge>
+                )}
+                {/* Show "Overdue" badge only for projects that are not 100% completed and are overdue */}
+                {p.isOverdue && p.completionPercent < 100 && (
                   <Badge variant="outline" className="text-[10px] px-1.5 text-red-600 border-red-200 bg-red-50">
                     Overdue
                   </Badge>
@@ -731,7 +748,7 @@ export default function AdminProjectsPage() {
                 />
                 <Bar dataKey="Progress" radius={[4, 4, 0, 0]}>
                   {filtered.map((p, i) => (
-                    <Cell key={i} fill={p.completionPercent === 100 ? "#10b981" : p.isOverdue ? "#ef4444" : "#6366f1"} />
+                    <Cell key={i} fill={p.completionPercent >= 100 ? "#10b981" : p.isOverdue ? "#ef4444" : "#6366f1"} />
                   ))}
                 </Bar>
               </BarChart>
