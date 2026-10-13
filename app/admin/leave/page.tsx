@@ -219,10 +219,19 @@ export default function LeaveManagementPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [reconcileLoading, setReconcileLoading] = useState<string | null>(null);
 
+  // Pagination & search state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Reject dialog state
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<LeaveRequest | null>(null);
   const [rejectRemarks, setRejectRemarks] = useState("");
+
+  // Leave detail dialog state
+  const [leaveDetailOpen, setLeaveDetailOpen] = useState(false);
+  const [leaveDetail, setLeaveDetail] = useState<LeaveRequest | null>(null);
 
   // Assignments tab state
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -383,6 +392,11 @@ export default function LeaveManagementPage() {
     fetchLeaveTypes();
   }, [profile, fetchLeaveRequests, fetchEmployees, fetchAssignments, fetchLeaveTypes]);
 
+  // Reset to page 1 when filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, searchQuery, pageSize]);
+
   useEffect(() => {
     const loadTemplates = async () => {
       if (!profile?.organizationId || !selectedEmploymentType) return;
@@ -455,6 +469,11 @@ export default function LeaveManagementPage() {
     setRejectTarget(req);
     setRejectRemarks("");
     setRejectDialogOpen(true);
+  };
+
+  const openLeaveDetailDialog = (req: LeaveRequest) => {
+    setLeaveDetail(req);
+    setLeaveDetailOpen(true);
   };
 
   const handleReject = async () => {
@@ -771,12 +790,27 @@ export default function LeaveManagementPage() {
     }
   };
 
-  const filteredRequests =
-    statusFilter === "all"
-      ? leaveRequests
-      : leaveRequests.filter(
-          (r) => r.status?.toLowerCase() === statusFilter.toLowerCase()
-        );
+  const filteredRequests = leaveRequests.filter((r) => {
+    const matchesStatus =
+      statusFilter === "all" ||
+      r.status?.toLowerCase() === statusFilter.toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      getFullName(r.user).toLowerCase().includes(q) ||
+      (typeof r.leaveType === "string"
+        ? r.leaveType
+        : r.leaveType?.name || ""
+      )
+        .toLowerCase()
+        .includes(q) ||
+      (r.reason || "").toLowerCase().includes(q) ||
+      (r.status || "").toLowerCase().includes(q);
+    return matchesStatus && matchesSearch;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const safePage = Math.min(page, totalPages);
 
   if (loading) {
     return <PageSkeleton />;
@@ -831,6 +865,28 @@ export default function LeaveManagementPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Search employee, type, reason..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-64"
+                  />
+                </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="text-sm text-muted-foreground">Rows</span>
+                  <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <Separator />
@@ -863,7 +919,9 @@ export default function LeaveManagementPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                    {filteredRequests.map((req, index) => {
+                    {filteredRequests
+                      .slice((safePage - 1) * pageSize, safePage * pageSize)
+                      .map((req, index) => {
                       const start = req.startDate || req.fromDate;
                       const end = req.endDate || req.toDate;
                       const days = req.totalDays ?? req.days ?? req.duration ?? "-";
@@ -874,7 +932,9 @@ export default function LeaveManagementPage() {
                           : req.leaveType?.name || "Leave";
                       return (
                         <TableRow key={req.id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            {(safePage - 1) * pageSize + index + 1}
+                          </TableCell>
                           <TableCell>{getFullName(req.user)}</TableCell>
                           <TableCell>{type}</TableCell>
                           <TableCell>
@@ -967,6 +1027,51 @@ export default function LeaveManagementPage() {
                     })}
                   </TableBody>
                 </Table>
+              )}
+              {/* Pagination Controls */}
+              {requestsLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-8" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredRequests.length === 0 ? (
+                <p className="text-center text-muted-foreground pt-4">
+                  No leave requests found
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {Math.min((safePage - 1) * pageSize + 1, filteredRequests.length)} to{" "}
+                    {Math.min(safePage * pageSize, filteredRequests.length)} of{" "}
+                    {filteredRequests.length} requests
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage(Math.max(1, safePage - 1))}
+                      disabled={safePage <= 1}
+                    >
+                      Prev
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {safePage} of {totalPages}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage(Math.min(totalPages, safePage + 1))}
+                      disabled={safePage >= totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1698,6 +1803,99 @@ export default function LeaveManagementPage() {
             <Button onClick={handleEditLeaveType} loading={ltEditLoading} className="gap-2">
               <Pencil className="h-4 w-4" />
               Update
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leave Detail Dialog */}
+      <Dialog open={leaveDetailOpen} onOpenChange={setLeaveDetailOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Leave Request Details</DialogTitle>
+            <DialogDescription>
+              Full details of this leave request
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-muted-foreground">Employee</Label>
+                <p className="font-medium">{getFullName(leaveDetail?.user)}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Leave Type</Label>
+                <p className="font-medium">
+                  {typeof leaveDetail?.leaveType === "string"
+                    ? leaveDetail.leaveType
+                    : leaveDetail?.leaveType?.name || "Leave"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Start Date</Label>
+                <p className="font-medium">
+                  {leaveDetail?.startDate || leaveDetail?.fromDate
+                    ? format(
+                        new Date(leaveDetail.startDate || leaveDetail.fromDate!),
+                        "dd MMM yyyy"
+                      )
+                    : "-"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">End Date</Label>
+                <p className="font-medium">
+                  {leaveDetail?.endDate || leaveDetail?.toDate
+                    ? format(
+                        new Date(leaveDetail.endDate || leaveDetail.toDate!),
+                        "dd MMM yyyy"
+                      )
+                    : "-"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Days</Label>
+                <p className="font-medium">
+                  {leaveDetail?.totalDays ?? leaveDetail?.days ?? leaveDetail?.duration ?? "-"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Status</Label>
+                <div className="mt-1">
+                  <StatusBadge status={leaveDetail?.status} />
+                </div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Unpaid Days</Label>
+                <p className="font-medium">{Number(leaveDetail?.unpaidDays ?? 0)}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Requested On</Label>
+                <p className="font-medium">
+                  {leaveDetail?.createdAt
+                    ? format(new Date(leaveDetail.createdAt), "dd MMM yyyy")
+                    : "-"}
+                </p>
+              </div>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Reason</Label>
+              <p className="mt-1 rounded-md border p-3 text-sm">
+                {leaveDetail?.reason || "-"}
+              </p>
+            </div>
+            {leaveDetail?.remarks && (
+              <div>
+                <Label className="text-muted-foreground">Remarks</Label>
+                <p className="mt-1 rounded-md border p-3 text-sm">
+                  {leaveDetail.remarks}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeaveDetailOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

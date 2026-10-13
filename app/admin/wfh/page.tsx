@@ -243,10 +243,19 @@ export default function WfhManagementPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // Pagination & search state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Reject dialog state
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<WfhRequest | null>(null);
   const [rejectRemarks, setRejectRemarks] = useState("");
+
+  // WFH detail dialog state
+  const [wfhDetailOpen, setWfhDetailOpen] = useState(false);
+  const [wfhDetail, setWfhDetail] = useState<WfhRequest | null>(null);
 
   // Assignments tab state
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -415,6 +424,11 @@ export default function WfhManagementPage() {
     }
   }, [profile?.organizationId, fetchWfhRequests, fetchEmployees]);
 
+  // Reset to page 1 when filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, searchQuery, pageSize]);
+
   // ------- Load assignments when tab switches and employees are ready -------
   useEffect(() => {
     if (activeTab === "assignments" && employees.length > 0) {
@@ -569,6 +583,11 @@ export default function WfhManagementPage() {
     setRejectTarget(request);
     setRejectRemarks("");
     setRejectDialogOpen(true);
+  };
+
+  const openWfhDetailDialog = (request: WfhRequest) => {
+    setWfhDetail(request);
+    setWfhDetailOpen(true);
   };
 
   const handleReject = async () => {
@@ -760,13 +779,22 @@ export default function WfhManagementPage() {
     }
   };
 
-  // ------- Filtered requests -------
-  const filteredRequests =
-    statusFilter === "all"
-      ? wfhRequests
-      : wfhRequests.filter(
-          (r) => r.status?.toUpperCase() === statusFilter.toUpperCase()
-        );
+  // ------- Filtered requests (status + search) -------
+  const filteredRequests = wfhRequests.filter((r) => {
+    const matchesStatus =
+      statusFilter === "all" ||
+      r.status?.toUpperCase() === statusFilter.toUpperCase();
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      getEmployeeName(r.userId, r.user).toLowerCase().includes(q) ||
+      (r.reason || "").toLowerCase().includes(q) ||
+      (r.status || "").toLowerCase().includes(q);
+    return matchesStatus && matchesSearch;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
+  const safePage = Math.min(page, totalPages);
 
   // ------- Counts -------
   const pendingCount = wfhRequests.filter(
@@ -934,6 +962,29 @@ export default function WfhManagementPage() {
                     </Button>
                   ))}
                 </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <Input
+                    placeholder="Search employee or reason..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-56"
+                  />
+                  <span className="text-sm text-muted-foreground">Rows</span>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(v) => setPageSize(Number(v))}
+                  >
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Requests Table */}
@@ -975,9 +1026,13 @@ export default function WfhManagementPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRequests.map((request, index) => (
+                      {filteredRequests
+                        .slice((safePage - 1) * pageSize, safePage * pageSize)
+                        .map((request, index) => (
                         <TableRow key={request.id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            {(safePage - 1) * pageSize + index + 1}
+                          </TableCell>
                           <TableCell className="font-medium">
                             {getEmployeeName(request.userId, request.user)}
                           </TableCell>
@@ -1054,6 +1109,52 @@ export default function WfhManagementPage() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+
+              {/* Pagination Controls */}
+              {requestsLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-8" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredRequests.length === 0 ? (
+                <p className="text-center text-muted-foreground pt-4">
+                  No WFH requests found
+                </p>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {Math.min((safePage - 1) * pageSize + 1, filteredRequests.length)} to{" "}
+                    {Math.min(safePage * pageSize, filteredRequests.length)} of{" "}
+                    {filteredRequests.length} requests
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage(Math.max(1, safePage - 1))}
+                      disabled={safePage <= 1}
+                    >
+                      Prev
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {safePage} of {totalPages}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setPage(Math.min(totalPages, safePage + 1))}
+                      disabled={safePage >= totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -1794,6 +1895,86 @@ export default function WfhManagementPage() {
             </Button>
             <Button loading={savingArrangement} onClick={handleSaveArrangement}>
               Save Arrangement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* WFH Detail Dialog */}
+      <Dialog open={wfhDetailOpen} onOpenChange={setWfhDetailOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>WFH Request Details</DialogTitle>
+            <DialogDescription>
+              Full details of this work from home request
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-muted-foreground">Employee</Label>
+                <p className="font-medium">
+                  {getEmployeeName(wfhDetail?.userId, wfhDetail?.user)}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Status</Label>
+                <div className="mt-1">
+                  <StatusBadge status={wfhDetail?.status || ""} />
+                </div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Start Date</Label>
+                <p className="font-medium">
+                  {wfhDetail?.startDate || wfhDetail?.date
+                    ? format(
+                        new Date(wfhDetail.startDate || wfhDetail.date!),
+                        "dd MMM yyyy"
+                      )
+                    : "-"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">End Date</Label>
+                <p className="font-medium">
+                  {wfhDetail?.endDate
+                    ? format(new Date(wfhDetail.endDate), "dd MMM yyyy")
+                    : "-"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Days</Label>
+                <p className="font-medium">
+                  {wfhDetail?.numberOfDays || wfhDetail?.days || 1}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Requested On</Label>
+                <p className="font-medium">
+                  {wfhDetail?.createdAt
+                    ? format(new Date(wfhDetail.createdAt), "dd MMM yyyy")
+                    : "-"}
+                </p>
+              </div>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Reason</Label>
+              <p className="mt-1 rounded-md border p-3 text-sm">
+                {wfhDetail?.reason || "-"}
+              </p>
+            </div>
+            {wfhDetail?.remarks && (
+              <div>
+                <Label className="text-muted-foreground">Remarks</Label>
+                <p className="mt-1 rounded-md border p-3 text-sm">
+                  {wfhDetail.remarks}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWfhDetailOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

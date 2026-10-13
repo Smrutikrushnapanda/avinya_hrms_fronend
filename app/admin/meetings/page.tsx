@@ -5,11 +5,11 @@ import {
   CalendarDays,
   Plus,
   Trash2,
-  Users,
   Send,
   Video,
-  Clock,
   Link,
+  Eye,
+  Filter,
 } from "lucide-react";
 import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,14 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -107,6 +115,16 @@ export default function MeetingManagementPage() {
   // Meetings state
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [meetingsLoading, setMeetingsLoading] = useState(false);
+
+  // Pagination & search state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  // Meeting detail dialog state
+  const [meetingDetailOpen, setMeetingDetailOpen] = useState(false);
+  const [meetingDetail, setMeetingDetail] = useState<Meeting | null>(null);
   
   // Employees for selecting participants
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -175,6 +193,11 @@ export default function MeetingManagementPage() {
     fetchEmployees();
     fetchMeetings();
   }, [profile, fetchEmployees, fetchMeetings]);
+
+  // Reset to page 1 when filters/search change
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, searchQuery, pageSize]);
 
   // ------- Create meeting -------
   const handleCreateMeeting = async () => {
@@ -256,20 +279,34 @@ export default function MeetingManagementPage() {
     }
   };
 
-  // ------- Get status badge -------
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "SCHEDULED":
-        return <Badge className="bg-blue-100 text-blue-700">Scheduled</Badge>;
-      case "IN_PROGRESS":
-        return <Badge className="bg-green-100 text-green-700">In Progress</Badge>;
-      case "COMPLETED":
-        return <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">Completed</Badge>;
-      case "CANCELLED":
-        return <Badge className="bg-red-100 text-red-700">Cancelled</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
+  // ------- Effective status: Active (upcoming) / Completed (date passed) / Cancelled -------
+  const getEffectiveStatus = (meeting: Meeting): "ACTIVE" | "COMPLETED" | "CANCELLED" => {
+    if (meeting.status === "CANCELLED") return "CANCELLED";
+    if (meeting.status === "COMPLETED") return "COMPLETED";
+    const end = new Date(meeting.scheduledAt).getTime() + meeting.durationMinutes * 60000;
+    if (end <= Date.now()) return "COMPLETED";
+    return "ACTIVE";
+  };
+
+  const getEffectiveStatusBadge = (meeting: Meeting) => {
+    const eff = getEffectiveStatus(meeting);
+    if (eff === "ACTIVE") {
+      return <Badge className="bg-blue-100 text-blue-700 border-blue-300">Active</Badge>;
     }
+    if (eff === "COMPLETED") {
+      return (
+        <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          Completed
+        </Badge>
+      );
+    }
+    return <Badge className="bg-red-100 text-red-700 border-red-300">Cancelled</Badge>;
+  };
+
+  // ------- Open meeting detail dialog -------
+  const openMeetingDetailDialog = (meeting: Meeting) => {
+    setMeetingDetail(meeting);
+    setMeetingDetailOpen(true);
   };
 
   // ------- Format meeting time -------
@@ -291,6 +328,38 @@ export default function MeetingManagementPage() {
         : [...prev.participantIds, userId],
     }));
   };
+
+  // ------- Filtered, searched & sorted meetings (Active first, then Completed, then Cancelled) -------
+  const rankOrder = { ACTIVE: 0, COMPLETED: 1, CANCELLED: 2 } as const;
+  const filteredMeetings = meetings
+    .filter((m) => {
+      const eff = getEffectiveStatus(m);
+      const matchesStatus = statusFilter === "all" || eff === statusFilter;
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        m.title.toLowerCase().includes(q) ||
+        (m.description || "").toLowerCase().includes(q) ||
+        (m.createdBy
+          ? `${m.createdBy.firstName} ${m.createdBy.lastName}`.toLowerCase().includes(q)
+          : false);
+      return matchesStatus && matchesSearch;
+    })
+    .sort((a, b) => {
+      const rankDiff =
+        rankOrder[getEffectiveStatus(a)] - rankOrder[getEffectiveStatus(b)];
+      if (rankDiff !== 0) return rankDiff;
+      // Within same status: Active upcoming soonest first, others by date desc
+      if (getEffectiveStatus(a) === "ACTIVE") {
+        return (
+          new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+        );
+      }
+      return new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime();
+    });
+
+  const totalPages = Math.max(1, Math.ceil(filteredMeetings.length / pageSize));
+  const safePage = Math.min(page, totalPages);
 
   if (loading) {
     return <PageSkeleton />;
@@ -315,129 +384,192 @@ export default function MeetingManagementPage() {
         </Button>
       </div>
 
-      {/* Meetings List */}
-      {meetingsLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : meetings.length === 0 ? (
-        <Card className="p-8">
-          <div className="flex flex-col items-center text-center space-y-4">
-            <div className="h-16 w-16 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-              <CalendarDays className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+      {/* Meetings Data Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Meetings</CardTitle>
+          <CardDescription>
+            Active meetings first, then completed, then cancelled
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="COMPLETED">Completed</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">
-                No Meetings Scheduled
-              </h2>
-              <p className="text-sm text-muted-foreground mt-2 max-w-md">
-                Schedule a meeting to notify specific employees at the scheduled time.
-              </p>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Search title or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-64"
+              />
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-sm text-muted-foreground">Rows</span>
+              <Select
+                value={String(pageSize)}
+                onValueChange={(v) => setPageSize(Number(v))}
+              >
+                <SelectTrigger className="w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {meetings.map((meeting) => {
-    const isCompleted = meeting.status === "COMPLETED";
-    return (
-            <Card key={meeting.id} className="p-4 opacity-50 cursor-not-allowed" style={{ opacity: isCompleted ? 0.5 : 1 }}>
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <Video className="h-4 w-4 text-blue-500" />
-                    <h3 className={isCompleted ? "line-through text-muted-foreground" : "font-semibold"}>
-                      {meeting.title}
-                    </h3>
-                  </div>
-                  {getStatusBadge(meeting.status)}
+
+          <Separator />
+
+          {meetingsLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          ) : filteredMeetings.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <CalendarDays className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p className="text-lg font-medium">No meetings found</p>
+              <p className="text-sm mt-1">
+                {searchQuery || statusFilter !== "all"
+                  ? "No meetings match your filters"
+                  : "Schedule a meeting to notify specific employees at the scheduled time."}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Sl#</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Scheduled Date</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMeetings
+                      .slice((safePage - 1) * pageSize, safePage * pageSize)
+                      .map((meeting, index) => {
+                        const eff = getEffectiveStatus(meeting);
+                        return (
+                          <TableRow key={meeting.id}>
+                            <TableCell className="font-medium">
+                              {(safePage - 1) * pageSize + index + 1}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Video className="h-4 w-4 text-blue-500" />
+                                <span
+                                  className={
+                                    eff === "COMPLETED"
+                                      ? "line-through text-muted-foreground"
+                                      : "font-medium"
+                                  }
+                                >
+                                  {meeting.title}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatMeetingTime(meeting.scheduledAt)}</TableCell>
+                            <TableCell>{meeting.durationMinutes} min</TableCell>
+                            <TableCell>{getEffectiveStatusBadge(meeting)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-1"
+                                  onClick={() => openMeetingDetailDialog(meeting)}
+                                  title="View"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  View
+                                </Button>
+                                {!meeting.notificationSent &&
+                                  meeting.status === "SCHEDULED" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleSendNotification(meeting.id)}
+                                      loading={actionLoading === meeting.id}
+                                      className="gap-1"
+                                    >
+                                      <Send className="h-3.5 w-3.5" />
+                                      Notify
+                                    </Button>
+                                  )}
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleDeleteMeeting(meeting.id)}
+                                  loading={actionLoading === meeting.id}
+                                  className="gap-1"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <div className="text-sm text-muted-foreground">
+                  Showing {Math.min((safePage - 1) * pageSize + 1, filteredMeetings.length)} to{" "}
+                  {Math.min(safePage * pageSize, filteredMeetings.length)} of{" "}
+                  {filteredMeetings.length} meetings
                 </div>
-
-                {meeting.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {meeting.description}
-                  </p>
-                )}
-
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>{formatMeetingTime(meeting.scheduledAt)}</span>
-                  <span className="text-xs">({meeting.durationMinutes} min)</span>
-                </div>
-
-                {meeting.participants && meeting.participants.length > 0 && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>{meeting.participants.length} participants</span>
-                  </div>
-                )}
-
-                {meeting.meetingLink && (
-                  <a
-                    href={meeting.meetingLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline w-fit"
-                    onClick={(e) => e.stopPropagation()}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPage(Math.max(1, safePage - 1))}
+                    disabled={safePage <= 1}
                   >
-                    <Link className="h-3.5 w-3.5" />
-                    Join Meeting
-                  </a>
-                )}
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  {meeting.notificationSent ? (
-                    <Badge variant="outline" className="text-xs">
-                      Notification Sent
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700">
-                      Pending Notification
-                    </Badge>
-                  )}
-                  
-                  <div className="flex gap-1">
-                    {isCompleted ? (
-                      <span className="text-xs text-muted-foreground">
-                        Completed - no actions available
-                      </span>
-                    ) : (
-                      <>
-                        {!meeting.notificationSent && meeting.status === "SCHEDULED" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleSendNotification(meeting.id)}
-                            loading={actionLoading === meeting.id}
-                            className="h-8 gap-1"
-                          >
-                            <Send className="h-3 w-3" />
-                            Notify
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDeleteMeeting(meeting.id)}
-                          loading={actionLoading === meeting.id}
-                          className="h-8 gap-1"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                    Prev
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPage(Math.min(totalPages, safePage + 1))}
+                    disabled={safePage >= totalPages}
+                  >
+                    Next
+                  </Button>
                 </div>
               </div>
-            </Card>
-          );
-          })}
-        </div>
-      )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Create Meeting Dialog */}
       <Dialog
@@ -581,6 +713,93 @@ export default function MeetingManagementPage() {
             >
               <Plus className="h-4 w-4" />
               Schedule Meeting
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Meeting Detail Dialog */}
+      <Dialog open={meetingDetailOpen} onOpenChange={setMeetingDetailOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Meeting Details</DialogTitle>
+            <DialogDescription>
+              Full details of this scheduled meeting
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-muted-foreground">Title</Label>
+                <p className="font-medium">{meetingDetail?.title}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Status</Label>
+                <div className="mt-1">
+                  {meetingDetail ? getEffectiveStatusBadge(meetingDetail) : null}
+                </div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Scheduled Date</Label>
+                <p className="font-medium">
+                  {meetingDetail?.scheduledAt
+                    ? formatMeetingTime(meetingDetail.scheduledAt)
+                    : "-"}
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Duration</Label>
+                <p className="font-medium">{meetingDetail?.durationMinutes} min</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Participants</Label>
+                <p className="font-medium">
+                  {meetingDetail?.participants?.length || 0} participant(s)
+                </p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Notification</Label>
+                <p className="font-medium">
+                  {meetingDetail?.notificationSent ? "Sent" : "Not sent"}
+                </p>
+              </div>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Description</Label>
+              <p className="mt-1 rounded-md border p-3 text-sm">
+                {meetingDetail?.description || "-"}
+              </p>
+            </div>
+            {meetingDetail?.participants && meetingDetail.participants.length > 0 && (
+              <div>
+                <Label className="text-muted-foreground">Participants</Label>
+                <div className="mt-1 flex flex-wrap gap-2 rounded-md border p-3">
+                  {meetingDetail.participants.map((p) => (
+                    <Badge key={p.id} variant="outline">
+                      {p.firstName} {p.lastName}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {meetingDetail?.meetingLink && (
+              <div>
+                <Label className="text-muted-foreground">Meeting Link</Label>
+                <a
+                  href={meetingDetail.meetingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
+                >
+                  <Link className="h-3.5 w-3.5" />
+                  Join Meeting
+                </a>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMeetingDetailOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
