@@ -5,12 +5,10 @@ import {
   CalendarDays,
   Plus,
   Trash2,
-  Loader2,
   Users,
   Send,
   Video,
   Clock,
-  X,
   Link,
 } from "lucide-react";
 import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
@@ -344,7 +342,6 @@ export default function MeetingManagementPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {meetings.map((meeting) => {
     const isCompleted = meeting.status === "COMPLETED";
-    const isDisabled = isCompleted;
     return (
             <Card key={meeting.id} className="p-4 opacity-50 cursor-not-allowed" style={{ opacity: isCompleted ? 0.5 : 1 }}>
               <div className="space-y-3">
@@ -437,9 +434,10 @@ export default function MeetingManagementPage() {
                 </div>
               </div>
             </Card>
-          }
+          );
+          })}
         </div>
-      )
+      )}
 
       {/* Create Meeting Dialog */}
       <Dialog
