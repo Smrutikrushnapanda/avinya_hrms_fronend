@@ -437,9 +437,9 @@ export default function MeetingManagementPage() {
                 </div>
               </div>
             </Card>
-          ))}
+          }
         </div>
-      )}
+      )
 
       {/* Create Meeting Dialog */}
       <Dialog
