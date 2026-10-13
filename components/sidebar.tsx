@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { usePlanAccess } from "@/components/plan-access-provider";
-import { getProfile, getChatConversations, getMenuItems, getTimeslips, getAllWfhRequests, getAllExpenses, getAllOfficeTrips } from "@/app/api/api";
+import { getProfile, getChatConversations, getMenuItems, getTimeslips, getAllWfhRequests, getAllExpenses, getAllOfficeTrips, getAllLeaveRequests } from "@/app/api/api";
 import {
   Users,
   LayoutDashboard,
