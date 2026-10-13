@@ -57,6 +57,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import {
   getProfile,
   getEmployees,
@@ -1039,39 +1040,18 @@ export default function LeaveManagementPage() {
                     </div>
                   ))}
                 </div>
-              ) : filteredRequests.length === 0 ? (
-                <p className="text-center text-muted-foreground pt-4">
-                  No leave requests found
-                </p>
               ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {Math.min((safePage - 1) * pageSize + 1, filteredRequests.length)} to{" "}
-                    {Math.min(safePage * pageSize, filteredRequests.length)} of{" "}
-                    {filteredRequests.length} requests
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPage(Math.max(1, safePage - 1))}
-                      disabled={safePage <= 1}
-                    >
-                      Prev
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      Page {safePage} of {totalPages}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPage(Math.min(totalPages, safePage + 1))}
-                      disabled={safePage >= totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
+                <DataTablePagination
+                  page={safePage}
+                  pageSize={pageSize}
+                  total={filteredRequests.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setPage(1);
+                  }}
+                  itemLabel="requests"
+                />
               )}
             </CardContent>
           </Card>

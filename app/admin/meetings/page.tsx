@@ -49,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import {
   getProfile,
   getEmployees,
@@ -535,36 +536,19 @@ export default function MeetingManagementPage() {
                       })}
                   </TableBody>
                 </Table>
-              </div>
 
-              {/* Pagination Controls */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <div className="text-sm text-muted-foreground">
-                  Showing {Math.min((safePage - 1) * pageSize + 1, filteredMeetings.length)} to{" "}
-                  {Math.min(safePage * pageSize, filteredMeetings.length)} of{" "}
-                  {filteredMeetings.length} meetings
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setPage(Math.max(1, safePage - 1))}
-                    disabled={safePage <= 1}
-                  >
-                    Prev
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Page {safePage} of {totalPages}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setPage(Math.min(totalPages, safePage + 1))}
-                    disabled={safePage >= totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
+                {/* Pagination Controls */}
+                <DataTablePagination
+                  page={safePage}
+                  pageSize={pageSize}
+                  total={filteredMeetings.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setPage(1);
+                  }}
+                  itemLabel="meetings"
+                />
               </div>
             </>
           )}

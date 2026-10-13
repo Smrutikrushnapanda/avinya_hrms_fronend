@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2, Save, Landmark } from "lucide-react";
 import { toast } from "sonner";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import { getProfile, getEmployees, getEmployeeBankDetail, updateEmployeeBankDetail } from "@/app/api/api";
 
 interface Employee {
@@ -55,6 +56,9 @@ export default function BankDetailsPage() {
   const [loadingBank, setLoadingBank] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  // Small list → default 10 rows per page
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     const init = async () => {
@@ -125,6 +129,13 @@ export default function BankDetailsPage() {
     );
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paginatedEmployees = filteredEmployees.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
+  );
+
   const handleSave = async () => {
     if (!selectedEmpId) {
       toast.error("Select an employee first");
@@ -173,35 +184,53 @@ export default function BankDetailsPage() {
           <Input
             placeholder="Search employees by name, code, or email..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
           {loadingEmployees ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading employees...
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[300px] overflow-y-auto border rounded-lg p-2">
-              {filteredEmployees.map((emp) => (
-                <button
-                  key={emp.id}
-                  onClick={() => setSelectedEmpId(emp.id)}
-                  className={`text-left p-3 rounded-lg border transition-colors ${
-                    selectedEmpId === emp.id
-                      ? "border-primary bg-primary/5 ring-1 ring-primary"
-                      : "border-border hover:bg-muted/50"
-                  }`}
-                >
-                  <div className="font-medium text-sm">{getFullName(emp)}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {emp.employeeCode}
-                    {emp.designation?.name && ` · ${emp.designation.name}`}
-                  </div>
-                </button>
-              ))}
-              {filteredEmployees.length === 0 && (
-                <div className="col-span-full text-center py-4 text-sm text-muted-foreground">No employees found.</div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 border rounded-lg p-2">
+                {paginatedEmployees.map((emp) => (
+                  <button
+                    key={emp.id}
+                    onClick={() => setSelectedEmpId(emp.id)}
+                    className={`text-left p-3 rounded-lg border transition-colors ${
+                      selectedEmpId === emp.id
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className="font-medium text-sm">{getFullName(emp)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {emp.employeeCode}
+                      {emp.designation?.name && ` · ${emp.designation.name}`}
+                    </div>
+                  </button>
+                ))}
+                {filteredEmployees.length === 0 && (
+                  <div className="col-span-full text-center py-4 text-sm text-muted-foreground">No employees found.</div>
+                )}
+              </div>
+              {filteredEmployees.length > 0 && (
+                <DataTablePagination
+                  page={safePage}
+                  pageSize={pageSize}
+                  total={filteredEmployees.length}
+                  onPageChange={setPage}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setPage(1);
+                  }}
+                  itemLabel="employees"
+                />
               )}
-            </div>
+            </>
           )}
         </CardContent>
       </Card>

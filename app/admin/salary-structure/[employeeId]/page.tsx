@@ -42,6 +42,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import {
   getSalaryStructuresByEmployee,
   getActiveSalaryStructure,
@@ -140,6 +141,9 @@ export default function EmployeeSalaryPage() {
 
   // History
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  // Small table → default 10 rows per page
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
 
   // Delete
   const [deleteTarget, setDeleteTarget] = useState<SalaryStructure | null>(null);
@@ -291,6 +295,14 @@ export default function EmployeeSalaryPage() {
     const p = c.split(".");
     return p.length <= 1 ? c : `${p[0]}.${p.slice(1).join("")}`;
   };
+
+  // Salary history pagination
+  const historyTotalPages = Math.max(1, Math.ceil(structures.length / historyPageSize));
+  const historySafePage = Math.min(historyPage, historyTotalPages);
+  const paginatedStructures = structures.slice(
+    (historySafePage - 1) * historyPageSize,
+    historySafePage * historyPageSize,
+  );
 
   if (loading) {
     return (
@@ -448,7 +460,13 @@ export default function EmployeeSalaryPage() {
       </Tabs>
 
       {/* ====== SALARY HISTORY DIALOG ====== */}
-      <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+      <Dialog
+        open={isHistoryOpen}
+        onOpenChange={(open) => {
+          setIsHistoryOpen(open);
+          if (open) setHistoryPage(1);
+        }}
+      >
         <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Salary Structure History</DialogTitle></DialogHeader>
           <Table>
@@ -466,26 +484,46 @@ export default function EmployeeSalaryPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {structures.map((s, i) => (
-                <TableRow key={s.id}>
-                  <TableCell className="font-medium">{i + 1}</TableCell>
-                  <TableCell>{s.name || "-"}</TableCell>
-                  <TableCell>{formatCurrency(s.grossSalary)}</TableCell>
-                  <TableCell>{formatCurrency(s.totalDeductions)}</TableCell>
-                  <TableCell className="font-semibold">{formatCurrency(s.netSalary)}</TableCell>
-                  <TableCell>{formatDate(s.effectiveFrom)}</TableCell>
-                  <TableCell>{s.effectiveTo ? formatDate(s.effectiveTo) : "Ongoing"}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${s.status === "active" ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"}`}>{s.status}</span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => { setIsHistoryOpen(false); openEdit(s); }}><Pencil className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setIsHistoryOpen(false); setDeleteTarget(s); }}><Trash2 className="w-4 h-4" /></Button>
+              {paginatedStructures.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
+                    No salary structures found.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                paginatedStructures.map((s, i) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium">{(historySafePage - 1) * historyPageSize + i + 1}</TableCell>
+                    <TableCell>{s.name || "-"}</TableCell>
+                    <TableCell>{formatCurrency(s.grossSalary)}</TableCell>
+                    <TableCell>{formatCurrency(s.totalDeductions)}</TableCell>
+                    <TableCell className="font-semibold">{formatCurrency(s.netSalary)}</TableCell>
+                    <TableCell>{formatDate(s.effectiveFrom)}</TableCell>
+                    <TableCell>{s.effectiveTo ? formatDate(s.effectiveTo) : "Ongoing"}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${s.status === "active" ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-600"}`}>{s.status}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => { setIsHistoryOpen(false); openEdit(s); }}><Pencil className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => { setIsHistoryOpen(false); setDeleteTarget(s); }}><Trash2 className="w-4 h-4" /></Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
+          <DataTablePagination
+            page={historySafePage}
+            pageSize={historyPageSize}
+            total={structures.length}
+            onPageChange={setHistoryPage}
+            onPageSizeChange={(size) => {
+              setHistoryPageSize(size);
+              setHistoryPage(1);
+            }}
+            itemLabel="records"
+            className="-mx-1 px-1"
+          />
         </DialogContent>
       </Dialog>
 

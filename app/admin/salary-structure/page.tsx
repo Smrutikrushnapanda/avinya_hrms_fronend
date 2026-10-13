@@ -22,6 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Coins, Landmark, Pencil, Plus, Search, X, Loader2 } from "lucide-react";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -72,7 +73,8 @@ export default function SalaryStructurePage() {
   const [desigFilter, setDesigFilter] = useState("all");
   const [isNewDialogOpen, setIsNewDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const pageSize = 15;
+  // Large table → default 20 rows per page
+  const [pageSize, setPageSize] = useState(20);
 
   useEffect(() => {
     const init = async () => {
@@ -160,8 +162,9 @@ export default function SalaryStructurePage() {
     return rows;
   }, [employees, deptFilter, desigFilter, search]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const hasFilters = deptFilter !== "all" || desigFilter !== "all" || search.trim();
 
@@ -256,7 +259,7 @@ export default function SalaryStructurePage() {
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => router.push(`/admin/salary-structure/${emp.id}`)}
                     >
-                      <TableCell className="text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
+                      <TableCell className="text-muted-foreground">{(safePage - 1) * pageSize + idx + 1}</TableCell>
                       <TableCell>
                         <div className="font-medium">{getFullName(emp)}</div>
                         <div className="text-xs text-muted-foreground">{emp.workEmail}</div>
@@ -294,19 +297,18 @@ export default function SalaryStructurePage() {
               </TableBody>
             </Table>
            </div>
-          {filtered.length > pageSize && (
-            <div className="flex items-center justify-between px-4 py-3 border-t">
-              <p className="text-sm text-muted-foreground">
-                Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length}
-              </p>
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <Button key={p} variant={p === page ? "default" : "outline"} size="sm" onClick={() => setPage(p)}>{p}</Button>
-                ))}
-                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</Button>
-              </div>
-            </div>
+          {filtered.length > 0 && (
+            <DataTablePagination
+              page={safePage}
+              pageSize={pageSize}
+              total={filtered.length}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+              itemLabel="employees"
+            />
           )}
         </CardContent>
       </Card>
