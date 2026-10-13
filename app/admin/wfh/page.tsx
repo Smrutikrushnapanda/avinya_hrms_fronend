@@ -14,6 +14,7 @@ import {
   Filter,
   Building2,
   Pencil,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1010,6 +1011,16 @@ export default function WfhManagementPage() {
                           <TableCell className="text-right">
                             {request.status?.toUpperCase() === "PENDING" ? (
                               <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-primary-600 border-primary-300 hover:bg-primary-50 hover:text-primary-700"
+                                  onClick={() => openWfhDetailDialog(request)}
+                                  title="View"
+                                >
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
+                                  View
+                                </Button>
                                 <Button
                                   size="sm"
                                   variant="outline"

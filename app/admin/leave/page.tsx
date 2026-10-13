@@ -16,6 +16,7 @@ import {
   Venus,
   Star,
   RefreshCw,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -915,6 +916,15 @@ export default function LeaveManagementPage() {
                           <TableCell className="text-right">
                             {req.status?.toUpperCase() === "PENDING" ? (
                               <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  className="gap-1"
+                                  onClick={() => openLeaveDetailDialog(req)}
+                                  title="View"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  View
+                                </Button>
                                 <Button
                                   size="sm"
                                   className="gap-1"
