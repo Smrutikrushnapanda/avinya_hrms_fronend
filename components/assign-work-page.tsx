@@ -417,7 +417,7 @@ export default function AssignWorkPage({
                           : "Other / General"}
                     </p>
                     {assignment.description ? (
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-3 break-words">
                         {assignment.description}
                       </p>
                     ) : null}
