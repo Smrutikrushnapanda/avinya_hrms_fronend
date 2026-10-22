@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getFullName } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -89,6 +90,9 @@ export default function UserAssignWorkPage() {
     workReport: "",
   });
 
+  // Points tracking for update progress
+  const [points, setPoints] = useState<{ text: string; completed: boolean }[]>([]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -129,16 +133,46 @@ export default function UserAssignWorkPage() {
     });
   };
 
+  // Extract numbered points (1., 2., 3.) or bullet points (-, •) from text
+  function extractPoints(text: string): string[] {
+    const points: string[] = [];
+    // Match "1.", "2.", "3." etc at start of line or after newline
+    const regex = /(?:^|\n)[-•*]\s*(.+)|(?:^|\n\d+\.\s*(.+))/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match[1]) points.push(match[1].trim());
+      else if (match[2]) points.push(match[2].trim());
+    }
+    // If no structured points found, return empty array (will use full text as single point)
+    if (points.length === 0) {
+      // Check if text contains common point indicators
+      const lines = text.split("\n").filter((line) => line.trim().length > 0);
+      if (lines.length > 0) {
+        // Use first few lines as potential points
+        return lines.slice(0, 5).map((line) => line.trim()).filter((line) => line.length > 0);
+      }
+      return [text.trim()];
+    }
+    return points;
+  };
+
   const openEdit = (assignment: WorkAssignment) => {
     setEditTarget(assignment);
+    // Extract points from description for checkbox display
+    const desc = assignment.description || "";
+    const extractedPoints = extractPoints(desc);
     setEditForm({
       status: assignment.status,
       progressPercent: assignment.progressPercent,
       workReport: assignment.workReport || "",
     });
+    setPoints(extractedPoints.map(p => ({ text: p, completed: false })));
   };
 
   const openComposer = () => {
+    // Extract points from description if present
+    const desc = form.description || "";
+    const extractedPoints = extractPoints(desc);
     setForm({
       projectValue: "",
       otherProjectName: "",
@@ -150,6 +184,7 @@ export default function UserAssignWorkPage() {
       priority: "medium",
       imageUrl: "",
     });
+    setPoints(extractedPoints.map(p => ({ text: p, completed: false })));
     setComposerOpen(true);
   };
 
@@ -239,9 +274,13 @@ export default function UserAssignWorkPage() {
     if (!editTarget) return;
     try {
       setEditSaving(true);
+      // Calculate progress percent from checked points
+      const checkedCount = points.filter((p) => p.completed).length;
+      const totalPoints = points.length;
+      const newProgressPercent = totalPoints > 0 ? Math.round((checkedCount / totalPoints) * 100) : 0;
       await updateAssignmentProgress(editTarget.id, {
         status: editForm.status,
-        progressPercent: editForm.progressPercent,
+        progressPercent: newProgressPercent,
         workReport: editForm.workReport,
         source: editTarget.type,
       });
@@ -428,14 +467,14 @@ export default function UserAssignWorkPage() {
 
       {/* Assign New Work dialog */}
       <Dialog open={composerOpen} onOpenChange={setComposerOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-2xl overflow-y-auto p-4">
           <DialogHeader>
             <DialogTitle>Assign New Work</DialogTitle>
             <DialogDescription>
               Choose a project (or select Other) and an employee to assign the work to.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Project</Label>
@@ -683,24 +722,63 @@ export default function UserAssignWorkPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Completion Percentage: {editForm.progressPercent}%</Label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={editForm.progressPercent}
-                onChange={(e) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    progressPercent: Number(e.target.value),
-                  }))
-                }
-                className="w-full"
-              />
-              <Progress value={editForm.progressPercent} />
-            </div>
+            <Label>Points Completed</Label>
+              {points.length > 0 ? (
+                <div className="space-y-1.5">
+                  {points.map((point, idx) => (
+                    <div key={idx} className="flex items-center gap-2 px-2 py-1 rounded-md border border-border bg-muted/30">
+                      <Checkbox
+                        checked={point.completed}
+                        onCheckedChange={() => {
+                          setPoints((prev) =>
+                            prev.map((p, i) =>
+                              i === idx ? { ...p, completed: !p.completed } : p
+                            )
+                          );
+                          const checkedCount = points.filter((p) => p.completed).length;
+                          const total = points.length;
+                          setEditForm((prev) => ({
+                            ...prev,
+                            progressPercent: total > 0 ? Math.round((checkedCount / total) * 100) : 0,
+                          }));
+                        }}
+                      >
+                        <span className="text-sm font-medium truncate max-w-xs">
+                          {point.text}
+                        </span>
+                      </Checkbox>
+                      {point.completed ? (
+                        <span className="text-xs text-muted-foreground line-through">
+                          ----------
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </div>
+                  ))}
+                  <p className="text-xs text-muted-foreground/60">No points defined in description</p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground/60">No points defined in description</p>
+              )}
+              <div className="space-y-1.5">
+                <Label>Completion Percentage: {editForm.progressPercent}%</Label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={editForm.progressPercent}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      progressPercent: Number(e.target.value),
+                    }))
+                  }
+                  className="w-full"
+                />
+                <Progress value={editForm.progressPercent} />
+              </div>
             <div className="space-y-1.5">
               <Label>What did you do?</Label>
               <Textarea

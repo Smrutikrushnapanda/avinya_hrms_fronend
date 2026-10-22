@@ -475,6 +475,9 @@ export default function ProjectWorkspace({
   const [selectedRoles, setSelectedRoles] = useState<Record<string, MemberRole>>({});
   const [employeeSearch, setEmployeeSearch] = useState("");
 
+  const [showMemberProjects, setShowMemberProjects] = useState<string | null>(null);
+  const [memberProjectsData, setMemberProjectsData] = useState<{ employeeId: string; projectCount: number; projects: string[] } | null>(null);
+
   const [issueDraft, setIssueDraft] = useState({
     pageName: "",
     issueTitle: "",
@@ -945,6 +948,40 @@ export default function ProjectWorkspace({
       toast.error("Failed to load project history");
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchMemberAssignedProjects = async (employeeId: string) => {
+    try {
+      const res = await getEmployeeAssignedProjects(employeeId);
+      const data = Array.isArray(res.data) ? res.data : [];
+      // Extract project names for display
+      const projectNames = data
+        .map((item: any) => item.project?.name || item.projectName || "Unknown Project")
+        .filter((name: string) => name && name !== "Unknown Project");
+      const projectCount = data.length;
+      
+      if (projectCount > 0) {
+        const projectList = projectNames.slice(0, 5).join(", ");
+        const additional = projectCount > 5 ? ` + ${projectCount - 5} more` : "";
+        toast.success(`${employeeId} assigned to ${projectCount} project${projectCount > 1 ? 's' : ''}${additional}\n${projectList}`);
+      } else {
+        toast.info(`${employeeId} not assigned to any projects`);
+      }
+      setMemberProjectsData({
+        employeeId,
+        projectCount,
+        projects: projectNames,
+      });
+      setShowMemberProjects(employeeId);
+    } catch {
+      toast.error("Failed to load assigned projects");
+      setMemberProjectsData({
+        employeeId,
+        projectCount: 0,
+        projects: ["Error loading data"],
+      });
+      setShowMemberProjects(employeeId);
     }
   };
 
@@ -1886,8 +1923,8 @@ export default function ProjectWorkspace({
                         <Button
                           variant="ghost"
                           size="sm"
-                          title="Project history"
-                          onClick={() => handleOpenHistory(emp)}
+                          title="Assigned Projects"
+                          onClick={() => fetchMemberAssignedProjects(emp.userId)}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>

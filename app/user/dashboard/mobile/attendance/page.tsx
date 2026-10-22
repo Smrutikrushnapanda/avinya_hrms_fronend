@@ -40,11 +40,44 @@ const monthNames = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+function parseShiftTimeToMinutes(timeStr?: string): number | null {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
 function resolveCompoundStatusKey(
   status: string,
   completionStatus?: string | null,
-  punctualityStatus?: string | null
+  punctualityStatus?: string | null,
+  settings?: { workStartTime?: string; graceMinutes?: number; lateThresholdMinutes?: number } | null,
+  inTime?: string | null
 ): string {
+  // Default configuration if not provided
+  const DEFAULT_WORK_START = "10:00";
+  const DEFAULT_GRACE_MINUTES = 15;
+  const DEFAULT_LATE_THRESHOLD_MINUTES = 30;
+
+  // Use provided settings or defaults
+  const workStartTime = settings?.workStartTime || DEFAULT_WORK_START;
+  const graceMinutes = settings?.graceMinutes ?? DEFAULT_GRACE_MINUTES;
+  const lateThresholdMinutes = settings?.lateThresholdMinutes ?? DEFAULT_LATE_THRESHOLD_MINUTES;
+
+  // Calculate cutoff times based on settings
+  const startMinutes = parseShiftTimeToMinutes(workStartTime);
+  const onTimeCutoff = startMinutes + graceMinutes;      // e.g., 10:15 AM
+  const lateCutoff = startMinutes + lateThresholdMinutes; // e.g., 10:30 AM
+
+  // Parse actual check-in time
+  const inTimeMinutes = inTime ? parseInt(inTime.replace(':', ''), 10) : null;
+
+  // If status is "present" and check-in is past the late threshold, mark as "Absent"
+  if (status === "present" && punctualityStatus === "late" && inTimeMinutes > lateCutoff * 100) {
+    return "absent";
+  }
+
+  // Original logic for other cases
   if (status === "present" && completionStatus) {
     const parts = [`present-${completionStatus}`];
     if (punctualityStatus === "late") parts.push("late");
@@ -103,10 +136,12 @@ function getIconConfig(
   isHoliday: boolean,
   completionStatus?: string | null,
   punctualityStatus?: string | null,
+  settings?: { workStartTime?: string; graceMinutes?: number; lateThresholdMinutes?: number } | null,
+  inTime?: string | null
 ) {
   if (isHoliday) return { icon: Gift, color: "var(--primary)", bg: "var(--primary-8, rgba(29,78,211,0.08))" };
   if (isSunday) return { icon: Sun, color: "var(--primary)", bg: "var(--primary-8, rgba(29,78,211,0.08))" };
-  const compoundKey = resolveCompoundStatusKey(status, completionStatus, punctualityStatus);
+  const compoundKey = resolveCompoundStatusKey(status, completionStatus, punctualityStatus, settings, inTime);
   switch (compoundKey) {
     case "present":
     case "present-complete": return { icon: CheckCircle, color: "#10B981", bg: "#ECFDF5" };
