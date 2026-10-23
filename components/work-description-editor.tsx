@@ -161,7 +161,7 @@ export function WorkDescriptionEditor({ value, onChange, disabled = false, id, "
         </Button>
       </div>
       <div className="relative">
-        {state?.empty && <p aria-hidden="true" className="pointer-events-none absolute left-3 right-3 top-2 text-sm text-muted-foreground">Describe the work. Use lists to define trackable steps.</p>}
+        {state?.empty && <p aria-hidden="true" className="pointer-events-none absolute left-3 right-3 top-2 text-sm text-muted-foreground"></p>}
         <EditorContent editor={editor} />
       </div>
     </div>

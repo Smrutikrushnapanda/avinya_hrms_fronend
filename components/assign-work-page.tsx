@@ -12,6 +12,13 @@ import {
   WorkAssignment,
   AssignWorkOptions,
 } from "@/app/api/api";
+import {
+  startOfMonth,
+  subMonths,
+  addMonths,
+  isSameMonth,
+  format,
+} from "date-fns";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +47,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ListTodo, CheckCircle2, ClipboardList, RefreshCw, Plus, Upload, Image as ImageIcon } from "lucide-react";
 
 const statusMeta: Record<string, { label: string; color: string; bg: string }> = {
@@ -73,6 +81,9 @@ export default function AssignWorkPage({
   const [assignedByMe, setAssignedByMe] = useState<WorkAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>(includeAllAssignments ? "all" : "assigned-to-me");
+  const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
+  const [month, setMonth] = useState<string | null>(null);
+  const [year, setYear] = useState<number | null>(null);
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(false);
@@ -99,6 +110,16 @@ export default function AssignWorkPage({
     workReport: "",
   });
 
+  // Derive month/year from currentMonth for API filtering
+  const derivedMonth = useMemo(() => currentMonth.getMonth() + 1, [currentMonth]);
+  const derivedYear = useMemo(() => currentMonth.getFullYear(), [currentMonth]);
+
+  // Update month/year state when currentMonth changes
+  useEffect(() => {
+    setMonth(derivedMonth);
+    setYear(derivedYear);
+  }, [derivedMonth, derivedYear]);
+
   // Points tracking for update progress
   const [points, setPoints] = useState<{ text: string; completed: boolean }[]>([]);
   const [pointsChanged, setPointsChanged] = useState(false);
@@ -111,23 +132,34 @@ export default function AssignWorkPage({
     setLoading(true);
     try {
       const [mine, byMe, all] = await Promise.all([
-        getMyAssignments(),
-        getAssignmentsByMe(),
-        includeAllAssignments ? getAllAssignments() : Promise.resolve(null),
+        getMyAssignments({
+          month,
+          year,
+        }),
+        getAssignmentsByMe({
+          month,
+          year,
+        }),
+        includeAllAssignments ? getAllAssignments({ month, year }) : Promise.resolve(null),
       ]);
       setAssignedToMe(mine.data || []);
       setAssignedByMe(byMe.data || []);
       setAllAssignments(all?.data || []);
+      // When no month filter (initial load), set month/year state
+      if (!month || !year) {
+        setMonth(currentMonth.getMonth() + 1);
+        setYear(currentMonth.getFullYear());
+      }
     } catch {
       toast.error("Failed to load assignments");
     } finally {
       setLoading(false);
     }
-  }, [includeAllAssignments]);
+  }, [month, year, includeAllAssignments, currentMonth]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, currentMonth]);
 
   const employeeName = (userId: string | null) => {
     if (!userId) return "—";
@@ -304,10 +336,10 @@ export default function AssignWorkPage({
 
   const items =
     tab === "all"
-      ? allAssignments
+      ? allAssignments.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth))
       : tab === "assigned-to-me"
-        ? assignedToMe
-        : assignedByMe;
+        ? assignedToMe.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth))
+        : assignedByMe.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth));
   const statusOptions =
     editTarget?.type === "internal"
       ? ["pending", "resolved"]
@@ -351,27 +383,47 @@ export default function AssignWorkPage({
         </div>
       </div>
 
+      {/* Month Navigation */}
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+          className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors active:scale-95"
+        >
+          <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+        </button>
+        <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+          {format(currentMonth, "MMMM yyyy")}
+        </h2>
+        <button
+          onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+          className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors active:scale-95"
+        >
+          <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+        </button>
+      </div>
+
       <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30 w-fit">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              tab === t.key
-                ? "bg-background shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.label} ({
-              t.key === "all"
-                ? allAssignments.length
-                : t.key === "assigned-to-me"
-                  ? assignedToMe.length
-                  : assignedByMe.length
-            })
-          </button>
-        ))}
+        {tabs.map((t) => {
+          const count = tab === "all"
+            ? allAssignments.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth)).length
+            : tab === "assigned-to-me"
+              ? assignedToMe.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth)).length
+              : assignedByMe.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth)).length;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                tab === t.key
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t.label} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {loading ? (
