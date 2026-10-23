@@ -654,13 +654,13 @@ export const createAssignWork = (data: {
   imageUrl?: string;
 }) => api.post("/assign-work", data);
 export const getAllAssignments = (params?: { month?: number; year?: number }) =>
-  api.get<WorkAssignment[]>("/assign-work", { params });
+  api.get<WorkAssignment[]>("/assign-work", { params: params });
 
 export const getMyAssignments = (params?: { month?: number; year?: number }) =>
-  api.get<WorkAssignment[]>("/assign-work/my", { params });
+  api.get<WorkAssignment[]>("/assign-work/my", { params: params });
 
 export const getAssignmentsByMe = (params?: { month?: number; year?: number }) =>
-  api.get<WorkAssignment[]>("/assign-work/assigned-by-me", { params });
+  api.get<WorkAssignment[]>("/assign-work/assigned-by-me", { params: params });
 export const updateAssignmentProgress = (
   id: string,
   data: {
