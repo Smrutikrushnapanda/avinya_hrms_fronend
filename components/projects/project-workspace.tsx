@@ -124,7 +124,13 @@ type ProjectHistoryRow = {
   role: string | null;
   designation: string | null;
   assignedAt: string;
+  status?: string | null;
 };
+
+type ProjectHistoryMember = Pick<
+  ProjectEmployee,
+  "employeeId" | "userId" | "firstName" | "lastName" | "designation"
+>;
 
 type TeamMember = {
   employeeId: string;
@@ -469,14 +475,13 @@ export default function ProjectWorkspace({
   const [showQaPanel, setShowQaPanel] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedQaUserIds, setSelectedQaUserIds] = useState<string[]>([]);
-  const [historyMember, setHistoryMember] = useState<ProjectEmployee | null>(null);
+  const [historyMember, setHistoryMember] = useState<ProjectHistoryMember | null>(null);
   const [historyRows, setHistoryRows] = useState<ProjectHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const historyRequestRef = useRef(0);
   const [selectedRoles, setSelectedRoles] = useState<Record<string, MemberRole>>({});
   const [employeeSearch, setEmployeeSearch] = useState("");
-
-  const [showMemberProjects, setShowMemberProjects] = useState<string | null>(null);
-  const [memberProjectsData, setMemberProjectsData] = useState<{ employeeId: string; projectCount: number; projects: string[] } | null>(null);
 
   const [issueDraft, setIssueDraft] = useState({
     pageName: "",
@@ -933,55 +938,29 @@ export default function ProjectWorkspace({
     }
   };
 
-  const handleOpenHistory = async (emp: ProjectEmployee) => {
+  const handleOpenHistory = async (emp: ProjectHistoryMember) => {
     if (!emp.employeeId) {
       toast.error("No employee record linked to this member");
       return;
     }
+    const requestId = ++historyRequestRef.current;
     setHistoryMember(emp);
     setHistoryRows([]);
     setHistoryLoading(true);
+    setHistoryError(null);
     try {
       const res = await getEmployeeAssignedProjects(emp.employeeId);
-      setHistoryRows(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      toast.error("Failed to load project history");
+      if (requestId !== historyRequestRef.current) return;
+      const rows: ProjectHistoryRow[] = Array.isArray(res.data) ? res.data : [];
+      setHistoryRows(Array.from(new Map(rows.map((row) => [
+        `${row.source}-${row.projectId}`,
+        row,
+      ])).values()));
+    } catch (error: unknown) {
+      if (requestId !== historyRequestRef.current) return;
+      setHistoryError(extractErrorMessage(error, "Failed to load assigned projects"));
     } finally {
-      setHistoryLoading(false);
-    }
-  };
-
-  const fetchMemberAssignedProjects = async (employeeId: string) => {
-    try {
-      const res = await getEmployeeAssignedProjects(employeeId);
-      const data = Array.isArray(res.data) ? res.data : [];
-      // Extract project names for display
-      const projectNames = data
-        .map((item: any) => item.project?.name || item.projectName || "Unknown Project")
-        .filter((name: string) => name && name !== "Unknown Project");
-      const projectCount = data.length;
-      
-      if (projectCount > 0) {
-        const projectList = projectNames.slice(0, 5).join(", ");
-        const additional = projectCount > 5 ? ` + ${projectCount - 5} more` : "";
-        toast.success(`${employeeId} assigned to ${projectCount} project${projectCount > 1 ? 's' : ''}${additional}\n${projectList}`);
-      } else {
-        toast.info(`${employeeId} not assigned to any projects`);
-      }
-      setMemberProjectsData({
-        employeeId,
-        projectCount,
-        projects: projectNames,
-      });
-      setShowMemberProjects(employeeId);
-    } catch {
-      toast.error("Failed to load assigned projects");
-      setMemberProjectsData({
-        employeeId,
-        projectCount: 0,
-        projects: ["Error loading data"],
-      });
-      setShowMemberProjects(employeeId);
+      if (requestId === historyRequestRef.current) setHistoryLoading(false);
     }
   };
 
@@ -1835,11 +1814,10 @@ export default function ProjectWorkspace({
                           {getFullName(emp)} ({emp.employeeCode || emp.employeeId || "—"})
                         </span>
                       </label>
-                      {isClientProject ? (
-                        <Badge variant="outline" className="text-[10px] px-1.5">
-                          member
-                        </Badge>
-                      ) : (
+                      <Badge variant="outline" className="text-[10px] px-1.5" title="Designation">
+                        {emp.designation || "No designation"}
+                      </Badge>
+                      {!isClientProject && (
                         <select
                           className="h-8 rounded-md border border-input bg-background px-2 text-xs"
                           value={selectedRoles[emp.userId] || "member"}
@@ -1855,6 +1833,17 @@ export default function ProjectWorkspace({
                           <option value="lead">Lead</option>
                         </select>
                       )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Assigned Projects"
+                        aria-label={`View assigned projects for ${getFullName(emp)}`}
+                        onClick={() => void handleOpenHistory(emp)}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
                   );
                 })
@@ -1923,8 +1912,10 @@ export default function ProjectWorkspace({
                         <Button
                           variant="ghost"
                           size="sm"
-                          title="Assigned Projects"
-                          onClick={() => fetchMemberAssignedProjects(emp.userId)}
+                          title={emp.employeeId ? "Assigned Projects" : "No employee record linked to this member"}
+                          aria-label={`View assigned projects for ${getFullName(emp)}`}
+                          disabled={!emp.employeeId}
+                          onClick={() => void handleOpenHistory(emp)}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -2336,14 +2327,17 @@ export default function ProjectWorkspace({
         open={!!historyMember}
         onOpenChange={(open) => {
           if (!open) {
+            historyRequestRef.current += 1;
             setHistoryMember(null);
             setHistoryRows([]);
+            setHistoryError(null);
+            setHistoryLoading(false);
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Project History</DialogTitle>
+            <DialogTitle>Assigned Projects</DialogTitle>
             <DialogDescription>
               {historyMember
                 ? `${getFullName(historyMember)}${
@@ -2353,31 +2347,45 @@ export default function ProjectWorkspace({
             </DialogDescription>
           </DialogHeader>
           {historyLoading ? (
-            <p className="text-sm text-muted-foreground">Loading history...</p>
+            <p className="text-sm text-muted-foreground">Loading assigned projects...</p>
+          ) : historyError ? (
+            <div className="space-y-3">
+              <p role="alert" className="text-sm text-destructive">{historyError}</p>
+              <Button variant="outline" size="sm" onClick={() => historyMember && void handleOpenHistory(historyMember)}>
+                Retry
+              </Button>
+            </div>
           ) : historyRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No project assignments found.</p>
+            <p className="text-sm text-muted-foreground">0 assigned projects.</p>
           ) : (
-            <div className="max-h-80 overflow-auto border border-border rounded-md">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 sticky top-0">
-                  <tr>
-                    <th className="text-left px-3 py-2 border-b border-border">Project</th>
-                    <th className="text-left px-3 py-2 border-b border-border">Type</th>
-                    <th className="text-left px-3 py-2 border-b border-border">Role</th>
-                    <th className="text-left px-3 py-2 border-b border-border">Assigned On</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyRows.map((row) => (
-                    <tr key={row.id} className="border-b border-border last:border-b-0">
-                      <td className="px-3 py-2">{row.name || "—"}</td>
-                      <td className="px-3 py-2 capitalize">{row.source}</td>
-                      <td className="px-3 py-2 capitalize">{row.role || "member"}</td>
-                      <td className="px-3 py-2">{formatDisplayDate(row.assignedAt)}</td>
+            <div className="space-y-3">
+              <p className="text-sm font-medium">
+                {historyRows.length} assigned {historyRows.length === 1 ? "project" : "projects"}
+              </p>
+              <div className="max-h-80 overflow-auto border border-border rounded-md">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-2 border-b border-border">Project</th>
+                      <th className="text-left px-3 py-2 border-b border-border">Type</th>
+                      <th className="text-left px-3 py-2 border-b border-border">Role</th>
+                      <th className="text-left px-3 py-2 border-b border-border">Status</th>
+                      <th className="text-left px-3 py-2 border-b border-border">Assigned On</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {historyRows.map((row) => (
+                      <tr key={`${row.source}-${row.projectId}`} className="border-b border-border last:border-b-0">
+                        <td className="px-3 py-2">{row.name || "—"}</td>
+                        <td className="px-3 py-2 capitalize">{row.source}</td>
+                        <td className="px-3 py-2 capitalize">{row.role || "member"}</td>
+                        <td className="px-3 py-2 capitalize">{row.status?.toLowerCase().replace(/_/g, " ") || "—"}</td>
+                        <td className="px-3 py-2">{formatDisplayDate(row.assignedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </DialogContent>

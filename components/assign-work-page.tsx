@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getFullName } from "@/lib/utils";
+import { extractWorkPoints } from "@/lib/assign-work";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -74,6 +75,7 @@ export default function AssignWorkPage({
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(false);
+  const [composerLoading, setComposerLoading] = useState(false);
   const [composerSaving, setComposerSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [form, setForm] = useState({
@@ -102,13 +104,11 @@ export default function AssignWorkPage({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [opts, mine, byMe, all] = await Promise.all([
-        getAssignWorkOptions(),
+      const [mine, byMe, all] = await Promise.all([
         getMyAssignments(),
         getAssignmentsByMe(),
         includeAllAssignments ? getAllAssignments() : Promise.resolve(null),
       ]);
-      setOptions(opts.data);
       setAssignedToMe(mine.data || []);
       setAssignedByMe(byMe.data || []);
       setAllAssignments(all?.data || []);
@@ -141,34 +141,11 @@ export default function AssignWorkPage({
     });
   };
 
-  // Extract numbered points (1., 2., 3.) or bullet points (-, •) from text
-  function extractPoints(text: string): string[] {
-    const points: string[] = [];
-    // Match "1.", "2.", "3." etc at start of line or after newline
-    const regex = /(?:^|\n)[-•*]\s*(.+)|(?:^|\n\d+\.\s*(.+))/g;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      if (match[1]) points.push(match[1].trim());
-      else if (match[2]) points.push(match[2].trim());
-    }
-    // If no structured points found, return empty array (will use full text as single point)
-    if (points.length === 0) {
-      // Check if text contains common point indicators
-      const lines = text.split("\n").filter((line) => line.trim().length > 0);
-      if (lines.length > 0) {
-        // Use first few lines as potential points
-        return lines.slice(0, 5).map((line) => line.trim()).filter((line) => line.length > 0);
-      }
-      return [text.trim()];
-    }
-    return points;
-  };
-
   const openEdit = (assignment: WorkAssignment) => {
     setEditTarget(assignment);
     // Extract points from description for checkbox display
     const desc = assignment.description || "";
-    const extractedPoints = extractPoints(desc);
+    const extractedPoints = extractWorkPoints(desc);
     setEditForm({
       status: assignment.status,
       progressPercent: assignment.progressPercent,
@@ -177,10 +154,19 @@ export default function AssignWorkPage({
     setPoints(extractedPoints.map(p => ({ text: p, completed: false })));
   };
 
-  const openComposer = () => {
-    // Extract points from description if present
-    const desc = form.description || "";
-    const extractedPoints = extractPoints(desc);
+  const openComposer = async () => {
+    if (!options) {
+      setComposerLoading(true);
+      try {
+        const response = await getAssignWorkOptions();
+        setOptions(response.data);
+      } catch {
+        toast.error("Failed to load projects and employees");
+        return;
+      } finally {
+        setComposerLoading(false);
+      }
+    }
     setForm({
       projectValue: "",
       otherProjectName: "",
@@ -192,7 +178,7 @@ export default function AssignWorkPage({
       priority: "medium",
       imageUrl: "",
     });
-    setPoints(extractedPoints.map(p => ({ text: p, completed: false })));
+    setPoints([]);
     setComposerOpen(true);
   };
 
@@ -282,13 +268,9 @@ export default function AssignWorkPage({
     if (!editTarget) return;
     try {
       setEditSaving(true);
-      // Calculate progress percent from checked points
-      const checkedCount = points.filter((p) => p.completed).length;
-      const totalPoints = points.length;
-      const newProgressPercent = totalPoints > 0 ? Math.round((checkedCount / totalPoints) * 100) : 0;
       await updateAssignmentProgress(editTarget.id, {
         status: editForm.status,
-        progressPercent: newProgressPercent,
+        progressPercent: editForm.progressPercent,
         workReport: editForm.workReport,
         source: editTarget.type,
       });
@@ -338,11 +320,11 @@ export default function AssignWorkPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => void load()}>
+          <Button variant="outline" size="sm" onClick={() => void load()} loading={loading}>
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
-          <Button size="sm" onClick={openComposer}>
+          <Button size="sm" onClick={() => void openComposer()} loading={composerLoading}>
             <Plus className="h-4 w-4 mr-1" />
             Assign New Work
           </Button>
@@ -764,25 +746,24 @@ export default function AssignWorkPage({
                   {points.map((point, idx) => (
                     <div key={idx} className="flex items-center gap-2 px-2 py-1 rounded-md border border-border bg-muted/30">
                       <Checkbox
+                        id={`work-point-${idx}`}
                         checked={point.completed}
-                        onCheckedChange={() => {
-                          setPoints((prev) =>
-                            prev.map((p, i) =>
-                              i === idx ? { ...p, completed: !p.completed } : p
-                            )
+                        onCheckedChange={(checked) => {
+                          const nextPoints = points.map((p, i) =>
+                            i === idx ? { ...p, completed: checked === true } : p
                           );
-                          const checkedCount = points.filter((p) => p.completed).length;
-                          const total = points.length;
+                          setPoints(nextPoints);
+                          const checkedCount = nextPoints.filter((p) => p.completed).length;
+                          const total = nextPoints.length;
                           setEditForm((prev) => ({
                             ...prev,
                             progressPercent: total > 0 ? Math.round((checkedCount / total) * 100) : 0,
                           }));
                         }}
-                      >
-                        <span className="text-sm font-medium truncate max-w-xs">
-                          {point.text}
-                        </span>
-                      </Checkbox>
+                      />
+                      <Label htmlFor={`work-point-${idx}`} className="text-sm font-medium break-words">
+                        {point.text}
+                      </Label>
                       {point.completed ? (
                         <span className="text-xs text-muted-foreground line-through">
                           ----------
@@ -792,7 +773,6 @@ export default function AssignWorkPage({
                       )}
                     </div>
                   ))}
-                  <p className="text-xs text-muted-foreground/60">No points defined in description</p>
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground/60">No points defined in description</p>
