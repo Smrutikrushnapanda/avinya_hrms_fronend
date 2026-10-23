@@ -653,9 +653,14 @@ export const createAssignWork = (data: {
   priority?: "low" | "medium" | "high" | "urgent";
   imageUrl?: string;
 }) => api.post("/assign-work", data);
-export const getAllAssignments = () => api.get<WorkAssignment[]>("/assign-work");
-export const getMyAssignments = () => api.get<WorkAssignment[]>("/assign-work/my");
-export const getAssignmentsByMe = () => api.get<WorkAssignment[]>("/assign-work/assigned-by-me");
+export const getAllAssignments = (params?: { month?: number; year?: number }) =>
+  api.get<WorkAssignment[]>("/assign-work", { params });
+
+export const getMyAssignments = (params?: { month?: number; year?: number }) =>
+  api.get<WorkAssignment[]>("/assign-work/my", { params });
+
+export const getAssignmentsByMe = (params?: { month?: number; year?: number }) =>
+  api.get<WorkAssignment[]>("/assign-work/assigned-by-me", { params });
 export const updateAssignmentProgress = (
   id: string,
   data: {

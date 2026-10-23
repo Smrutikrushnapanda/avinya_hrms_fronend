@@ -82,7 +82,7 @@ export default function AssignWorkPage({
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>(includeAllAssignments ? "all" : "assigned-to-me");
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
-  const [month, setMonth] = useState<string | null>(null);
+  const [month, setMonth] = useState<number | null>(null);
   const [year, setYear] = useState<number | null>(null);
 
   // Composer state
