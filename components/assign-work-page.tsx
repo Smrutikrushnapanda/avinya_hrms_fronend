@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getFullName } from "@/lib/utils";
-import { extractWorkPoints } from "@/lib/assign-work";
+import { extractWorkPoints, hasWorkDescription, workPointProgress, workPointStatus } from "@/lib/assign-work";
+import { WorkDescriptionEditor } from "@/components/work-description-editor";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -100,6 +101,11 @@ export default function AssignWorkPage({
 
   // Points tracking for update progress
   const [points, setPoints] = useState<{ text: string; completed: boolean }[]>([]);
+  const [pointsChanged, setPointsChanged] = useState(false);
+
+  const hasLegacyPointProgress = points.length > 0 && !pointsChanged &&
+    editTarget?.completedPointIndexes == null && editTarget?.progressPercent > 0 &&
+    editTarget?.progressPercent < 100 && !["completed", "resolved"].includes(editTarget.status);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -143,15 +149,24 @@ export default function AssignWorkPage({
 
   const openEdit = (assignment: WorkAssignment) => {
     setEditTarget(assignment);
-    // Extract points from description for checkbox display
-    const desc = assignment.description || "";
-    const extractedPoints = extractWorkPoints(desc);
+    const extractedPoints = extractWorkPoints(assignment.description || "");
+    const savedIndexes = assignment.completedPointIndexes;
+    const wasCompleted = assignment.progressPercent === 100 || ["completed", "resolved"].includes(assignment.status);
+    const nextPoints = extractedPoints.map((text, index) => ({
+      text,
+      completed: savedIndexes != null ? savedIndexes.includes(index) : wasCompleted,
+    }));
+    const preserveLegacyProgress = savedIndexes == null && !wasCompleted && assignment.progressPercent > 0;
+    const progress = nextPoints.length > 0 && !preserveLegacyProgress
+      ? workPointProgress(nextPoints)
+      : assignment.progressPercent;
     setEditForm({
-      status: assignment.status,
-      progressPercent: assignment.progressPercent,
+      status: nextPoints.length > 0 ? workPointStatus(assignment.type, assignment.status, progress) : assignment.status,
+      progressPercent: progress,
       workReport: assignment.workReport || "",
     });
-    setPoints(extractedPoints.map(p => ({ text: p, completed: false })));
+    setPoints(nextPoints);
+    setPointsChanged(false);
   };
 
   const openComposer = async () => {
@@ -230,13 +245,13 @@ export default function AssignWorkPage({
         ? form.otherProjectName.trim().length > 0
         : true;
     return Boolean(
-      form.title.trim() && form.assignedToUserIds.length > 0 && projectOk,
+      form.title.trim() && hasWorkDescription(form.description) && form.assignedToUserIds.length > 0 && projectOk,
     );
   }, [form]);
 
   const handleCreate = async () => {
     if (!canSubmit) {
-      toast.error("Work title, assignee and project/work name are required");
+      toast.error("Work title, description, assignee and project/work name are required");
       return;
     }
     try {
@@ -248,7 +263,7 @@ export default function AssignWorkPage({
         source: isOther ? undefined : project?.source,
         otherProjectName: isOther ? form.otherProjectName.trim() : undefined,
         title: form.title.trim(),
-        description: form.description.trim() || undefined,
+        description: form.description.trim(),
         assignedToUserIds: form.assignedToUserIds,
         dueDate: form.dueDate || undefined,
         priority: form.priority as "low" | "medium" | "high" | "urgent",
@@ -271,6 +286,9 @@ export default function AssignWorkPage({
       await updateAssignmentProgress(editTarget.id, {
         status: editForm.status,
         progressPercent: editForm.progressPercent,
+        completedPointIndexes: points.length > 0 && !hasLegacyPointProgress
+          ? points.flatMap((point, index) => point.completed ? [index] : [])
+          : undefined,
         workReport: editForm.workReport,
         source: editTarget.type,
       });
@@ -293,7 +311,9 @@ export default function AssignWorkPage({
   const statusOptions =
     editTarget?.type === "internal"
       ? ["pending", "resolved"]
-      : ["pending", "in_progress", "issue", "completed", "cancelled"];
+      : points.length > 0 && editForm.progressPercent < 100
+        ? [editForm.progressPercent > 0 ? "in_progress" : "pending", "issue", "cancelled"]
+        : ["pending", "in_progress", "issue", "completed", "cancelled"];
   const tabs: Array<{ key: TabKey; label: string }> = includeAllAssignments
     ? [
         { key: "all", label: "All Assignments" },
@@ -399,7 +419,7 @@ export default function AssignWorkPage({
                           : "Other / General"}
                     </p>
                     {assignment.description ? (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-3 break-words">
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-3 break-words whitespace-pre-line">
                         {assignment.description}
                       </p>
                     ) : null}
@@ -485,7 +505,7 @@ export default function AssignWorkPage({
 
       {/* Assign New Work dialog */}
       <Dialog open={composerOpen} onOpenChange={setComposerOpen}>
-        <DialogContent className="sm:max-w-2xl overflow-y-auto p-4">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4">
           <DialogHeader>
             <DialogTitle>Assign New Work</DialogTitle>
             <DialogDescription>
@@ -621,14 +641,17 @@ export default function AssignWorkPage({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea
-                placeholder="Details of the work (optional)"
+              <Label htmlFor="work-description">Description *</Label>
+              <WorkDescriptionEditor
+                id="work-description"
                 value={form.description}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, description: e.target.value }))
-                }
+                onChange={(description) => setForm((prev) => ({ ...prev, description }))}
+                disabled={composerSaving}
+                aria-describedby="work-description-help"
               />
+              <p id="work-description-help" className="text-xs text-muted-foreground">
+                Required. List items become progress checkboxes for the assignee.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -714,11 +737,13 @@ export default function AssignWorkPage({
       </Dialog>
 
       <Dialog open={Boolean(editTarget)} onOpenChange={(o) => !o && setEditTarget(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Update Progress — {editTarget?.title}</DialogTitle>
             <DialogDescription>
-              Update status, completion percentage and what you did.
+              {points.length > 0
+                ? "Check completed points to calculate progress, then save your update."
+                : "Update status, completion percentage and what you did."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -727,6 +752,7 @@ export default function AssignWorkPage({
               <Select
                 value={editForm.status}
                 onValueChange={(v) => setEditForm((prev) => ({ ...prev, status: v }))}
+                disabled={editSaving || hasLegacyPointProgress || (points.length > 0 && (editTarget?.type === "internal" || editForm.progressPercent === 100))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -740,51 +766,69 @@ export default function AssignWorkPage({
                 </SelectContent>
               </Select>
             </div>
-            <Label>Points Completed</Label>
-              {points.length > 0 ? (
-                <div className="space-y-1.5">
+            {points.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Points Completed ({points.filter((point) => point.completed).length}/{points.length})
+                </p>
+                {hasLegacyPointProgress && (
+                  <p className="text-xs text-muted-foreground">
+                    Saved progress is {editTarget.progressPercent}%. Check completed points to update it from this checklist.
+                  </p>
+                )}
+                <div className="max-h-64 overflow-y-auto space-y-2">
                   {points.map((point, idx) => (
-                    <div key={idx} className="flex items-center gap-2 px-2 py-1 rounded-md border border-border bg-muted/30">
+                    <div
+                      key={idx}
+                      data-completed={point.completed}
+                      className={`flex items-start gap-3 rounded-md border border-border p-3 ${point.completed ? "bg-muted/80" : "bg-muted/40"}`}
+                    >
                       <Checkbox
                         id={`work-point-${idx}`}
+                        className="mt-0.5"
                         checked={point.completed}
+                        disabled={editSaving}
                         onCheckedChange={(checked) => {
-                          const nextPoints = points.map((p, i) =>
-                            i === idx ? { ...p, completed: checked === true } : p
+                          if (!editTarget) return;
+                          const nextPoints = points.map((point, index) =>
+                            index === idx ? { ...point, completed: checked === true } : point,
                           );
+                          const progress = workPointProgress(nextPoints);
                           setPoints(nextPoints);
-                          const checkedCount = nextPoints.filter((p) => p.completed).length;
-                          const total = nextPoints.length;
+                          setPointsChanged(true);
                           setEditForm((prev) => ({
                             ...prev,
-                            progressPercent: total > 0 ? Math.round((checkedCount / total) * 100) : 0,
+                            progressPercent: progress,
+                            status: workPointStatus(editTarget.type, prev.status, progress),
                           }));
                         }}
                       />
-                      <Label htmlFor={`work-point-${idx}`} className="text-sm font-medium break-words">
-                        {point.text}
+                      <Label
+                        htmlFor={`work-point-${idx}`}
+                        className={`flex-1 min-w-0 text-sm leading-relaxed break-words whitespace-pre-wrap ${point.completed ? "text-muted-foreground line-through decoration-red-500 decoration-2" : "text-foreground"}`}
+                      >
+                        {idx + 1}. {point.text}
                       </Label>
-                      {point.completed ? (
-                        <span className="text-xs text-muted-foreground line-through">
-                          ----------
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground/60">No points defined in description</p>
-              )}
-              <div className="space-y-1.5">
-                <Label>Completion Percentage: {editForm.progressPercent}%</Label>
+                <p className="text-xs text-muted-foreground">Progress is calculated from completed points.</p>
+              </div>
+            ) : editTarget?.description ? (
+              <p className="rounded-md border border-border bg-muted/40 p-3 text-sm whitespace-pre-wrap break-words">
+                {editTarget.description}
+              </p>
+            ) : null}
+            <div className="space-y-1.5">
+              <Label>Completion Percentage: {editForm.progressPercent}%</Label>
+              {points.length === 0 && (
                 <input
                   type="range"
                   min={0}
                   max={100}
                   step={5}
                   value={editForm.progressPercent}
+                  disabled={editSaving}
                   onChange={(e) =>
                     setEditForm((prev) => ({
                       ...prev,
@@ -793,8 +837,9 @@ export default function AssignWorkPage({
                   }
                   className="w-full"
                 />
-                <Progress value={editForm.progressPercent} />
-              </div>
+              )}
+              <Progress value={editForm.progressPercent} />
+            </div>
             <div className="space-y-1.5">
               <Label>What did you do?</Label>
               <Textarea

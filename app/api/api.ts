@@ -621,6 +621,7 @@ export interface WorkAssignment {
   status: string;
   priority: string;
   progressPercent: number;
+  completedPointIndexes?: number[] | null;
   workReport: string | null;
   imageUrl: string | null;
   dueDate: string | null;
@@ -645,7 +646,7 @@ export const createAssignWork = (data: {
   source?: "client" | "internal";
   otherProjectName?: string;
   title: string;
-  description?: string;
+  description: string;
   assignedToUserId?: string;
   assignedToUserIds?: string[];
   dueDate?: string;
@@ -660,6 +661,7 @@ export const updateAssignmentProgress = (
   data: {
     status?: string;
     progressPercent?: number;
+    completedPointIndexes?: number[];
     workReport?: string;
     source?: "client" | "internal";
   },
