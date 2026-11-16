@@ -8,8 +8,19 @@ import { useEffect } from "react";
 // `beforeinstallprompt` never fires and the custom install button is a no-op.
 export default function RegisterServiceWorker() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    if (process.env.NODE_ENV !== "production") {
+      let active = true;
+      const isAppWorker = (worker: ServiceWorker | null) => worker &&
+        ["/sw.js", "/firebase-messaging-sw.js"].includes(new URL(worker.scriptURL).pathname);
+      void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+        await Promise.all(registrations.filter((registration) =>
+          isAppWorker(registration.active) || isAppWorker(registration.waiting) || isAppWorker(registration.installing),
+        ).map((registration) => registration.unregister()));
+        if (active && isAppWorker(navigator.serviceWorker.controller)) window.location.reload();
+      }).catch((error) => console.error("Failed to remove development service worker:", error));
+      return () => { active = false; };
+    }
 
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((reg) => {
       // Check for updates every time the app loads

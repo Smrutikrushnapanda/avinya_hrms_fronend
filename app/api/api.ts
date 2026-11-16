@@ -160,7 +160,7 @@ export const getDashboardStats = (organizationId?: string) => {
 
 export const createEmployee = (data: any) => api.post("/employees", data);
 export const getEmployees = (organizationId: string, status?: string) =>
-  api.get("/employees", { params: { organizationId, ...(status ? { status } : {}) } }).then((response) => {
+  api.get("/employees", { params: { organizationId, ...(status ? { status } : {}), _fresh: Date.now() } }).then((response) => {
     if (!status || ["active", "all"].includes(status.toLowerCase())) {
       response.data = Array.isArray(response.data) ? response.data.filter(isActiveEmployee) : [];
     }
@@ -651,13 +651,26 @@ export interface AssignWorkOptions {
   currentUserId?: string;
   canViewAllAssignments?: boolean;
   projects: Array<{ id: string; name: string; source: "client" | "internal" }>;
-  employees: Array<{ userId: string; firstName: string; lastName: string; status: string; isActive: boolean }>;
+  employees: Array<{ userId: string; firstName: string; lastName: string; status?: string; isActive?: boolean }>;
 }
 
-export const getAssignWorkOptions = () => api.get<AssignWorkOptions>("/assign-work/options").then((response) => ({
-  ...response,
-  data: { ...response.data, employees: (response.data.employees || []).filter(isActiveEmployee) },
-}));
+export const getAssignWorkOptions = async () => {
+  const response = await api.get<AssignWorkOptions>("/assign-work/options", { params: { _fresh: Date.now() } });
+  const employees = Array.isArray(response.data.employees) ? response.data.employees : [];
+  let currentUserId = response.data.currentUserId;
+  let verifiedEmployees = employees.filter(isActiveEmployee);
+  if (!currentUserId || employees.some((employee) => typeof employee.status !== "string" || typeof employee.isActive !== "boolean")) {
+    const { data: profile } = await getProfile();
+    if (!profile.organizationId) throw new Error("Employee organization is unavailable");
+    const { data: activeEmployees } = await getEmployees(profile.organizationId, "active");
+    const activeUserIds = new Set((activeEmployees as Array<{ userId: string }>).map((employee) => employee.userId));
+    currentUserId = currentUserId || profile.userId || profile.id;
+    verifiedEmployees = employees.filter((employee) => activeUserIds.has(employee.userId) &&
+      (employee.status == null || (typeof employee.status === "string" && employee.status.trim().toLowerCase() === "active")) && employee.isActive !== false);
+  }
+  if (!currentUserId) throw new Error("Current employee is unavailable");
+  return { ...response, data: { ...response.data, currentUserId, employees: verifiedEmployees } };
+};
 export const createAssignWork = (data: {
   assignmentKind?: "regular" | "external";
   externalAssignerName?: string;
