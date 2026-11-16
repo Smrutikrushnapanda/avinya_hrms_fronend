@@ -602,7 +602,7 @@ const map: Record<string, { status: AttendanceStatus; inTime?: string; outTime?:
         setUser({
           name: displayName,
           role: "Employee",
-          avatar: data?.avatar ?? "/avatar.jpg",
+          avatar: data?.avatar ?? "",
           email: data?.email ?? "",
           workEmail: data?.workEmail ?? data?.employee?.workEmail ?? "",
           phone: data?.phone ?? "",

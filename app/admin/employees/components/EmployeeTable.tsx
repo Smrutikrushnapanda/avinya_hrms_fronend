@@ -409,7 +409,7 @@ export default function EmployeeTable({
                                   src={
                                     employee.passportPhotoUrl ||
                                     employee.photoUrl ||
-                                    "/avatar.jpg"
+                                    ""
                                   }
                                   alt={getFullName(employee)}
                                 />

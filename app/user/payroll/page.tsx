@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BadgeDollarSign, Calendar, Download, FileText, Loader2 } from "lucide-react";
+import { isAxiosError } from "axios";
+import { BadgeDollarSign, Download, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,8 +61,6 @@ const formatPayPeriod = (pp: string) => {
 
 export default function PayrollPage() {
   const [loading, setLoading] = useState(true);
-  const [employeeId, setEmployeeId] = useState("");
-  const [organizationId, setOrganizationId] = useState("");
   const [records, setRecords] = useState<PayrollRecord[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -102,8 +101,6 @@ export default function PayrollPage() {
           throw new Error("Employee profile not found");
         }
 
-        setEmployeeId(empId);
-        setOrganizationId(orgId);
         await fetchPayrollRecords(orgId, empId);
       } catch {
         toast.error("Failed to load salary slips");
@@ -135,8 +132,8 @@ export default function PayrollPage() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch (error: any) {
-      const msg = error?.response?.data?.message || "Failed to download salary slip";
+    } catch (error) {
+      const msg = (isAxiosError(error) && error.response?.data?.message) || "Failed to download salary slip";
       toast.error(msg);
     } finally {
       setDownloadingId(null);
@@ -213,15 +210,6 @@ export default function PayrollPage() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Salary Slip History
-          </CardTitle>
-          <CardDescription>
-            Employee ID: {employeeId || "-"} | Organization: {organizationId || "-"}
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           {records.length === 0 ? (
             <p className="text-sm text-muted-foreground">No previous slips available.</p>

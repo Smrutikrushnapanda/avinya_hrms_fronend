@@ -530,7 +530,7 @@ export default function UserProfilePage() {
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 -mt-12 mb-5">
             <div className="flex items-end gap-4">
               <Avatar className="h-24 w-24 border-4 border-background shadow-xl ring-2 ring-primary/20">
-                <AvatarImage src={profile.avatar || "/avatar.jpg"} alt={fullName} />
+                <AvatarImage src={profile.avatar || ""} alt={fullName} />
                 <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
                   {initials}
                 </AvatarFallback>

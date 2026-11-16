@@ -156,7 +156,7 @@ export default function Topbar() {
         setUser({
           name: resolveDisplayName(data, employeeNameData),
           role: resolveDisplayRole(data?.roles, isEmployee),
-          avatar: data?.avatar || "/avatar.jpg",
+          avatar: data?.avatar || "",
         });
         if (data?.organizationId) {
           const orgRes = await getOrganization(data.organizationId);
@@ -417,7 +417,7 @@ export default function Topbar() {
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-2 cursor-pointer border p-1 rounded-md">
               <Avatar>
-                <AvatarImage src={user.avatar || "/avatar.jpg"} alt={user.name || "User"} />
+                <AvatarImage src={user.avatar || ""} alt={user.name || "User"} />
                 <AvatarFallback>{user.name?.[0] || "U"}</AvatarFallback>
               </Avatar>
               <div className="hidden md:block text-sm font-medium text-foreground">{user.name || "User"}</div>
@@ -426,7 +426,7 @@ export default function Topbar() {
           <DropdownMenuContent align="end" className="w-56">
             <div className="flex items-center gap-3 p-3">
               <Avatar className="w-10 h-10">
-                <AvatarImage src={user.avatar || "/avatar.jpg"} alt={user.name || "User"} />
+                <AvatarImage src={user.avatar || ""} alt={user.name || "User"} />
                 <AvatarFallback>{user.name?.[0] || "U"}</AvatarFallback>
               </Avatar>
               <div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isAxiosError } from "axios";
 import {
   getMyAssignments,
   getAssignmentsByMe,
@@ -8,6 +9,8 @@ import {
   getAssignWorkOptions,
   createAssignWork,
   updateAssignmentProgress,
+  updateAssignment,
+  deleteAssignment,
   uploadFile,
   WorkAssignment,
   AssignWorkOptions,
@@ -48,7 +51,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { ListTodo, CheckCircle2, ClipboardList, RefreshCw, Plus, Upload, Image as ImageIcon } from "lucide-react";
+import { ListTodo, CheckCircle2, ClipboardList, RefreshCw, Plus, Upload, Pencil, Trash2, Image as ImageIcon } from "lucide-react";
 
 const statusMeta: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: "Pending", color: "text-slate-600", bg: "bg-slate-100" },
@@ -66,9 +69,14 @@ const priorityMeta: Record<string, { label: string; color: string; bg: string }>
   urgent: { label: "Urgent", color: "text-red-700", bg: "bg-red-100" },
 };
 
-type TabKey = "all" | "assigned-to-me" | "assigned-by-me";
+type TabKey = "all" | "assigned-to-me" | "assigned-by-me" | "external";
 
 const OTHER_PROJECT_VALUE = "__other__";
+
+function assignmentError(error: unknown, fallback: string) {
+  const message = isAxiosError(error) ? error.response?.data?.message : null;
+  return Array.isArray(message) ? message.join(". ") : typeof message === "string" ? message : fallback;
+}
 
 export default function AssignWorkPage({
   includeAllAssignments = false,
@@ -84,6 +92,30 @@ export default function AssignWorkPage({
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
   const [month, setMonth] = useState<number | null>(null);
   const [year, setYear] = useState<number | null>(null);
+  const canViewAll = includeAllAssignments && options?.canViewAllAssignments === true;
+  const [adminSearch, setAdminSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState({ assignmentKind: "", status: "", priority: "", assignedToUserId: "" });
+  const [composerKind, setComposerKind] = useState<"regular" | "external">("regular");
+  const [detailsTarget, setDetailsTarget] = useState<WorkAssignment | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WorkAssignment | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const loadRequest = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    getAssignWorkOptions().then(({ data }) => {
+      if (!active) return;
+      setOptions(data);
+      if (!data.canViewAllAssignments) setTab("assigned-to-me");
+    }).catch(() => toast.error("Failed to load projects and employees"));
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(adminSearch.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [adminSearch]);
 
   // Composer state
   const [composerOpen, setComposerOpen] = useState(false);
@@ -100,6 +132,10 @@ export default function AssignWorkPage({
     dueDate: "",
     priority: "medium",
     imageUrl: "",
+    externalAssignerName: "",
+    assignmentDate: format(new Date(), "yyyy-MM-dd"),
+    assignmentRemarks: "",
+    status: "pending",
   });
 
   const [editTarget, setEditTarget] = useState<WorkAssignment | null>(null);
@@ -129,6 +165,7 @@ export default function AssignWorkPage({
     editTarget?.progressPercent < 100 && !["completed", "resolved"].includes(editTarget.status);
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequest.current;
     setLoading(true);
     try {
       const [mine, byMe, all] = await Promise.all([
@@ -140,8 +177,12 @@ export default function AssignWorkPage({
           month,
           year,
         }),
-        includeAllAssignments ? getAllAssignments({ month, year }) : Promise.resolve(null),
+        canViewAll ? getAllAssignments({ month, year, search: searchQuery || undefined,
+          assignmentKind: filters.assignmentKind || undefined, status: filters.status || undefined,
+          priority: filters.priority || undefined, assignedToUserId: filters.assignedToUserId || undefined,
+        }) : Promise.resolve(null),
       ]);
+      if (requestId !== loadRequest.current) return;
       setAssignedToMe(mine.data || []);
       setAssignedByMe(byMe.data || []);
       setAllAssignments(all?.data || []);
@@ -151,11 +192,11 @@ export default function AssignWorkPage({
         setYear(currentMonth.getFullYear());
       }
     } catch {
-      toast.error("Failed to load assignments");
+      if (requestId === loadRequest.current) toast.error("Failed to load assignments");
     } finally {
-      setLoading(false);
+      if (requestId === loadRequest.current) setLoading(false);
     }
-  }, [month, year, includeAllAssignments, currentMonth]);
+  }, [month, year, canViewAll, currentMonth, searchQuery, filters]);
 
   useEffect(() => {
     void load();
@@ -201,11 +242,13 @@ export default function AssignWorkPage({
     setPointsChanged(false);
   };
 
-  const openComposer = async () => {
-    if (!options) {
+  const openComposer = async (kind: "regular" | "external" = "regular", assignment?: WorkAssignment) => {
+    let composerOptions = options;
+    if (!composerOptions) {
       setComposerLoading(true);
       try {
         const response = await getAssignWorkOptions();
+        composerOptions = response.data;
         setOptions(response.data);
       } catch {
         toast.error("Failed to load projects and employees");
@@ -214,16 +257,22 @@ export default function AssignWorkPage({
         setComposerLoading(false);
       }
     }
+    setComposerKind(kind);
+    setDetailsTarget(assignment || null);
     setForm({
-      projectValue: "",
+      projectValue: assignment?.projectId || "",
       otherProjectName: "",
-      assignedToUserIds: [],
+      assignedToUserIds: kind === "regular" && assignment?.assignedToUserId ? [assignment.assignedToUserId] : [],
       employeeSearch: "",
-      title: "",
-      description: "",
-      dueDate: "",
-      priority: "medium",
-      imageUrl: "",
+      title: assignment?.title || "",
+      description: assignment?.description || "",
+      dueDate: assignment?.dueDate || "",
+      priority: assignment?.priority || "medium",
+      imageUrl: assignment?.imageUrl || "",
+      externalAssignerName: assignment?.externalAssignerName || "",
+      assignmentDate: assignment?.assignmentDate || format(new Date(), "yyyy-MM-dd"),
+      assignmentRemarks: assignment?.assignmentRemarks || "",
+      status: assignment?.status || "pending",
     });
     setPoints([]);
     setComposerOpen(true);
@@ -254,7 +303,7 @@ export default function AssignWorkPage({
   const toggleAssignee = (userId: string) =>
     setForm((prev) => ({
       ...prev,
-      assignedToUserIds: prev.assignedToUserIds.includes(userId)
+      assignedToUserIds: detailsTarget ? [userId] : prev.assignedToUserIds.includes(userId)
         ? prev.assignedToUserIds.filter((id) => id !== userId)
         : [...prev.assignedToUserIds, userId],
     }));
@@ -277,9 +326,10 @@ export default function AssignWorkPage({
         ? form.otherProjectName.trim().length > 0
         : true;
     return Boolean(
-      form.title.trim() && hasWorkDescription(form.description) && form.assignedToUserIds.length > 0 && projectOk,
+      form.title.trim() && hasWorkDescription(form.description) && (composerKind === "external" || form.assignedToUserIds.length > 0 || (detailsTarget && !detailsTarget.assignedToUserId)) && projectOk &&
+      (composerKind !== "external" || (form.externalAssignerName.trim() && form.assignmentDate)),
     );
-  }, [form]);
+  }, [form, composerKind, detailsTarget]);
 
   const handleCreate = async () => {
     if (!canSubmit) {
@@ -290,25 +340,55 @@ export default function AssignWorkPage({
       setComposerSaving(true);
       const isOther = form.projectValue === OTHER_PROJECT_VALUE;
       const project = options?.projects.find((p) => p.id === form.projectValue);
-      await createAssignWork({
+      const externalDetails = composerKind === "external" ? {
+        externalAssignerName: form.externalAssignerName.trim(),
+        assignmentDate: form.assignmentDate,
+        assignmentRemarks: form.assignmentRemarks.trim(),
+      } : {};
+      if (detailsTarget) {
+        await updateAssignment(detailsTarget.id, {
+          source: detailsTarget.type,
+          title: form.title.trim(), description: form.description.trim(),
+          assignedToUserId: composerKind === "regular" ? form.assignedToUserIds[0] : undefined, imageUrl: form.imageUrl,
+          ...(detailsTarget.type === "client" ? {
+            dueDate: form.dueDate || null,
+            priority: form.priority as "low" | "medium" | "high" | "urgent",
+          } : {}),
+          ...externalDetails,
+        });
+      } else await createAssignWork({
+        ...(composerKind === "external" ? { assignmentKind: "external", status: form.status, ...externalDetails } : {}),
         projectId: isOther ? undefined : project?.id,
         source: isOther ? undefined : project?.source,
         otherProjectName: isOther ? form.otherProjectName.trim() : undefined,
         title: form.title.trim(),
         description: form.description.trim(),
-        assignedToUserIds: form.assignedToUserIds,
+        assignedToUserIds: composerKind === "regular" ? form.assignedToUserIds : undefined,
         dueDate: form.dueDate || undefined,
         priority: form.priority as "low" | "medium" | "high" | "urgent",
         imageUrl: form.imageUrl || undefined,
       });
-      toast.success("Work assigned successfully");
+      toast.success(detailsTarget ? "Assignment updated" : composerKind === "external" ? "External assignment recorded" : "Work assigned successfully");
       setComposerOpen(false);
       void load();
-    } catch {
-      toast.error("Failed to assign work");
+    } catch (error) {
+      toast.error(assignmentError(error, "Failed to save assignment"));
     } finally {
       setComposerSaving(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteAssignment(deleteTarget.id, deleteTarget.type);
+      setDeleteTarget(null);
+      toast.success("Assignment deleted");
+      void load();
+    } catch (error) {
+      toast.error(assignmentError(error, "Failed to delete assignment"));
+    } finally { setDeleting(false); }
   };
 
   const handleSaveProgress = async () => {
@@ -334,19 +414,23 @@ export default function AssignWorkPage({
     }
   };
 
-  const items =
+  const externalAssignments = [...new Map([...assignedToMe, ...assignedByMe]
+    .filter((item) => item.assignmentKind === "external")
+    .map((item) => [item.id, item])).values()];
+  const inCurrentMonth = (assignment: WorkAssignment) => isSameMonth(new Date(assignment.assignmentDate ? `${assignment.assignmentDate}T00:00:00` : assignment.assignedAt ?? assignment.createdAt), currentMonth);
+  const items = tab === "external" ? externalAssignments.filter(inCurrentMonth) :
     tab === "all"
-      ? allAssignments.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth))
+      ? allAssignments.filter(inCurrentMonth)
       : tab === "assigned-to-me"
-        ? assignedToMe.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth))
-        : assignedByMe.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth));
+        ? assignedToMe.filter(inCurrentMonth)
+        : assignedByMe.filter(inCurrentMonth);
   const statusOptions =
     editTarget?.type === "internal"
       ? ["pending", "resolved"]
       : points.length > 0 && editForm.progressPercent < 100
         ? [editForm.progressPercent > 0 ? "in_progress" : "pending", "issue", "cancelled"]
         : ["pending", "in_progress", "issue", "completed", "cancelled"];
-  const tabs: Array<{ key: TabKey; label: string }> = includeAllAssignments
+  const tabs: Array<{ key: TabKey; label: string }> = canViewAll
     ? [
         { key: "all", label: "All Assignments" },
         { key: "assigned-to-me", label: "Assigned to Me" },
@@ -355,6 +439,7 @@ export default function AssignWorkPage({
     : [
         { key: "assigned-to-me", label: "Assigned to Me" },
         { key: "assigned-by-me", label: "Assigned by Me" },
+        ...(!includeAllAssignments ? [{ key: "external" as const, label: "External Assignment" }] : []),
       ];
 
   return (
@@ -371,11 +456,14 @@ export default function AssignWorkPage({
               : "Track work assigned to you and review work you assigned to others."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()} loading={loading}>
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
+          {!includeAllAssignments && <Button variant="outline" size="sm" onClick={() => void openComposer("external")} loading={composerLoading}>
+            <Plus className="h-4 w-4 mr-1" /> Record External Assignment
+          </Button>}
           <Button size="sm" onClick={() => void openComposer()} loading={composerLoading}>
             <Plus className="h-4 w-4 mr-1" />
             Assign New Work
@@ -402,13 +490,10 @@ export default function AssignWorkPage({
         </button>
       </div>
 
-      <div className="flex items-center gap-1 rounded-lg border border-border p-1 bg-muted/30 w-fit">
+      <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border p-1 bg-muted/30 w-fit">
         {tabs.map((t) => {
-          const count = tab === "all"
-            ? allAssignments.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth)).length
-            : tab === "assigned-to-me"
-              ? assignedToMe.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth)).length
-              : assignedByMe.filter((a) => isSameMonth(new Date(a.assignedAt ?? a.createdAt), currentMonth)).length;
+          const count = (t.key === "all" ? allAssignments : t.key === "external" ? externalAssignments
+            : t.key === "assigned-to-me" ? assignedToMe : assignedByMe).filter(inCurrentMonth).length;
           return (
             <button
               key={t.key}
@@ -426,6 +511,25 @@ export default function AssignWorkPage({
         })}
       </div>
 
+      {tab === "all" && canViewAll && (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          <Input aria-label="Search assignments" placeholder="Search title, description, people..." value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} />
+          {([['assignmentKind', 'Assignment type', [['regular', 'Regular'], ['external', 'External / Verbal']]],
+            ['status', 'Status', Object.entries(statusMeta).map(([value, meta]) => [value, meta.label])],
+            ['priority', 'Priority', Object.entries(priorityMeta).map(([value, meta]) => [value, meta.label])],
+            ['assignedToUserId', 'Employee', (options?.employees || []).map((employee) => [employee.userId, getFullName(employee)])],
+          ] as [keyof typeof filters, string, string[][]][]).map(([key, label, choices]) => (
+            <Select key={key} value={filters[key] || "all"} onValueChange={(value) => setFilters((previous) => ({ ...previous, [key]: value === "all" ? "" : value }))}>
+              <SelectTrigger aria-label={`Filter by ${label.toLowerCase()}`}><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="all">{label}: All</SelectItem>
+                {choices.map(([value, text]) => <SelectItem key={value} value={value}>{text}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          ))}
+          <Button size="sm" variant="ghost" onClick={() => { setAdminSearch(""); setFilters({ assignmentKind: "", status: "", priority: "", assignedToUserId: "" }); }}>Clear filters</Button>
+        </div>
+      )}
+
       {loading ? (
         <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
           Loading assignments...
@@ -433,7 +537,7 @@ export default function AssignWorkPage({
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          {tab === "all"
+          {tab === "external" ? "No external assignments recorded for this month." : tab === "all"
             ? "No assignments found."
             : tab === "assigned-to-me"
             ? "No work has been assigned to you yet."
@@ -460,7 +564,7 @@ export default function AssignWorkPage({
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-medium">{assignment.title}</h3>
                       <Badge variant="outline" className="text-[10px]">
-                        {assignment.type === "internal" ? "Internal" : "Client"}
+                        {assignment.assignmentKind === "external" ? "External / Verbal" : assignment.type === "internal" ? "Internal" : "Client"}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -491,7 +595,7 @@ export default function AssignWorkPage({
 
                 <div className="text-sm font-semibold text-foreground">
                   Assigned on{" "}
-                  {formatDate(assignment.assignedAt ?? assignment.createdAt ?? assignment.dueDate)}
+                  {formatDate(assignment.assignmentDate ? `${assignment.assignmentDate}T00:00:00` : assignment.assignedAt ?? assignment.createdAt ?? assignment.dueDate)}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -499,7 +603,7 @@ export default function AssignWorkPage({
                     <span>
                       Assigned by:{" "}
                       <span className="text-foreground font-medium">
-                        {employeeName(assignment.assignedByUserId)}
+                        {assignment.externalAssignerName || employeeName(assignment.assignedByUserId)}
                       </span>
                     </span>
                   ) : isAssignedByMe ? (
@@ -526,6 +630,11 @@ export default function AssignWorkPage({
                     </Badge>
                 </div>
 
+                {assignment.assignmentKind === "external" && !isMine && (
+                  <p className="text-xs text-muted-foreground">Assigned by: {assignment.externalAssignerName}</p>
+                )}
+                {assignment.assignmentRemarks && <p className="text-xs whitespace-pre-wrap break-words"><span className="font-medium">Remarks: </span>{assignment.assignmentRemarks}</p>}
+
                 {assignment.workReport ? (
                   <div className="rounded-md bg-muted/40 p-2.5 text-xs">
                     <span className="font-medium text-foreground">What was done: </span>
@@ -533,7 +642,7 @@ export default function AssignWorkPage({
                   </div>
                 ) : null}
 
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   {assignment.imageUrl ? (
                     <a
                       href={assignment.imageUrl}
@@ -544,10 +653,12 @@ export default function AssignWorkPage({
                       View image
                     </a>
                   ) : null}
-                  <Button size="sm" variant="outline" onClick={() => openEdit(assignment)}>
+                  {assignment.canEdit && <Button size="sm" variant="outline" onClick={() => void openComposer(assignment.assignmentKind || "regular", assignment)}><Pencil className="h-4 w-4 mr-1" />Edit</Button>}
+                  {assignment.canDelete && <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(assignment)}><Trash2 className="h-4 w-4 mr-1" />Delete</Button>}
+                  {assignment.canEdit !== false && <Button size="sm" variant="outline" onClick={() => openEdit(assignment)}>
                     <CheckCircle2 className="h-4 w-4 mr-1" />
                     Update Progress
-                  </Button>
+                  </Button>}
                 </div>
               </div>
             );
@@ -556,16 +667,20 @@ export default function AssignWorkPage({
       )}
 
       {/* Assign New Work dialog */}
-      <Dialog open={composerOpen} onOpenChange={setComposerOpen}>
+      <Dialog open={composerOpen} onOpenChange={(open) => { if (!composerSaving) setComposerOpen(open); }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-4">
           <DialogHeader>
-            <DialogTitle>Assign New Work</DialogTitle>
+            <DialogTitle>{detailsTarget ? "Edit Assignment" : composerKind === "external" ? "Record External Assignment" : "Assign New Work"}</DialogTitle>
             <DialogDescription>
-              Choose a project (or select Other) and an employee to assign the work to.
+              {composerKind === "external" ? "Record work assigned through a meeting, phone call, or face-to-face conversation." : detailsTarget ? "Edit work details. Update status and completion through Update Progress." : "Choose a project (or select Other) and an employee to assign the work to."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 overflow-y-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {composerKind === "external" && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5"><Label htmlFor="external-assigner">Assigned By (person&apos;s name) *</Label><Input id="external-assigner" maxLength={200} value={form.externalAssignerName} onChange={(event) => setForm((previous) => ({ ...previous, externalAssignerName: event.target.value }))} /></div>
+              <div className="space-y-1.5"><Label htmlFor="external-assignment-date">Assignment Date *</Label><Input id="external-assignment-date" type="date" value={form.assignmentDate} onChange={(event) => setForm((previous) => ({ ...previous, assignmentDate: event.target.value }))} /></div>
+            </div>}
+            {composerKind === "regular" && !detailsTarget && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Project</Label>
                 <Select
@@ -628,9 +743,11 @@ export default function AssignWorkPage({
                   />
                 </div>
               )}
-            </div>
+            </div>}
 
-            <div className="space-y-1.5">
+            {(composerKind === "external" || detailsTarget?.type === "client") && <div className="space-y-1.5"><Label htmlFor="assignment-due-date">Due Date</Label><Input id="assignment-due-date" type="date" value={form.dueDate} onChange={(event) => setForm((previous) => ({ ...previous, dueDate: event.target.value }))} /></div>}
+
+            {composerKind === "regular" && <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label>Assign To ({form.assignedToUserIds.length} selected)</Label>
                 {form.assignedToUserIds.length > 0 && (
@@ -681,12 +798,13 @@ export default function AssignWorkPage({
                   })
                 )}
               </div>
-            </div>
+            </div>}
 
             <div className="space-y-1.5">
               <Label>Work Title *</Label>
               <Input
                 placeholder="e.g. Build login page UI"
+                maxLength={detailsTarget?.type === "internal" ? 250 : 500}
                 value={form.title}
                 onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
               />
@@ -710,6 +828,7 @@ export default function AssignWorkPage({
               <div className="space-y-1.5">
                 <Label>Priority</Label>
                 <Select
+                  disabled={detailsTarget?.type === "internal"}
                   value={form.priority}
                   onValueChange={(v) =>
                     setForm((prev) => ({ ...prev, priority: v }))
@@ -771,6 +890,10 @@ export default function AssignWorkPage({
                 ) : null}
               </div>
             </div>
+            {composerKind === "external" && <>
+              {!detailsTarget && <div className="space-y-1.5"><Label>Status</Label><Select value={form.status} onValueChange={(status) => setForm((previous) => ({ ...previous, status }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["pending", "in_progress", "issue", "completed", "cancelled"].map((status) => <SelectItem key={status} value={status}>{statusMeta[status].label}</SelectItem>)}</SelectContent></Select></div>}
+              <div className="space-y-1.5"><Label htmlFor="assignment-remarks">Remarks</Label><Textarea id="assignment-remarks" value={form.assignmentRemarks} onChange={(event) => setForm((previous) => ({ ...previous, assignmentRemarks: event.target.value }))} /></div>
+            </>}
           </div>
           <DialogFooter>
             <Button
@@ -782,9 +905,15 @@ export default function AssignWorkPage({
             </Button>
             <Button onClick={() => void handleCreate()} loading={composerSaving} disabled={!canSubmit}>
               <Plus className="w-4 h-4 mr-1" />
-              Assign Work
+              {detailsTarget ? "Save Changes" : composerKind === "external" ? "Record Assignment" : "Assign Work"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>Delete Assignment</DialogTitle><DialogDescription>Delete &quot;{deleteTarget?.title}&quot;? This removes the assignment from its existing project and assignment lists.</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="destructive" loading={deleting} onClick={() => void handleDelete()}>Delete Assignment</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

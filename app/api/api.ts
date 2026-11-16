@@ -633,15 +633,28 @@ export interface WorkAssignment {
   assignedAt: string | null;
   createdAt: string;
   updatedAt: string | null;
+  assignmentKind?: "regular" | "external";
+  externalAssignerName?: string | null;
+  assignmentDate?: string | null;
+  assignmentRemarks?: string | null;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
 export interface AssignWorkOptions {
+  currentUserId?: string;
+  canViewAllAssignments?: boolean;
   projects: Array<{ id: string; name: string; source: "client" | "internal" }>;
   employees: Array<{ userId: string; firstName: string; lastName: string }>;
 }
 
 export const getAssignWorkOptions = () => api.get<AssignWorkOptions>("/assign-work/options");
 export const createAssignWork = (data: {
+  assignmentKind?: "regular" | "external";
+  externalAssignerName?: string;
+  assignmentDate?: string;
+  assignmentRemarks?: string;
+  status?: string;
   projectId?: string;
   source?: "client" | "internal";
   otherProjectName?: string;
@@ -653,7 +666,10 @@ export const createAssignWork = (data: {
   priority?: "low" | "medium" | "high" | "urgent";
   imageUrl?: string;
 }) => api.post("/assign-work", data);
-export const getAllAssignments = (params?: { month?: number; year?: number }) =>
+export const getAllAssignments = (params?: {
+  month?: number; year?: number; search?: string; assignmentKind?: string;
+  status?: string; priority?: string; assignedToUserId?: string;
+}) =>
   api.get<WorkAssignment[]>("/assign-work", { params: params });
 
 export const getMyAssignments = (params?: { month?: number; year?: number }) =>
@@ -673,6 +689,19 @@ export const updateAssignmentProgress = (
 ) => api.put(`/assign-work/${id}/progress`, data);
 export const deleteAssignment = (id: string, source: "client" | "internal") =>
   api.delete(`/assign-work/${id}`, { params: { source } });
+
+export const updateAssignment = (id: string, data: {
+  source: "client" | "internal";
+  title: string;
+  description: string;
+  assignedToUserId?: string;
+  dueDate?: string | null;
+  priority?: "low" | "medium" | "high" | "urgent";
+  imageUrl?: string;
+  externalAssignerName?: string;
+  assignmentDate?: string;
+  assignmentRemarks?: string;
+}) => api.put(`/assign-work/${id}`, data);
 
 // 🕒 Enhanced attendance report fetcher
 export const getAttendanceReport = async (params: {

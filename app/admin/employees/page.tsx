@@ -363,7 +363,7 @@ export default function EmployeesPage() {
           page: currentPage,
           limit: itemsPerPage,
           search: searchTerm || undefined,
-          status: statusFilter !== "all" ? statusFilter : undefined,
+          status: statusFilter === "all" ? "active" : statusFilter,
           department: departmentFilter !== "all" ? departmentFilter : undefined,
           designation: designationFilter !== "all" ? designationFilter : undefined,
           joinDateFilter: joinDateFilter !== "all" ? joinDateFilter : undefined,
