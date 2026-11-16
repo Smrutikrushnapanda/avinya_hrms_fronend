@@ -1,3 +1,10 @@
+export const ASSIGNMENT_DELETE_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+export function isAssignmentDeleteWindowOpen(createdAt: string, now = Date.now()): boolean {
+  const age = now - new Date(createdAt).getTime();
+  return Number.isFinite(age) && age >= 0 && age < ASSIGNMENT_DELETE_WINDOW_MS;
+}
+
 function descriptionLines(text: string) {
   return text
     .split(/\r\n?|\n/)

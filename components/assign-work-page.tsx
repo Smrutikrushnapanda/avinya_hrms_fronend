@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getFullName } from "@/lib/utils";
-import { extractWorkPoints, hasWorkDescription, workPointProgress, workPointStatus } from "@/lib/assign-work";
+import { ASSIGNMENT_DELETE_WINDOW_MS, isAssignmentDeleteWindowOpen, extractWorkPoints, hasWorkDescription, workPointProgress, workPointStatus } from "@/lib/assign-work";
 import { WorkDescriptionEditor } from "@/components/work-description-editor";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -100,6 +100,7 @@ export default function AssignWorkPage({
   const [detailsTarget, setDetailsTarget] = useState<WorkAssignment | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WorkAssignment | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteClock, setDeleteClock] = useState(Date.now);
   const loadRequest = useRef(0);
 
   useEffect(() => {
@@ -186,6 +187,7 @@ export default function AssignWorkPage({
       setAssignedToMe(mine.data || []);
       setAssignedByMe(byMe.data || []);
       setAllAssignments(all?.data || []);
+      setDeleteClock(Date.now());
       // When no month filter (initial load), set month/year state
       if (!month || !year) {
         setMonth(currentMonth.getMonth() + 1);
@@ -380,6 +382,12 @@ export default function AssignWorkPage({
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (!deleteTarget.canDelete || !isAssignmentDeleteWindowOpen(deleteTarget.createdAt)) {
+      toast.error("Assignments can only be deleted within 48 hours of creation");
+      setDeleteTarget(null);
+      void load();
+      return;
+    }
     setDeleting(true);
     try {
       await deleteAssignment(deleteTarget.id, deleteTarget.type);
@@ -417,6 +425,15 @@ export default function AssignWorkPage({
   const externalAssignments = [...new Map([...assignedToMe, ...assignedByMe]
     .filter((item) => item.assignmentKind === "external")
     .map((item) => [item.id, item])).values()];
+  useEffect(() => {
+    const deadlines = [...assignedToMe, ...assignedByMe, ...allAssignments]
+      .filter((assignment) => assignment.canDelete)
+      .map((assignment) => new Date(assignment.createdAt).getTime() + ASSIGNMENT_DELETE_WINDOW_MS)
+      .filter((deadline) => Number.isFinite(deadline) && deadline > deleteClock);
+    if (!deadlines.length) return;
+    const timer = setTimeout(() => setDeleteClock(Date.now()), Math.max(0, Math.min(...deadlines) - Date.now() + 1));
+    return () => clearTimeout(timer);
+  }, [assignedToMe, assignedByMe, allAssignments, deleteClock]);
   const inCurrentMonth = (assignment: WorkAssignment) => isSameMonth(new Date(assignment.assignmentDate ? `${assignment.assignmentDate}T00:00:00` : assignment.assignedAt ?? assignment.createdAt), currentMonth);
   const items = tab === "external" ? externalAssignments.filter(inCurrentMonth) :
     tab === "all"
@@ -654,7 +671,7 @@ export default function AssignWorkPage({
                     </a>
                   ) : null}
                   {assignment.canEdit && <Button size="sm" variant="outline" onClick={() => void openComposer(assignment.assignmentKind || "regular", assignment)}><Pencil className="h-4 w-4 mr-1" />Edit</Button>}
-                  {assignment.canDelete && <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(assignment)}><Trash2 className="h-4 w-4 mr-1" />Delete</Button>}
+                  {(assignment.canEdit || assignment.canDelete) && <Button size="sm" variant="destructive" disabled={!assignment.canDelete || !isAssignmentDeleteWindowOpen(assignment.createdAt, deleteClock)} title="Deletion is available only within 48 hours of creation" onClick={() => setDeleteTarget(assignment)}><Trash2 className="h-4 w-4 mr-1" />Delete</Button>}
                   {assignment.canEdit !== false && <Button size="sm" variant="outline" onClick={() => openEdit(assignment)}>
                     <CheckCircle2 className="h-4 w-4 mr-1" />
                     Update Progress
@@ -912,8 +929,8 @@ export default function AssignWorkPage({
       </Dialog>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null); }}>
-        <DialogContent><DialogHeader><DialogTitle>Delete Assignment</DialogTitle><DialogDescription>Delete &quot;{deleteTarget?.title}&quot;? This removes the assignment from its existing project and assignment lists.</DialogDescription></DialogHeader>
-          <DialogFooter><Button variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="destructive" loading={deleting} onClick={() => void handleDelete()}>Delete Assignment</Button></DialogFooter>
+        <DialogContent><DialogHeader><DialogTitle>Delete Assignment</DialogTitle><DialogDescription>Delete &quot;{deleteTarget?.title}&quot;? This removes the assignment from its existing project and assignment lists. Deletion is available only within 48 hours of creation.</DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" disabled={deleting} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="destructive" loading={deleting} disabled={!deleteTarget?.canDelete || !isAssignmentDeleteWindowOpen(deleteTarget.createdAt, deleteClock)} onClick={() => void handleDelete()}>Delete Assignment</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
