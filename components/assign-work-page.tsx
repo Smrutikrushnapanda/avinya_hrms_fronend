@@ -84,6 +84,9 @@ export default function AssignWorkPage({
   includeAllAssignments?: boolean;
 }) {
   const [options, setOptions] = useState<AssignWorkOptions | null>(null);
+  const assigneeOptions = useMemo(() => (options?.employees || []).filter(
+    (employee) => employee.userId !== options?.currentUserId,
+  ), [options]);
   const [allAssignments, setAllAssignments] = useState<WorkAssignment[]>([]);
   const [assignedToMe, setAssignedToMe] = useState<WorkAssignment[]>([]);
   const [assignedByMe, setAssignedByMe] = useState<WorkAssignment[]>([]);
@@ -102,16 +105,39 @@ export default function AssignWorkPage({
   const [deleting, setDeleting] = useState(false);
   const [deleteClock, setDeleteClock] = useState(Date.now);
   const loadRequest = useRef(0);
+  const optionsRequest = useRef(0);
+  const refreshOptions = useCallback(async () => {
+    const request = ++optionsRequest.current;
+    try {
+      const { data } = await getAssignWorkOptions();
+      if (request === optionsRequest.current) setOptions(data);
+      return data;
+    } catch (error) {
+      if (request === optionsRequest.current) setOptions(null);
+      throw error;
+    }
+  }, []);
 
   useEffect(() => {
+    const pendingRequests = optionsRequest;
     let active = true;
-    getAssignWorkOptions().then(({ data }) => {
+    refreshOptions().then((data) => {
       if (!active) return;
-      setOptions(data);
       if (!data.canViewAllAssignments) setTab("assigned-to-me");
     }).catch(() => toast.error("Failed to load projects and employees"));
-    return () => { active = false; };
-  }, []);
+    const refresh = () => { void refreshOptions().catch(() => {
+      toast.error("Failed to refresh active employees");
+    }); };
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      ++pendingRequests.current;
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshOptions]);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchQuery(adminSearch.trim()), 300);
@@ -146,6 +172,14 @@ export default function AssignWorkPage({
     progressPercent: 0,
     workReport: "",
   });
+
+  useEffect(() => {
+    if (!options || detailsTarget) return;
+    const activeIds = new Set(assigneeOptions.map((employee) => employee.userId));
+    setForm((previous) => previous.assignedToUserIds.every((id) => activeIds.has(id)) ? previous : {
+      ...previous, assignedToUserIds: previous.assignedToUserIds.filter((id) => activeIds.has(id)),
+    });
+  }, [options, detailsTarget, assigneeOptions]);
 
   // Derive month/year from currentMonth for API filtering
   const derivedMonth = useMemo(() => currentMonth.getMonth() + 1, [currentMonth]);
@@ -245,19 +279,14 @@ export default function AssignWorkPage({
   };
 
   const openComposer = async (kind: "regular" | "external" = "regular", assignment?: WorkAssignment) => {
-    let composerOptions = options;
-    if (!composerOptions) {
-      setComposerLoading(true);
-      try {
-        const response = await getAssignWorkOptions();
-        composerOptions = response.data;
-        setOptions(response.data);
-      } catch {
-        toast.error("Failed to load projects and employees");
-        return;
-      } finally {
-        setComposerLoading(false);
-      }
+    setComposerLoading(true);
+    try {
+      await refreshOptions();
+    } catch {
+      toast.error("Failed to load active employees");
+      return;
+    } finally {
+      setComposerLoading(false);
     }
     setComposerKind(kind);
     setDetailsTarget(assignment || null);
@@ -312,7 +341,7 @@ export default function AssignWorkPage({
 
   const filteredEmployees = useMemo(() => {
     const q = form.employeeSearch.trim().toLowerCase();
-    const list = options?.employees || [];
+    const list = assigneeOptions;
     if (!q) return list;
     return list.filter(
       (e) =>
@@ -320,7 +349,7 @@ export default function AssignWorkPage({
         (e.firstName || "").toLowerCase().includes(q) ||
         (e.lastName || "").toLowerCase().includes(q),
     );
-  }, [form.employeeSearch, options]);
+  }, [form.employeeSearch, assigneeOptions]);
 
   const canSubmit = useMemo(() => {
     const projectOk =
@@ -329,9 +358,10 @@ export default function AssignWorkPage({
         : true;
     return Boolean(
       form.title.trim() && hasWorkDescription(form.description) && (composerKind === "external" || form.assignedToUserIds.length > 0 || (detailsTarget && !detailsTarget.assignedToUserId)) && projectOk &&
+      (composerKind === "external" || form.assignedToUserIds.every((id) => assigneeOptions.some((employee) => employee.userId === id) || detailsTarget?.assignedToUserId === id)) &&
       (composerKind !== "external" || (form.externalAssignerName.trim() && form.assignmentDate)),
     );
-  }, [form, composerKind, detailsTarget]);
+  }, [form, composerKind, detailsTarget, assigneeOptions]);
 
   const handleCreate = async () => {
     if (!canSubmit) {

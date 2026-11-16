@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { NetworkOnly, Serwist } from "serwist";
 import { initializeApp, getApps } from "firebase/app";
 import { getMessaging, onBackgroundMessage } from "firebase/messaging/sw";
 
@@ -21,7 +21,15 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching: [
+    {
+      matcher: ({ url }) => /^\/employees(?:\/|$)/.test(url.pathname) ||
+        /^\/(?:projects|client-projects)\/[^/]+\/employees$/.test(url.pathname) ||
+        ["/assign-work/options", "/dashboard/employees", "/projects/org-employees", "/projects/managers/team", "/performance/employees", "/performance/team"].includes(url.pathname),
+      handler: new NetworkOnly({ fetchOptions: { cache: "no-store" } }),
+    },
+    ...defaultCache,
+  ],
   fallbacks: {
     entries: [
       {

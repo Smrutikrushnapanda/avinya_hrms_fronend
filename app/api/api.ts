@@ -1,4 +1,5 @@
 import axios from "axios";
+import { isActiveEmployee } from "@/lib/active-employees";
 import { toast } from "sonner";
 
 const cloudFallbackURL = "https://avinyahrms.duckdns.org";
@@ -159,9 +160,14 @@ export const getDashboardStats = (organizationId?: string) => {
 
 export const createEmployee = (data: any) => api.post("/employees", data);
 export const getEmployees = (organizationId: string, status?: string) =>
-  api.get("/employees", { params: { organizationId, ...(status ? { status } : {}) } });
+  api.get("/employees", { params: { organizationId, ...(status ? { status } : {}) } }).then((response) => {
+    if (!status || ["active", "all"].includes(status.toLowerCase())) {
+      response.data = Array.isArray(response.data) ? response.data.filter(isActiveEmployee) : [];
+    }
+    return response;
+  });
 export const getEmployeeSelector = (params: { organizationId: string; search?: string; departmentId?: string; designationId?: string; limit?: number }) =>
-  api.get("/employees/selector", { params });
+  api.get("/employees/selector", { params }).then((response) => ({ ...response, data: Array.isArray(response.data) ? response.data.filter(isActiveEmployee) : [] }));
 export const getEmployee = (id: string) => api.get(`/employees/${id}`);
 export const updateEmployee = (id: string, data: any) => api.put(`/employees/${id}`, data);
 export const deleteEmployee = (id: string) => api.delete(`/employees/${id}`);
@@ -645,10 +651,13 @@ export interface AssignWorkOptions {
   currentUserId?: string;
   canViewAllAssignments?: boolean;
   projects: Array<{ id: string; name: string; source: "client" | "internal" }>;
-  employees: Array<{ userId: string; firstName: string; lastName: string }>;
+  employees: Array<{ userId: string; firstName: string; lastName: string; status: string; isActive: boolean }>;
 }
 
-export const getAssignWorkOptions = () => api.get<AssignWorkOptions>("/assign-work/options");
+export const getAssignWorkOptions = () => api.get<AssignWorkOptions>("/assign-work/options").then((response) => ({
+  ...response,
+  data: { ...response.data, employees: (response.data.employees || []).filter(isActiveEmployee) },
+}));
 export const createAssignWork = (data: {
   assignmentKind?: "regular" | "external";
   externalAssignerName?: string;
@@ -1054,7 +1063,7 @@ export const updateStepApprover = (stepId: string, approverId: string) =>
 
 
 // Employee List API (for HR to select approvers)
-export const getEmployeesList = (organizationId: string) => api.get(`/employees?organizationId=${organizationId}`);
+export const getEmployeesList = (organizationId: string) => getEmployees(organizationId);
 
 // 💰 Payroll APIs
 export const getPayrollRecords = (params: any) => api.get("/payroll", { params });
