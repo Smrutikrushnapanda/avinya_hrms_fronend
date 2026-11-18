@@ -39,9 +39,8 @@ import {
   getProfile,
   getAllExpenses,
   updateExpenseStatus,
-  exportExpensesExcel,
 } from "@/app/api/api";
-import { format } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -268,43 +267,52 @@ export default function AdminExpensesPage() {
     }
   };
 
-  // ─── Export Excel (Serverside per Tab) ───────────────────────────────────
-
   const handleExportExcel = async () => {
     if (!profile?.organizationId) return;
+    if (tabFiltered.length === 0) {
+      toast.error("No expense claims to export for selected status");
+      return;
+    }
     setExporting(true);
     try {
-      const res = await exportExpensesExcel(profile.organizationId, activeTab);
-
-      let filename = `Expense_Claims_${activeTab}_${format(
+      const XLSX = await import("xlsx");
+      const exportDate = (value: string, pattern: string) => {
+        if (!value) return "-";
+        const date = parseISO(value);
+        return isValid(date) ? format(date, pattern) : value;
+      };
+      const rows = tabFiltered.map((expense, index) => ({
+        "Sl#": index + 1,
+        "Employee Name": employeeName(expense),
+        "Employee Email": expense.user?.email || "-",
+        "Title": expense.title || "-",
+        "Category": expense.category || "-",
+        "Expense Type": expense.expenseType || "-",
+        "Project Name": expense.projectName || "-",
+        "Expense Date": exportDate(expense.expenseDate, "yyyy-MM-dd"),
+        "Currency": expense.currency || "INR",
+        "Amount": Number(expense.amount) || 0,
+        "Status": expense.status || "PENDING",
+        "Admin Remarks": expense.adminRemarks || "-",
+        "Submitted At": exportDate(expense.createdAt, "yyyy-MM-dd HH:mm"),
+        "Receipt URL": expense.receiptUrl || "-",
+      }));
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      worksheet["!cols"] = [8, 28, 32, 32, 20, 20, 28, 14, 12, 14, 14, 36, 20, 48]
+        .map((wch) => ({ wch }));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
+      const filename = `Expense_Claims_${activeTab}_${format(
         new Date(),
         "yyyyMMdd_HHmm"
       )}.xlsx`;
-      const disposition = res.headers?.["content-disposition"];
-      if (disposition) {
-        const match = disposition.match(/filename="?([^"]+)"?/);
-        if (match && match[1]) filename = match[1];
-      }
-
-      const blob = new Blob([res.data], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      XLSX.writeFile(workbook, filename, { compression: true });
 
       toast.success(
         `Exported ${activeTab.toUpperCase()} expense claims to Excel`
       );
-    } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message || "Failed to export expenses to Excel"
-      );
+    } catch {
+      toast.error("Failed to export expenses to Excel");
     } finally {
       setExporting(false);
     }
