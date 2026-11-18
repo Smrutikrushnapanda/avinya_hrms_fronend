@@ -80,8 +80,10 @@ function assignmentError(error: unknown, fallback: string) {
 
 export default function AssignWorkPage({
   includeAllAssignments = false,
+  defaultAllTime = false,
 }: {
   includeAllAssignments?: boolean;
+  defaultAllTime?: boolean;
 }) {
   const [options, setOptions] = useState<AssignWorkOptions | null>(null);
   const assigneeOptions = useMemo(() => (options?.employees || []).filter(
@@ -93,6 +95,7 @@ export default function AssignWorkPage({
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>(includeAllAssignments ? "all" : "assigned-to-me");
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
+  const [allTime, setAllTime] = useState(defaultAllTime);
   const [month, setMonth] = useState<number | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const canViewAll = includeAllAssignments && options?.canViewAllAssignments === true;
@@ -203,16 +206,11 @@ export default function AssignWorkPage({
     const requestId = ++loadRequest.current;
     setLoading(true);
     try {
+      const dateFilters = allTime ? {} : { month, year };
       const [mine, byMe, all] = await Promise.all([
-        getMyAssignments({
-          month,
-          year,
-        }),
-        getAssignmentsByMe({
-          month,
-          year,
-        }),
-        canViewAll ? getAllAssignments({ month, year, search: searchQuery || undefined,
+        getMyAssignments(dateFilters),
+        getAssignmentsByMe(dateFilters),
+        canViewAll ? getAllAssignments({ ...dateFilters, search: searchQuery || undefined,
           assignmentKind: filters.assignmentKind || undefined, status: filters.status || undefined,
           priority: filters.priority || undefined, assignedToUserId: filters.assignedToUserId || undefined,
         }) : Promise.resolve(null),
@@ -232,7 +230,7 @@ export default function AssignWorkPage({
     } finally {
       if (requestId === loadRequest.current) setLoading(false);
     }
-  }, [month, year, canViewAll, currentMonth, searchQuery, filters]);
+  }, [month, year, allTime, canViewAll, currentMonth, searchQuery, filters]);
 
   useEffect(() => {
     void load();
@@ -464,7 +462,7 @@ export default function AssignWorkPage({
     const timer = setTimeout(() => setDeleteClock(Date.now()), Math.max(0, Math.min(...deadlines) - Date.now() + 1));
     return () => clearTimeout(timer);
   }, [assignedToMe, assignedByMe, allAssignments, deleteClock]);
-  const inCurrentMonth = (assignment: WorkAssignment) => isSameMonth(new Date(assignment.assignmentDate ? `${assignment.assignmentDate}T00:00:00` : assignment.assignedAt ?? assignment.createdAt), currentMonth);
+  const inCurrentMonth = (assignment: WorkAssignment) => allTime || isSameMonth(new Date(assignment.assignmentDate ? `${assignment.assignmentDate}T00:00:00` : assignment.assignedAt ?? assignment.createdAt), currentMonth);
   const items = tab === "external" ? externalAssignments.filter(inCurrentMonth) :
     tab === "all"
       ? allAssignments.filter(inCurrentMonth)
@@ -520,6 +518,15 @@ export default function AssignWorkPage({
 
       {/* Month Navigation */}
       <div className="flex items-center gap-2 mb-4">
+        {defaultAllTime && <Button
+          variant="outline"
+          size="sm"
+          aria-pressed={allTime}
+          onClick={() => setAllTime((previous) => !previous)}
+        >
+          {allTime ? "Filter by month" : "All dates"}
+        </Button>}
+        {!allTime && <>
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
           className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors active:scale-95"
@@ -535,6 +542,8 @@ export default function AssignWorkPage({
         >
           <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
         </button>
+        </>}
+        {allTime && <span className="text-sm font-semibold">All dates</span>}
       </div>
 
       <div className="flex flex-wrap items-center gap-1 rounded-lg border border-border p-1 bg-muted/30 w-fit">
@@ -584,7 +593,7 @@ export default function AssignWorkPage({
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          {tab === "external" ? "No external assignments recorded for this month." : tab === "all"
+          {tab === "external" ? (allTime ? "No external assignments recorded." : "No external assignments recorded for this month.") : tab === "all"
             ? "No assignments found."
             : tab === "assigned-to-me"
             ? "No work has been assigned to you yet."

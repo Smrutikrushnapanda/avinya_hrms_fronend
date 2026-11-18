@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable } from "@/components/ui/data-table";
+import AssignWorkPage from "@/components/assign-work-page";
 import { toast } from "sonner";
 import {
   getProfile,
@@ -113,6 +114,7 @@ export default function AdminExpensesPage() {
   const [exporting, setExporting] = useState(false);
 
   const [activeTab, setActiveTab] = useState("all");
+  const [view, setView] = useState("expenses");
 
   const [tableState, setTableState] = useState<TableState>({
     page: 0,
@@ -516,11 +518,11 @@ export default function AdminExpensesPage() {
           <div>
             <h1 className="text-2xl font-semibold">Expenses</h1>
             <p className="text-xs text-muted-foreground">
-              Review and manage employee expense claims
+              Review employee expense claims and assigned work
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        {view === "expenses" && <div className="flex items-center gap-2">
           <Button
             variant="outline"
             onClick={handleExportExcel}
@@ -545,9 +547,18 @@ export default function AdminExpensesPage() {
               className={`h-4 w-4 ${expensesLoading ? "animate-spin" : ""}`}
             />
           </Button>
-        </div>
+        </div>}
       </div>
 
+      <Tabs value={view} onValueChange={setView}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="expenses">Expense Claims</TabsTrigger>
+          <TabsTrigger value="assignments">Assigned Work</TabsTrigger>
+        </TabsList>
+        <TabsContent value="assignments">
+          <AssignWorkPage includeAllAssignments defaultAllTime />
+        </TabsContent>
+        <TabsContent value="expenses" className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="p-5">
@@ -609,6 +620,8 @@ export default function AdminExpensesPage() {
           </Tabs>
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Approve/Reject Dialog */}
       <Dialog
