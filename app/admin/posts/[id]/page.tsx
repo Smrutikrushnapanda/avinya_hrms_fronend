@@ -45,6 +45,7 @@ interface Comment {
   userId?: string;
   user: {
     firstName?: string;
+    middleName?: string;
     lastName?: string;
     avatar?: string;
   };
@@ -58,6 +59,7 @@ interface Post {
   isPinned: boolean;
   author?: {
     firstName?: string;
+    middleName?: string;
     lastName?: string;
     avatar?: string;
   };
@@ -68,6 +70,7 @@ interface Post {
     userId: string;
     user: {
       firstName?: string;
+      middleName?: string;
       lastName?: string;
     };
   }>;
@@ -291,7 +294,7 @@ export default function PostDetailPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-lg">
-                    {post.author?.firstName} {post.author?.lastName}
+                    {[post.author?.firstName, post.author?.middleName, post.author?.lastName].filter(Boolean).join(" ")}
                   </span>
                   {post.isPinned && <Pin className="h-4 w-4 text-yellow-500" />}
                 </div>
@@ -401,7 +404,7 @@ export default function PostDetailPage() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-medium">
-                        {comment.user?.firstName} {comment.user?.lastName}
+                        {[comment.user?.firstName, comment.user?.middleName, comment.user?.lastName].filter(Boolean).join(" ")}
                       </span>
                       <span className="text-sm text-gray-500">
                         {format(new Date(comment.createdAt), "MMM dd, yyyy HH:mm")}

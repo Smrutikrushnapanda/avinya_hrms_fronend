@@ -976,51 +976,53 @@ export default function LeaveManagementPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             {req.status?.toUpperCase() === "PENDING" ? (
-                              <div className="flex justify-end gap-2">
+                              <div className="flex justify-end gap-1.5">
                                 <Button
-                                  size="sm"
-                                  className="gap-1"
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8"
                                   onClick={() => openLeaveDetailDialog(req)}
                                   title="View"
+                                  aria-label="View leave request"
                                 >
                                   <Eye className="h-4 w-4" />
-                                  View
                                 </Button>
                                 <Button
-                                  size="sm"
-                                  className="gap-1"
+                                  size="icon"
+                                  className="h-8 w-8"
                                   onClick={() => handleApprove(req)}
                                   loading={actionLoading === req.id}
+                                  title="Approve"
+                                  aria-label="Approve leave request"
                                 >
-                                  <Check className="h-4 w-4" />
-                                  Approve
+                                  {actionLoading === req.id ? null : <Check className="h-4 w-4" />}
                                 </Button>
                                 <Button
-                                  size="sm"
+                                  size="icon"
                                   variant="destructive"
-                                  className="gap-1"
+                                  className="h-8 w-8"
                                   onClick={() => openRejectDialog(req)}
                                   disabled={actionLoading === req.id}
+                                  title="Reject"
+                                  aria-label="Reject leave request"
                                 >
                                   <X className="h-4 w-4" />
-                                  Reject
                                 </Button>
                               </div>
                             ) : req.status?.toUpperCase() === "APPROVED" && !req.reconciled ? (
                               <Button
-                                size="sm"
+                                size="icon"
                                 variant="outline"
-                                className="gap-1"
+                                className="h-8 w-8"
                                 onClick={() => handleReconcile(req)}
                                 loading={reconcileLoading === req.id}
+                                title="Reconcile balance"
+                                aria-label="Reconcile leave balance"
                               >
-                                <RefreshCw className="h-4 w-4" />
-                                Reconcile
+                                {reconcileLoading === req.id ? null : <RefreshCw className="h-4 w-4" />}
                               </Button>
                             ) : (
-                              <span className="text-sm text-muted-foreground">
-                                No actions
-                              </span>
+                              <span className="text-sm text-muted-foreground">—</span>
                             )}
                           </TableCell>
                         </TableRow>

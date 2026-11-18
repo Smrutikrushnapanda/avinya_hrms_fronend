@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { getFullName } from "@/lib/utils";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Download, Upload, Settings, Zap, UserCheck, UserX, X } from "lucide-react";
+import { Download, FileDown, Upload, Settings, Zap, UserCheck, UserX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -1238,17 +1238,26 @@ export default function EmployeesPage() {
     <div className="">
       <motion.div initial="hidden" animate="visible" variants={containerVariants} className="space-y-6">
         {/* Header */}
-        <motion.div variants={itemVariants} className="flex items-center justify-between mb-6">
+        <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-5">
             <h1 className="text-2xl font-bold border-r pr-5">Employee</h1>
             <div className="flex items-center gap-2">
               <LiveClock />
             </div>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" size="sm" onClick={() => setIsExportDialogOpen(true)}>
               <Download className="w-4 h-4 mr-2" />
               Export
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a
+                href="/New_Employee_Joining_Information_Form_Final.docx"
+                download="New_Employee_Joining_Information_Form_Final.docx"
+              >
+                <FileDown className="w-4 h-4 mr-2" />
+                New Employee Joining Information Form
+              </a>
             </Button>
 
             {selectedEmployees.length > 0 && (

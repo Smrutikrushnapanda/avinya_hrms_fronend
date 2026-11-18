@@ -1,16 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Users, Calendar, Settings, LogOut, Shield, Loader2, Search, ArrowLeft, ArrowRight, ChevronDown } from "lucide-react";
+import { Users, Loader2 } from "lucide-react";
 
 import { getEmployees, getProfile } from "@/app/api/api";
 import TimesheetSection from "@/components/timesheet/TimesheetSection";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { useOrganizationTimezone } from "@/hooks/useOrganizationTimezone";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
 type EmployeeOption = {
   id: string;
@@ -27,9 +23,7 @@ export default function AdminTimesheetsPage() {
   const [organizationId, setOrganizationId] = useState("");
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
-  const [showAllEmployees, setShowAllEmployees] = useState(false);
   const [loading, setLoading] = useState(true);
-  const orgTz = useOrganizationTimezone();
 
   useEffect(() => {
     const init = async () => {
@@ -88,15 +82,19 @@ export default function AdminTimesheetsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Select value={selectedEmployeeId || "all"} onValueChange={(v) => setSelectedEmployeeId(v === "all" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue className="flex items-center gap-2">
-                  <span>All employees</span>
-                  <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                </SelectValue>
+            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+              <SelectTrigger className="w-[260px]" aria-label="Select employee">
+                <span
+                  className={
+                    selectedName
+                      ? "min-w-0 flex-1 truncate text-left"
+                      : "min-w-0 flex-1 truncate text-left text-muted-foreground"
+                  }
+                >
+                  {selectedName || "Select employee"}
+                </span>
               </SelectTrigger>
-              <SelectContent className="max-h-full overflow-auto rounded-md border shadow-md bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 min-w-[8rem] origin-(--radix-select-content-transform-origin)">
-                <SelectItem value="all">All employees</SelectItem>
+              <SelectContent className="max-h-60 overflow-y-auto">
                 {employees.map((employee) => {
                   const name = [employee.firstName, employee.middleName, employee.lastName]
                     .filter(Boolean)
@@ -121,16 +119,6 @@ export default function AdminTimesheetsPage() {
                 })}
               </SelectContent>
             </Select>
-
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowAllEmployees((p) => !p)}
-              className="gap-1.5"
-            >
-              {showAllEmployees ? <LogOut className="h-4 w-4" /> : <Users className="h-4 w-4" />}
-              {showAllEmployees ? "Compact" : "Select Employee"}
-            </Button>
           </div>
         </div>
       </header>
@@ -147,12 +135,14 @@ export default function AdminTimesheetsPage() {
       ) : (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            <p className="text-muted-foreground mb-2">
-              Select an employee above to view their timesheet details
+            <p className="mb-2">
+              {employees.length === 0
+                ? "No employees found for this organization"
+                : "Select an employee above to view their timesheet details"}
             </p>
-            <p className="text-xs">
-              Use the search above or choose "All employees" to see team timesheets
-            </p>
+            {employees.length > 0 ? (
+              <p className="text-xs">Pick anyone from the employee list to review their monthly entries</p>
+            ) : null}
           </CardContent>
         </Card>
       )}

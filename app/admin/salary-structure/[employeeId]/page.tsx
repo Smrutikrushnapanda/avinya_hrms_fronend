@@ -321,7 +321,7 @@ export default function EmployeeSalaryPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">
-            {employee?.firstName} {employee?.lastName || ""}
+            {[employee?.firstName, employee?.middleName, employee?.lastName].filter(Boolean).join(" ")}
           </h1>
           <p className="text-muted-foreground text-sm">
             {employee?.employeeCode}

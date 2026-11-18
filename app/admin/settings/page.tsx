@@ -71,6 +71,7 @@ interface OrgUser {
   userName: string;
   email: string;
   firstName: string;
+  middleName?: string;
   lastName: string;
   isActive: boolean;
   roles?: { id: string; roleName: string }[];
@@ -314,6 +315,7 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
         userName: string;
         email: string;
         firstName: string;
+        middleName?: string;
         lastName: string;
         isActive?: boolean;
         isEmployee?: boolean;
@@ -357,6 +359,7 @@ const [isOrgEditing, setIsOrgEditing] = useState(false);
           userName: user.userName,
           email: user.email,
           firstName: user.firstName || "",
+          middleName: user.middleName || "",
           lastName: user.lastName || "",
           isActive: Boolean(user.isActive),
           roles: (user.userRoles || [])
@@ -1644,7 +1647,7 @@ const loadOrganization = async () => {
                         <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell className="font-medium">{user.userName}</TableCell>
                         <TableCell>
-                          {[user.firstName, user.lastName].filter(Boolean).join(" ").trim() || "—"}
+                          {[user.firstName, user.middleName, user.lastName].filter(Boolean).join(" ").trim() || "—"}
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>

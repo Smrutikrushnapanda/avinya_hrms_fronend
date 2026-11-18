@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import { Switch } from "@/components/ui/switch";
-import { Download } from "lucide-react";
+import { Download, RotateCcw } from "lucide-react";
 import { getLogReports, getLogReportSettings, updateLogReportSettings, getProfile, getEmployees } from "@/app/api/api";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -19,14 +19,15 @@ export default function LogReportPage() {
   const [loading, setLoading] = useState(false);
   const [organizationId, setOrganizationId] = useState<string>("");
   const [employees, setEmployees] = useState<any[]>([]);
-  const [filters, setFilters] = useState({
+  const initialFilters = {
     from: "",
     to: "",
     userId: "all",
     actionType: "",
     module: "",
-  });
-  const [appliedFilters, setAppliedFilters] = useState(filters);
+  };
+  const [filters, setFilters] = useState(initialFilters);
+  const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [tableState, setTableState] = useState({
     page: 0,
     pageSize: 20,
@@ -36,6 +37,13 @@ export default function LogReportPage() {
   const [total, setTotal] = useState(0);
   const [loggingEnabled, setLoggingEnabled] = useState(true);
   const [savingToggle, setSavingToggle] = useState(false);
+
+  const handleResetFilters = () => {
+    setFilters(initialFilters);
+    setAppliedFilters(initialFilters);
+    setTableState((prev) => ({ ...prev, page: 0, search: "" }));
+    toast.success("Filters reset");
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -233,6 +241,15 @@ export default function LogReportPage() {
                   loading={loading}
                 >
                   Apply Filters
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleResetFilters}
+                  disabled={loading}
+                  title="Reset all filters"
+                >
+                  <RotateCcw className="w-4 h-4 mr-1.5" />
+                  Reset
                 </Button>
               </div>
               <div className="flex gap-2 md:justify-end md:col-span-2">

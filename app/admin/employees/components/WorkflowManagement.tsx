@@ -75,12 +75,14 @@ interface WorkflowAssignment {
   employee: {
     id: string;
     firstName: string;
+    middleName?: string;
     lastName: string;
     employeeCode: string;
   };
   approver?: {
     id: string;
     firstName: string;
+    middleName?: string;
     lastName: string;
     employeeCode: string;
   };
@@ -89,6 +91,7 @@ interface WorkflowAssignment {
 interface Employee {
   id: string;
   firstName: string;
+  middleName?: string;
   lastName: string;
   employeeCode: string;
   department?: {
@@ -497,7 +500,7 @@ const handleSaveApprovers = async () => {
                                     <div className="flex items-center space-x-2">
                                       {step.assignments.length > 0 && (
                                         <Badge variant="secondary" className="text-xs">
-                                          {step.assignments[0].approver?.firstName} {step.assignments[0].approver?.lastName}
+                                          {getFullName(step.assignments[0].approver)}
                                         </Badge>
                                       )}
                                       {step.assignments.length > 3 && (
@@ -739,7 +742,7 @@ const handleSaveApprovers = async () => {
                     Selected Approver:
                   </div>
                   <div className="text-sm text-blue-700 dark:text-blue-300">
-                    {employees.find(emp => emp.id === selectedApprovers[0])?.firstName} {employees.find(emp => emp.id === selectedApprovers[0])?.lastName}
+                    {getFullName(employees.find(emp => emp.id === selectedApprovers[0]))}
                   </div>
                 </div>
               )}

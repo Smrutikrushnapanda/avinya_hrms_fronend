@@ -342,7 +342,11 @@ export default function MeetingManagementPage() {
         m.title.toLowerCase().includes(q) ||
         (m.description || "").toLowerCase().includes(q) ||
         (m.createdBy
-          ? `${m.createdBy.firstName} ${m.createdBy.lastName}`.toLowerCase().includes(q)
+          ? [m.createdBy.firstName, (m.createdBy as any).middleName, m.createdBy.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase()
+              .includes(q)
           : false);
       return matchesStatus && matchesSearch;
     })
@@ -760,7 +764,7 @@ export default function MeetingManagementPage() {
                 <div className="mt-1 flex flex-wrap gap-2 rounded-md border p-3">
                   {meetingDetail.participants.map((p) => (
                     <Badge key={p.id} variant="outline">
-                      {p.firstName} {p.lastName}
+                      {[p.firstName, (p as any).middleName, p.lastName].filter(Boolean).join(" ")}
                     </Badge>
                   ))}
                 </div>

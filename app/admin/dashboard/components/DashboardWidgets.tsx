@@ -1,8 +1,8 @@
 "use client";
 
 import { getFullName } from "@/lib/utils";
-import { useState, useEffect } from "react";
-import { format, isAfter, isBefore } from "date-fns";
+import { useState, useEffect, useMemo } from "react";
+import { format, isAfter, isBefore, subDays, formatDistanceToNow } from "date-fns";
 import { 
   Vote, MessageSquare, Clock, Bell, AlertTriangle, Cake, Gift, PartyPopper,
   Users, Activity, PieChart, BarChart3, UserCheck, X, CalendarDays, Pencil, Trash2
@@ -25,7 +25,7 @@ import { getQuestions, saveResponse, getHolidays, deletePoll, updatePoll } from 
 import { toast } from "sonner";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
-  PieChart as RechartsPieChart, Pie, Cell, LineChart, Line
+  PieChart as RechartsPieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from "recharts";
 
 // Enhanced Modal Components with smooth animations and blur background
@@ -785,41 +785,169 @@ export function DepartmentChart({ departmentData }: { departmentData: any[] }) {
   );
 }
 
-export function UserActivitiesWidget({ activities }: { activities: any[] }) {
-  // Group activities by date and count
-  const activityData = activities.reduce((acc: any[], activity) => {
-    const date = activity.timestamp ? format(new Date(activity.timestamp), 'MMM dd') : 'Unknown';
-    const existing = acc.find(item => item.date === date);
-    if (existing) {
-      existing.count += 1;
-    } else {
-      acc.push({ date, count: 1 });
+export function UserActivitiesWidget({ activities = [] }: { activities: any[] }) {
+  const { chartData, totalActions } = useMemo(() => {
+    const safeActivities = Array.isArray(activities) ? activities : [];
+    const today = new Date();
+
+    // 7 continuous daily buckets to maintain stable compact timeline
+    const dayMap = new Map<
+      string,
+      {
+        date: string;
+        fullDate: string;
+        count: number;
+        activeUsers: Set<string>;
+      }
+    >();
+
+    for (let i = 6; i >= 0; i--) {
+      const d = subDays(today, i);
+      const key = format(d, "yyyy-MM-dd");
+      dayMap.set(key, {
+        date: format(d, "MMM dd"),
+        fullDate: format(d, "EEE, MMM dd"),
+        count: 0,
+        activeUsers: new Set(),
+      });
     }
-    return acc;
-  }, []).slice(-7); // Last 7 days
+
+    safeActivities.forEach((act) => {
+      const rawDate = act.timestamp || act.loggedAt || act.createdAt || act.date;
+      if (!rawDate) return;
+      const parsedDate = new Date(rawDate);
+      if (isNaN(parsedDate.getTime())) return;
+
+      const dateKey = format(parsedDate, "yyyy-MM-dd");
+      const userIdent =
+        act.name || act.userName || act.user?.userName || act.userId || "User";
+
+      const daySlot = dayMap.get(dateKey);
+      if (daySlot) {
+        daySlot.count += 1;
+        daySlot.activeUsers.add(userIdent);
+      }
+    });
+
+    const chartData = Array.from(dayMap.values()).map((slot) => ({
+      date: slot.date,
+      fullDate: slot.fullDate,
+      count: slot.count,
+      activeUsers: slot.activeUsers.size,
+    }));
+
+    const totalActions = chartData.reduce((acc, curr) => acc + curr.count, 0);
+
+    return { chartData, totalActions };
+  }, [activities]);
 
   return (
-    <WidgetCard>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Activity className="h-5 w-5" />
-          Recent Activities
+    <WidgetCard className="overflow-hidden">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between text-base font-semibold">
+          <div className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            Recent Activities
+          </div>
+          <Badge variant="secondary" className="text-xs font-normal">
+            {totalActions} events (7d)
+          </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        {activityData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={activityData}>
-              <XAxis dataKey="date" fontSize={12} />
-              <YAxis allowDecimals={false} fontSize={12} />
-              <Tooltip />
-              <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 4 }} name="Activities" />
-            </LineChart>
-          </ResponsiveContainer>
+      <CardContent className="pt-0">
+        {totalActions === 0 ? (
+          <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
+            <Activity className="h-10 w-10 mb-2 opacity-30" />
+            <p className="text-sm font-medium">No recent activities</p>
+            <p className="text-xs opacity-70">
+              Employee system interactions will appear here
+            </p>
+          </div>
         ) : (
-          <div className="text-center opacity-60 py-8">
-            <Activity className="h-12 w-12 mx-auto mb-3 opacity-40" />
-            <p className="font-medium">No recent activities</p>
+          <div className="w-full h-[200px] min-w-0 overflow-hidden">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={chartData}
+                margin={{ top: 10, right: 12, left: -25, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient
+                    id="activityGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop
+                      offset="5%"
+                      stopColor="#3b82f6"
+                      stopOpacity={0.35}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="#3b82f6"
+                      stopOpacity={0.0}
+                    />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  stroke="currentColor"
+                  className="text-muted-foreground"
+                />
+                <YAxis
+                  allowDecimals={false}
+                  fontSize={11}
+                  tickLine={false}
+                  axisLine={false}
+                  width={35}
+                  stroke="currentColor"
+                  className="text-muted-foreground"
+                />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-popover border border-border shadow-md px-3 py-2 rounded-lg text-xs space-y-1">
+                          <p className="font-semibold text-foreground">
+                            {data.fullDate}
+                          </p>
+                          <div className="flex items-center justify-between gap-3 text-primary">
+                            <span>Activities:</span>
+                            <span className="font-bold">{data.count}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 text-muted-foreground text-[10px]">
+                            <span>Active Users:</span>
+                            <span>{data.activeUsers}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="count"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#activityGradient)"
+                  dot={{
+                    fill: "#3b82f6",
+                    r: 3,
+                    stroke: "#fff",
+                    strokeWidth: 1.5,
+                  }}
+                  activeDot={{ r: 5, stroke: "#3b82f6", strokeWidth: 2 }}
+                  name="Activities"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         )}
       </CardContent>

@@ -80,7 +80,7 @@ interface ProjectMemberItem {
   userId: string;
   role: string;
   assignedAt: string;
-  user: { id: string; email: string; firstName: string; lastName: string } | null;
+  user: { id: string; email: string; firstName: string; middleName?: string; lastName: string } | null;
   designation?: string | null;
 }
 
@@ -97,7 +97,7 @@ interface Project {
   daysRemaining: number | null;
   memberCount: number;
   members: ProjectMemberItem[];
-  createdBy: { id: string; email: string; firstName: string; lastName: string } | null;
+  createdBy: { id: string; email: string; firstName: string; middleName?: string; lastName: string } | null;
   createdAt: string;
   updatedAt: string;
   projectCost?: number;
@@ -110,6 +110,7 @@ interface UserOption {
   id: string;
   email: string;
   firstName: string;
+  middleName?: string;
   lastName: string;
 }
 
@@ -192,6 +193,7 @@ function mapClientProject(cp: any): Project {
         id: member?.user?.id ?? memberUserId,
         email: member?.user?.email ?? "",
         firstName: member?.user?.firstName ?? "",
+        middleName: member?.user?.middleName ?? "",
         lastName: member?.user?.lastName ?? "",
       },
     });
@@ -207,6 +209,7 @@ function mapClientProject(cp: any): Project {
         id: managerUserId,
         email: mgr?.user?.email ?? mgr?.workEmail ?? existing?.user?.email ?? "",
         firstName: mgr?.firstName ?? existing?.user?.firstName ?? "",
+        middleName: mgr?.middleName ?? existing?.user?.middleName ?? "",
         lastName: mgr?.lastName ?? existing?.user?.lastName ?? "",
       },
     });
@@ -348,6 +351,7 @@ export default function AdminProjectsPage() {
               id: emp.userId ?? emp.user?.id,
               email: emp.user?.email ?? emp.workEmail ?? "",
               firstName: emp.firstName ?? emp.user?.firstName ?? "",
+              middleName: emp.middleName ?? emp.user?.middleName ?? "",
               lastName: emp.lastName ?? emp.user?.lastName ?? "",
             }))
             .filter((u: UserOption) => !!u.id);

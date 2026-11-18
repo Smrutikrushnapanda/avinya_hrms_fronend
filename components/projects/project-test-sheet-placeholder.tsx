@@ -54,6 +54,7 @@ type ProjectMember = {
   userId: string;
   role?: string;
   firstName?: string;
+  middleName?: string;
   lastName?: string;
   email?: string;
   workEmail?: string;
@@ -167,7 +168,7 @@ const columnConfig: TestSheetColumn[] = [...baseColumnConfig, ...customColumnCon
 const allColumnKeys = columnConfig.map((column) => column.key);
 
 function personLabel(member: ProjectMember) {
-  const name = [member.firstName, member.lastName].filter(Boolean).join(" ").trim();
+  const name = [member.firstName, member.middleName, member.lastName].filter(Boolean).join(" ").trim();
   return name || member.workEmail || member.email || member.userId.slice(0, 8);
 }
 

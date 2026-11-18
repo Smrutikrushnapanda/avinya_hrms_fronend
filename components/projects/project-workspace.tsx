@@ -49,9 +49,21 @@ import {
   Cell,
 } from "recharts";
 import { getFullName } from "@/lib/utils";
+import { DataTablePagination } from "@/components/data-table-pagination";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  ArrowDown,
   ArrowLeft,
   AlertTriangle,
+  ArrowUp,
+  ArrowUpDown,
   Calendar,
   Clock,
   Eye,
@@ -97,7 +109,7 @@ type ProjectShape = {
   daysRemaining: number | null;
   isOverdue: boolean;
   members: Array<{ userId: string; role: string }>;
-  createdBy: { id: string; firstName: string; lastName: string } | null;
+  createdBy: { id: string; firstName: string; middleName?: string; lastName: string } | null;
   projectCost?: number;
   hourlyRate?: number;
 };
@@ -109,6 +121,7 @@ type ProjectEmployee = {
   employeeId: string | null;
   employeeCode?: string | null;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   email: string;
   workEmail: string;
@@ -129,7 +142,7 @@ type ProjectHistoryRow = {
 
 type ProjectHistoryMember = Pick<
   ProjectEmployee,
-  "employeeId" | "userId" | "firstName" | "lastName" | "designation"
+  "employeeId" | "userId" | "firstName" | "middleName" | "lastName" | "designation"
 >;
 
 type TeamMember = {
@@ -188,6 +201,17 @@ type ProjectQuickLink = {
   createdByUserId: string;
   createdAt: string;
 };
+
+type ProjectTimesheetSortKey = "employee" | "date" | "workingMinutes";
+
+function getTimesheetEmployeeName(row: ProjectTimesheet): string {
+  if (!row.employee) return "Unknown";
+  return (
+    [row.employee.firstName, row.employee.middleName, row.employee.lastName]
+      .filter(Boolean)
+      .join(" ") || "Unknown"
+  );
+}
 
 const MAX_PROJECT_QUICK_LINKS = 5;
 
@@ -441,6 +465,13 @@ export default function ProjectWorkspace({
     fromDate: "",
     toDate: "",
   });
+  const [timesheetSearch, setTimesheetSearch] = useState("");
+  const [timesheetSort, setTimesheetSort] = useState<{
+    key: ProjectTimesheetSortKey;
+    direction: "asc" | "desc";
+  }>({ key: "date", direction: "desc" });
+  const [timesheetPage, setTimesheetPage] = useState(1);
+  const [timesheetPageSize, setTimesheetPageSize] = useState(10);
   const [clientTasks, setClientTasks] = useState<ClientProjectTask[]>([]);
   const [pnlSummary, setPnlSummary] = useState<{
     projectCost: number;
@@ -626,11 +657,75 @@ export default function ProjectWorkspace({
       projectTimesheets.map((row) => {
         const employee = row.employee;
         if (employee?.id) return employee.id;
-        return `${employee?.firstName || ""}-${employee?.lastName || ""}`;
+        return `${employee?.firstName || ""}-${employee?.middleName || ""}-${employee?.lastName || ""}`;
       }),
     );
     return unique.size;
   }, [projectTimesheets]);
+
+  const filteredProjectTimesheets = useMemo(() => {
+    const query = timesheetSearch.trim().toLowerCase();
+    const rows = query
+      ? projectTimesheets.filter((row) => {
+          const haystack = [
+            getTimesheetEmployeeName(row),
+            row.employee?.employeeCode,
+            row.employee?.id,
+            row.date,
+            formatDisplayDate(row.date),
+            row.workDescription,
+            row.employeeRemark,
+            row.managerRemark,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(query);
+        })
+      : projectTimesheets;
+
+    const direction = timesheetSort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      if (timesheetSort.key === "employee") {
+        return getTimesheetEmployeeName(a).localeCompare(getTimesheetEmployeeName(b)) * direction;
+      }
+      if (timesheetSort.key === "workingMinutes") {
+        return (Number(a.workingMinutes || 0) - Number(b.workingMinutes || 0)) * direction;
+      }
+      return (new Date(a.date).getTime() - new Date(b.date).getTime()) * direction;
+    });
+  }, [projectTimesheets, timesheetSearch, timesheetSort]);
+
+  const timesheetTotalPages = Math.max(1, Math.ceil(filteredProjectTimesheets.length / timesheetPageSize));
+  const safeTimesheetPage = Math.min(timesheetPage, timesheetTotalPages);
+  const pagedProjectTimesheets = useMemo(
+    () =>
+      filteredProjectTimesheets.slice(
+        (safeTimesheetPage - 1) * timesheetPageSize,
+        safeTimesheetPage * timesheetPageSize,
+      ),
+    [filteredProjectTimesheets, safeTimesheetPage, timesheetPageSize],
+  );
+
+  const handleTimesheetSort = (key: ProjectTimesheetSortKey) => {
+    setTimesheetPage(1);
+    setTimesheetSort((prev) =>
+      prev.key === key
+        ? { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: key === "date" ? "desc" : "asc" },
+    );
+  };
+
+  const renderTimesheetSortIcon = (key: ProjectTimesheetSortKey) => {
+    if (timesheetSort.key !== key) {
+      return <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />;
+    }
+    return timesheetSort.direction === "asc" ? (
+      <ArrowUp className="h-3.5 w-3.5" />
+    ) : (
+      <ArrowDown className="h-3.5 w-3.5" />
+    );
+  };
 
   const profitLossSnapshot = useMemo(() => {
     const loggedHours = projectTimesheets.reduce(
@@ -1613,6 +1708,7 @@ export default function ProjectWorkspace({
             variant="outline"
             className="h-8"
             onClick={() => {
+              setTimesheetPage(1);
               loadProjectTimesheetBoard(
                 projectSource,
                 project?.name || "",
@@ -1630,6 +1726,7 @@ export default function ProjectWorkspace({
             className="h-8"
             onClick={() => {
               setTimesheetDateRange({ fromDate: "", toDate: "" });
+              setTimesheetPage(1);
               loadProjectTimesheetBoard(projectSource, project?.name || "", organizationId, "", "");
             }}
           >
@@ -1646,59 +1743,121 @@ export default function ProjectWorkspace({
             {timesheetsError}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border border-border">
-              <thead className="bg-muted/40">
-                <tr>
-                  <th className="text-left px-3 py-2 border-b border-border">Employee</th>
-                  <th className="text-left px-3 py-2 border-b border-border">Date</th>
-                  <th className="text-left px-3 py-2 border-b border-border">Start</th>
-                  <th className="text-left px-3 py-2 border-b border-border">End</th>
-                  <th className="text-left px-3 py-2 border-b border-border">Hours</th>
-                  <th className="text-left px-3 py-2 border-b border-border">Work Summary</th>
-                  <th className="text-left px-3 py-2 border-b border-border">Employee Remark</th>
-                  <th className="text-left px-3 py-2 border-b border-border">Manager Remark</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projectTimesheets.length === 0 ? (
-                  <tr>
-                    <td className="px-3 py-4 text-muted-foreground" colSpan={8}>
-                      {isClientProject
-                        ? "No timesheet entries found for this project today."
-                        : "No timesheet entries found for this project yet."}
-                    </td>
-                  </tr>
-                ) : (
-                  projectTimesheets.map((row) => {
-                    const employeeName = row.employee
-                      ? [row.employee.firstName, row.employee.middleName, row.employee.lastName]
-                          .filter(Boolean)
-                          .join(" ")
-                      : "Unknown";
+          <>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <Input
+                value={timesheetSearch}
+                onChange={(e) => {
+                  setTimesheetSearch(e.target.value);
+                  setTimesheetPage(1);
+                }}
+                placeholder="Search employee, work summary or remark..."
+                className="h-9 w-full sm:max-w-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                {filteredProjectTimesheets.length === projectTimesheets.length
+                  ? `${projectTimesheets.length} entries`
+                  : `${filteredProjectTimesheets.length} of ${projectTimesheets.length} entries`}
+              </p>
+            </div>
 
-                    return (
-                      <tr key={row.id} className="border-b border-border last:border-b-0 align-top">
-                        <td className="px-3 py-2">
-                          <div className="font-medium">{employeeName || "Unknown"}</div>
+            <div className="rounded-lg border border-border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="w-16">Sl#</TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        onClick={() => handleTimesheetSort("employee")}
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                      >
+                        Employee
+                        {renderTimesheetSortIcon("employee")}
+                      </button>
+                    </TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        onClick={() => handleTimesheetSort("date")}
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                      >
+                        Date
+                        {renderTimesheetSortIcon("date")}
+                      </button>
+                    </TableHead>
+                    <TableHead>Start</TableHead>
+                    <TableHead>End</TableHead>
+                    <TableHead>
+                      <button
+                        type="button"
+                        onClick={() => handleTimesheetSort("workingMinutes")}
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                      >
+                        Hours
+                        {renderTimesheetSortIcon("workingMinutes")}
+                      </button>
+                    </TableHead>
+                    <TableHead>Work Summary</TableHead>
+                    <TableHead>Employee Remark</TableHead>
+                    <TableHead>Manager Remark</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pagedProjectTimesheets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
+                        {projectTimesheets.length === 0
+                          ? isClientProject
+                            ? "No timesheet entries found for this project today."
+                            : "No timesheet entries found for this project yet."
+                          : "No entries match your search."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pagedProjectTimesheets.map((row, index) => (
+                      <TableRow key={row.id} className="align-top">
+                        <TableCell className="text-muted-foreground">
+                          {(safeTimesheetPage - 1) * timesheetPageSize + index + 1}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{getTimesheetEmployeeName(row)}</div>
                           {row.employee?.employeeCode ? (
                             <div className="text-xs text-muted-foreground">{row.employee.employeeCode}</div>
                           ) : null}
-                        </td>
-                        <td className="px-3 py-2">{formatDisplayDate(row.date)}</td>
-                        <td className="px-3 py-2">{formatDisplayTime(row.startTime)}</td>
-                        <td className="px-3 py-2">{formatDisplayTime(row.endTime)}</td>
-                        <td className="px-3 py-2">{formatMinutes(row.workingMinutes)}</td>
-                        <td className="px-3 py-2 min-w-[220px]">{row.workDescription || "--"}</td>
-                        <td className="px-3 py-2 min-w-[180px]">{row.employeeRemark || "--"}</td>
-                        <td className="px-3 py-2 min-w-[180px]">{row.managerRemark || "--"}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                        </TableCell>
+                        <TableCell>{formatDisplayDate(row.date)}</TableCell>
+                        <TableCell>{formatDisplayTime(row.startTime)}</TableCell>
+                        <TableCell>{formatDisplayTime(row.endTime)}</TableCell>
+                        <TableCell className="font-medium">{formatMinutes(row.workingMinutes)}</TableCell>
+                        <TableCell className="min-w-[240px] max-w-[360px] whitespace-normal">
+                          {row.workDescription || "--"}
+                        </TableCell>
+                        <TableCell className="min-w-[180px] max-w-[280px] whitespace-normal">
+                          {row.employeeRemark || "--"}
+                        </TableCell>
+                        <TableCell className="min-w-[180px] max-w-[280px] whitespace-normal">
+                          {row.managerRemark || "--"}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+
+              <DataTablePagination
+                page={safeTimesheetPage}
+                pageSize={timesheetPageSize}
+                total={filteredProjectTimesheets.length}
+                onPageChange={setTimesheetPage}
+                onPageSizeChange={(size) => {
+                  setTimesheetPageSize(size);
+                  setTimesheetPage(1);
+                }}
+                itemLabel="timesheet entries"
+              />
+            </div>
+          </>
         )}
       </div>
       ) : null}

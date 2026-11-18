@@ -66,6 +66,7 @@ interface TeamMember {
   employeeId: string;
   userId: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   workEmail: string;
   selfReview: {
@@ -472,7 +473,7 @@ function TeamReviewSection({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Rate — {ratingDialogFor?.firstName} {ratingDialogFor?.lastName}
+              Rate — {getFullName(ratingDialogFor)}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
@@ -636,7 +637,7 @@ function HrRateSection({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              HR Rating — {ratingDialogFor?.firstName} {ratingDialogFor?.lastName}
+              HR Rating — {getFullName(ratingDialogFor)}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">

@@ -1206,9 +1206,7 @@ export default function AttendanceSettingsPage() {
                           <span className="font-medium text-foreground">Calculated Half-Day Threshold: </span>
                           {Math.floor((Math.floor(settings.requiredWorkingMinutes / 2) + 60) / 60)}h {(Math.floor(settings.requiredWorkingMinutes / 2) + 60) % 60}m
                         </p>
-                        <p className="text-[11px]">
-                          Formula: ({Math.floor(settings.requiredWorkingMinutes / 60)}h {settings.requiredWorkingMinutes % 60}m ÷ 2) + 1h
-                        </p>
+                       
                       </div>
                     )}
                   </div>

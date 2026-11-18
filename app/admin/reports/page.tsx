@@ -553,9 +553,7 @@ export default function ReportsPage() {
               return {
                 employeeId: pay?.employeeId || pay?.employee?.id || "",
                 employeeName:
-                  pay?.employee?.firstName || pay?.employee?.lastName
-                    ? `${pay.employee.firstName || ""} ${pay.employee.lastName || ""}`.trim()
-                    : "Unknown",
+                  getFullName(pay?.employee, "Unknown"),
                 basicSalary: String(pay?.basic ?? pay?.basicSalary ?? 0),
                 allowances: String(allowances),
                 deductions: String(pay?.totalDeductions ?? pay?.deductions ?? (Number(pay?.pf || 0) + Number(pay?.tds || 0))),
@@ -592,15 +590,13 @@ export default function ReportsPage() {
                 : 0;
               return {
                 employeeId: review?.employee?.id || "",
-                employeeName: review?.employee
-                  ? `${review.employee.firstName || ""} ${review.employee.lastName || ""}`.trim()
-                  : "Unknown",
+                employeeName:
+                  getFullName(review?.employee, "Unknown"),
                 reviewPeriod: review?.period || periodLabel,
                 overallScore: review?.overallRating ?? "",
                 goalsAchieved: totalAnswers ? `${answered}/${totalAnswers}` : "-",
-                reviewer: review?.reviewer
-                  ? `${review.reviewer.firstName || ""} ${review.reviewer.lastName || ""}`.trim()
-                  : review?.reviewType || "Reviewer",
+                reviewer:
+                  getFullName(review?.reviewer, review?.reviewType || "Reviewer"),
                 reviewDate: review?.createdAt || "",
                 comments: review?.comments || "",
               };
@@ -673,7 +669,7 @@ export default function ReportsPage() {
   const attendanceRate = totalEmployees > 0 ? ((activeEmployees / totalEmployees) * 100).toFixed(1) : '0';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-background">
       <div className="container mx-auto p-6">
         <motion.div initial="hidden" animate="visible" variants={containerVariants} className="space-y-6">
           
@@ -933,8 +929,8 @@ export default function ReportsPage() {
                       <Card className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardContent className="p-6">
                           <div className="flex items-center space-x-3 mb-4">
-                            <div className="p-2 bg-blue-100 rounded-lg">
-                              <Clock className="w-6 h-6 text-blue-600" />
+                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                              <Clock className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                             </div>
                             <div>
                               <h3 className="font-semibold">Attendance Report</h3>
@@ -971,8 +967,8 @@ export default function ReportsPage() {
                       <Card className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardContent className="p-6">
                           <div className="flex items-center space-x-3 mb-4">
-                            <div className="p-2 bg-green-100 rounded-lg">
-                              <Users className="w-6 h-6 text-green-600" />
+                            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                              <Users className="w-6 h-6 text-green-600 dark:text-green-400" />
                             </div>
                             <div>
                               <h3 className="font-semibold">Employee Report</h3>
@@ -1009,8 +1005,8 @@ export default function ReportsPage() {
                       <Card className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardContent className="p-6">
                           <div className="flex items-center space-x-3 mb-4">
-                            <div className="p-2 bg-orange-100 rounded-lg">
-                              <Calendar className="w-6 h-6 text-orange-600" />
+                            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                              <Calendar className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                             </div>
                             <div>
                               <h3 className="font-semibold">Leave Report</h3>
@@ -1045,8 +1041,8 @@ export default function ReportsPage() {
                       <Card className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardContent className="p-6">
                           <div className="flex items-center space-x-3 mb-4">
-                            <div className="p-2 bg-purple-100 rounded-lg">
-                              <TrendingUp className="w-6 h-6 text-purple-600" />
+                            <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                              <TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                             </div>
                             <div>
                               <h3 className="font-semibold">Payroll Report</h3>
@@ -1081,8 +1077,8 @@ export default function ReportsPage() {
                       <Card className="cursor-pointer hover:shadow-md transition-shadow">
                         <CardContent className="p-6">
                           <div className="flex items-center space-x-3 mb-4">
-                            <div className="p-2 bg-red-100 rounded-lg">
-                              <BarChart3 className="w-6 h-6 text-red-600" />
+                            <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                              <BarChart3 className="w-6 h-6 text-red-600 dark:text-red-400" />
                             </div>
                             <div>
                               <h3 className="font-semibold">Performance Report</h3>
@@ -1118,7 +1114,7 @@ export default function ReportsPage() {
                         <CardContent className="p-6">
                           <div className="flex items-center space-x-3 mb-4">
                             <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                              <FileText className="w-6 h-6 text-gray-600" />
+                              <FileText className="w-6 h-6 text-gray-600 dark:text-gray-300" />
                             </div>
                             <div>
                               <h3 className="font-semibold">Custom Report</h3>
@@ -1204,18 +1200,18 @@ export default function ReportsPage() {
                         <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                           <div className="flex items-center space-x-4">
                             <div className={`p-2 rounded-lg ${
-                              download.type === 'attendance' ? 'bg-blue-100' :
-                              download.type === 'employee' ? 'bg-green-100' :
-                              download.type === 'payroll' ? 'bg-purple-100' :
-                              download.type === 'leave' ? 'bg-orange-100' :
-                              'bg-red-100'
+                              download.type === 'attendance' ? 'bg-blue-100 dark:bg-blue-900/30' :
+                              download.type === 'employee' ? 'bg-green-100 dark:bg-green-900/30' :
+                              download.type === 'payroll' ? 'bg-purple-100 dark:bg-purple-900/30' :
+                              download.type === 'leave' ? 'bg-orange-100 dark:bg-orange-900/30' :
+                              'bg-red-100 dark:bg-red-900/30'
                             }`}>
                               <FileText className={`w-5 h-5 ${
-                                download.type === 'attendance' ? 'text-blue-600' :
-                                download.type === 'employee' ? 'text-green-600' :
-                                download.type === 'payroll' ? 'text-purple-600' :
-                                download.type === 'leave' ? 'text-orange-600' :
-                                'text-red-600'
+                                download.type === 'attendance' ? 'text-blue-600 dark:text-blue-400' :
+                                download.type === 'employee' ? 'text-green-600 dark:text-green-400' :
+                                download.type === 'payroll' ? 'text-purple-600 dark:text-purple-400' :
+                                download.type === 'leave' ? 'text-orange-600 dark:text-orange-400' :
+                                'text-red-600 dark:text-red-400'
                               }`} />
                             </div>
                             <div>

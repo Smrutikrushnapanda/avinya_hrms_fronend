@@ -150,6 +150,7 @@ interface Post {
   authorId?: string;
   author?: {
     firstName?: string;
+    middleName?: string;
     lastName?: string;
     avatar?: string;
   };
@@ -460,7 +461,7 @@ export default function PostsPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-semibold">
-                              {post.author?.firstName} {post.author?.lastName}
+                              {[post.author?.firstName, post.author?.middleName, post.author?.lastName].filter(Boolean).join(" ")}
                             </span>
                             {post.isPinned && (
                               <Pin className="h-4 w-4 text-yellow-500" />

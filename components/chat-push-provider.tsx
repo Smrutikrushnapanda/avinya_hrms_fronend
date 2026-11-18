@@ -15,7 +15,7 @@ type IncomingChatMessage = {
   senderId?: string;
   text?: string;
   attachments?: unknown[];
-  sender?: { firstName?: string; lastName?: string };
+  sender?: { firstName?: string; middleName?: string; lastName?: string };
 };
 
 function buildChatUrl(pathname: string, conversationId: string, senderName: string) {

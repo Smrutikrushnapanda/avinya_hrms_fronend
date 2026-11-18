@@ -31,7 +31,7 @@ export const exportEmployeeReport = (employees: any[]) => {
   const rows = employees.map(emp => ({
     'Employee ID': emp.id || '',
     'Employee Code': emp.employeeCode || '',
-    'Full Name': `${emp.firstName || ''} ${emp.lastName || ''}`.trim(),
+    'Full Name': getFullName(emp, ''),
     'Department': emp.department?.name || 'Not Assigned',
     'Designation': emp.designation?.name || 'Not Assigned',
     'Email': emp.workEmail || '',

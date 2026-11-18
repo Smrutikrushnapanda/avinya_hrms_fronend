@@ -92,6 +92,7 @@ interface WfhRequest {
   createdAt: string;
   user?: {
     firstName: string;
+    middleName?: string;
     lastName: string;
   };
 }
@@ -100,6 +101,7 @@ interface Employee {
   id: string;
   userId: string;
   firstName: string;
+  middleName?: string;
   lastName: string;
   workEmail?: string;
   employeeCode?: string;
@@ -813,7 +815,7 @@ export default function WfhManagementPage() {
   // identity, which is often left at its account-creation default. -------
   const getEmployeeName = (
     userId?: string,
-    fallbackUser?: { firstName: string; lastName: string } | null
+    fallbackUser?: { firstName: string; middleName?: string; lastName: string } | null
   ): string => {
     const emp = userId ? employees.find((e) => e.userId === userId) : undefined;
     if (emp) {
@@ -821,7 +823,7 @@ export default function WfhManagementPage() {
       if (name) return name;
     }
     if (fallbackUser) {
-      const name = `${fallbackUser.firstName || ""} ${fallbackUser.lastName || ""}`.trim();
+      const name = [fallbackUser.firstName, fallbackUser.middleName, fallbackUser.lastName].filter(Boolean).join(" ").trim();
       if (name) return name;
     }
     return "Unknown";
@@ -1785,7 +1787,7 @@ export default function WfhManagementPage() {
             <DialogDescription>
               Set the work arrangement for{" "}
               <span className="font-medium text-foreground">
-                {arrangementTarget?.firstName} {arrangementTarget?.lastName || ""}
+                {[arrangementTarget?.firstName, arrangementTarget?.middleName, arrangementTarget?.lastName].filter(Boolean).join(" ")}
               </span>
               .
             </DialogDescription>

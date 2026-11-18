@@ -1207,6 +1207,11 @@ export const getAllReviewsAggregated = () => api.get('/performance/reviews/all-a
 export const createExpense = (userId: string, data: any) => api.post(`/expenses/${userId}`, data);
 export const getMyExpenses = (userId: string) => api.get(`/expenses/my/${userId}`);
 export const getAllExpenses = (organizationId: string) => api.get('/expenses/all', { params: { organizationId } });
+export const exportExpensesExcel = (organizationId: string, status?: string) =>
+  api.get('/expenses/export', {
+    params: { organizationId, status },
+    responseType: 'blob',
+  });
 export const updateExpenseStatus = (id: string, data: { status: string; adminRemarks?: string }) =>
   api.put(`/expenses/${id}/status`, data);
 export const deleteExpense = (id: string, userId: string) => api.delete(`/expenses/${id}/${userId}`);

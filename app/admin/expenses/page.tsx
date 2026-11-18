@@ -6,15 +6,15 @@ import {
   Check,
   X,
   ExternalLink,
-  Filter,
   RefreshCw,
   FileText,
-  Search,
+  FileSpreadsheet,
+  Loader2,
 } from "lucide-react";
+import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -32,24 +32,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataTable } from "@/components/ui/data-table";
 import { toast } from "sonner";
-import { getProfile, getAllExpenses, updateExpenseStatus } from "@/app/api/api";
+import {
+  getProfile,
+  getAllExpenses,
+  updateExpenseStatus,
+  exportExpensesExcel,
+} from "@/app/api/api";
 import { format } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -57,7 +48,7 @@ import { format } from "date-fns";
 interface Expense {
   id: string;
   userId: string;
-  user?: { id: string; firstName?: string; lastName?: string; email?: string };
+  user?: { id: string; firstName?: string; middleName?: string; lastName?: string; email?: string };
   category: string;
   projectName?: string | null;
   title: string;
@@ -69,6 +60,13 @@ interface Expense {
   status: string;
   adminRemarks?: string | null;
   createdAt: string;
+}
+
+interface TableState {
+  page: number;
+  pageSize: number;
+  search: string;
+  sorting: any;
 }
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -98,7 +96,7 @@ function StatusBadge({ status }: { status?: string }) {
 
 function employeeName(exp: Expense): string {
   if (exp.user) {
-    const parts = [exp.user.firstName, exp.user.lastName].filter(Boolean);
+    const parts = [exp.user.firstName, exp.user.middleName, exp.user.lastName].filter(Boolean);
     if (parts.length) return parts.join(" ");
     return exp.user.email || "Employee";
   }
@@ -113,9 +111,16 @@ export default function AdminExpensesPage() {
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expensesLoading, setExpensesLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+
+  const [tableState, setTableState] = useState<TableState>({
+    page: 0,
+    pageSize: 10,
+    search: "",
+    sorting: [],
+  });
 
   // Action dialog
   const [actionDialog, setActionDialog] = useState<{
@@ -161,31 +166,78 @@ export default function AdminExpensesPage() {
     if (profile) fetchExpenses();
   }, [profile, fetchExpenses]);
 
-  // ─── Filter ─────────────────────────────────────────────────────────────
+  // ─── Reset pagination on tab change ─────────────────────────────────────
 
-  const filtered = useMemo(() => {
-    let list = expenses;
-    if (activeTab !== "all") {
-      list = list.filter((e) => e.status?.toLowerCase() === activeTab);
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (e) =>
-          e.title.toLowerCase().includes(q) ||
-          e.category.toLowerCase().includes(q) ||
-          employeeName(e).toLowerCase().includes(q) ||
-          (e.projectName || "").toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [expenses, activeTab, search]);
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setTableState((prev) => ({ ...prev, page: 0 }));
+  };
 
   // ─── Summary ────────────────────────────────────────────────────────────
 
-  const pending = expenses.filter((e) => e.status === "PENDING").length;
-  const approved = expenses.filter((e) => e.status === "APPROVED").length;
-  const rejected = expenses.filter((e) => e.status === "REJECTED").length;
+  const pending = expenses.filter((e) => e.status?.toUpperCase() === "PENDING").length;
+  const approved = expenses.filter((e) => e.status?.toUpperCase() === "APPROVED").length;
+  const rejected = expenses.filter((e) => e.status?.toUpperCase() === "REJECTED").length;
+
+  // ─── Filter, Search & Sort for DataTable ────────────────────────────────
+
+  const tabFiltered = useMemo(() => {
+    if (activeTab === "all") return expenses;
+    return expenses.filter(
+      (e) => e.status?.toLowerCase() === activeTab.toLowerCase()
+    );
+  }, [expenses, activeTab]);
+
+  const searched = useMemo(() => {
+    const q = tableState.search.trim().toLowerCase();
+    if (!q) return tabFiltered;
+    return tabFiltered.filter(
+      (e) =>
+        e.title?.toLowerCase().includes(q) ||
+        e.category?.toLowerCase().includes(q) ||
+        employeeName(e).toLowerCase().includes(q) ||
+        (e.projectName || "").toLowerCase().includes(q) ||
+        e.expenseType?.toLowerCase().includes(q) ||
+        e.user?.email?.toLowerCase().includes(q)
+    );
+  }, [tabFiltered, tableState.search]);
+
+  const sorted = useMemo(() => {
+    if (!Array.isArray(tableState.sorting) || tableState.sorting.length === 0) {
+      return searched;
+    }
+    const { id, desc } = tableState.sorting[0];
+    const copy = [...searched];
+    copy.sort((a, b) => {
+      let valA: any = "";
+      let valB: any = "";
+
+      if (id === "employee") {
+        valA = employeeName(a).toLowerCase();
+        valB = employeeName(b).toLowerCase();
+      } else if (id === "amount") {
+        valA = Number(a.amount) || 0;
+        valB = Number(b.amount) || 0;
+      } else if (id === "expenseDate") {
+        valA = new Date(a.expenseDate || 0).getTime();
+        valB = new Date(b.expenseDate || 0).getTime();
+      } else {
+        valA = String((a as any)[id] || "").toLowerCase();
+        valB = String((b as any)[id] || "").toLowerCase();
+      }
+
+      if (valA < valB) return desc ? 1 : -1;
+      if (valA > valB) return desc ? -1 : 1;
+      return 0;
+    });
+    return copy;
+  }, [searched, tableState.sorting]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / tableState.pageSize));
+  const pageData = useMemo(() => {
+    const start = tableState.page * tableState.pageSize;
+    return sorted.slice(start, start + tableState.pageSize);
+  }, [sorted, tableState.page, tableState.pageSize]);
 
   // ─── Approve / Reject ───────────────────────────────────────────────────
 
@@ -216,6 +268,221 @@ export default function AdminExpensesPage() {
     }
   };
 
+  // ─── Export Excel (Serverside per Tab) ───────────────────────────────────
+
+  const handleExportExcel = async () => {
+    if (!profile?.organizationId) return;
+    setExporting(true);
+    try {
+      const res = await exportExpensesExcel(profile.organizationId, activeTab);
+
+      let filename = `Expense_Claims_${activeTab}_${format(
+        new Date(),
+        "yyyyMMdd_HHmm"
+      )}.xlsx`;
+      const disposition = res.headers?.["content-disposition"];
+      if (disposition) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success(
+        `Exported ${activeTab.toUpperCase()} expense claims to Excel`
+      );
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message || "Failed to export expenses to Excel"
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ─── Column Definitions ─────────────────────────────────────────────────
+
+  const columns = useMemo<ColumnDef<Expense>[]>(
+    () => [
+      {
+        id: "employee",
+        header: "Employee",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <div>
+            <p className="font-medium">{employeeName(row.original)}</p>
+            {row.original.user?.email && (
+              <p className="text-xs text-muted-foreground">
+                {row.original.user.email}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "title",
+        accessorKey: "title",
+        header: "Title",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span
+            className="font-medium max-w-[180px] truncate block"
+            title={row.original.title}
+          >
+            {row.original.title}
+          </span>
+        ),
+      },
+      {
+        id: "category",
+        accessorKey: "category",
+        header: "Category",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <Badge variant="outline" className="text-xs">
+            {row.original.category}
+          </Badge>
+        ),
+      },
+      {
+        id: "expenseType",
+        accessorKey: "expenseType",
+        header: "Type",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.expenseType}</span>
+        ),
+      },
+      {
+        id: "projectName",
+        accessorKey: "projectName",
+        header: "Project",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">
+            {row.original.projectName || "-"}
+          </span>
+        ),
+      },
+      {
+        id: "expenseDate",
+        accessorKey: "expenseDate",
+        header: "Date",
+        enableSorting: true,
+        cell: ({ row }) => {
+          try {
+            return format(new Date(row.original.expenseDate), "dd MMM yyyy");
+          } catch {
+            return "-";
+          }
+        },
+      },
+      {
+        id: "amount",
+        accessorKey: "amount",
+        header: "Amount",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <span className="font-semibold">
+            {row.original.currency} {Number(row.original.amount).toLocaleString()}
+          </span>
+        ),
+      },
+      {
+        id: "receiptUrl",
+        header: "Receipt",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.receiptUrl ? (
+            <a
+              href={row.original.receiptUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-blue-600 hover:underline text-sm"
+            >
+              View <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : (
+            <span className="text-muted-foreground text-sm">None</span>
+          ),
+      },
+      {
+        id: "status",
+        accessorKey: "status",
+        header: "Status",
+        enableSorting: true,
+        cell: ({ row }) => (
+          <div>
+            <StatusBadge status={row.original.status} />
+            {row.original.adminRemarks && (
+              <p
+                className="text-xs text-muted-foreground mt-1 max-w-[130px] truncate"
+                title={row.original.adminRemarks}
+              >
+                {row.original.adminRemarks}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.status === "PENDING" ? (
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => openAction(row.original, "approve")}
+                className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                title="Approve"
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => openAction(row.original, "reject")}
+                className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                title="Reject"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">Done</span>
+          ),
+      },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const columnLabels = {
+    employee: "Employee",
+    title: "Title",
+    category: "Category",
+    expenseType: "Type",
+    projectName: "Project",
+    expenseDate: "Date",
+    amount: "Amount",
+    receiptUrl: "Receipt",
+    status: "Status",
+    actions: "Actions",
+  };
+
   // ─── Render ─────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -223,7 +490,9 @@ export default function AdminExpensesPage() {
       <div className="p-6 space-y-6">
         <Skeleton className="h-10 w-48" />
         <div className="grid grid-cols-3 gap-4">
-          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
         </div>
         <Skeleton className="h-64 w-full" />
       </div>
@@ -233,7 +502,7 @@ export default function AdminExpensesPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <Receipt className="h-7 w-7 text-primary" />
           <div>
@@ -243,9 +512,32 @@ export default function AdminExpensesPage() {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchExpenses} title="Refresh">
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExportExcel}
+            disabled={exporting || expensesLoading}
+            className="gap-2"
+          >
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            )}
+            <span>{exporting ? "Exporting..." : "Export Excel"}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={fetchExpenses}
+            title="Refresh"
+            disabled={expensesLoading}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${expensesLoading ? "animate-spin" : ""}`}
+            />
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -273,23 +565,14 @@ export default function AdminExpensesPage() {
                 <FileText className="h-5 w-5" />
                 All Expense Claims
               </CardTitle>
-              <CardDescription>Review, approve or reject employee expenses</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search..."
-                  className="pl-8 w-48"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
+              <CardDescription>
+                Review, approve or reject employee expenses
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList className="mb-4">
               <TabsTrigger value="all">All ({expenses.length})</TabsTrigger>
               <TabsTrigger value="pending">Pending ({pending})</TabsTrigger>
@@ -304,112 +587,15 @@ export default function AdminExpensesPage() {
                     <Skeleton key={i} className="h-12 w-full" />
                   ))}
                 </div>
-              ) : filtered.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  No expenses found
-                </div>
               ) : (
-                <div className="rounded-md border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Sl#</TableHead>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Project</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Receipt</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filtered.map((exp, index) => (
-                        <TableRow key={exp.id}>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
-                          <TableCell className="font-medium">
-                            {employeeName(exp)}
-                          </TableCell>
-                          <TableCell className="max-w-[160px] truncate" title={exp.title}>
-                            {exp.title}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {exp.category}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm">{exp.expenseType}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {exp.projectName || "-"}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {(() => {
-                              try {
-                                return format(new Date(exp.expenseDate), "dd MMM yyyy");
-                              } catch {
-                                return "-";
-                              }
-                            })()}
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            {exp.currency} {Number(exp.amount).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            {exp.receiptUrl ? (
-                              <a
-                                href={exp.receiptUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-blue-600 hover:underline text-sm"
-                              >
-                                View <ExternalLink className="h-3 w-3" />
-                              </a>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">None</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={exp.status} />
-                            {exp.adminRemarks && (
-                              <p className="text-xs text-muted-foreground mt-1 max-w-[120px] truncate" title={exp.adminRemarks}>
-                                {exp.adminRemarks}
-                              </p>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {exp.status === "PENDING" ? (
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => openAction(exp, "approve")}
-                                  className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  title="Approve"
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => openAction(exp, "reject")}
-                                  className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                  title="Reject"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">Done</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <DataTable
+                  columns={columns}
+                  data={pageData}
+                  pageCount={pageCount}
+                  state={tableState}
+                  setState={setTableState}
+                  columnLabels={columnLabels}
+                />
               )}
             </TabsContent>
           </Tabs>
@@ -446,8 +632,8 @@ export default function AdminExpensesPage() {
               </DialogTitle>
               {actionDialog.expense && (
                 <DialogDescription>
-                  {employeeName(actionDialog.expense)} — {actionDialog.expense.title} (
-                  {actionDialog.expense.currency}{" "}
+                  {employeeName(actionDialog.expense)} —{" "}
+                  {actionDialog.expense.title} ({actionDialog.expense.currency}{" "}
                   {Number(actionDialog.expense.amount).toLocaleString()})
                 </DialogDescription>
               )}

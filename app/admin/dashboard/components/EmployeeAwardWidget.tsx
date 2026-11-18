@@ -3,153 +3,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, Clock, UserCheck, TrendingUp, Star, RefreshCw } from "lucide-react";
+import { Trophy, Clock, UserCheck, TrendingUp, ClipboardCheck } from "lucide-react";
 import { getAttendanceReport2, getAttendanceSettings, getEmployees } from "@/app/api/api";
-import { getMinutesOfDayInZone } from "@/utils/timezone";
-import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
+import {
+  computeScore,
+  countExpectedTimesheetDays,
+  fetchTimesheetDaysByEmployeeId,
+  getOnTimeCutoffMinutes,
+  LEADERBOARD_WEIGHT_LABELS,
+  LEADERBOARD_WEIGHT_LABELS_WITHOUT_TIMESHEETS,
+  type LeaderboardAttendanceRow,
+  type ScoredEmployee,
+} from "@/lib/leaderboard";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface DailyRecord {
-  date: string;
-  status: string;
-  inTime?: string;
-  outTime?: string;
-  workingHours?: number;
-  isHoliday?: boolean;
-  isSunday?: boolean;
-}
-
-interface EmployeeReportRow {
-  userId: string;
-  userName: string;
-  email?: string;
-  employeeCode?: string;
-  presentDays: number;
-  absentDays: number;
-  halfDays: number;
-  onLeaveDays: number;
-  totalWorkingDays: number;
-  attendancePercentage: number;
-  totalWorkingHours: number;
-  averageWorkingHours: number;
-  dailyRecords?: DailyRecord[];
-}
-
-export interface ScoredEmployee {
-  rank: number;
-  userId: string;
-  name: string;
-  email?: string;
-  score: number;
-  attendancePct: number;
-  avgHours: number;
-  onTimePct: number;
-  presentDays: number;
-  totalWorkingDays: number;
-}
-
-// ─── Scoring ─────────────────────────────────────────────────────────────────
-function normalizeAttendanceStatus(status: unknown): string {
-  return String(status ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, "-");
-}
-
-function parseShiftTimeToMinutes(timeStr?: string | null): number | null {
-  if (!timeStr || typeof timeStr !== "string") return null;
-  const [hRaw, mRaw] = timeStr.trim().split(":");
-  const h = Number(hRaw);
-  const m = Number(mRaw ?? 0);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return h * 60 + m;
-}
-
-function getOnTimeCutoffMinutes(settings?: {
-  workStartTime?: string;
-  graceMinutes?: number;
-  lateThresholdMinutes?: number;
-} | null): number | null {
-  const startMinutes = parseShiftTimeToMinutes(settings?.workStartTime);
-  if (startMinutes === null) return null;
-  const allowanceRaw = Number(settings?.graceMinutes ?? settings?.lateThresholdMinutes ?? 0);
-  const allowance = Number.isFinite(allowanceRaw) ? Math.max(0, Math.floor(allowanceRaw)) : 0;
-  return startMinutes + allowance;
-}
-
-function parseTimeToMinutes(timeStr?: string): number | null {
-  if (!timeStr) return null;
-  // Handles "09:15 AM", "09:15", "2026-03-08T03:45:00.000Z"
-  try {
-    if (timeStr.includes("T")) {
-      // ISO string – convert to the organization business timezone
-      const d = new Date(timeStr);
-      const tz = useOrganizationTimezoneStore.getState().timezone;
-      return getMinutesOfDayInZone(d, tz);
-    }
-    // "HH:MM AM/PM" or "HH:MM"
-    const clean = timeStr.trim();
-    const isPM = clean.toUpperCase().includes("PM");
-    const isAM = clean.toUpperCase().includes("AM");
-    const parts = clean.replace(/AM|PM/gi, "").trim().split(":");
-    let h = parseInt(parts[0], 10);
-    const m = parseInt(parts[1] || "0", 10);
-    if (isPM && h !== 12) h += 12;
-    if (isAM && h === 12) h = 0;
-    return h * 60 + m;
-  } catch {
-    return null;
-  }
-}
-
-function computeScore(row: EmployeeReportRow, onTimeCutoffMinutes: number | null): ScoredEmployee {
-  const attendancePct = Math.min(row.attendancePercentage ?? 0, 100);
-
-  // Normalise avg hours: assume 9h = 100%, cap at 12h
-  const avgHours = row.averageWorkingHours ?? 0;
-  const hoursScore = Math.min((avgHours / 9) * 100, 100);
-
-  // On-time rate from daily records
-  let onTimeDays = 0;
-  let checkedDays = 0;
-  if (Array.isArray(row.dailyRecords)) {
-    for (const rec of row.dailyRecords) {
-      if (rec.isHoliday || rec.isSunday) continue;
-      const normalizedStatus = normalizeAttendanceStatus(rec.status);
-      const isCountable =
-        normalizedStatus === "present" ||
-        normalizedStatus === "half-day" ||
-        normalizedStatus === "late";
-      if (!isCountable) continue;
-      checkedDays++;
-      if (normalizedStatus === "late") continue;
-      if (onTimeCutoffMinutes === null) {
-        onTimeDays++;
-        continue;
-      }
-      const mins = parseTimeToMinutes(rec.inTime);
-      if (mins === null || mins <= onTimeCutoffMinutes) onTimeDays++;
-    }
-  }
-  const onTimePct = checkedDays > 0 ? (onTimeDays / checkedDays) * 100 : 0;
-
-  const score =
-    attendancePct * 0.4 + hoursScore * 0.35 + onTimePct * 0.25;
-
-  return {
-    rank: 0,
-    userId: row.userId,
-    name: row.userName ?? "Unknown",
-    email: row.email,
-    score: Math.round(score * 10) / 10,
-    attendancePct: Math.round(attendancePct),
-    avgHours: Math.round(avgHours * 10) / 10,
-    onTimePct: Math.round(onTimePct),
-    presentDays: row.presentDays ?? 0,
-    totalWorkingDays: row.totalWorkingDays ?? 0,
-  };
-}
+export type { ScoredEmployee };
 
 // ─── Rank Styling ─────────────────────────────────────────────────────────────
 
@@ -273,7 +140,7 @@ function EmployeeCard({ emp, animDelay }: { emp: ScoredEmployee; animDelay: numb
             </Badge>
           </div>
 
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground mb-1">
             <span className="flex items-center gap-0.5">
               <UserCheck className="w-2.5 h-2.5" />
               {emp.presentDays}/{emp.totalWorkingDays}d
@@ -285,6 +152,13 @@ function EmployeeCard({ emp, animDelay }: { emp: ScoredEmployee; animDelay: numb
             <span className="flex items-center gap-0.5">
               <TrendingUp className="w-2.5 h-2.5" />
               {emp.onTimePct}%
+            </span>
+            <span
+              className="flex items-center gap-0.5"
+              title={`Timesheets: ${emp.timesheetDays}/${emp.expectedTimesheetDays} worked days`}
+            >
+              <ClipboardCheck className="w-2.5 h-2.5" />
+              {emp.timesheetPct}%
             </span>
           </div>
 
@@ -329,6 +203,7 @@ interface EmployeeAwardWidgetProps {
 export default function EmployeeAwardWidget({ organizationId }: EmployeeAwardWidgetProps) {
   const [leaderboard, setLeaderboard] = useState<ScoredEmployee[]>([]);
   const [loading, setLoading] = useState(true);
+  const [includesTimesheets, setIncludesTimesheets] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [month] = useState(() => new Date().getMonth() + 1);
   const [year] = useState(() => new Date().getFullYear());
@@ -337,13 +212,14 @@ export default function EmployeeAwardWidget({ organizationId }: EmployeeAwardWid
     if (!organizationId) return;
     try {
       // Fetch employees list to filter out admin-only users
-      const [reportRes, empRes, settingsRes] = await Promise.allSettled([
+      const [reportRes, empRes, settingsRes, timesheetRes] = await Promise.allSettled([
         getAttendanceReport2({ organizationId, year, month, userIds: "ALL" }),
         getEmployees(organizationId),
         getAttendanceSettings(organizationId),
+        fetchTimesheetDaysByEmployeeId(organizationId, year, month),
       ]);
 
-      const rawData: EmployeeReportRow[] =
+      const rawData: LeaderboardAttendanceRow[] =
         reportRes.status === "fulfilled"
           ? (reportRes.value.data?.reportData ?? reportRes.value.data ?? [])
           : [];
@@ -351,18 +227,28 @@ export default function EmployeeAwardWidget({ organizationId }: EmployeeAwardWid
         settingsRes.status === "fulfilled"
           ? getOnTimeCutoffMinutes(settingsRes.value.data)
           : null;
+      // null => timesheet API unavailable, empty => module unused; both keep attendance-only scoring
+      const timesheetDaysByEmployeeId =
+        timesheetRes.status === "fulfilled" ? timesheetRes.value : null;
+      const hasTimesheetData = Boolean(timesheetDaysByEmployeeId && timesheetDaysByEmployeeId.size > 0);
+      setIncludesTimesheets(hasTimesheetData);
 
       if (!Array.isArray(rawData) || rawData.length === 0) {
         setLeaderboard([]);
         return;
       }
 
-      // Build a Set of employee userIds (excludes pure-admin accounts)
+      // Build userId sets / employeeId → userId map (excludes pure-admin accounts)
       const employeeUserIds = new Set<string>();
+      const employeeIdByUserId = new Map<string, string>();
       if (empRes.status === "fulfilled") {
         const empList: any[] = empRes.value.data?.employees ?? empRes.value.data ?? [];
         for (const e of empList) {
-          if (e.userId || e.user?.id) employeeUserIds.add(e.userId ?? e.user?.id);
+          const userId = e.userId ?? e.user?.id;
+          if (!userId) continue;
+          employeeUserIds.add(userId);
+          const employeeId = e.id ?? e.employeeId;
+          if (employeeId) employeeIdByUserId.set(userId, employeeId);
         }
       }
 
@@ -373,7 +259,23 @@ export default function EmployeeAwardWidget({ organizationId }: EmployeeAwardWid
           if (employeeUserIds.size > 0 && !employeeUserIds.has(row.userId)) return false;
           return true;
         })
-        .map((row) => computeScore(row, onTimeCutoffMinutes))
+        .map((row) => {
+          const employeeId = employeeIdByUserId.get(row.userId);
+          const submittedDays =
+            timesheetDaysByEmployeeId && employeeId
+              ? timesheetDaysByEmployeeId.get(employeeId) ?? 0
+              : 0;
+          return computeScore(
+            row,
+            onTimeCutoffMinutes,
+            hasTimesheetData
+              ? {
+                  submittedDays,
+                  expectedDays: countExpectedTimesheetDays(row.dailyRecords, year, month),
+                }
+              : null,
+          );
+        })
         .sort((a, b) => b.score - a.score)
         .slice(0, 4)
         .map((emp, i) => ({ ...emp, rank: i + 1 }));
@@ -432,6 +334,14 @@ export default function EmployeeAwardWidget({ organizationId }: EmployeeAwardWid
           ))
         )}
         </div>
+        {!loading && leaderboard.length > 0 && (
+          <p className="text-center text-[10px] text-muted-foreground pt-2">
+            Score ={" "}
+            {includesTimesheets
+              ? LEADERBOARD_WEIGHT_LABELS
+              : LEADERBOARD_WEIGHT_LABELS_WITHOUT_TIMESHEETS}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

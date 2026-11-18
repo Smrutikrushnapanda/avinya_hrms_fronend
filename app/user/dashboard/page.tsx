@@ -15,6 +15,7 @@ import {
   X,
   Star,
   Sparkles,
+  ClipboardCheck,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -27,8 +28,15 @@ import AttendanceStatus from "@/components/AttendanceStatus";
 import { usePlanAccess } from "@/components/plan-access-provider";
 import AssetAcknowledgementModal from "@/components/AssetAcknowledgementModal";
 import { toast } from "sonner";
-import { getMinutesOfDayInZone } from "@/utils/timezone";
-import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
+import {
+  computeScore,
+  countExpectedTimesheetDays,
+  fetchTimesheetDaysByEmployeeId,
+  getOnTimeCutoffMinutes,
+  LEADERBOARD_WEIGHT_LABELS,
+  LEADERBOARD_WEIGHT_LABELS_WITHOUT_TIMESHEETS,
+  type ScoredEmployee,
+} from "@/lib/leaderboard";
 import {
   getProfile,
   getDashboardStats,
@@ -55,106 +63,6 @@ function getGreeting(): string {
 }
 
 // ─── LEADERBOARD SCORING ──────────────────────────────────────────────────────
-
-interface ScoredEmployee {
-  rank: number;
-  userId: string;
-  name: string;
-  score: number;
-  attendancePct: number;
-  avgHours: number;
-  onTimePct: number;
-  presentDays: number;
-  totalWorkingDays: number;
-}
-
-function parseTimeToMinutes(timeStr?: string): number | null {
-  if (!timeStr) return null;
-  try {
-    if (timeStr.includes("T")) {
-      const d = new Date(timeStr);
-      // Use the authenticated organization's business timezone (not hardcoded IST).
-      const tz = useOrganizationTimezoneStore.getState().timezone;
-      return getMinutesOfDayInZone(d, tz);
-    }
-    const clean = timeStr.trim();
-    const isPM = clean.toUpperCase().includes("PM");
-    const isAM = clean.toUpperCase().includes("AM");
-    const parts = clean.replace(/AM|PM/gi, "").trim().split(":");
-    let h = parseInt(parts[0], 10);
-    const m = parseInt(parts[1] || "0", 10);
-    if (isPM && h !== 12) h += 12;
-    if (isAM && h === 12) h = 0;
-    return h * 60 + m;
-  } catch { return null; }
-}
-
-function normalizeAttendanceStatus(status: unknown): string {
-  return String(status ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, "-");
-}
-
-function parseShiftTimeToMinutes(timeStr?: string | null): number | null {
-  if (!timeStr || typeof timeStr !== "string") return null;
-  const [hRaw, mRaw] = timeStr.trim().split(":");
-  const h = Number(hRaw);
-  const m = Number(mRaw ?? 0);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  return h * 60 + m;
-}
-
-function getOnTimeCutoffMinutes(settings?: {
-  workStartTime?: string;
-  graceMinutes?: number;
-  lateThresholdMinutes?: number;
-} | null): number | null {
-  const startMinutes = parseShiftTimeToMinutes(settings?.workStartTime);
-  if (startMinutes === null) return null;
-  const allowanceRaw = Number(settings?.graceMinutes ?? settings?.lateThresholdMinutes ?? 0);
-  const allowance = Number.isFinite(allowanceRaw) ? Math.max(0, Math.floor(allowanceRaw)) : 0;
-  return startMinutes + allowance;
-}
-
-function computeScore(row: any, onTimeCutoffMinutes: number | null): ScoredEmployee {
-  const attendancePct = Math.min(row.attendancePercentage ?? 0, 100);
-  const avgHours = row.averageWorkingHours ?? 0;
-  const hoursScore = Math.min((avgHours / 9) * 100, 100);
-  let onTimeDays = 0, checkedDays = 0;
-  if (Array.isArray(row.dailyRecords)) {
-    for (const rec of row.dailyRecords) {
-      if (rec.isHoliday || rec.isSunday) continue;
-      const normalizedStatus = normalizeAttendanceStatus(rec.status);
-      const isCountable =
-        normalizedStatus === "present" ||
-        normalizedStatus === "half-day" ||
-        normalizedStatus === "late";
-      if (!isCountable) continue;
-      checkedDays++;
-      if (normalizedStatus === "late") continue;
-      if (onTimeCutoffMinutes === null) {
-        onTimeDays++;
-        continue;
-      }
-      const mins = parseTimeToMinutes(rec.inTime);
-      if (mins === null || mins <= onTimeCutoffMinutes) onTimeDays++;
-    }
-  }
-  const onTimePct = checkedDays > 0 ? (onTimeDays / checkedDays) * 100 : 0;
-  const score = attendancePct * 0.4 + hoursScore * 0.35 + onTimePct * 0.25;
-  return {
-    rank: 0,
-    userId: row.userId,
-    name: row.userName ?? "Unknown",
-    score: Math.round(score * 10) / 10,
-    attendancePct: Math.round(attendancePct),
-    avgHours: Math.round(avgHours * 10) / 10,
-    onTimePct: Math.round(onTimePct),
-    presentDays: row.presentDays ?? 0,
-    totalWorkingDays: row.totalWorkingDays ?? 0,
-  };
-}
 
 function getBreakStateFromLogs(logs: any[]): { isOnBreak: boolean; activeBreakSince: string | null } {
   const sorted = [...(logs || [])].sort(
@@ -429,6 +337,7 @@ function HolidayCalendarWidget({
 
 interface UserData {
   firstName?: string;
+  middleName?: string;
   lastName?: string;
   userName?: string;
   email?: string;
@@ -505,6 +414,7 @@ export default function UserDashboardPage() {
   const [leaderboard, setLeaderboard] = useState<ScoredEmployee[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
   const [leaderboardOnTimeCutoffMinutes, setLeaderboardOnTimeCutoffMinutes] = useState<number | null>(null);
+  const [leaderboardIncludesTimesheets, setLeaderboardIncludesTimesheets] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const today = new Date();
   const isLastDayOfMonth = today.getDate() === new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
@@ -789,10 +699,11 @@ export default function UserDashboardPage() {
       const month = now.getMonth() + 1;
       const year = now.getFullYear();
 
-      // Parallel fetch: report data + employees list (to exclude admin-only accounts)
-      const [reportRes, empRes] = await Promise.allSettled([
+      // Parallel fetch: report data + employees list (to exclude admin-only accounts) + timesheet compliance
+      const [reportRes, empRes, timesheetRes] = await Promise.allSettled([
         getAttendanceReport2({ organizationId: orgId, year, month, userIds: "ALL" }),
         getEmployees(orgId),
+        fetchTimesheetDaysByEmployeeId(orgId, year, month),
       ]);
 
       const rawData: any[] =
@@ -802,12 +713,23 @@ export default function UserDashboardPage() {
 
       if (!Array.isArray(rawData) || rawData.length === 0) return;
 
+      // null => timesheet API unavailable, empty => module unused; both keep attendance-only scoring
+      const timesheetDaysByEmployeeId =
+        timesheetRes.status === "fulfilled" ? timesheetRes.value : null;
+      const hasTimesheetData = Boolean(timesheetDaysByEmployeeId && timesheetDaysByEmployeeId.size > 0);
+      setLeaderboardIncludesTimesheets(hasTimesheetData);
+
       // Build Set of employee userIds — excludes pure-admin accounts
       const employeeUserIds = new Set<string>();
+      const employeeIdByUserId = new Map<string, string>();
       if (empRes.status === "fulfilled") {
         const empList: any[] = empRes.value.data?.employees ?? empRes.value.data ?? [];
         for (const e of empList) {
-          if (e.userId || e.user?.id) employeeUserIds.add(e.userId ?? e.user?.id);
+          const empUserId = e.userId ?? e.user?.id;
+          if (!empUserId) continue;
+          employeeUserIds.add(empUserId);
+          const employeeId = e.id ?? e.employeeId;
+          if (employeeId) employeeIdByUserId.set(empUserId, employeeId);
         }
       }
 
@@ -817,7 +739,23 @@ export default function UserDashboardPage() {
           if (employeeUserIds.size > 0 && !employeeUserIds.has(r.userId)) return false;
           return true;
         })
-        .map((r) => computeScore(r, leaderboardOnTimeCutoffMinutes))
+        .map((r) => {
+          const employeeId = employeeIdByUserId.get(r.userId);
+          const submittedDays =
+            timesheetDaysByEmployeeId && employeeId
+              ? timesheetDaysByEmployeeId.get(employeeId) ?? 0
+              : 0;
+          return computeScore(
+            r,
+            leaderboardOnTimeCutoffMinutes,
+            hasTimesheetData
+              ? {
+                  submittedDays,
+                  expectedDays: countExpectedTimesheetDays(r.dailyRecords, year, month),
+                }
+              : null,
+          );
+        })
         .sort((a, b) => b.score - a.score)
         .slice(0, 4)
         .map((emp, i) => ({ ...emp, rank: i + 1 }));
@@ -849,8 +787,8 @@ export default function UserDashboardPage() {
   }, [userData, fetchLeaderboard]);
 
   const getUserName = () => {
-    if (userData?.firstName || userData?.lastName) {
-      return `${userData.firstName || ""} ${userData.lastName || ""}`.trim();
+    if (userData?.firstName || userData?.middleName || userData?.lastName) {
+      return [userData.firstName, userData.middleName, userData.lastName].filter(Boolean).join(" ").trim();
     }
     return userData?.userName || "User";
   };
@@ -1376,16 +1314,22 @@ export default function UserDashboardPage() {
                         <div className="text-[9px] text-muted-foreground">pts</div>
                       </div>
                     </div>
-                    <div className="flex gap-3 mt-1.5 ml-11 text-[10px] text-muted-foreground">
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5 ml-11 text-[10px] text-muted-foreground">
                       <span className="flex items-center gap-0.5"><UserCheck className="w-2.5 h-2.5" />{emp.attendancePct}%</span>
                       <span className="flex items-center gap-0.5"><Clock className="w-2.5 h-2.5" />{emp.avgHours}h</span>
                       <span className="flex items-center gap-0.5"><Star className="w-2.5 h-2.5" />{emp.onTimePct}% on-time</span>
+                      <span
+                        className="flex items-center gap-0.5"
+                        title={`Timesheets: ${emp.timesheetDays}/${emp.expectedTimesheetDays} worked days`}
+                      >
+                        <ClipboardCheck className="w-2.5 h-2.5" />{emp.timesheetPct}% timesheet
+                      </span>
                     </div>
                   </div>
                 );
               })}
               <p className="text-center text-[10px] text-muted-foreground pt-1">
-                Score = Attendance 40% · Hours 35% · On-Time 25%
+                Score = {leaderboardIncludesTimesheets ? LEADERBOARD_WEIGHT_LABELS : LEADERBOARD_WEIGHT_LABELS_WITHOUT_TIMESHEETS}
               </p>
             </div>
           )}

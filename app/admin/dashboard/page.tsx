@@ -419,7 +419,7 @@ const [holidays, setHolidays] = useState<any[]>([]);
       const formattedDate = format(new Date(), "yyyy-MM-dd");
       const results = await Promise.allSettled([
         getDashboardSummary(),
-        getUserActivities({ limit: 10 }),
+        getUserActivities({ limit: 100, organizationId: orgId }),
         getTodayAnomalies(),
         getNotices(),
         getPolls(),
@@ -641,7 +641,9 @@ getHolidays({ organizationId: orgId }),
                             {post.author?.firstName?.[0] || 'A'}
                           </div>
                           <div>
-                            <div className="font-medium">{post.author?.firstName} {post.author?.lastName}</div>
+                            <div className="font-medium">
+                              {[post.author?.firstName, post.author?.middleName, post.author?.lastName].filter(Boolean).join(" ")}
+                            </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">{format(new Date(post.createdAt), 'MMM dd, yyyy HH:mm')}</div>
                           </div>
                         </div>

@@ -52,6 +52,7 @@ interface PayrollRecord {
   salaryPredicateDate?: string | null;
   employee?: {
     firstName: string;
+    middleName?: string;
     lastName?: string;
     employeeCode?: string;
     workEmail?: string;
@@ -136,7 +137,7 @@ export default function PayrollPage() {
   const [savingSettings, setSavingSettings] = useState(false);
 
   const [isBankDialogOpen, setIsBankDialogOpen] = useState(false);
-  const [bankEmployee, setBankEmployee] = useState<{ id: string; firstName: string; lastName?: string } | null>(null);
+  const [bankEmployee, setBankEmployee] = useState<{ id: string; firstName: string; middleName?: string; lastName?: string } | null>(null);
   const [bankForm, setBankForm] = useState({ ...emptyBankForm });
   const [savingBankDetail, setSavingBankDetail] = useState(false);
   const [loadingBankDetail, setLoadingBankDetail] = useState(false);
@@ -553,7 +554,7 @@ export default function PayrollPage() {
                   {records.map((r, index) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">{index + 1}</TableCell>
-                      <TableCell>{r.employee?.firstName} {r.employee?.lastName || ""}</TableCell>
+                      <TableCell>{[r.employee?.firstName, r.employee?.middleName, r.employee?.lastName].filter(Boolean).join(" ") || "—"}</TableCell>
                       <TableCell>{r.employee?.employeeCode || "-"}</TableCell>
                       <TableCell>{formatPayPeriod(r.payPeriod)}</TableCell>
                       <TableCell className="font-semibold">{formatCurrency(r.netPay)}</TableCell>

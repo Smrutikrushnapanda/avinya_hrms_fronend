@@ -85,7 +85,7 @@ interface OfficeTripAttachment {
 interface OfficeTrip {
   id: string;
   userId: string;
-  user?: { id: string; firstName?: string; lastName?: string; email?: string };
+  user?: { id: string; firstName?: string; middleName?: string; lastName?: string; email?: string };
   tripType: string;
   tripTypeOther?: string | null;
   fromDate: string;
@@ -99,7 +99,7 @@ interface OfficeTrip {
   attachments: OfficeTripAttachment[];
   status: string;
   adminRemarks?: string | null;
-  approvedBy?: { id: string; firstName?: string; lastName?: string } | null;
+  approvedBy?: { id: string; firstName?: string; middleName?: string; lastName?: string } | null;
   approvedAt?: string | null;
   createdAt: string;
 }
@@ -131,7 +131,7 @@ function StatusBadge({ status }: { status?: string }) {
 
 function employeeName(trip: OfficeTrip): string {
   if (trip.user) {
-    const parts = [trip.user.firstName, trip.user.lastName].filter(Boolean);
+    const parts = [trip.user.firstName, trip.user.middleName, trip.user.lastName].filter(Boolean);
     if (parts.length) return parts.join(" ");
     return trip.user.email || "Employee";
   }
@@ -215,7 +215,7 @@ export default function AdminOfficeTripsPage() {
         setEmployees(
           data.map((e: any) => ({
             userId: e.userId ?? e.user?.id,
-            name: [e.firstName, e.lastName].filter(Boolean).join(" ") || e.workEmail || "Employee",
+            name: [e.firstName, e.middleName, e.lastName].filter(Boolean).join(" ") || e.workEmail || "Employee",
           }))
         );
       })
@@ -525,7 +525,7 @@ export default function AdminOfficeTripsPage() {
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {trip.approvedBy ? (
                               <>
-                                {[trip.approvedBy.firstName, trip.approvedBy.lastName]
+                                {[trip.approvedBy.firstName, trip.approvedBy.middleName, trip.approvedBy.lastName]
                                   .filter(Boolean)
                                   .join(" ") || "Admin"}
                                 {trip.approvedAt && (
@@ -653,7 +653,7 @@ export default function AdminOfficeTripsPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">Decided By</p>
                     <p>
-                      {[detailTrip.approvedBy.firstName, detailTrip.approvedBy.lastName]
+                      {[detailTrip.approvedBy.firstName, detailTrip.approvedBy.middleName, detailTrip.approvedBy.lastName]
                         .filter(Boolean)
                         .join(" ") || "Admin"}
                       {detailTrip.approvedAt &&

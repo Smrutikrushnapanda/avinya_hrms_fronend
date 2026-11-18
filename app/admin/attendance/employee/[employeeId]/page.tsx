@@ -362,7 +362,8 @@ export default function EmployeeAttendanceDetailPage() {
     }));
     ws["!cols"] = colWidths;
 
-    const fileName = `Attendance_${employee?.firstName || ""}_${employee?.lastName || ""}_${format(currentDate, "MMM_yyyy")}.xlsx`;
+    const namePart = [employee?.firstName, employee?.middleName, employee?.lastName].filter(Boolean).join("_") || "Employee";
+    const fileName = `Attendance_${namePart}_${format(currentDate, "MMM_yyyy")}.xlsx`;
     XLSX.writeFile(wb, fileName);
   };
 
