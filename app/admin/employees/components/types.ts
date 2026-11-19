@@ -227,7 +227,19 @@ export interface EmployeeSettlement {
   remarks?: string | null;
 }
 
+export const EMPLOYEE_DOCUMENT_FIELDS = [
+  "aadharPhotoUrl",
+  "bankProofUrl",
+  "educationCertificateUrl",
+  "panCardPhotoUrl",
+  "passportPhotoUrl",
+  "experienceLetterUrl",
+] as const;
+
+export type EmployeeDocumentField = typeof EMPLOYEE_DOCUMENT_FIELDS[number];
+
 export interface EmployeeFormData {
+  pendingDocuments?: Partial<Record<EmployeeDocumentField, File>>;
   organizationId: string;
   departmentId?: string;
   designationId?: string;

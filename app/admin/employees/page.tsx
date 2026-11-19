@@ -32,6 +32,7 @@ import {
   removeEmployeeProject,
   getProjects,
   getClientProjects,
+  uploadFile,
 } from "@/app/api/api";
 import { exportEmployeesToExcel, ExportFields } from "@/utils/exportToExcel";
 import { format } from "date-fns";
@@ -39,7 +40,7 @@ import EmployeeStats from "./components/EmployeeStats";
 import EmployeeTable from "./components/EmployeeTable";
 import EmployeeDialogs from "./components/EmployeeDialogs";
 import EmployeeDetails from "./components/EmployeeDetails";
-import { Employee, EmployeeFormData, ProjectAssignment } from "./components/types";
+import { Employee, EmployeeDocumentField, EmployeeFormData, EMPLOYEE_DOCUMENT_FIELDS, ProjectAssignment } from "./components/types";
 
 // LiveClock Component
 function LiveClock() {
@@ -624,12 +625,10 @@ export default function EmployeesPage() {
     if (data.aadhaarNumber?.trim())
       cleanData.aadhaarNumber = data.aadhaarNumber.trim().replace(/\s+/g, "");
     if (data.photoUrl?.trim()) cleanData.photoUrl = data.photoUrl.trim();
-    if (data.aadharPhotoUrl?.trim()) cleanData.aadharPhotoUrl = data.aadharPhotoUrl.trim();
-    if (data.panCardPhotoUrl?.trim()) cleanData.panCardPhotoUrl = data.panCardPhotoUrl.trim();
-    if (data.passportPhotoUrl?.trim()) cleanData.passportPhotoUrl = data.passportPhotoUrl.trim();
-    if (data.educationCertificateUrl?.trim()) cleanData.educationCertificateUrl = data.educationCertificateUrl.trim();
-    if (data.experienceLetterUrl?.trim()) cleanData.experienceLetterUrl = data.experienceLetterUrl.trim();
-    if (data.bankProofUrl?.trim()) cleanData.bankProofUrl = data.bankProofUrl.trim();
+    for (const field of EMPLOYEE_DOCUMENT_FIELDS) {
+      if (data[field]?.trim()) cleanData[field] = data[field].trim();
+      else if (!includeCredentials && data[field] !== undefined) cleanData[field] = null;
+    }
     if (data.employmentType?.trim()) cleanData.employmentType = data.employmentType.trim();
     if (data.status) cleanData.status = data.status;
     if (data.bloodGroup?.trim()) cleanData.bloodGroup = data.bloodGroup.trim();
@@ -664,6 +663,27 @@ export default function EmployeesPage() {
     await fetchEmployeeManagementData(true);
   };
 
+  const uploadEmployeeDocuments = async (data: EmployeeFormData, setData: typeof setNewEmployee) => {
+    const urls: Partial<Record<EmployeeDocumentField, string>> = {};
+    for (const field of EMPLOYEE_DOCUMENT_FIELDS) {
+      const file = data.pendingDocuments?.[field];
+      if (!file) continue;
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+      const response = await uploadFile(uploadData, { path: "employees/documents", public: "true" });
+      const url = response.data?.url || response.data?.fileUrl;
+      if (!url) throw new Error(`Upload failed for ${file.name}: no file URL returned`);
+      urls[field] = url;
+      // Retain completed uploads so retrying a failed save does not upload them again.
+      setData((current) => {
+        const pendingDocuments = { ...current.pendingDocuments };
+        delete pendingDocuments[field];
+        return { ...current, [field]: url, pendingDocuments };
+      });
+    }
+    return urls;
+  };
+
   const handleCreateEmployee = async () => {
     const organizationId = userProfile?.organizationId;
     if (!organizationId) {
@@ -695,6 +715,7 @@ export default function EmployeesPage() {
         }
       }
 
+      Object.assign(cleanData, await uploadEmployeeDocuments(formData, setNewEmployee));
       await createEmployee(cleanData);
 
       await logActivity(
@@ -744,6 +765,8 @@ export default function EmployeesPage() {
         }
       }
       
+      Object.assign(cleanData, await uploadEmployeeDocuments(formData, setEditEmployee));
+
       // Check payload size before sending
       const payloadSize = new Blob([JSON.stringify(cleanData)]).size;
       if (payloadSize > 10 * 1024 * 1024) {

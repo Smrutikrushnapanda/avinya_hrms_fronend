@@ -45,8 +45,7 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, parseISO, differenceInDays } from 'date-fns';
-import { uploadFile } from "@/app/api/api";
-import { Employee, EmployeeFormData, ExportFields, ProjectAssignment } from "./types";
+import { Employee, EmployeeDocumentField, EmployeeFormData, ExportFields, ProjectAssignment } from "./types";
 
 interface EmployeeDialogsProps {
   // Create Dialog
@@ -236,15 +235,9 @@ export default function EmployeeDialogs({
     return statusConfig[status as keyof typeof statusConfig] || statusConfig.active;
   };
 
-  const handleDocUpload = async (
+  const handleDocSelection = (
     e: React.ChangeEvent<HTMLInputElement>,
-    field:
-      | "aadharPhotoUrl"
-      | "bankProofUrl"
-      | "educationCertificateUrl"
-      | "panCardPhotoUrl"
-      | "passportPhotoUrl"
-      | "experienceLetterUrl",
+    field: EmployeeDocumentField,
     mode: "new" | "edit"
   ) => {
     const file = e.target.files?.[0] || null;
@@ -260,45 +253,23 @@ export default function EmployeeDialogs({
       return;
     }
 
-    try {
-      setDocUploadError(null);
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await uploadFile(formData, { path: "employees/documents", public: "true" });
-      const url = res.data?.url || res.data?.fileUrl;
-
-      if (!url) {
-        throw new Error("Upload did not return a file URL");
-      }
-
-      if (mode === "new") {
-        setNewEmployee({ ...newEmployee, [field]: url });
-      } else {
-        setEditEmployee({ ...editEmployee, [field]: url });
-      }
-    } catch {
-      e.target.value = "";
-      const msg = "Failed to upload file. Please try again.";
-      setDocUploadError(msg);
-      toast.error(msg);
-    }
+    setDocUploadError(null);
+    const data = mode === "new" ? newEmployee : editEmployee;
+    const setData = mode === "new" ? setNewEmployee : setEditEmployee;
+    setData({ ...data, pendingDocuments: { ...data.pendingDocuments, [field]: file } });
   };
 
   const clearDoc = (
-    field:
-      | "aadharPhotoUrl"
-      | "bankProofUrl"
-      | "educationCertificateUrl"
-      | "panCardPhotoUrl"
-      | "passportPhotoUrl"
-      | "experienceLetterUrl",
+    field: EmployeeDocumentField,
     mode: "new" | "edit"
   ) => {
-    if (mode === "new") {
-      setNewEmployee({ ...newEmployee, [field]: "" });
-    } else {
-      setEditEmployee({ ...editEmployee, [field]: "" });
-    }
+    const data = mode === "new" ? newEmployee : editEmployee;
+    const setData = mode === "new" ? setNewEmployee : setEditEmployee;
+    const pendingDocuments = { ...data.pendingDocuments };
+    delete pendingDocuments[field];
+    setData({ ...data, [field]: "", pendingDocuments });
+    const input = document.getElementById(`${mode}-${field}`) as HTMLInputElement | null;
+    if (input) input.value = "";
   };
 
   // Generate month options for the last 2 years
@@ -323,7 +294,14 @@ export default function EmployeeDialogs({
   return (
     <>
       {/* Create New Employee Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => { setIsCreateDialogOpen(open); if (!open) setDocUploadError(null); }}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+        if (isCreatingEmployee) return;
+        setIsCreateDialogOpen(open);
+        if (!open) {
+          setDocUploadError(null);
+          setNewEmployee({ ...newEmployee, pendingDocuments: undefined });
+        }
+      }}>
         <DialogContent className="sm:max-w-[1200px] max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Employee</DialogTitle>
@@ -331,7 +309,7 @@ export default function EmployeeDialogs({
               Add a new employee with complete details.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-6">
+          <fieldset disabled={isCreatingEmployee} className="grid gap-6">
             {/* Personal Information */}
             <div>
               <h3 className="text-lg font-semibold mb-3 flex items-center">
@@ -863,16 +841,16 @@ export default function EmployeeDialogs({
               <div className="grid gap-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="aadharPhoto">Aadhar Photo</Label>
+                    <Label htmlFor="new-aadharPhotoUrl">Aadhar Photo</Label>
                     <Input
-                      id="aadharPhoto"
+                      id="new-aadharPhotoUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "aadharPhotoUrl", "new")}
+                      onChange={(e) => handleDocSelection(e, "aadharPhotoUrl", "new")}
                     />
-                    {newEmployee.aadharPhotoUrl && (
+                    {(newEmployee.aadharPhotoUrl || newEmployee.pendingDocuments?.aadharPhotoUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{newEmployee.pendingDocuments?.aadharPhotoUrl ? `${newEmployee.pendingDocuments.aadharPhotoUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("aadharPhotoUrl", "new")}>
                           Remove
                         </Button>
@@ -880,16 +858,16 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="bankProof">Bank Proof for Payroll</Label>
+                    <Label htmlFor="new-bankProofUrl">Bank Proof for Payroll</Label>
                     <Input
-                      id="bankProof"
+                      id="new-bankProofUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "bankProofUrl", "new")}
+                      onChange={(e) => handleDocSelection(e, "bankProofUrl", "new")}
                     />
-                    {newEmployee.bankProofUrl && (
+                    {(newEmployee.bankProofUrl || newEmployee.pendingDocuments?.bankProofUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{newEmployee.pendingDocuments?.bankProofUrl ? `${newEmployee.pendingDocuments.bankProofUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("bankProofUrl", "new")}>
                           Remove
                         </Button>
@@ -897,16 +875,16 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="educationCertificate">Highest Educational Qualification Certificates</Label>
+                    <Label htmlFor="new-educationCertificateUrl">Highest Educational Qualification Certificates</Label>
                     <Input
-                      id="educationCertificate"
+                      id="new-educationCertificateUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "educationCertificateUrl", "new")}
+                      onChange={(e) => handleDocSelection(e, "educationCertificateUrl", "new")}
                     />
-                    {newEmployee.educationCertificateUrl && (
+                    {(newEmployee.educationCertificateUrl || newEmployee.pendingDocuments?.educationCertificateUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{newEmployee.pendingDocuments?.educationCertificateUrl ? `${newEmployee.pendingDocuments.educationCertificateUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("educationCertificateUrl", "new")}>
                           Remove
                         </Button>
@@ -914,16 +892,16 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="panCardPhoto">PAN Card Photocopy</Label>
+                    <Label htmlFor="new-panCardPhotoUrl">PAN Card Photocopy</Label>
                     <Input
-                      id="panCardPhoto"
+                      id="new-panCardPhotoUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "panCardPhotoUrl", "new")}
+                      onChange={(e) => handleDocSelection(e, "panCardPhotoUrl", "new")}
                     />
-                    {newEmployee.panCardPhotoUrl && (
+                    {(newEmployee.panCardPhotoUrl || newEmployee.pendingDocuments?.panCardPhotoUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{newEmployee.pendingDocuments?.panCardPhotoUrl ? `${newEmployee.pendingDocuments.panCardPhotoUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("panCardPhotoUrl", "new")}>
                           Remove
                         </Button>
@@ -931,16 +909,16 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="passportPhoto">Passport Photo</Label>
+                    <Label htmlFor="new-passportPhotoUrl">Passport Photo</Label>
                     <Input
-                      id="passportPhoto"
+                      id="new-passportPhotoUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "passportPhotoUrl", "new")}
+                      onChange={(e) => handleDocSelection(e, "passportPhotoUrl", "new")}
                     />
-                    {newEmployee.passportPhotoUrl && (
+                    {(newEmployee.passportPhotoUrl || newEmployee.pendingDocuments?.passportPhotoUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{newEmployee.pendingDocuments?.passportPhotoUrl ? `${newEmployee.pendingDocuments.passportPhotoUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("passportPhotoUrl", "new")}>
                           Remove
                         </Button>
@@ -948,16 +926,16 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="experienceLetter">Previous Employment / Experience or Relieving Letter (if applicable)</Label>
+                    <Label htmlFor="new-experienceLetterUrl">Previous Employment / Experience or Relieving Letter (if applicable)</Label>
                     <Input
-                      id="experienceLetter"
+                      id="new-experienceLetterUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "experienceLetterUrl", "new")}
+                      onChange={(e) => handleDocSelection(e, "experienceLetterUrl", "new")}
                     />
-                    {newEmployee.experienceLetterUrl && (
+                    {(newEmployee.experienceLetterUrl || newEmployee.pendingDocuments?.experienceLetterUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{newEmployee.pendingDocuments?.experienceLetterUrl ? `${newEmployee.pendingDocuments.experienceLetterUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("experienceLetterUrl", "new")}>
                           Remove
                         </Button>
@@ -968,11 +946,13 @@ export default function EmployeeDialogs({
               </div>
             </div>
 
-          </div>
+          </fieldset>
           <DialogFooter>
             <Button
               variant="outline"
+              disabled={isCreatingEmployee}
               onClick={() => {
+                setDocUploadError(null);
                 setIsCreateDialogOpen(false);
                 setNewEmployee(initialFormData);
               }}
@@ -987,7 +967,14 @@ export default function EmployeeDialogs({
       </Dialog>
 
       {/* Edit Employee Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setDocUploadError(null); }}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        if (isUpdatingEmployee) return;
+        setIsEditDialogOpen(open);
+        if (!open) {
+          setDocUploadError(null);
+          setEditEmployee({ ...editEmployee, pendingDocuments: undefined });
+        }
+      }}>
         <DialogContent className="sm:max-w-[1200px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Employee</DialogTitle>
@@ -995,7 +982,7 @@ export default function EmployeeDialogs({
               Update employee information and assignments.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-6 py-4">
+          <fieldset disabled={isUpdatingEmployee} className="grid gap-6 py-4">
             {/* Personal Information */}
             <div>
               <h3 className="text-lg font-semibold mb-3 flex items-center">
@@ -1526,21 +1513,21 @@ export default function EmployeeDialogs({
               <div className="grid gap-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="editAadharPhoto">Aadhar Photo</Label>
-                    {editEmployee.aadharPhotoUrl && (
+                    <Label htmlFor="edit-aadharPhotoUrl">Aadhar Photo</Label>
+                    {editEmployee.aadharPhotoUrl && !editEmployee.pendingDocuments?.aadharPhotoUrl && (
                       <div className="mb-1">
                         <img src={editEmployee.aadharPhotoUrl} alt="Aadhar" className="h-16 w-auto rounded border object-cover" />
                       </div>
                     )}
                     <Input
-                      id="editAadharPhoto"
+                      id="edit-aadharPhotoUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "aadharPhotoUrl", "edit")}
+                      onChange={(e) => handleDocSelection(e, "aadharPhotoUrl", "edit")}
                     />
-                    {editEmployee.aadharPhotoUrl && (
+                    {(editEmployee.aadharPhotoUrl || editEmployee.pendingDocuments?.aadharPhotoUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{editEmployee.pendingDocuments?.aadharPhotoUrl ? `${editEmployee.pendingDocuments.aadharPhotoUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("aadharPhotoUrl", "edit")}>
                           Remove
                         </Button>
@@ -1548,8 +1535,8 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="editBankProof">Bank Proof for Payroll</Label>
-                    {editEmployee.bankProofUrl && (
+                    <Label htmlFor="edit-bankProofUrl">Bank Proof for Payroll</Label>
+                    {editEmployee.bankProofUrl && !editEmployee.pendingDocuments?.bankProofUrl && (
                       <div className="mb-1">
                         {editEmployee.bankProofUrl.toLowerCase().includes(".pdf") ? (
                           <a href={editEmployee.bankProofUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline block py-1">View PDF Document</a>
@@ -1559,14 +1546,14 @@ export default function EmployeeDialogs({
                       </div>
                     )}
                     <Input
-                      id="editBankProof"
+                      id="edit-bankProofUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "bankProofUrl", "edit")}
+                      onChange={(e) => handleDocSelection(e, "bankProofUrl", "edit")}
                     />
-                    {editEmployee.bankProofUrl && (
+                    {(editEmployee.bankProofUrl || editEmployee.pendingDocuments?.bankProofUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{editEmployee.pendingDocuments?.bankProofUrl ? `${editEmployee.pendingDocuments.bankProofUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("bankProofUrl", "edit")}>
                           Remove
                         </Button>
@@ -1574,8 +1561,8 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="editEducationCertificate">Highest Educational Qualification Certificates</Label>
-                    {editEmployee.educationCertificateUrl && (
+                    <Label htmlFor="edit-educationCertificateUrl">Highest Educational Qualification Certificates</Label>
+                    {editEmployee.educationCertificateUrl && !editEmployee.pendingDocuments?.educationCertificateUrl && (
                       <div className="mb-1">
                         {editEmployee.educationCertificateUrl.toLowerCase().includes(".pdf") ? (
                           <a href={editEmployee.educationCertificateUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline block py-1">View PDF Document</a>
@@ -1585,14 +1572,14 @@ export default function EmployeeDialogs({
                       </div>
                     )}
                     <Input
-                      id="editEducationCertificate"
+                      id="edit-educationCertificateUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "educationCertificateUrl", "edit")}
+                      onChange={(e) => handleDocSelection(e, "educationCertificateUrl", "edit")}
                     />
-                    {editEmployee.educationCertificateUrl && (
+                    {(editEmployee.educationCertificateUrl || editEmployee.pendingDocuments?.educationCertificateUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{editEmployee.pendingDocuments?.educationCertificateUrl ? `${editEmployee.pendingDocuments.educationCertificateUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("educationCertificateUrl", "edit")}>
                           Remove
                         </Button>
@@ -1600,21 +1587,21 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="editPanCardPhoto">PAN Card Photocopy</Label>
-                    {editEmployee.panCardPhotoUrl && (
+                    <Label htmlFor="edit-panCardPhotoUrl">PAN Card Photocopy</Label>
+                    {editEmployee.panCardPhotoUrl && !editEmployee.pendingDocuments?.panCardPhotoUrl && (
                       <div className="mb-1">
                         <img src={editEmployee.panCardPhotoUrl} alt="PAN Card" className="h-16 w-auto rounded border object-cover" />
                       </div>
                     )}
                     <Input
-                      id="editPanCardPhoto"
+                      id="edit-panCardPhotoUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "panCardPhotoUrl", "edit")}
+                      onChange={(e) => handleDocSelection(e, "panCardPhotoUrl", "edit")}
                     />
-                    {editEmployee.panCardPhotoUrl && (
+                    {(editEmployee.panCardPhotoUrl || editEmployee.pendingDocuments?.panCardPhotoUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{editEmployee.pendingDocuments?.panCardPhotoUrl ? `${editEmployee.pendingDocuments.panCardPhotoUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("panCardPhotoUrl", "edit")}>
                           Remove
                         </Button>
@@ -1622,21 +1609,21 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="editPassportPhoto">Passport Photo</Label>
-                    {editEmployee.passportPhotoUrl && (
+                    <Label htmlFor="edit-passportPhotoUrl">Passport Photo</Label>
+                    {editEmployee.passportPhotoUrl && !editEmployee.pendingDocuments?.passportPhotoUrl && (
                       <div className="mb-1">
                         <img src={editEmployee.passportPhotoUrl} alt="Passport" className="h-16 w-auto rounded border object-cover" />
                       </div>
                     )}
                     <Input
-                      id="editPassportPhoto"
+                      id="edit-passportPhotoUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "passportPhotoUrl", "edit")}
+                      onChange={(e) => handleDocSelection(e, "passportPhotoUrl", "edit")}
                     />
-                    {editEmployee.passportPhotoUrl && (
+                    {(editEmployee.passportPhotoUrl || editEmployee.pendingDocuments?.passportPhotoUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{editEmployee.pendingDocuments?.passportPhotoUrl ? `${editEmployee.pendingDocuments.passportPhotoUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("passportPhotoUrl", "edit")}>
                           Remove
                         </Button>
@@ -1644,8 +1631,8 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="editExperienceLetter">Previous Employment / Experience or Relieving Letter (if applicable)</Label>
-                    {editEmployee.experienceLetterUrl && (
+                    <Label htmlFor="edit-experienceLetterUrl">Previous Employment / Experience or Relieving Letter (if applicable)</Label>
+                    {editEmployee.experienceLetterUrl && !editEmployee.pendingDocuments?.experienceLetterUrl && (
                       <div className="mb-1">
                         {editEmployee.experienceLetterUrl.toLowerCase().includes(".pdf") ? (
                           <a href={editEmployee.experienceLetterUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline block py-1">View PDF Document</a>
@@ -1655,14 +1642,14 @@ export default function EmployeeDialogs({
                       </div>
                     )}
                     <Input
-                      id="editExperienceLetter"
+                      id="edit-experienceLetterUrl"
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => handleDocUpload(e, "experienceLetterUrl", "edit")}
+                      onChange={(e) => handleDocSelection(e, "experienceLetterUrl", "edit")}
                     />
-                    {editEmployee.experienceLetterUrl && (
+                    {(editEmployee.experienceLetterUrl || editEmployee.pendingDocuments?.experienceLetterUrl) && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Attached</span>
+                        <span>{editEmployee.pendingDocuments?.experienceLetterUrl ? `${editEmployee.pendingDocuments.experienceLetterUrl.name} — Selected` : "Attached"}</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("experienceLetterUrl", "edit")}>
                           Remove
                         </Button>
@@ -1673,9 +1660,10 @@ export default function EmployeeDialogs({
               </div>
             </div>
 
-          </div>
+          </fieldset>
           <DialogFooter>
-            <Button variant="outline" onClick={() => {
+            <Button variant="outline" disabled={isUpdatingEmployee} onClick={() => {
+              setDocUploadError(null);
               setIsEditDialogOpen(false);
               setEditEmployee(initialFormData);
               setSelectedEmployee(null);
