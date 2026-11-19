@@ -1,6 +1,6 @@
 "use client";
 
-import { getFullName } from "@/lib/utils";
+import { formatEmploymentType, getFullName } from "@/lib/utils";
 import { useState } from "react";
 import {
   User,
@@ -40,7 +40,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { format, isValid, parseISO, differenceInDays } from 'date-fns';
@@ -202,6 +203,7 @@ export default function EmployeeDialogs({
   const [isEditingAssignment, setIsEditingAssignment] = useState(false);
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [assignmentError, setAssignmentError] = useState("");
+  const [docUploadError, setDocUploadError] = useState<string | null>(null);
   
   const departments = employeeData?.filters?.departments || [];
   const designations = employeeData?.filters?.designations || [];
@@ -235,20 +237,31 @@ export default function EmployeeDialogs({
   };
 
   const handleDocUpload = async (
-    file: File | null,
-    field: "aadharPhotoUrl" | "passportPhotoUrl" | "panCardPhotoUrl",
+    e: React.ChangeEvent<HTMLInputElement>,
+    field:
+      | "aadharPhotoUrl"
+      | "bankProofUrl"
+      | "educationCertificateUrl"
+      | "panCardPhotoUrl"
+      | "passportPhotoUrl"
+      | "experienceLetterUrl",
     mode: "new" | "edit"
   ) => {
+    const file = e.target.files?.[0] || null;
     if (!file) return;
     
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-      alert(`File size (${sizeMB}MB) exceeds 10MB limit. Please compress or choose a smaller image.`);
+      const msg = `File size (${sizeMB}MB) exceeds 5MB limit. Please compress or choose a smaller file.`;
+      setDocUploadError(msg);
+      toast.error(msg);
+      e.target.value = "";
       return;
     }
 
     try {
+      setDocUploadError(null);
       const formData = new FormData();
       formData.append("file", file);
       const res = await uploadFile(formData, { path: "employees/documents", public: "true" });
@@ -264,12 +277,21 @@ export default function EmployeeDialogs({
         setEditEmployee({ ...editEmployee, [field]: url });
       }
     } catch {
-      alert("Failed to upload file. Please try again.");
+      e.target.value = "";
+      const msg = "Failed to upload file. Please try again.";
+      setDocUploadError(msg);
+      toast.error(msg);
     }
   };
 
   const clearDoc = (
-    field: "aadharPhotoUrl" | "passportPhotoUrl" | "panCardPhotoUrl",
+    field:
+      | "aadharPhotoUrl"
+      | "bankProofUrl"
+      | "educationCertificateUrl"
+      | "panCardPhotoUrl"
+      | "passportPhotoUrl"
+      | "experienceLetterUrl",
     mode: "new" | "edit"
   ) => {
     if (mode === "new") {
@@ -301,7 +323,7 @@ export default function EmployeeDialogs({
   return (
     <>
       {/* Create New Employee Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => { setIsCreateDialogOpen(open); if (!open) setDocUploadError(null); }}>
         <DialogContent className="sm:max-w-[1200px] max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Employee</DialogTitle>
@@ -713,8 +735,8 @@ export default function EmployeeDialogs({
                         <SelectValue placeholder="Select employment type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="FULL_TIME">Full Time</SelectItem>
-                        <SelectItem value="PART_TIME">Part Time</SelectItem>
+                        <SelectItem value="FULL_TIME">Full time</SelectItem>
+                        <SelectItem value="PART_TIME">Part time</SelectItem>
                         <SelectItem value="CONTRACT">Contract</SelectItem>
                         <SelectItem value="INTERN">Intern</SelectItem>
                         <SelectItem value="CONSULTANT">Consultant</SelectItem>
@@ -821,15 +843,32 @@ export default function EmployeeDialogs({
                 <Briefcase className="w-5 h-5 mr-2" />
                 Documents
               </h3>
+              {docUploadError && (
+                <Alert variant="destructive" className="mb-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Upload Error</AlertTitle>
+                  <AlertDescription className="flex items-center justify-between gap-2">
+                    <span>{docUploadError}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-xs underline shrink-0 hover:bg-transparent"
+                      onClick={() => setDocUploadError(null)}
+                    >
+                      Dismiss
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="grid gap-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="aadharPhoto">Aadhar Photo</Label>
                     <Input
                       id="aadharPhoto"
                       type="file"
-                      accept="image/*"
-                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "aadharPhotoUrl", "new")}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "aadharPhotoUrl", "new")}
                     />
                     {newEmployee.aadharPhotoUrl && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -841,12 +880,63 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
+                    <Label htmlFor="bankProof">Bank Proof for Payroll</Label>
+                    <Input
+                      id="bankProof"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "bankProofUrl", "new")}
+                    />
+                    {newEmployee.bankProofUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("bankProofUrl", "new")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="educationCertificate">Highest Educational Qualification Certificates</Label>
+                    <Input
+                      id="educationCertificate"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "educationCertificateUrl", "new")}
+                    />
+                    {newEmployee.educationCertificateUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("educationCertificateUrl", "new")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="panCardPhoto">PAN Card Photocopy</Label>
+                    <Input
+                      id="panCardPhoto"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "panCardPhotoUrl", "new")}
+                    />
+                    {newEmployee.panCardPhotoUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("panCardPhotoUrl", "new")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
                     <Label htmlFor="passportPhoto">Passport Photo</Label>
                     <Input
                       id="passportPhoto"
                       type="file"
-                      accept="image/*"
-                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "passportPhotoUrl", "new")}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "passportPhotoUrl", "new")}
                     />
                     {newEmployee.passportPhotoUrl && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -858,17 +948,17 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="panCardPhoto">PAN Card Photocopy</Label>
+                    <Label htmlFor="experienceLetter">Previous Employment / Experience or Relieving Letter (if applicable)</Label>
                     <Input
-                      id="panCardPhoto"
+                      id="experienceLetter"
                       type="file"
-                      accept="image/*"
-                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "panCardPhotoUrl", "new")}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "experienceLetterUrl", "new")}
                     />
-                    {newEmployee.panCardPhotoUrl && (
+                    {newEmployee.experienceLetterUrl && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>Attached</span>
-                        <Button variant="ghost" size="sm" onClick={() => clearDoc("panCardPhotoUrl", "new")}>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("experienceLetterUrl", "new")}>
                           Remove
                         </Button>
                       </div>
@@ -897,7 +987,7 @@ export default function EmployeeDialogs({
       </Dialog>
 
       {/* Edit Employee Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setDocUploadError(null); }}>
         <DialogContent className="sm:max-w-[1200px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Employee</DialogTitle>
@@ -1304,8 +1394,8 @@ export default function EmployeeDialogs({
                         <SelectValue placeholder="Select employment type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="FULL_TIME">Full Time</SelectItem>
-                        <SelectItem value="PART_TIME">Part Time</SelectItem>
+                        <SelectItem value="FULL_TIME">Full time</SelectItem>
+                        <SelectItem value="PART_TIME">Part time</SelectItem>
                         <SelectItem value="CONTRACT">Contract</SelectItem>
                         <SelectItem value="INTERN">Intern</SelectItem>
                         <SelectItem value="CONSULTANT">Consultant</SelectItem>
@@ -1416,8 +1506,25 @@ export default function EmployeeDialogs({
                 <Briefcase className="w-5 h-5 mr-2" />
                 Documents
               </h3>
+              {docUploadError && (
+                <Alert variant="destructive" className="mb-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Upload Error</AlertTitle>
+                  <AlertDescription className="flex items-center justify-between gap-2">
+                    <span>{docUploadError}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-xs underline shrink-0 hover:bg-transparent"
+                      onClick={() => setDocUploadError(null)}
+                    >
+                      Dismiss
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="grid gap-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="editAadharPhoto">Aadhar Photo</Label>
                     {editEmployee.aadharPhotoUrl && (
@@ -1428,8 +1535,8 @@ export default function EmployeeDialogs({
                     <Input
                       id="editAadharPhoto"
                       type="file"
-                      accept="image/*"
-                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "aadharPhotoUrl", "edit")}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "aadharPhotoUrl", "edit")}
                     />
                     {editEmployee.aadharPhotoUrl && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1441,22 +1548,52 @@ export default function EmployeeDialogs({
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="editPassportPhoto">Passport Photo</Label>
-                    {editEmployee.passportPhotoUrl && (
+                    <Label htmlFor="editBankProof">Bank Proof for Payroll</Label>
+                    {editEmployee.bankProofUrl && (
                       <div className="mb-1">
-                        <img src={editEmployee.passportPhotoUrl} alt="Passport" className="h-16 w-auto rounded border object-cover" />
+                        {editEmployee.bankProofUrl.toLowerCase().includes(".pdf") ? (
+                          <a href={editEmployee.bankProofUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline block py-1">View PDF Document</a>
+                        ) : (
+                          <img src={editEmployee.bankProofUrl} alt="Bank Proof" className="h-16 w-auto rounded border object-cover" />
+                        )}
                       </div>
                     )}
                     <Input
-                      id="editPassportPhoto"
+                      id="editBankProof"
                       type="file"
-                      accept="image/*"
-                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "passportPhotoUrl", "edit")}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "bankProofUrl", "edit")}
                     />
-                    {editEmployee.passportPhotoUrl && (
+                    {editEmployee.bankProofUrl && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>Attached</span>
-                        <Button variant="ghost" size="sm" onClick={() => clearDoc("passportPhotoUrl", "edit")}>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("bankProofUrl", "edit")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editEducationCertificate">Highest Educational Qualification Certificates</Label>
+                    {editEmployee.educationCertificateUrl && (
+                      <div className="mb-1">
+                        {editEmployee.educationCertificateUrl.toLowerCase().includes(".pdf") ? (
+                          <a href={editEmployee.educationCertificateUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline block py-1">View PDF Document</a>
+                        ) : (
+                          <img src={editEmployee.educationCertificateUrl} alt="Education Certificate" className="h-16 w-auto rounded border object-cover" />
+                        )}
+                      </div>
+                    )}
+                    <Input
+                      id="editEducationCertificate"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "educationCertificateUrl", "edit")}
+                    />
+                    {editEmployee.educationCertificateUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("educationCertificateUrl", "edit")}>
                           Remove
                         </Button>
                       </div>
@@ -1472,13 +1609,61 @@ export default function EmployeeDialogs({
                     <Input
                       id="editPanCardPhoto"
                       type="file"
-                      accept="image/*"
-                      onChange={(e) => handleDocUpload(e.target.files?.[0] || null, "panCardPhotoUrl", "edit")}
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "panCardPhotoUrl", "edit")}
                     />
                     {editEmployee.panCardPhotoUrl && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>Attached</span>
                         <Button variant="ghost" size="sm" onClick={() => clearDoc("panCardPhotoUrl", "edit")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editPassportPhoto">Passport Photo</Label>
+                    {editEmployee.passportPhotoUrl && (
+                      <div className="mb-1">
+                        <img src={editEmployee.passportPhotoUrl} alt="Passport" className="h-16 w-auto rounded border object-cover" />
+                      </div>
+                    )}
+                    <Input
+                      id="editPassportPhoto"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "passportPhotoUrl", "edit")}
+                    />
+                    {editEmployee.passportPhotoUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("passportPhotoUrl", "edit")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="editExperienceLetter">Previous Employment / Experience or Relieving Letter (if applicable)</Label>
+                    {editEmployee.experienceLetterUrl && (
+                      <div className="mb-1">
+                        {editEmployee.experienceLetterUrl.toLowerCase().includes(".pdf") ? (
+                          <a href={editEmployee.experienceLetterUrl} target="_blank" rel="noreferrer" className="text-xs text-primary underline block py-1">View PDF Document</a>
+                        ) : (
+                          <img src={editEmployee.experienceLetterUrl} alt="Experience/Relieving Letter" className="h-16 w-auto rounded border object-cover" />
+                        )}
+                      </div>
+                    )}
+                    <Input
+                      id="editExperienceLetter"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => handleDocUpload(e, "experienceLetterUrl", "edit")}
+                    />
+                    {editEmployee.experienceLetterUrl && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Attached</span>
+                        <Button variant="ghost" size="sm" onClick={() => clearDoc("experienceLetterUrl", "edit")}>
                           Remove
                         </Button>
                       </div>
@@ -1613,7 +1798,7 @@ export default function EmployeeDialogs({
                     <div>
                       <Label className="text-sm font-medium">Employment Type</Label>
                       <p className="text-sm text-muted-foreground">
-                        {selectedEmployee.employmentType || 'Not specified'}
+                        {formatEmploymentType(selectedEmployee.employmentType)}
                       </p>
                     </div>
                     <div>
@@ -1671,14 +1856,77 @@ export default function EmployeeDialogs({
                 </TabsContent>
 
                 <TabsContent value="documents" className="space-y-4">
-                  {(selectedEmployee.aadharPhotoUrl || selectedEmployee.passportPhotoUrl || selectedEmployee.panCardPhotoUrl) ? (
-                    <div className="grid grid-cols-3 gap-4">
+                  {(selectedEmployee.aadharPhotoUrl ||
+                    selectedEmployee.bankProofUrl ||
+                    selectedEmployee.educationCertificateUrl ||
+                    selectedEmployee.panCardPhotoUrl ||
+                    selectedEmployee.passportPhotoUrl ||
+                    selectedEmployee.experienceLetterUrl) ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Aadhar</Label>
                         {selectedEmployee.aadharPhotoUrl ? (
                           <img
                             src={selectedEmployee.aadharPhotoUrl}
                             alt="Aadhar"
+                            className="h-28 w-full rounded-md object-cover border"
+                          />
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Not provided</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Bank Proof</Label>
+                        {selectedEmployee.bankProofUrl ? (
+                          selectedEmployee.bankProofUrl.toLowerCase().includes(".pdf") ? (
+                            <a
+                              href={selectedEmployee.bankProofUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-center h-28 w-full rounded-md border bg-muted text-xs text-primary underline"
+                            >
+                              View PDF Document
+                            </a>
+                          ) : (
+                            <img
+                              src={selectedEmployee.bankProofUrl}
+                              alt="Bank Proof"
+                              className="h-28 w-full rounded-md object-cover border"
+                            />
+                          )
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Not provided</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Highest Educational Qualification</Label>
+                        {selectedEmployee.educationCertificateUrl ? (
+                          selectedEmployee.educationCertificateUrl.toLowerCase().includes(".pdf") ? (
+                            <a
+                              href={selectedEmployee.educationCertificateUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-center h-28 w-full rounded-md border bg-muted text-xs text-primary underline"
+                            >
+                              View PDF Document
+                            </a>
+                          ) : (
+                            <img
+                              src={selectedEmployee.educationCertificateUrl}
+                              alt="Highest Educational Qualification"
+                              className="h-28 w-full rounded-md object-cover border"
+                            />
+                          )
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Not provided</p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">PAN Card</Label>
+                        {selectedEmployee.panCardPhotoUrl ? (
+                          <img
+                            src={selectedEmployee.panCardPhotoUrl}
+                            alt="PAN Card"
                             className="h-28 w-full rounded-md object-cover border"
                           />
                         ) : (
@@ -1698,13 +1946,24 @@ export default function EmployeeDialogs({
                         )}
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">PAN Card</Label>
-                        {selectedEmployee.panCardPhotoUrl ? (
-                          <img
-                            src={selectedEmployee.panCardPhotoUrl}
-                            alt="PAN Card"
-                            className="h-28 w-full rounded-md object-cover border"
-                          />
+                        <Label className="text-sm font-medium">Previous Employment / Relieving</Label>
+                        {selectedEmployee.experienceLetterUrl ? (
+                          selectedEmployee.experienceLetterUrl.toLowerCase().includes(".pdf") ? (
+                            <a
+                              href={selectedEmployee.experienceLetterUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center justify-center h-28 w-full rounded-md border bg-muted text-xs text-primary underline"
+                            >
+                              View PDF Document
+                            </a>
+                          ) : (
+                            <img
+                              src={selectedEmployee.experienceLetterUrl}
+                              alt="Previous Employment / Relieving"
+                              className="h-28 w-full rounded-md object-cover border"
+                            />
+                          )
                         ) : (
                           <p className="text-sm text-muted-foreground">Not provided</p>
                         )}
@@ -1841,8 +2100,8 @@ export default function EmployeeDialogs({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="no-change">No change</SelectItem>
-                  <SelectItem value="FULL_TIME">Full Time</SelectItem>
-                  <SelectItem value="PART_TIME">Part Time</SelectItem>
+                  <SelectItem value="FULL_TIME">Full time</SelectItem>
+                  <SelectItem value="PART_TIME">Part time</SelectItem>
                   <SelectItem value="CONTRACT">Contract</SelectItem>
                   <SelectItem value="INTERN">Intern</SelectItem>
                   <SelectItem value="CONSULTANT">Consultant</SelectItem>

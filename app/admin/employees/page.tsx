@@ -287,6 +287,9 @@ export default function EmployeesPage() {
     aadharPhotoUrl: "",
     passportPhotoUrl: "",
     panCardPhotoUrl: "",
+    educationCertificateUrl: "",
+    experienceLetterUrl: "",
+    bankProofUrl: "",
     employmentType: "",
     status: "active",
     branchId: "",
@@ -567,7 +570,7 @@ export default function EmployeesPage() {
     const employees = employeeData?.employees || [];
     const isDuplicate = employees.some(
       (emp: Employee) =>
-        emp.employeeCode.toLowerCase() === data.employeeCode?.toLowerCase() &&
+        Boolean(data.employeeCode && emp.employeeCode && emp.employeeCode.toLowerCase() === data.employeeCode.trim().toLowerCase()) &&
         emp.id !== selectedEmployee?.id
     );
     if (isDuplicate) {
@@ -577,11 +580,21 @@ export default function EmployeesPage() {
     // Check for duplicate email within current data
     const isDuplicateEmail = employees.some(
       (emp: Employee) =>
-        emp.workEmail.toLowerCase() === data.workEmail?.toLowerCase() &&
+        Boolean(data.workEmail && emp.workEmail && emp.workEmail.toLowerCase() === data.workEmail.trim().toLowerCase()) &&
         emp.id !== selectedEmployee?.id
     );
     if (isDuplicateEmail) {
       errors.workEmail = "Email already exists";
+    }
+
+    // Check for duplicate contact number within current data
+    const isDuplicateContact = employees.some(
+      (emp: Employee) =>
+        Boolean(data.contactNumber && emp.contactNumber && emp.contactNumber.trim() === data.contactNumber.trim()) &&
+        emp.id !== selectedEmployee?.id
+    );
+    if (isDuplicateContact) {
+      errors.contactNumber = "Contact number already exists";
     }
 
     setFormErrors(errors);
@@ -614,6 +627,9 @@ export default function EmployeesPage() {
     if (data.aadharPhotoUrl?.trim()) cleanData.aadharPhotoUrl = data.aadharPhotoUrl.trim();
     if (data.panCardPhotoUrl?.trim()) cleanData.panCardPhotoUrl = data.panCardPhotoUrl.trim();
     if (data.passportPhotoUrl?.trim()) cleanData.passportPhotoUrl = data.passportPhotoUrl.trim();
+    if (data.educationCertificateUrl?.trim()) cleanData.educationCertificateUrl = data.educationCertificateUrl.trim();
+    if (data.experienceLetterUrl?.trim()) cleanData.experienceLetterUrl = data.experienceLetterUrl.trim();
+    if (data.bankProofUrl?.trim()) cleanData.bankProofUrl = data.bankProofUrl.trim();
     if (data.employmentType?.trim()) cleanData.employmentType = data.employmentType.trim();
     if (data.status) cleanData.status = data.status;
     if (data.bloodGroup?.trim()) cleanData.bloodGroup = data.bloodGroup.trim();
@@ -1155,17 +1171,17 @@ export default function EmployeesPage() {
       branchId: employee.branchId || "",
       shiftId: employee.shiftId || "",
       reportingTo: employee.reportingTo || "",
-      employeeCode: employee.employeeCode,
+      employeeCode: employee.employeeCode || "",
       loginUserName: employee.userName || "",
       loginPassword: "",
       roleId: employee.roleId || employee.roles?.[0]?.id || "",
-      firstName: employee.firstName,
+      firstName: employee.firstName || "",
       middleName: employee.middleName || "",
       lastName: employee.lastName || "",
       gender: employee.gender || "",
       dateOfBirth: formatDateForInput(employee.dateOfBirth),
       dateOfJoining: formatDateForInput(employee.dateOfJoining),
-      workEmail: employee.workEmail,
+      workEmail: employee.workEmail || "",
       personalEmail: employee.personalEmail || "",
       contactNumber: employee.contactNumber || "",
       panNumber: employee.panNumber || "",
@@ -1174,6 +1190,9 @@ export default function EmployeesPage() {
       aadharPhotoUrl: employee.aadharPhotoUrl || "",
       passportPhotoUrl: employee.passportPhotoUrl || "",
       panCardPhotoUrl: employee.panCardPhotoUrl || "",
+      educationCertificateUrl: employee.educationCertificateUrl || "",
+      experienceLetterUrl: employee.experienceLetterUrl || "",
+      bankProofUrl: employee.bankProofUrl || "",
       employmentType: employee.employmentType || "",
       status: employee.status || "active",
       bloodGroup: employee.bloodGroup || "",

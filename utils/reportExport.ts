@@ -1,4 +1,4 @@
-import { getFullName } from "@/lib/utils";
+import { formatEmploymentType, getFullName } from "@/lib/utils";
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 
@@ -39,7 +39,7 @@ export const exportEmployeeReport = (employees: any[]) => {
     'Joining Date': emp.dateOfJoining ? format(new Date(emp.dateOfJoining), 'yyyy-MM-dd') : '',
     'Status': emp.status || '',
     'Manager': emp.manager ? getFullName(emp.manager) : 'No Manager',
-    'Employment Type': emp.employmentType || '',
+    'Employment Type': formatEmploymentType(emp.employmentType, ""),
   }));
 
   generateExcelFile(rows, 'Employee_Directory_Report', 'Employee Directory');

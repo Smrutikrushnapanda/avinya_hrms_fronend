@@ -1,5 +1,6 @@
 "use client";
 
+import { formatEmploymentType } from "@/lib/utils";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -80,11 +81,6 @@ const formatDate = (value?: string): string => {
 const capitalize = (value?: string): string => {
   if (!value) return "N/A";
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-};
-
-const formatEmploymentType = (value?: string): string => {
-  if (!value) return "N/A";
-  return value.charAt(0).toUpperCase() + value.slice(1).replace("-", " ");
 };
 
 export default function MobileProfilePage() {
@@ -245,7 +241,7 @@ export default function MobileProfilePage() {
           <InfoItem icon={<Briefcase className="w-5 h-5" />} label="Designation" value={profile?.designation?.name} />
           <InfoItem icon={<Contact2 className="w-5 h-5" />} label="Reporting Manager" value={managerName} sub={profile?.manager?.employeeCode ? `(${profile.manager.employeeCode})` : undefined} />
           <InfoItem icon={<CalendarDays className="w-5 h-5" />} label="Date of Joining" value={formatDate(profile?.dateOfJoining)} />
-          <InfoItem icon={<ShieldCheck className="w-5 h-5" />} label="Employment Type" value={formatEmploymentType(profile?.employmentType)} />
+          <InfoItem icon={<ShieldCheck className="w-5 h-5" />} label="Employment Type" value={formatEmploymentType(profile?.employmentType, "N/A")} />
           {profile?.emergencyContactName || profile?.emergencyContactPhone ? (
             <InfoItem icon={<User className="w-5 h-5" />} label="Emergency Contact" value={[profile?.emergencyContactName, profile?.emergencyContactPhone].filter(Boolean).join(" • ")} />
           ) : null}

@@ -5,6 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function formatEmploymentType(value?: string | null, fallback = "Not specified") {
+  const label = value?.trim().toLowerCase().replace(/[_\s-]+/g, " ")
+  return label ? label.charAt(0).toUpperCase() + label.slice(1) : fallback
+}
+
 export function getFullName(user?: {
   firstName?: string | null
   middleName?: string | null

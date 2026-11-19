@@ -223,8 +223,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 const EMPLOYMENT_TYPE_OPTIONS = [
-  { value: "FULL_TIME", label: "Full Time" },
-  { value: "PART_TIME", label: "Part Time" },
+  { value: "FULL_TIME", label: "Full time" },
+  { value: "PART_TIME", label: "Part time" },
   { value: "CONTRACT", label: "Contract" },
   { value: "INTERN", label: "Intern" },
   { value: "CONSULTANT", label: "Consultant" },

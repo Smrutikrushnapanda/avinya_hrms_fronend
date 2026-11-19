@@ -24,6 +24,9 @@ export interface Employee {
   aadharPhotoUrl?: string;
   passportPhotoUrl?: string;
   panCardPhotoUrl?: string;
+  educationCertificateUrl?: string;
+  experienceLetterUrl?: string;
+  bankProofUrl?: string;
   employmentType?: string;
   status: string;
   bloodGroup?: string;
@@ -251,6 +254,9 @@ export interface EmployeeFormData {
   aadharPhotoUrl?: string;
   passportPhotoUrl?: string;
   panCardPhotoUrl?: string;
+  educationCertificateUrl?: string;
+  experienceLetterUrl?: string;
+  bankProofUrl?: string;
   employmentType?: string;
   status?: string;
   bloodGroup?: string;

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatEmploymentType } from "@/lib/utils";
 import { useEffect, useState, useCallback } from "react";
 import {
   CalendarDays,
@@ -134,8 +135,8 @@ interface ApprovalAssignment {
 }
 
 const EMPLOYMENT_TYPE_OPTIONS = [
-  { value: "FULL_TIME", label: "Full Time" },
-  { value: "PART_TIME", label: "Part Time" },
+  { value: "FULL_TIME", label: "Full time" },
+  { value: "PART_TIME", label: "Part time" },
   { value: "CONTRACT", label: "Contract" },
   { value: "INTERN", label: "Intern" },
   { value: "CONSULTANT", label: "Consultant" },
@@ -1174,7 +1175,7 @@ export default function LeaveManagementPage() {
                       {employmentTypes.map((type) => {
                         const label =
                           EMPLOYMENT_TYPE_OPTIONS.find((t) => t.value === type)?.label ||
-                          type;
+                          formatEmploymentType(type);
                         return (
                         <SelectItem key={type} value={type}>
                           {label}
@@ -1286,7 +1287,7 @@ export default function LeaveManagementPage() {
                   <span className="font-medium">
                     {EMPLOYMENT_TYPE_OPTIONS.find(
                       (et) => et.value === selectedEmploymentType,
-                    )?.label || selectedEmploymentType || "selected employment type"}
+                    )?.label || formatEmploymentType(selectedEmploymentType, "selected employment type")}
                   </span>
                   .
                 </p>
