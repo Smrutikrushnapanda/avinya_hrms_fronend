@@ -276,8 +276,8 @@ export const getEmployeeBirthdays = (organizationId: string, days: number = 30) 
 export const getDepartments = (organizationId: string) => 
   api.get("/departments", { params: { organizationId } });
 
-export const getDesignations = (organizationId: string) => 
-  api.get("/designations", { params: { organizationId } });
+export const getDesignations = (organizationId: string, departmentId?: string) =>
+  api.get("/designations", { params: { organizationId, departmentId } });
 
 export const createDepartment = (data: any) => api.post("/departments", data);
 export const updateDepartment = (id: string, data: any) => api.put(`/departments/${id}`, data);
@@ -496,6 +496,7 @@ export const deleteProjectTestCase = (id: string, testCaseId: string) =>
 export const getMyTeamEmployees = () => api.get('/projects/managers/team');
 export const getAllOrgEmployees = (params?: {
   search?: string;
+  departmentId?: string;
   designationId?: string;
   limit?: number;
 }) => api.get('/projects/org-employees', { params });
@@ -651,7 +652,7 @@ export interface AssignWorkOptions {
   currentUserId?: string;
   canViewAllAssignments?: boolean;
   projects: Array<{ id: string; name: string; source: "client" | "internal" }>;
-  employees: Array<{ userId: string; firstName: string; lastName: string; status?: string; isActive?: boolean }>;
+  employees: Array<{ userId: string; firstName: string; lastName: string; employeeCode?: string; workEmail?: string; departmentId?: string | null; designationId?: string | null; department?: { id: string; name: string } | null; designation?: { id: string; name: string } | null; status?: string; isActive?: boolean }>;
 }
 
 export const getAssignWorkOptions = async () => {
@@ -1322,3 +1323,20 @@ export const renewSubscription = (id: string) => api.post(`/api/pricing/subscrip
 // Export the axios instance as default and named export
 export { api, apiBaseURL };
 export default api;
+
+// Application email configuration and preview
+export const getRequestEmailConfiguration = (kind: import("@/types/request-email").RequestEmailKind) =>
+  api.get<{ templates: import("@/types/request-email").RequestEmailTemplate[]; placeholders: string[] }>(`/${kind}/email-configuration`);
+export const saveRequestEmailTemplate = (kind: import("@/types/request-email").RequestEmailKind, data: import("@/types/request-email").SaveRequestEmailTemplate, id?: string) =>
+  id ? api.put(`/${kind}/email-configuration/${id}`, data) : api.post(`/${kind}/email-configuration`, data);
+export const sendTestRequestEmail = (
+  kind: import("@/types/request-email").RequestEmailKind,
+  data: { leaveTypeId?: string; recipients: string[]; subjectTemplate: string; bodyTemplate: string },
+) => api.post<{ sent: boolean; recipients: string[]; subject: string }>(`/${kind}/email-configuration/test`, data);
+export const deleteRequestEmailTemplate = (kind: import("@/types/request-email").RequestEmailKind, id: string) => api.delete(`/${kind}/email-configuration/${id}`);
+export const previewRequestEmail = (kind: import("@/types/request-email").RequestEmailKind, userId: string, data: import("@/types/request-email").ApplicationEmailFields & { templateId?: string }) =>
+  api.post<import("@/types/request-email").RequestEmailPreview>(`/${kind}/email-preview/${userId}`, data);
+export const getRequestEmailDeliveries = (kind: import("@/types/request-email").RequestEmailKind) => api.get<import("@/types/request-email").RequestEmailDelivery[]>(`/${kind}/email-deliveries`);
+export const getRequestEmailDeliveryForRequest = (kind: import("@/types/request-email").RequestEmailKind, requestId: string, signal: AbortSignal) =>
+  api.get<{ delivery: import("@/types/request-email").RequestEmailDeliveryDetail | null }>(`/${kind}/email-deliveries/by-request/${requestId}`, { signal });
+export const retryRequestEmailDelivery = (kind: import("@/types/request-email").RequestEmailKind, id: string) => api.post(`/${kind}/email-deliveries/${id}/retry`);

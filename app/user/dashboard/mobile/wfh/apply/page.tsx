@@ -1,5 +1,7 @@
 "use client";
 
+import { useRequestEmail } from "@/hooks/useRequestEmail";
+import { RequestEmailPreview } from "@/components/request-email-preview";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Home, Loader2, Send } from "lucide-react";
@@ -24,6 +26,7 @@ export default function MobileApplyWfhPage() {
     endDate: today,
     reason: "",
   });
+  const email = useRequestEmail("wfh", userId, { date: form.startDate, endDate: form.endDate, reason: form.reason.trim() });
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -55,11 +58,13 @@ export default function MobileApplyWfhPage() {
 
     setSubmitting(true);
     try {
-      await applyWfh(userId, {
+      const response = await applyWfh(userId, {
+        emailDraft: email.getDraft(),
         date: form.startDate,
         endDate: form.endDate,
         reason: form.reason.trim(),
       });
+      if (response.data?.emailDelivery?.status === "failed") toast.warning(response.data.emailDelivery.message, { duration: 10000 });
       toast.success("WFH request submitted.");
       router.push("/user/dashboard/mobile/wfh");
     } catch (error: any) {
@@ -156,9 +161,11 @@ export default function MobileApplyWfhPage() {
               />
             </div>
 
+            <RequestEmailPreview email={email} disabled={submitting} />
             <Button
               onClick={handleSubmit}
               loading={submitting}
+              disabled={!email.ready}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
             >
               <Send className="h-4 w-4" />

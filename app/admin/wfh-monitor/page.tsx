@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getTeamDesktopActivity, getTeamCurrentActivity } from "@/app/api/api";
@@ -105,6 +106,7 @@ function topApp(row: EmployeeDesktopRow) {
 export default function AdminWfhMonitorPage() {
   const router = useRouter();
   const [rows, setRows] = useState<EmployeeDesktopRow[]>([]);
+  const employeeFilters = useEmployeeSearchFilters(rows);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -149,7 +151,7 @@ export default function AdminWfhMonitorPage() {
     not_started: rows.filter((r) => getStatus(r) === "not_started").length,
   };
 
-  const filtered = rows.filter((r) => {
+  const filtered = employeeFilters.filteredEmployees.filter((r) => {
     const q = search.toLowerCase();
     return r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q);
   });
@@ -190,13 +192,14 @@ export default function AdminWfhMonitorPage() {
 
       {/* Data Table */}
       <div className="border border-border rounded-xl bg-card overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border flex-wrap">
           <Input
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-xs text-sm h-8"
           />
+              {employeeFilters.controls}
           <span className="ml-auto text-xs text-muted-foreground">
             {filtered.length} WFH employee{filtered.length !== 1 ? "s" : ""} today
           </span>

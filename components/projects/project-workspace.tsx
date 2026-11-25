@@ -1,5 +1,7 @@
 "use client";
 
+import { EmployeeDepartmentFilters, useEmployeeSearchFilters, useOrganizationEmployeeFilterOptions } from "@/components/employee-search-filters";
+import { matchesEmployeeFilters } from "@/lib/employee-filters";
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -622,10 +624,16 @@ export default function ProjectWorkspace({
     [buildTestSheetPath, router],
   );
 
+  const [assignmentDepartmentId, setAssignmentDepartmentId] = useState("all");
+  const [assignmentDesignationId, setAssignmentDesignationId] = useState("all");
+  const assignmentFilterOptions = useOrganizationEmployeeFilterOptions(organizationId);
+  const qaFilters = useEmployeeSearchFilters(projectEmployees, orgEmployees);
+  const timesheetEmployeeFilters = useEmployeeSearchFilters(projectTimesheets, [...orgEmployees, ...projectEmployees], false, () => setTimesheetPage(1));
   const availableEmployees = useMemo(() => {
     const assigned = new Set(projectEmployees.map((m) => m.userId));
     const q = employeeSearch.trim().toLowerCase();
     return orgEmployees
+      .filter((employee) => matchesEmployeeFilters(employee, { departmentId: assignmentDepartmentId, designationId: assignmentDesignationId }))
       .filter((e) => !assigned.has(e.userId))
       .filter((e) => {
         if (!q) return true;
@@ -636,11 +644,11 @@ export default function ProjectWorkspace({
           (e.employeeCode || "").toLowerCase().includes(q)
         );
       });
-  }, [orgEmployees, projectEmployees, employeeSearch]);
+  }, [orgEmployees, projectEmployees, employeeSearch, assignmentDepartmentId, assignmentDesignationId]);
 
   const availableQaEmployees = useMemo(() => {
     const q = employeeSearch.trim().toLowerCase();
-    return projectEmployees
+    return qaFilters.filteredEmployees
       .filter((e) => {
         if (!q) return true;
         return (
@@ -650,7 +658,7 @@ export default function ProjectWorkspace({
           (e.employeeCode || "").toLowerCase().includes(q)
         );
       });
-  }, [projectEmployees, employeeSearch]);
+  }, [qaFilters.filteredEmployees, employeeSearch]);
 
   const timesheetEmployeeCount = useMemo(() => {
     const unique = new Set(
@@ -666,7 +674,7 @@ export default function ProjectWorkspace({
   const filteredProjectTimesheets = useMemo(() => {
     const query = timesheetSearch.trim().toLowerCase();
     const rows = query
-      ? projectTimesheets.filter((row) => {
+      ? timesheetEmployeeFilters.filteredEmployees.filter((row) => {
           const haystack = [
             getTimesheetEmployeeName(row),
             row.employee?.employeeCode,
@@ -682,7 +690,7 @@ export default function ProjectWorkspace({
             .toLowerCase();
           return haystack.includes(query);
         })
-      : projectTimesheets;
+      : timesheetEmployeeFilters.filteredEmployees;
 
     const direction = timesheetSort.direction === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
@@ -694,7 +702,7 @@ export default function ProjectWorkspace({
       }
       return (new Date(a.date).getTime() - new Date(b.date).getTime()) * direction;
     });
-  }, [projectTimesheets, timesheetSearch, timesheetSort]);
+  }, [timesheetEmployeeFilters.filteredEmployees, timesheetSearch, timesheetSort]);
 
   const timesheetTotalPages = Math.max(1, Math.ceil(filteredProjectTimesheets.length / timesheetPageSize));
   const safeTimesheetPage = Math.min(timesheetPage, timesheetTotalPages);
@@ -939,16 +947,18 @@ export default function ProjectWorkspace({
 
   useEffect(() => {
     if (!showAssignPanel || !organizationId) return;
+    let active = true;
     const loadOrgEmployees = async () => {
       try {
-        const res = await getAllOrgEmployees({ limit: 500 });
-        setOrgEmployees(Array.isArray(res.data) ? res.data : []);
+        const res = await getAllOrgEmployees({ limit: 500, search: employeeSearch.trim() || undefined, departmentId: assignmentDepartmentId !== "all" ? assignmentDepartmentId : undefined, designationId: assignmentDesignationId !== "all" ? assignmentDesignationId : undefined });
+        if (active) setOrgEmployees(Array.isArray(res.data) ? res.data : []);
       } catch {
-        toast.error("Failed to load organization employees");
+        if (active) toast.error("Failed to load organization employees");
       }
     };
-    void loadOrgEmployees();
-  }, [showAssignPanel, organizationId]);
+    const timer = setTimeout(() => void loadOrgEmployees(), 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [showAssignPanel, organizationId, employeeSearch, assignmentDepartmentId, assignmentDesignationId]);
 
   const handleSaveProgress = async () => {
     if (!project) return;
@@ -1754,6 +1764,7 @@ export default function ProjectWorkspace({
                 placeholder="Search employee, work summary or remark..."
                 className="h-9 w-full sm:max-w-sm"
               />
+              {timesheetEmployeeFilters.controls}
               <p className="text-xs text-muted-foreground">
                 {filteredProjectTimesheets.length === projectTimesheets.length
                   ? `${projectTimesheets.length} entries`
@@ -1889,6 +1900,7 @@ export default function ProjectWorkspace({
               onChange={(e) => setEmployeeSearch(e.target.value)}
               placeholder="Search team member by name/email/id"
             />
+              {qaFilters.controls}
             <div className="max-h-56 overflow-auto border border-border rounded-md">
               {availableQaEmployees.length === 0 ? (
                 <div className="p-3 text-sm text-muted-foreground">No team members found.</div>
@@ -1949,6 +1961,7 @@ export default function ProjectWorkspace({
               onChange={(e) => setEmployeeSearch(e.target.value)}
               placeholder="Search employee by name/email/id"
             />
+              <EmployeeDepartmentFilters {...assignmentFilterOptions} departmentId={assignmentDepartmentId} designationId={assignmentDesignationId} onDepartmentChange={setAssignmentDepartmentId} onDesignationChange={setAssignmentDesignationId} />
             <div className="max-h-56 overflow-auto border border-border rounded-md">
               {availableEmployees.length === 0 ? (
                 <div className="p-3 text-sm text-muted-foreground">No available employees.</div>

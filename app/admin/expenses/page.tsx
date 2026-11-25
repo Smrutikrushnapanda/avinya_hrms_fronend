@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Receipt,
@@ -189,10 +190,11 @@ export default function AdminExpensesPage() {
     );
   }, [expenses, activeTab]);
 
+  const employeeFilters = useEmployeeSearchFilters(expenses, undefined, false, () => setTableState((previous) => ({ ...previous, page: 0 })));
   const searched = useMemo(() => {
     const q = tableState.search.trim().toLowerCase();
-    if (!q) return tabFiltered;
-    return tabFiltered.filter(
+    if (!q) return tabFiltered.filter(employeeFilters.matches);
+    return tabFiltered.filter(employeeFilters.matches).filter(
       (e) =>
         e.title?.toLowerCase().includes(q) ||
         e.category?.toLowerCase().includes(q) ||
@@ -201,7 +203,7 @@ export default function AdminExpensesPage() {
         e.expenseType?.toLowerCase().includes(q) ||
         e.user?.email?.toLowerCase().includes(q)
     );
-  }, [tabFiltered, tableState.search]);
+  }, [tabFiltered, tableState.search, employeeFilters.matches]);
 
   const sorted = useMemo(() => {
     if (!Array.isArray(tableState.sorting) || tableState.sorting.length === 0) {
@@ -599,6 +601,7 @@ export default function AdminExpensesPage() {
               <TabsTrigger value="rejected">Rejected ({rejected})</TabsTrigger>
             </TabsList>
 
+            {employeeFilters.controls}
             <TabsContent value={activeTab}>
               {expensesLoading ? (
                 <div className="space-y-3">

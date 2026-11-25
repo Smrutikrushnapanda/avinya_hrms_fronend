@@ -56,6 +56,9 @@ export type Employee = {
   photoUrl?: string;
   designation?: { name?: string };
   designationName?: string;
+  department?: { id?: string; name?: string } | null;
+  departmentId?: string | null;
+  designationId?: string | null;
 };
 
 export type PresencePayload = {

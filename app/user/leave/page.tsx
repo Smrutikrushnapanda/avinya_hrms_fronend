@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { RequestEmailPreview } from "@/components/request-email-preview";
+import { useRequestEmail } from "@/hooks/useRequestEmail";
 import {
   CalendarDays,
   Plus,
@@ -194,6 +196,12 @@ export default function UserLeavePage() {
     reason: "",
   });
   const [applySubmitting, setApplySubmitting] = useState(false);
+  const email = useRequestEmail(
+    "leave",
+    userId,
+    { ...applyForm, reason: applyForm.reason.trim() },
+    applyDialogOpen,
+  );
 
   const leaveTypeBalanceMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -527,6 +535,7 @@ export default function UserLeavePage() {
     setApplySubmitting(true);
     try {
       const res = await applyLeave(userId, {
+        emailDraft: email.getDraft(),
         leaveTypeId: applyForm.leaveTypeId,
         startDate: applyForm.startDate,
         endDate: applyForm.endDate,
@@ -540,6 +549,9 @@ export default function UserLeavePage() {
         );
       } else {
         toast.success("Leave request submitted successfully.");
+      }
+      if (res.data?.emailDelivery?.status === "failed") {
+        toast.warning(res.data.emailDelivery.message, { duration: 10000 });
       }
       setApplyDialogOpen(false);
       setApplyForm({
@@ -836,7 +848,7 @@ export default function UserLeavePage() {
             });
         }}
       >
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[560px]">
           <DialogHeader>
             <div className="flex flex-col items-center text-center gap-2 pb-2">
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -955,6 +967,7 @@ export default function UserLeavePage() {
             </div>
           </div>
 
+          <RequestEmailPreview email={email} disabled={applySubmitting} />
           <DialogFooter className="gap-2 pt-2">
             <Button
               variant="outline"
@@ -974,6 +987,7 @@ export default function UserLeavePage() {
             <Button
               onClick={handleApplySubmit}
               loading={applySubmitting}
+              disabled={!email.ready}
               className="gap-2"
             >
               <Send className="h-4 w-4" />

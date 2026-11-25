@@ -1,12 +1,14 @@
 "use client";
 
+import EmployeeSelector from "@/components/employee-selector";
+
 import { useEffect, useMemo, useState } from "react";
 import { Users, Loader2 } from "lucide-react";
 
 import { getEmployees, getProfile } from "@/app/api/api";
 import TimesheetSection from "@/components/timesheet/TimesheetSection";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 
 type EmployeeOption = {
   id: string;
@@ -81,44 +83,8 @@ export default function AdminTimesheetsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
-              <SelectTrigger className="w-[260px]" aria-label="Select employee">
-                <span
-                  className={
-                    selectedName
-                      ? "min-w-0 flex-1 truncate text-left"
-                      : "min-w-0 flex-1 truncate text-left text-muted-foreground"
-                  }
-                >
-                  {selectedName || "Select employee"}
-                </span>
-              </SelectTrigger>
-              <SelectContent className="max-h-60 overflow-y-auto">
-                {employees.map((employee) => {
-                  const name = [employee.firstName, employee.middleName, employee.lastName]
-                    .filter(Boolean)
-                    .join(" ");
-                  const meta = [
-                    employee.employeeCode,
-                    employee.designation?.name,
-                    employee.department?.name,
-                  ]
-                    .filter(Boolean)
-                    .join(" - ");
-                  return (
-                    <SelectItem key={employee.id} value={employee.id}>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">{name || "—"}</span>
-                        {meta ? (
-                          <span className="text-xs text-muted-foreground">{meta}</span>
-                        ) : null}
-                      </div>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2 w-full sm:w-auto max-w-full">
+            <EmployeeSelector className="w-full sm:w-72" options={employees} valueKey="id" value={selectedEmployeeId} onChange={setSelectedEmployeeId} placeholder="Search employee..." />
           </div>
         </div>
       </header>

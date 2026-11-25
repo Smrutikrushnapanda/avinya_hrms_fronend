@@ -1,5 +1,7 @@
 "use client";
 
+import { useRequestEmail } from "@/hooks/useRequestEmail";
+import { RequestEmailPreview } from "@/components/request-email-preview";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -254,6 +256,7 @@ export default function UserWfhPage() {
     endDate: today,
     reason: "",
   });
+  const email = useRequestEmail("wfh", userId, { ...applyForm, reason: applyForm.reason.trim() }, applyDialogOpen);
   const [applySubmitting, setApplySubmitting] = useState(false);
 
   const canDeleteWfhRequest = useCallback((request: WfhRequest) => {
@@ -493,11 +496,13 @@ export default function UserWfhPage() {
 
     setApplySubmitting(true);
     try {
-      await applyWfh(userId, {
+      const response = await applyWfh(userId, {
+        emailDraft: email.getDraft(),
         date: applyForm.date,
         endDate: applyForm.endDate,
         reason: applyForm.reason.trim(),
       });
+      if (response.data?.emailDelivery?.status === "failed") toast.warning(response.data.emailDelivery.message, { duration: 10000 });
 
       toast.success("WFH request submitted successfully.");
       setApplyDialogOpen(false);
@@ -766,7 +771,7 @@ export default function UserWfhPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[480px] max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <div className="flex flex-col items-center text-center gap-2 pb-2">
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -825,6 +830,7 @@ export default function UserWfhPage() {
             </div>
           </div>
 
+          <RequestEmailPreview email={email} disabled={applySubmitting} />
           <DialogFooter>
             <Button
               type="button"
@@ -838,6 +844,7 @@ export default function UserWfhPage() {
               type="button"
               onClick={handleApplySubmit}
               loading={applySubmitting}
+              disabled={!email.ready}
               className="gap-2"
             >
               <Send className="h-4 w-4" />

@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { getFullName } from "@/lib/utils";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { Download, FileDown, Upload, Settings, Zap, UserCheck, UserX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -211,6 +211,7 @@ export default function EmployeesPage() {
 
   // NEW: Single state for all employee management data from API
   const [employeeData, setEmployeeData] = useState<any>(null);
+  const employeeFetchRequest = useRef(0);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isTableLoading, setIsTableLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -355,6 +356,7 @@ export default function EmployeesPage() {
   const fetchEmployeeManagementData = useCallback(
     async (isFilterChange = false) => {
       if (!userProfile?.organizationId) return;
+      const request = ++employeeFetchRequest.current;
 
       if (isFilterChange) {
         setIsTableLoading(true);
@@ -376,6 +378,7 @@ export default function EmployeesPage() {
         };
 
         const response = await getEmployeeManagementData(params);
+        if (request !== employeeFetchRequest.current) return;
 
         if (response.data?.success) {
           setEmployeeData(response.data.data);
@@ -383,14 +386,17 @@ export default function EmployeesPage() {
           throw new Error("API returned unsuccessful response");
         }
       } catch (error: any) {
+        if (request !== employeeFetchRequest.current) return;
         console.error("Failed to fetch employee management data:", error);
         if (!isFilterChange) {
           toast.error("Failed to fetch employee data");
         }
         setEmployeeData(null);
       } finally {
-        setIsInitialLoading(false);
-        setIsTableLoading(false);
+        if (request === employeeFetchRequest.current) {
+          setIsInitialLoading(false);
+          setIsTableLoading(false);
+        }
       }
     },
     [

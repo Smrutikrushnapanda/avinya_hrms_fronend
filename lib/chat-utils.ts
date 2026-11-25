@@ -121,6 +121,9 @@ export const normalizeEmployee = (input: any): Employee | null => {
     photoUrl: input.photoUrl || "",
     designation: input.designation,
     designationName: input.designationName,
+    department: input.department,
+    departmentId: input.departmentId,
+    designationId: input.designationId,
   };
 };
 

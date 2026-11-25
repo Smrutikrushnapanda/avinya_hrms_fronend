@@ -1,5 +1,7 @@
 "use client";
 
+import { useRequestEmail } from "@/hooks/useRequestEmail";
+import { RequestEmailPreview } from "@/components/request-email-preview";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Loader2, Send, ArrowLeft } from "lucide-react";
@@ -39,6 +41,7 @@ export default function ApplyLeavePage() {
     duration: 1,
     reason: "",
   });
+  const email = useRequestEmail("leave", userId, { ...form, reason: form.reason.trim() });
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -88,13 +91,15 @@ export default function ApplyLeavePage() {
 
     setSubmitting(true);
     try {
-      await applyLeave(userId, {
+      const response = await applyLeave(userId, {
+        emailDraft: email.getDraft(),
         leaveTypeId: form.leaveTypeId,
         startDate: form.startDate,
         endDate: form.endDate,
         reason: form.reason.trim(),
         duration: form.duration,
       });
+      if (response.data?.emailDelivery?.status === "failed") toast.warning(response.data.emailDelivery.message, { duration: 10000 });
       toast.success("Leave request submitted.");
       router.push("/user/leave");
     } catch (error: any) {
@@ -239,9 +244,11 @@ export default function ApplyLeavePage() {
               />
             </div>
 
+            <RequestEmailPreview email={email} disabled={submitting} />
             <Button
               onClick={handleSubmit}
               loading={submitting}
+              disabled={!email.ready}
               className="w-full bg-messages-primary hover:bg-messages-primary-dark text-white gap-2"
             >
               <Send className="h-4 w-4" />

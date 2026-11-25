@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
@@ -348,6 +349,7 @@ export default function AdminProjectsPage() {
           const managersOnly = employees
             .filter((e: any) => reportsSet.has(e.id))
             .map((emp: any) => ({
+              ...emp,
               id: emp.userId ?? emp.user?.id,
               email: emp.user?.email ?? emp.workEmail ?? "",
               firstName: emp.firstName ?? emp.user?.firstName ?? "",
@@ -510,7 +512,8 @@ export default function AdminProjectsPage() {
   };
 
   // Members not yet in project for assign dialog
-  const availableUsers = allUsers.filter(
+  const employeeFilters = useEmployeeSearchFilters(allUsers, undefined, true);
+  const availableUsers = employeeFilters.filteredEmployees.filter(
     (u) => !(activeProject?.members?.some((m) => m.userId === u.id))
   );
 
@@ -1093,6 +1096,7 @@ export default function AdminProjectsPage() {
             <DialogDescription>Select users to add to &quot;{activeProject?.name}&quot;</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
+            {employeeFilters.controls}
             <div className="max-h-60 overflow-y-auto space-y-1 border border-border rounded-lg p-2">
               {availableUsers.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">

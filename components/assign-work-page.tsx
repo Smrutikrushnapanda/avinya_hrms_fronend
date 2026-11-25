@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isAxiosError } from "axios";
 import {
@@ -29,10 +30,12 @@ import { Badge } from "@/components/ui/badge";
 import { getFullName } from "@/lib/utils";
 import { ASSIGNMENT_DELETE_WINDOW_MS, isAssignmentDeleteWindowOpen, extractWorkPoints, hasWorkDescription, workPointProgress, workPointStatus } from "@/lib/assign-work";
 import { WorkDescriptionEditor } from "@/components/work-description-editor";
+import EmployeeSelector from "@/components/employee-selector";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -89,15 +92,17 @@ export default function AssignWorkPage({
   const assigneeOptions = useMemo(() => (options?.employees || []).filter(
     (employee) => employee.userId !== options?.currentUserId,
   ), [options]);
+  const employeeFilters = useEmployeeSearchFilters(assigneeOptions);
   const [allAssignments, setAllAssignments] = useState<WorkAssignment[]>([]);
   const [assignedToMe, setAssignedToMe] = useState<WorkAssignment[]>([]);
   const [assignedByMe, setAssignedByMe] = useState<WorkAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadErrors, setLoadErrors] = useState<Partial<Record<TabKey, string>>>({});
   const [tab, setTab] = useState<TabKey>(includeAllAssignments ? "all" : "assigned-to-me");
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
   const [allTime, setAllTime] = useState(defaultAllTime);
-  const [month, setMonth] = useState<number | null>(null);
-  const [year, setYear] = useState<number | null>(null);
+  const month = currentMonth.getMonth() + 1;
+  const year = currentMonth.getFullYear();
   const canViewAll = includeAllAssignments && options?.canViewAllAssignments === true;
   const [adminSearch, setAdminSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -184,16 +189,6 @@ export default function AssignWorkPage({
     });
   }, [options, detailsTarget, assigneeOptions]);
 
-  // Derive month/year from currentMonth for API filtering
-  const derivedMonth = useMemo(() => currentMonth.getMonth() + 1, [currentMonth]);
-  const derivedYear = useMemo(() => currentMonth.getFullYear(), [currentMonth]);
-
-  // Update month/year state when currentMonth changes
-  useEffect(() => {
-    setMonth(derivedMonth);
-    setYear(derivedYear);
-  }, [derivedMonth, derivedYear]);
-
   // Points tracking for update progress
   const [points, setPoints] = useState<{ text: string; completed: boolean }[]>([]);
   const [pointsChanged, setPointsChanged] = useState(false);
@@ -207,7 +202,7 @@ export default function AssignWorkPage({
     setLoading(true);
     try {
       const dateFilters = allTime ? {} : { month, year };
-      const [mine, byMe, all] = await Promise.all([
+      const [mine, byMe, all] = await Promise.allSettled([
         getMyAssignments(dateFilters),
         getAssignmentsByMe(dateFilters),
         canViewAll ? getAllAssignments({ ...dateFilters, search: searchQuery || undefined,
@@ -216,25 +211,26 @@ export default function AssignWorkPage({
         }) : Promise.resolve(null),
       ]);
       if (requestId !== loadRequest.current) return;
-      setAssignedToMe(mine.data || []);
-      setAssignedByMe(byMe.data || []);
-      setAllAssignments(all?.data || []);
+      const errors: Partial<Record<TabKey, string>> = {};
+      if (mine.status === "rejected") errors["assigned-to-me"] = assignmentError(mine.reason, "Failed to load work assigned to you.");
+      if (byMe.status === "rejected") errors["assigned-by-me"] = assignmentError(byMe.reason, "Failed to load work assigned by you.");
+      if (all.status === "rejected") errors.all = assignmentError(all.reason, "Failed to load organization assignments.");
+      errors.external = errors["assigned-to-me"] || errors["assigned-by-me"];
+      setLoadErrors(errors);
+      setAssignedToMe(mine.status === "fulfilled" ? mine.value.data || [] : []);
+      setAssignedByMe(byMe.status === "fulfilled" ? byMe.value.data || [] : []);
+      setAllAssignments(all.status === "fulfilled" ? all.value?.data || [] : []);
       setDeleteClock(Date.now());
-      // When no month filter (initial load), set month/year state
-      if (!month || !year) {
-        setMonth(currentMonth.getMonth() + 1);
-        setYear(currentMonth.getFullYear());
-      }
-    } catch {
-      if (requestId === loadRequest.current) toast.error("Failed to load assignments");
     } finally {
       if (requestId === loadRequest.current) setLoading(false);
     }
-  }, [month, year, allTime, canViewAll, currentMonth, searchQuery, filters]);
+  }, [month, year, allTime, canViewAll, searchQuery, filters]);
 
   useEffect(() => {
+    const pendingRequests = loadRequest;
     void load();
-  }, [load, currentMonth]);
+    return () => { ++pendingRequests.current; };
+  }, [load]);
 
   const employeeName = (userId: string | null) => {
     if (!userId) return "—";
@@ -339,7 +335,7 @@ export default function AssignWorkPage({
 
   const filteredEmployees = useMemo(() => {
     const q = form.employeeSearch.trim().toLowerCase();
-    const list = assigneeOptions;
+    const list = employeeFilters.filteredEmployees;
     if (!q) return list;
     return list.filter(
       (e) =>
@@ -347,7 +343,7 @@ export default function AssignWorkPage({
         (e.firstName || "").toLowerCase().includes(q) ||
         (e.lastName || "").toLowerCase().includes(q),
     );
-  }, [form.employeeSearch, assigneeOptions]);
+  }, [form.employeeSearch, employeeFilters.filteredEmployees]);
 
   const canSubmit = useMemo(() => {
     const projectOk =
@@ -561,7 +557,7 @@ export default function AssignWorkPage({
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t.label} ({count})
+              {t.label} ({loading || loadErrors[t.key] ? "—" : count})
             </button>
           );
         })}
@@ -570,10 +566,10 @@ export default function AssignWorkPage({
       {tab === "all" && canViewAll && (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <Input aria-label="Search assignments" placeholder="Search title, description, people..." value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} />
+          <EmployeeSelector options={options?.employees || []} valueKey="userId" value={filters.assignedToUserId || "all"} allLabel="All Employees" onChange={(id) => setFilters((previous) => ({ ...previous, assignedToUserId: id === "all" ? "" : id }))} />
           {([['assignmentKind', 'Assignment type', [['regular', 'Regular'], ['external', 'External / Verbal']]],
             ['status', 'Status', Object.entries(statusMeta).map(([value, meta]) => [value, meta.label])],
             ['priority', 'Priority', Object.entries(priorityMeta).map(([value, meta]) => [value, meta.label])],
-            ['assignedToUserId', 'Employee', (options?.employees || []).map((employee) => [employee.userId, getFullName(employee)])],
           ] as [keyof typeof filters, string, string[][]][]).map(([key, label, choices]) => (
             <Select key={key} value={filters[key] || "all"} onValueChange={(value) => setFilters((previous) => ({ ...previous, [key]: value === "all" ? "" : value }))}>
               <SelectTrigger aria-label={`Filter by ${label.toLowerCase()}`}><SelectValue /></SelectTrigger>
@@ -590,6 +586,14 @@ export default function AssignWorkPage({
         <div className="h-32 flex items-center justify-center text-sm text-muted-foreground">
           Loading assignments...
         </div>
+      ) : loadErrors[tab] ? (
+        <Alert variant="destructive">
+          <AlertTitle>Assignments could not be loaded</AlertTitle>
+          <AlertDescription>
+            <p>{loadErrors[tab]}</p>
+            <Button variant="outline" size="sm" onClick={() => void load()}>Retry</Button>
+          </AlertDescription>
+        </Alert>
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -825,6 +829,7 @@ export default function AssignWorkPage({
                   setForm((prev) => ({ ...prev, employeeSearch: e.target.value }))
                 }
               />
+              {employeeFilters.controls}
               <div className="max-h-40 overflow-y-auto rounded-md border border-border">
                 {filteredEmployees.length === 0 ? (
                   <p className="p-3 text-xs text-muted-foreground">No employees found</p>

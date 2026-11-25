@@ -134,8 +134,8 @@ export default function EmployeeTable({
   const pagination = employeeData?.pagination || { page: 1, total: 0, totalPages: 1, hasNext: false, hasPrev: false };
 
   // Safe array operations for unique values
-  const uniqueDepartments = [...new Set(employees.map((e: Employee) => e.department?.name).filter(Boolean))];
-  const uniqueDesignations = [...new Set(employees.map((e: Employee) => e.designation?.name).filter(Boolean))];
+  const uniqueDepartments: { id: string; name: string }[] = employeeData?.filters?.departments || [];
+  const uniqueDesignations: { id: string; name: string; departmentId?: string | null }[] = (employeeData?.filters?.designations || []).filter((designation: { departmentId?: string | null }) => departmentFilter === "all" || designation.departmentId === departmentFilter);
 
   const safeFormatDate = (dateString: string | null | undefined, fallback: string = "Not set") => {
     if (!dateString) return fallback;
@@ -238,26 +238,26 @@ export default function EmployeeTable({
                 />
               </div>
 
-              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                <SelectTrigger className="w-36 h-9">
+              <Select value={departmentFilter} onValueChange={(id) => { setDepartmentFilter(id); setDesignationFilter("all"); }}>
+                <SelectTrigger aria-label="Filter employees by department" className="w-36 h-9">
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
                   {uniqueDepartments.map((dept) => (
-                    <SelectItem key={String(dept)} value={String(dept)}>{String(dept)}</SelectItem>
+                    <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={designationFilter} onValueChange={setDesignationFilter}>
-                <SelectTrigger className="w-36 h-9">
+              <Select key={departmentFilter} value={designationFilter} onValueChange={setDesignationFilter}>
+                <SelectTrigger aria-label="Filter employees by designation" className="w-36 h-9">
                   <SelectValue placeholder="Designation" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Designations</SelectItem>
                   {uniqueDesignations.map((desig) => (
-                    <SelectItem key={String(desig)} value={String(desig)}>{String(desig)}</SelectItem>
+                    <SelectItem key={desig.id} value={desig.id}>{desig.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

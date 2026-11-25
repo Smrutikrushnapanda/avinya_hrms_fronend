@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -9,9 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, X, Users } from "lucide-react";
 import { cn, getFullName} from "@/lib/utils";
+import { employeeFilterOptions, matchesEmployeeFilters } from "@/lib/employee-filters";
 import {
   getEmployeeSelector,
   getDepartments,
@@ -20,13 +20,17 @@ import {
 } from "@/app/api/api";
 
 interface Employee {
-  id: string;
-  firstName: string;
+  id?: string;
+  userId?: string;
+  firstName?: string;
+  name?: string;
   lastName?: string;
   employeeCode?: string;
   workEmail?: string;
-  department?: { id: string; name: string } | null;
-  designation?: { id: string; name: string } | null;
+  department?: { id?: string; name?: string } | null;
+  designation?: { id?: string; name?: string } | null;
+  departmentId?: string | null;
+  designationId?: string | null;
 }
 
 interface Department {
@@ -37,16 +41,21 @@ interface Department {
 interface Designation {
   id: string;
   name: string;
+  departmentId?: string | null;
 }
 
 interface EmployeeSelectorProps {
-  value: string;
+  value?: string;
   onChange: (employeeId: string, employee?: Employee) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
   showDepartmentFilter?: boolean;
   showDesignationFilter?: boolean;
+  options?: Employee[];
+  valueKey?: "id" | "userId";
+  allLabel?: string;
+  allValue?: string;
 }
 
 export default function EmployeeSelector({
@@ -57,6 +66,10 @@ export default function EmployeeSelector({
   className,
   showDepartmentFilter = true,
   showDesignationFilter = true,
+  options,
+  valueKey = "id",
+  allLabel,
+  allValue = "all",
 }: EmployeeSelectorProps) {
   const [organizationId, setOrganizationId] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -68,13 +81,77 @@ export default function EmployeeSelector({
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestRef = useRef(0);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const [dropdownLayout, setDropdownLayout] = useState<{
+    horizontal: "left" | "right";
+    vertical: "bottom" | "top";
+    listMaxHeight: number;
+    maxWidth: number;
+  }>({
+    horizontal: "left",
+    vertical: "bottom",
+    listMaxHeight: 280,
+    maxWidth: 420,
+  });
+
+  const updateDropdownLayout = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const boundaryEl = el.closest("main, [data-slot='dialog-content']");
+    const boundaryRect = boundaryEl?.getBoundingClientRect();
+    const padding = 16;
+
+    const minLeft = Math.max(0, boundaryRect?.left ?? 0);
+    const maxRight = Math.min(window.innerWidth, boundaryRect?.right ?? window.innerWidth);
+    const minTop = Math.max(0, boundaryRect?.top ?? 0);
+    const maxBottom = Math.min(window.innerHeight, boundaryRect?.bottom ?? window.innerHeight);
+
+    const desiredWidth = Math.max(rect.width, 320);
+    const spaceRight = maxRight - rect.left - padding;
+    const spaceLeft = rect.right - minLeft - padding;
+    const horizontal: "left" | "right" =
+      spaceRight < desiredWidth && spaceLeft > spaceRight ? "right" : "left";
+    const maxWidth = Math.max(240, Math.floor(horizontal === "right" ? spaceLeft : spaceRight));
+
+    const filterHeaderHeight = 115;
+    const spaceBelow = maxBottom - rect.bottom - padding;
+    const spaceAbove = rect.top - minTop - padding;
+    const vertical: "bottom" | "top" =
+      spaceBelow < 240 && spaceAbove > spaceBelow ? "top" : "bottom";
+    const availableHeight = vertical === "top" ? spaceAbove : spaceBelow;
+    const listMaxHeight = Math.max(140, Math.min(280, Math.floor(availableHeight - filterHeaderHeight)));
+
+    setDropdownLayout({ horizontal, vertical, listMaxHeight, maxWidth });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    updateDropdownLayout();
+    const handleScroll = (event: Event) => {
+      if (containerRef.current && event.target instanceof Node && containerRef.current.contains(event.target)) {
+        return;
+      }
+      updateDropdownLayout();
+    };
+    window.addEventListener("resize", updateDropdownLayout);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      window.removeEventListener("resize", updateDropdownLayout);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [isOpen, updateDropdownLayout]);
 
   useEffect(() => {
+    if (options) return;
+    let active = true;
     const init = async () => {
       try {
         const profile = await getProfile();
+        if (!active) return;
         const orgId = profile.data?.organizationId;
         if (!orgId) return;
         setOrganizationId(orgId);
@@ -83,6 +160,7 @@ export default function EmployeeSelector({
           getDepartments(orgId),
           getDesignations(orgId),
         ]);
+        if (!active) return;
         setDepartments(deptRes.data?.data || deptRes.data || []);
         setDesignations(desigRes.data?.data || desigRes.data || []);
       } catch {
@@ -90,11 +168,13 @@ export default function EmployeeSelector({
       }
     };
     init();
-  }, []);
+    return () => { active = false; };
+  }, [options]);
 
   const fetchEmployees = useCallback(
     async (term: string, dept: string, desig: string) => {
       if (!organizationId) return;
+      const request = ++requestRef.current;
       setLoading(true);
       try {
         const res = await getEmployeeSelector({
@@ -102,58 +182,84 @@ export default function EmployeeSelector({
           search: term || undefined,
           departmentId: dept !== "all" ? dept : undefined,
           designationId: desig !== "all" ? desig : undefined,
-          limit: 50,
+          limit: 1000,
         });
-        setEmployees(res.data || []);
+        if (request === requestRef.current) setEmployees(res.data || []);
       } catch {
-        setEmployees([]);
+        if (request === requestRef.current) setEmployees([]);
       } finally {
-        setLoading(false);
+        if (request === requestRef.current) setLoading(false);
       }
     },
     [organizationId],
   );
 
   useEffect(() => {
-    if (!isOpen || !organizationId) return;
-    fetchEmployees(search, deptFilter, desigFilter);
-  }, [isOpen, search, deptFilter, desigFilter, organizationId, fetchEmployees]);
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
-    if (value && employees.length > 0) {
+    if (options || !isOpen || !organizationId) return;
+    const requests = requestRef;
+    void fetchEmployees(debouncedSearch, deptFilter, desigFilter);
+    return () => { ++requests.current; };
+  }, [options, isOpen, debouncedSearch, deptFilter, desigFilter, organizationId, fetchEmployees]);
+
+  useEffect(() => {
+    if (!options && value && employees.length > 0) {
       const emp = employees.find((e) => e.id === value);
       if (emp) setSelectedEmployee(emp);
     }
-  }, [value, employees]);
+  }, [value, employees, options]);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
+    const handleClickOutside = (e: MouseEvent | PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // Ignore when clicked element was unmounted or detached during event dispatch
+      if (!target.isConnected) return;
+
+      // Ignore clicks within EmployeeSelector
+      if (containerRef.current && containerRef.current.contains(target)) {
+        return;
       }
+
+      // Ignore clicks within Radix Select portals (Department & Designation options)
+      if (
+        target.closest?.(
+          '[data-slot="select-content"], [data-slot="select-item"], [data-radix-popper-content-wrapper], [data-radix-select-viewport], [role="listbox"], [role="option"]'
+        )
+      ) {
+        return;
+      }
+
+      setIsOpen(false);
     };
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("pointerdown", handleClickOutside);
+    };
   }, []);
 
   const handleSearchChange = (term: string) => {
     setSearch(term);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      // immediate fetch on type
-    }, 0);
   };
 
   const handleSelect = (emp: Employee) => {
     setSelectedEmployee(emp);
-    onChange(emp.id, emp);
+    onChange(emp[valueKey] || "", emp);
     setIsOpen(false);
     setSearch("");
   };
 
   const handleClear = () => {
     setSelectedEmployee(null);
-    onChange("", undefined);
+    onChange(allLabel ? allValue : "", undefined);
     setSearch("");
     setDeptFilter("all");
     setDesigFilter("all");
@@ -165,12 +271,22 @@ export default function EmployeeSelector({
     setSearch("");
   };
 
-  const displayName = selectedEmployee
-    ? `${getFullName(selectedEmployee)} (${selectedEmployee.employeeCode || ""})`
+  const selected = (options || employees).find((employee) => employee[valueKey] === value)
+    || (selectedEmployee?.[valueKey] === value ? selectedEmployee : null);
+  const displayName = selected
+    ? `${getFullName(selected) || selected.name || "Employee"}${selected.employeeCode ? ` (${selected.employeeCode})` : ""}`
     : "";
+  const localOptions = employeeFilterOptions(options || [], deptFilter);
+  const visibleDepartments = options ? localOptions.departments : departments;
+  const visibleDesignations = options ? localOptions.designations : designations.filter((designation) => deptFilter === "all" || designation.departmentId === deptFilter);
+  const results = options ? options.filter((employee) => {
+    if (!matchesEmployeeFilters(employee, { departmentId: deptFilter, designationId: desigFilter })) return false;
+    const label = `${getFullName(employee)} ${employee.name || ""} ${employee.employeeCode || ""} ${employee.workEmail || ""}`.toLowerCase();
+    return label.includes(search.trim().toLowerCase());
+  }) : employees;
 
   return (
-    <div ref={containerRef} className={cn("relative", className)}>
+    <div ref={containerRef} className={cn("relative", className)} data-employee-selector>
       {/* Trigger */}
       <button
         type="button"
@@ -183,10 +299,10 @@ export default function EmployeeSelector({
           isOpen && "border-ring ring-ring/50 ring-[3px]",
         )}
       >
-        <span className={cn("truncate text-left", !selectedEmployee && "text-muted-foreground")}>
-          {displayName || placeholder}
+        <span className={cn("truncate text-left", !selected && "text-muted-foreground")}>
+          {displayName || (allLabel && value === allValue ? allLabel : placeholder)}
         </span>
-        {selectedEmployee ? (
+        {selected ? (
           <X
             className="ml-2 h-4 w-4 shrink-0 opacity-50 hover:opacity-100"
             onClick={(e) => {
@@ -201,7 +317,17 @@ export default function EmployeeSelector({
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full min-w-[320px] rounded-md border bg-popover p-0 text-popover-foreground shadow-md">
+        <div
+          className={cn(
+            "absolute z-50 w-full rounded-md border bg-popover p-0 text-popover-foreground shadow-md",
+            dropdownLayout.horizontal === "right" ? "right-0" : "left-0",
+            dropdownLayout.vertical === "top" ? "bottom-full mb-1" : "top-full mt-1",
+          )}
+          style={{
+            minWidth: `${Math.min(320, dropdownLayout.maxWidth)}px`,
+            maxWidth: `${dropdownLayout.maxWidth}px`,
+          }}
+        >
           {/* Filters */}
           <div className="border-b p-2 space-y-2">
             <div className="relative">
@@ -217,13 +343,13 @@ export default function EmployeeSelector({
             {(showDepartmentFilter || showDesignationFilter) && (
               <div className="flex gap-2">
                 {showDepartmentFilter && (
-                  <Select value={deptFilter} onValueChange={setDeptFilter}>
-                    <SelectTrigger className="h-8 text-xs flex-1">
+                  <Select value={deptFilter} onValueChange={(value) => { setDeptFilter(value); setDesigFilter("all"); }}>
+                    <SelectTrigger aria-label="Filter employees by department" className="h-8 text-xs flex-1 min-w-0">
                       <SelectValue placeholder="Department" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Departments</SelectItem>
-                      {departments.map((d) => (
+                      {visibleDepartments.map((d) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
@@ -232,13 +358,13 @@ export default function EmployeeSelector({
                   </Select>
                 )}
                 {showDesignationFilter && (
-                  <Select value={desigFilter} onValueChange={setDesigFilter}>
-                    <SelectTrigger className="h-8 text-xs flex-1">
+                  <Select key={deptFilter} value={desigFilter} onValueChange={setDesigFilter}>
+                    <SelectTrigger aria-label="Filter employees by designation" className="h-8 text-xs flex-1 min-w-0">
                       <SelectValue placeholder="Designation" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Designations</SelectItem>
-                      {designations.map((d) => (
+                      {visibleDesignations.map((d) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
                         </SelectItem>
@@ -260,31 +386,36 @@ export default function EmployeeSelector({
           </div>
 
           {/* Results */}
-          <ScrollArea className="max-h-[300px]">
+          <div
+            className="overflow-y-auto"
+            style={{ maxHeight: `${dropdownLayout.listMaxHeight}px` }}
+            data-employee-results
+          >
+            {allLabel && <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { handleClear(); setIsOpen(false); }}>{allLabel}</button>}
             {loading ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
                 Searching...
               </div>
-            ) : employees.length === 0 ? (
+            ) : results.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
                 <Users className="mx-auto mb-1 h-4 w-4" />
                 No employees found
               </div>
             ) : (
               <div className="py-1">
-                {employees.map((emp) => (
+                {results.map((emp) => (
                   <button
-                    key={emp.id}
+                    key={emp[valueKey]}
                     type="button"
                     onClick={() => handleSelect(emp)}
                     className={cn(
                       "flex w-full items-start gap-3 px-3 py-2 text-left text-sm hover:bg-accent/50 transition-colors",
-                      value === emp.id && "bg-accent",
+                      value === emp[valueKey] && "bg-accent",
                     )}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">
-                        {getFullName(emp)}
+                        {getFullName(emp) || emp.name || "Employee"}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
                         {emp.employeeCode && <span>{emp.employeeCode}</span>}
@@ -301,7 +432,7 @@ export default function EmployeeSelector({
                 ))}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </div>
       )}
     </div>

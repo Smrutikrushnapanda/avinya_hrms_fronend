@@ -1,5 +1,6 @@
 "use client";
 
+import { EmployeeDepartmentFilters, useOrganizationEmployeeFilterOptions } from "@/components/employee-search-filters";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -306,9 +307,6 @@ export default function UserProjectsPage() {
   // Team members in detail dialog
   const [projectEmployees, setProjectEmployees] = useState<ProjectEmployee[]>([]);
   const [allOrgEmployees, setAllOrgEmployees] = useState<TeamMember[]>([]);
-  const [designationOptions, setDesignationOptions] = useState<
-    { id: string; name: string }[]
-  >([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [orgEmployeesLoading, setOrgEmployeesLoading] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -316,6 +314,8 @@ export default function UserProjectsPage() {
   const [employeeSearchInput, setEmployeeSearchInput] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [designationFilter, setDesignationFilter] = useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const employeeFilterOptions = useOrganizationEmployeeFilterOptions();
   const [assigning, setAssigning] = useState(false);
 
   // Update progress dialog
@@ -437,6 +437,7 @@ export default function UserProjectsPage() {
       try {
         const res = await getAllOrgEmployees({
           search: employeeSearch || undefined,
+          departmentId: departmentFilter !== "all" ? departmentFilter : undefined,
           designationId:
             designationFilter !== "all" ? designationFilter : undefined,
           limit: 250,
@@ -446,19 +447,6 @@ export default function UserProjectsPage() {
         const rows = Array.isArray(res.data) ? (res.data as TeamMember[]) : [];
         setAllOrgEmployees(rows);
 
-        if (!employeeSearch && designationFilter === "all") {
-          const optionsMap = new Map<string, string>();
-          rows.forEach((row) => {
-            if (row.designationId && row.designation) {
-              optionsMap.set(row.designationId, row.designation);
-            }
-          });
-          setDesignationOptions(
-            Array.from(optionsMap.entries())
-              .map(([id, name]) => ({ id, name }))
-              .sort((a, b) => a.name.localeCompare(b.name)),
-          );
-        }
       } catch {
         if (active) toast.error("Failed to load employees");
       } finally {
@@ -470,7 +458,7 @@ export default function UserProjectsPage() {
     return () => {
       active = false;
     };
-  }, [assignDialogOpen, employeeSearch, designationFilter]);
+  }, [assignDialogOpen, employeeSearch, designationFilter, departmentFilter]);
 
   const availableEmployees = useMemo(
     () =>
@@ -482,9 +470,9 @@ export default function UserProjectsPage() {
 
   useEffect(() => {
     setSelectedEmployeeIds((ids) =>
-      ids.filter((id) => availableEmployees.some((emp) => emp.userId === id)),
+      ids.filter((id) => !projectEmployees.some((employee) => employee.userId === id)),
     );
-  }, [availableEmployees]);
+  }, [projectEmployees]);
 
   const openDetail = (project: Project) => {
     router.push(`/user/projects/${project.id}?source=${project._source}`);
@@ -1028,7 +1016,7 @@ export default function UserProjectsPage() {
                             onClick={() => {
                               setEmployeeSearchInput("");
                               setEmployeeSearch("");
-                              setDesignationFilter("all");
+                              setDesignationFilter("all"); setDepartmentFilter("all");
                               setAssignDialogOpen(true);
                             }}
                           >
@@ -1199,7 +1187,7 @@ export default function UserProjectsPage() {
             setSelectedEmployeeIds([]);
             setEmployeeSearchInput("");
             setEmployeeSearch("");
-            setDesignationFilter("all");
+            setDesignationFilter("all"); setDepartmentFilter("all");
           }
         }}
       >
@@ -1217,18 +1205,7 @@ export default function UserProjectsPage() {
                 onChange={(e) => setEmployeeSearchInput(e.target.value)}
                 placeholder="Search name, email, employee ID"
               />
-              <select
-                value={designationFilter}
-                onChange={(e) => setDesignationFilter(e.target.value)}
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="all">All Designations</option>
-                {designationOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.name}
-                  </option>
-                ))}
-              </select>
+              <EmployeeDepartmentFilters {...employeeFilterOptions} departmentId={departmentFilter} designationId={designationFilter} onDepartmentChange={setDepartmentFilter} onDesignationChange={setDesignationFilter} />
             </div>
 
             {/* Available team members */}
@@ -1298,7 +1275,7 @@ export default function UserProjectsPage() {
                   setSelectedEmployeeIds([]);
                   setEmployeeSearchInput("");
                   setEmployeeSearch("");
-                  setDesignationFilter("all");
+                  setDesignationFilter("all"); setDepartmentFilter("all");
                 }}
               >
                 Cancel
@@ -1318,7 +1295,7 @@ export default function UserProjectsPage() {
                     setSelectedEmployeeIds([]);
                     setEmployeeSearchInput("");
                     setEmployeeSearch("");
-                    setDesignationFilter("all");
+                    setDesignationFilter("all"); setDepartmentFilter("all");
                     loadProjectEmployees(selected);
                   } catch {
                     toast.error("Failed to assign team members");

@@ -23,6 +23,10 @@ const serwist = new Serwist({
   navigationPreload: true,
   runtimeCaching: [
     {
+      matcher: ({ url }) => /^\/(?:leave|wfh)\/email-(?:configuration|deliveries)(?:\/|$)/.test(url.pathname),
+      handler: new NetworkOnly({ fetchOptions: { cache: "no-store" } }),
+    },
+    {
       matcher: ({ url }) => /^\/employees(?:\/|$)/.test(url.pathname) ||
         /^\/(?:projects|client-projects)\/[^/]+\/employees$/.test(url.pathname) ||
         ["/assign-work/options", "/dashboard/employees", "/projects/org-employees", "/projects/managers/team", "/performance/employees", "/performance/team"].includes(url.pathname),

@@ -1,6 +1,7 @@
 // app/employees/page.tsx
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,6 +23,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const employeeFilters = useEmployeeSearchFilters(employees);
 
   useEffect(() => {
     const fetchEmployees = async () => {
@@ -42,7 +44,7 @@ export default function EmployeesPage() {
     fetchEmployees();
   }, []);
 
-  const filteredEmployees = employees.filter((emp) =>
+  const filteredEmployees = employeeFilters.filteredEmployees.filter((emp) =>
     `${getFullName(emp)} ${emp.employeeCode}`
       .toLowerCase()
       .includes(search.toLowerCase())
@@ -64,6 +66,7 @@ export default function EmployeesPage() {
         onChange={(e) => setSearch(e.target.value)}
         className="w-full md:w-72"
       />
+              {employeeFilters.controls}
     </div>
 
     {/* Summary Stats */}

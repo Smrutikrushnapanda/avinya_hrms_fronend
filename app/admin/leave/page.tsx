@@ -1,5 +1,10 @@
 "use client";
 
+import { RequestEmailConfiguration } from "@/components/request-email-configuration";
+import { RequestEmailDeliveryDetails } from "@/components/request-email-delivery-details";
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
+import EmployeeSelector from "@/components/employee-selector";
+
 import { formatEmploymentType } from "@/lib/utils";
 import { useEffect, useState, useCallback } from "react";
 import {
@@ -18,6 +23,7 @@ import {
   Star,
   RefreshCw,
   Eye,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,6 +98,7 @@ interface LeaveRequest {
   toDate?: string;
   days?: number;
   totalDays?: number;
+  numberOfDays?: number;
   duration?: number;
   reason?: string;
   leaveType?: string | { name?: string };
@@ -211,6 +218,9 @@ function getFullName(
 // ------- Main Component -------
 export default function LeaveManagementPage() {
   const [profile, setProfile] = useState<any>(null);
+  const canViewApplicationEmails = profile?.roles?.some(({ roleName }: { roleName: string }) =>
+    ["ADMIN", "HR", "SUPERADMIN", "SUPER_ADMIN", "ORG_ADMIN"].includes(roleName),
+  );
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("requests");
 
@@ -237,6 +247,7 @@ export default function LeaveManagementPage() {
 
   // Assignments tab state
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const employeeFilters = useEmployeeSearchFilters(leaveRequests, employees);
   const [assignments, setAssignments] = useState<ApprovalAssignment[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
 
@@ -397,7 +408,7 @@ export default function LeaveManagementPage() {
   // Reset to page 1 when filters/search change
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, searchQuery, pageSize]);
+  }, [statusFilter, searchQuery, pageSize, employeeFilters.departmentId, employeeFilters.designationId]);
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -808,7 +819,7 @@ export default function LeaveManagementPage() {
         .includes(q) ||
       (r.reason || "").toLowerCase().includes(q) ||
       (r.status || "").toLowerCase().includes(q);
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesSearch && employeeFilters.matches(r);
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
@@ -826,7 +837,7 @@ export default function LeaveManagementPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="requests" className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
             Requests
@@ -843,6 +854,12 @@ export default function LeaveManagementPage() {
             <Tag className="h-4 w-4" />
             Leave Types
           </TabsTrigger>
+          {canViewApplicationEmails && (
+            <TabsTrigger value="email-configuration" className="flex items-center gap-2">
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              Email Configuration
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="requests" className="space-y-4">
@@ -867,13 +884,14 @@ export default function LeaveManagementPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Input
                     placeholder="Search employee, type, reason..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-64"
                   />
+              {employeeFilters.controls}
                 </div>
                 <div className="flex items-center gap-2 ml-auto">
                   <span className="text-sm text-muted-foreground">Rows</span>
@@ -926,7 +944,7 @@ export default function LeaveManagementPage() {
                       .map((req, index) => {
                       const start = req.startDate || req.fromDate;
                       const end = req.endDate || req.toDate;
-                      const days = req.totalDays ?? req.days ?? req.duration ?? "-";
+                      const days = req.numberOfDays ?? req.totalDays ?? req.days ?? req.duration ?? "-";
                       const unpaidDays = Number(req.unpaidDays ?? 0);
                       const type =
                         typeof req.leaveType === "string"
@@ -976,55 +994,56 @@ export default function LeaveManagementPage() {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            {req.status?.toUpperCase() === "PENDING" ? (
-                              <div className="flex justify-end gap-1.5">
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  className="h-8 w-8"
-                                  onClick={() => openLeaveDetailDialog(req)}
-                                  title="View"
-                                  aria-label="View leave request"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleApprove(req)}
-                                  loading={actionLoading === req.id}
-                                  title="Approve"
-                                  aria-label="Approve leave request"
-                                >
-                                  {actionLoading === req.id ? null : <Check className="h-4 w-4" />}
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="destructive"
-                                  className="h-8 w-8"
-                                  onClick={() => openRejectDialog(req)}
-                                  disabled={actionLoading === req.id}
-                                  title="Reject"
-                                  aria-label="Reject leave request"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ) : req.status?.toUpperCase() === "APPROVED" && !req.reconciled ? (
+                            <div className="flex justify-end gap-1.5">
                               <Button
                                 size="icon"
                                 variant="outline"
                                 className="h-8 w-8"
-                                onClick={() => handleReconcile(req)}
-                                loading={reconcileLoading === req.id}
-                                title="Reconcile balance"
-                                aria-label="Reconcile leave balance"
+                                onClick={() => openLeaveDetailDialog(req)}
+                                title="View"
+                                aria-label="View leave request"
                               >
-                                {reconcileLoading === req.id ? null : <RefreshCw className="h-4 w-4" />}
+                                <Eye className="h-4 w-4" />
                               </Button>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
-                            )}
+                              {req.status?.toUpperCase() === "PENDING" && (
+                                <>
+                                  <Button
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => handleApprove(req)}
+                                    loading={actionLoading === req.id}
+                                    title="Approve"
+                                    aria-label="Approve leave request"
+                                  >
+                                    {actionLoading === req.id ? null : <Check className="h-4 w-4" />}
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="destructive"
+                                    className="h-8 w-8"
+                                    onClick={() => openRejectDialog(req)}
+                                    disabled={actionLoading === req.id}
+                                    title="Reject"
+                                    aria-label="Reject leave request"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                              {req.status?.toUpperCase() === "APPROVED" && !req.reconciled && (
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8"
+                                  onClick={() => handleReconcile(req)}
+                                  loading={reconcileLoading === req.id}
+                                  title="Reconcile balance"
+                                  aria-label="Reconcile leave balance"
+                                >
+                                  {reconcileLoading === req.id ? null : <RefreshCw className="h-4 w-4" />}
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -1464,6 +1483,11 @@ export default function LeaveManagementPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        {canViewApplicationEmails && (
+          <TabsContent value="email-configuration" className="mt-6">
+            <RequestEmailConfiguration kind="leave" leaveTypes={leaveTypes} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
@@ -1509,43 +1533,15 @@ export default function LeaveManagementPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Employee</Label>
-              <Select
-                value={newAssignment.userId}
-                onValueChange={(value) =>
+              <EmployeeSelector options={employees} valueKey="userId" value={newAssignment.userId} onChange={(value) =>
                   setNewAssignment((prev) => ({ ...prev, userId: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.userId} value={emp.userId}>
-                      {getFullName(emp)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                } placeholder="Search employee..." />
             </div>
             <div className="space-y-2">
               <Label>Approver</Label>
-              <Select
-                value={newAssignment.approverId}
-                onValueChange={(value) =>
+              <EmployeeSelector options={employees} valueKey="userId" value={newAssignment.approverId} onChange={(value) =>
                   setNewAssignment((prev) => ({ ...prev, approverId: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select approver" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.userId} value={emp.userId}>
-                      {getFullName(emp)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                } placeholder="Search employee..." />
             </div>
             <div className="space-y-2">
               <Label>Approval Level</Label>
@@ -1601,18 +1597,7 @@ export default function LeaveManagementPage() {
             </div>
             <div className="space-y-2">
               <Label>Approver</Label>
-              <Select value={editApproverId} onValueChange={setEditApproverId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select approver" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.userId} value={emp.userId}>
-                      {getFullName(emp)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EmployeeSelector options={employees} valueKey="userId" value={editApproverId} onChange={setEditApproverId} placeholder="Search employee..." />
             </div>
             <div className="space-y-2">
               <Label>Approval Level</Label>
@@ -1793,7 +1778,7 @@ export default function LeaveManagementPage() {
 
       {/* Leave Detail Dialog */}
       <Dialog open={leaveDetailOpen} onOpenChange={setLeaveDetailOpen}>
-        <DialogContent className="sm:max-w-[560px]">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>Leave Request Details</DialogTitle>
             <DialogDescription>
@@ -1839,7 +1824,7 @@ export default function LeaveManagementPage() {
               <div>
                 <Label className="text-muted-foreground">Days</Label>
                 <p className="font-medium">
-                  {leaveDetail?.totalDays ?? leaveDetail?.days ?? leaveDetail?.duration ?? "-"}
+                  {leaveDetail?.numberOfDays ?? leaveDetail?.totalDays ?? leaveDetail?.days ?? leaveDetail?.duration ?? "-"}
                 </p>
               </div>
               <div>
@@ -1874,6 +1859,12 @@ export default function LeaveManagementPage() {
                   {leaveDetail.remarks}
                 </p>
               </div>
+            )}
+            {canViewApplicationEmails && leaveDetailOpen && leaveDetail && (
+              <section className="space-y-2" aria-label="Application email">
+                <h3 className="text-sm font-medium">Application email</h3>
+                <RequestEmailDeliveryDetails key={leaveDetail.id} kind="leave" requestId={leaveDetail.id} />
+              </section>
             )}
           </div>
           <DialogFooter>

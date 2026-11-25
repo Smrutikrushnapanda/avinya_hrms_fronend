@@ -1,5 +1,7 @@
 "use client";
 
+import EmployeeSelector from "@/components/employee-selector";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { useRouter } from "next/navigation";
@@ -543,17 +545,7 @@ export default function TimesheetSection({
           ) : (
             <>
               {isTeam && directReports.length > 0 && (
-                <Select value={selectedEmployeeId || "all"} onValueChange={(v) => setSelectedEmployeeId(v === "all" ? "" : v)}>
-                  <SelectTrigger className="w-[190px]">
-                    <SelectValue placeholder="All employees" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All employees</SelectItem>
-                    {directReports.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EmployeeSelector options={directReports} valueKey="id" value={selectedEmployeeId || "all"} onChange={(v) => setSelectedEmployeeId(v === "all" ? "" : v)} allLabel="All employees" allValue="all" placeholder="Search employee..." />
               )}
 
               {(projectFilterEnabled || isTeam) && (

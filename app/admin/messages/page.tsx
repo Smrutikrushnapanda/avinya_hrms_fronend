@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { getFullName } from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -67,6 +68,7 @@ export default function AdminMessagesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const employeeFilters = useEmployeeSearchFilters(employees);
   const [selectedMessage, setSelectedMessage] = useState<MessageItem | null>(null);
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
   const [search, setSearch] = useState("");
@@ -184,11 +186,11 @@ export default function AdminMessagesPage() {
   };
 
   const selectAllRecipients = () => {
-    if (selectedRecipients.length === employees.length) {
-      setSelectedRecipients([]);
-    } else {
-      setSelectedRecipients(employees.map((e) => e.id));
-    }
+    const visibleIds = filteredEmployees.map((employee) => employee.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedRecipients.includes(id));
+    setSelectedRecipients((previous) => allVisibleSelected
+      ? previous.filter((id) => !visibleIds.includes(id))
+      : [...new Set([...previous, ...visibleIds])]);
   };
 
   const filteredMessages = messages.filter((msg) => {
@@ -204,7 +206,7 @@ export default function AdminMessagesPage() {
     return true;
   });
 
-  const filteredEmployees = employees.filter((emp) => {
+  const filteredEmployees = employeeFilters.filteredEmployees.filter((emp) => {
     if (!recipientSearch.trim()) return true;
     const s = recipientSearch.toLowerCase();
     const name = getFullName(emp).toLowerCase();
@@ -445,7 +447,7 @@ export default function AdminMessagesPage() {
               <div className="flex items-center justify-between">
                 <Label>Recipients *</Label>
                 <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={selectAllRecipients}>
-                  {selectedRecipients.length === employees.length ? "Deselect All" : "Select All"}
+                  {filteredEmployees.length > 0 && filteredEmployees.every((employee) => selectedRecipients.includes(employee.id)) ? "Deselect visible" : "Select visible"}
                 </Button>
               </div>
 
@@ -477,7 +479,9 @@ export default function AdminMessagesPage() {
                   onChange={(e) => setRecipientSearch(e.target.value)}
                   className="pl-9"
                 />
+
               </div>
+              {employeeFilters.controls}
 
               <ScrollArea className="h-36 border rounded-md">
                 {filteredEmployees.length === 0 ? (

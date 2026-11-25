@@ -1,5 +1,9 @@
 "use client";
 
+import { RequestEmailConfiguration } from "@/components/request-email-configuration";
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
+import EmployeeSelector from "@/components/employee-selector";
+
 import { getFullName } from "@/lib/utils";
 import { useEffect, useState, useCallback } from "react";
 import {
@@ -15,6 +19,7 @@ import {
   Building2,
   Pencil,
   Eye,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -262,6 +267,8 @@ export default function WfhManagementPage() {
 
   // Assignments tab state
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const employeeFilters = useEmployeeSearchFilters(wfhRequests, employees);
+  const arrangementEmployeeFilters = useEmployeeSearchFilters(employees, undefined, true);
   const [assignments, setAssignments] = useState<WfhAssignment[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
 
@@ -430,7 +437,7 @@ export default function WfhManagementPage() {
   // Reset to page 1 when filters/search change
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, searchQuery, pageSize]);
+  }, [statusFilter, searchQuery, pageSize, employeeFilters.departmentId, employeeFilters.designationId]);
 
   // ------- Load assignments when tab switches and employees are ready -------
   useEffect(() => {
@@ -793,7 +800,7 @@ export default function WfhManagementPage() {
       getEmployeeName(r.userId, r.user).toLowerCase().includes(q) ||
       (r.reason || "").toLowerCase().includes(q) ||
       (r.status || "").toLowerCase().includes(q);
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesSearch && employeeFilters.matches(r);
   });
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
@@ -861,7 +868,7 @@ export default function WfhManagementPage() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="requests" className="gap-2">
             <ClipboardList className="h-4 w-4" />
             Requests
@@ -877,6 +884,10 @@ export default function WfhManagementPage() {
           <TabsTrigger value="work-arrangements" className="gap-2">
             <Building2 className="h-4 w-4" />
             Work Arrangements
+          </TabsTrigger>
+          <TabsTrigger value="email-configuration" className="gap-2">
+            <Mail className="h-4 w-4" aria-hidden="true" />
+            Email Configuration
           </TabsTrigger>
         </TabsList>
 
@@ -927,66 +938,73 @@ export default function WfhManagementPage() {
                 </div>
               </div>
 
-              {/* Status Filter Tabs */}
-              <div className="flex items-center gap-2 mb-6">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <div className="flex gap-1">
-                  {[
-                    { value: "all", label: "All", count: wfhRequests.length },
-                    {
-                      value: "PENDING",
-                      label: "Pending",
-                      count: pendingCount,
-                    },
-                    {
-                      value: "APPROVED",
-                      label: "Approved",
-                      count: approvedCount,
-                    },
-                    {
-                      value: "REJECTED",
-                      label: "Rejected",
-                      count: rejectedCount,
-                    },
-                  ].map((filter) => (
-                    <Button
-                      key={filter.value}
-                      variant={
-                        statusFilter === filter.value ? "default" : "ghost"
-                      }
-                      size="sm"
-                      onClick={() => setStatusFilter(filter.value)}
-                      className="gap-1.5"
+              {/* Status Filter Tabs & Search */}
+              <div className="space-y-3 mb-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        { value: "all", label: "All", count: wfhRequests.length },
+                        {
+                          value: "PENDING",
+                          label: "Pending",
+                          count: pendingCount,
+                        },
+                        {
+                          value: "APPROVED",
+                          label: "Approved",
+                          count: approvedCount,
+                        },
+                        {
+                          value: "REJECTED",
+                          label: "Rejected",
+                          count: rejectedCount,
+                        },
+                      ].map((filter) => (
+                        <Button
+                          key={filter.value}
+                          variant={
+                            statusFilter === filter.value ? "default" : "ghost"
+                          }
+                          size="sm"
+                          onClick={() => setStatusFilter(filter.value)}
+                          className="gap-1.5"
+                        >
+                          {filter.label}
+                          <span className="text-xs opacity-70">
+                            ({filter.count})
+                          </span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-sm text-muted-foreground">Rows</span>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(v) => setPageSize(Number(v))}
                     >
-                      {filter.label}
-                      <span className="text-xs opacity-70">
-                        ({filter.count})
-                      </span>
-                    </Button>
-                  ))}
+                      <SelectTrigger className="w-[80px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 ml-auto">
+                <div className="flex flex-wrap items-center gap-2">
                   <Input
                     placeholder="Search employee or reason..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-56"
+                    className="w-full sm:w-64"
                   />
-                  <span className="text-sm text-muted-foreground">Rows</span>
-                  <Select
-                    value={String(pageSize)}
-                    onValueChange={(v) => setPageSize(Number(v))}
-                  >
-                    <SelectTrigger className="w-[80px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {employeeFilters.controls}
                 </div>
               </div>
 
@@ -1545,6 +1563,7 @@ export default function WfhManagementPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="mb-4">{arrangementEmployeeFilters.controls}</div>
               {workArrangementsLoading ? (
                 <div className="space-y-3">
                   {Array.from({ length: 5 }).map((_, i) => (
@@ -1556,7 +1575,7 @@ export default function WfhManagementPage() {
                     </div>
                   ))}
                 </div>
-              ) : employees.length === 0 ? (
+              ) : arrangementEmployeeFilters.filteredEmployees.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
                   <p className="text-lg font-medium">No employees found</p>
@@ -1577,7 +1596,7 @@ export default function WfhManagementPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {employees.map((employee, index) => {
+                      {arrangementEmployeeFilters.filteredEmployees.map((employee, index) => {
                         const arrangement = getArrangementForEmployee(employee.userId);
                         return (
                           <TableRow key={employee.userId}>
@@ -1638,6 +1657,7 @@ export default function WfhManagementPage() {
             </CardContent>
           </Card>
         </TabsContent>
+      <TabsContent value="email-configuration" className="mt-6"><RequestEmailConfiguration kind="wfh" /></TabsContent>
       </Tabs>
 
       {/* ========== Reject Dialog ========== */}
@@ -1699,47 +1719,17 @@ export default function WfhManagementPage() {
             {/* Employee Select */}
             <div className="space-y-2">
               <Label>Employee</Label>
-              <Select
-                value={newAssignment.userId}
-                onValueChange={(val) =>
+              <EmployeeSelector options={employees} valueKey="userId" value={newAssignment.userId} onChange={(val) =>
                   setNewAssignment((prev) => ({ ...prev, userId: val }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.userId} value={emp.userId}>
-                      {getFullName(emp)}{" "}
-                      {emp.employeeCode ? `(${emp.employeeCode})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                } placeholder="Search employee..." />
             </div>
 
             {/* Approver Select */}
             <div className="space-y-2">
               <Label>Approver</Label>
-              <Select
-                value={newAssignment.approverId}
-                onValueChange={(val) =>
+              <EmployeeSelector options={employees} valueKey="userId" value={newAssignment.approverId} onChange={(val) =>
                   setNewAssignment((prev) => ({ ...prev, approverId: val }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select approver" />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.userId} value={emp.userId}>
-                      {getFullName(emp)}{" "}
-                      {emp.employeeCode ? `(${emp.employeeCode})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                } placeholder="Search employee..." />
             </div>
 
             {/* Level Select */}

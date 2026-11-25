@@ -1,5 +1,8 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
+import EmployeeSelector from "@/components/employee-selector";
+
 import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, Building2, PlusCircle, ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
@@ -50,6 +53,7 @@ export default function ClientsProjectsPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [workOrderFilter, setWorkOrderFilter] = useState<"all" | "assigned" | "pending">("all");
   const [managers, setManagers] = useState<any[]>([]);
+  const additionalManagerFilters = useEmployeeSearchFilters(managers, undefined, true);
   const [clientSubmitting, setClientSubmitting] = useState(false);
   const [projectSubmitting, setProjectSubmitting] = useState(false);
   const [editClientId, setEditClientId] = useState<string | null>(null);
@@ -105,6 +109,7 @@ export default function ClientsProjectsPage() {
     const mgrs = employees
       .filter((e: any) => reportsSet.has(e.id))
       .map((e: any) => ({
+        ...e,
         id: e.id,
         userId: e.userId ?? e.user?.id ?? "",
         name:
@@ -693,35 +698,16 @@ export default function ClientsProjectsPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Assign Manager</Label>
-                  <Select
-                    value={projectForm.managerId}
-                    onValueChange={(value) => setProjectForm((prev) => ({ ...prev, managerId: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={managers.length ? "Select manager" : "No managers found"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {managers.length === 0 ? (
-                        <SelectItem value="no-managers" disabled>
-                          No managers available
-                        </SelectItem>
-                      ) : (
-                        managers.map((mgr) => (
-                          <SelectItem key={mgr.id} value={mgr.id}>
-                            {mgr.name || "Unnamed"} {mgr.email ? `• ${mgr.email}` : ""}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <EmployeeSelector options={managers} valueKey="id" value={projectForm.managerId} onChange={(value) => setProjectForm((prev) => ({ ...prev, managerId: value }))} placeholder="Search manager..." />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Additional Managers</Label>
+                  {additionalManagerFilters.controls}
                   <div className="max-h-40 overflow-auto border border-border rounded-md p-2 space-y-1.5">
                     {managers.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No managers available</p>
                     ) : (
-                      managers.map((mgr) => {
+                      additionalManagerFilters.filteredEmployees.map((mgr) => {
                         const checked = projectForm.additionalManagerIds.includes(mgr.userId);
                         const isPrimary = mgr.id === projectForm.managerId;
                         return (

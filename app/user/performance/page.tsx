@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useEffect, useState } from "react";
 import {
   getPerformanceQuestions,
@@ -350,6 +351,7 @@ function TeamReviewSection({
   teamMembers: TeamMember[];
   onRated: (userId: string, rating: number, comments: string) => void;
 }) {
+  const employeeFilters = useEmployeeSearchFilters(teamMembers, undefined, true);
   const [ratingDialogFor, setRatingDialogFor] = useState<TeamMember | null>(null);
   const [expandedSelf, setExpandedSelf] = useState<string | null>(null);
   const [rating, setRating] = useState<number | "">("");
@@ -394,7 +396,8 @@ function TeamReviewSection({
 
   return (
     <div className="space-y-3">
-      {teamMembers.map((member) => (
+      {employeeFilters.controls}
+      {employeeFilters.filteredEmployees.map((member) => (
         <div
           key={member.userId}
           className="border border-border rounded-xl bg-card overflow-hidden"
@@ -514,6 +517,7 @@ function HrRateSection({
   employees: TeamMember[];
   onRated: (userId: string, rating: number, comments: string) => void;
 }) {
+  const employeeFilters = useEmployeeSearchFilters(employees, undefined, true);
   const [ratingDialogFor, setRatingDialogFor] = useState<TeamMember | null>(null);
   const [expandedSelf, setExpandedSelf] = useState<string | null>(null);
   const [rating, setRating] = useState<number | "">("");
@@ -558,7 +562,8 @@ function HrRateSection({
 
   return (
     <div className="space-y-3">
-      {employees.map((emp) => (
+      {employeeFilters.controls}
+      {employeeFilters.filteredEmployees.map((emp) => (
         <div
           key={emp.userId}
           className="border border-border rounded-xl bg-card overflow-hidden"

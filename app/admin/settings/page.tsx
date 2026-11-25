@@ -20,6 +20,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AttendanceSettingsPage from "../attendance/settings/page";
 import { isValidTimezone } from "@/utils/timezone";
 import { useOrganizationTimezoneStore } from "@/stores/organizationTimezoneStore";
+import { isAxiosError } from "axios";
+
+function settingsError(error: unknown, fallback: string) {
+  const message = isAxiosError(error) ? error.response?.data?.message : null;
+  return typeof message === "string" ? message : Array.isArray(message) ? message.join(". ") : fallback;
+}
 
 /**
  * Curated IANA timezone options for the Organization Settings selector.
@@ -49,6 +55,8 @@ interface Designation {
   id: string;
   name: string;
   code: string;
+  departmentId: string | null;
+  department?: Department | null;
 }
 
 interface Holiday {
@@ -162,7 +170,8 @@ export default function SettingsPage() {
   const [editingRole, setEditingRole] = useState<Role | null>(null);
 
   const [deptForm, setDeptForm] = useState({ name: "", code: "" });
-  const [desigForm, setDesigForm] = useState({ name: "", code: "" });
+  const [desigForm, setDesigForm] = useState({ departmentId: "", name: "", code: "" });
+  const [savingDesignation, setSavingDesignation] = useState(false);
   const [holidayForm, setHolidayForm] = useState({ name: "", date: "", description: "", isOptional: false });
 const [orgForm, setOrgForm] = useState({
   name: "",
@@ -448,10 +457,16 @@ const loadOrganization = async () => {
   };
 
   const handleSaveDesignation = async () => {
+    if (savingDesignation) return;
+    if (!departments.some((department) => department.id === desigForm.departmentId)) {
+      toast.error("Select a department");
+      return;
+    }
     if (!desigForm.name.trim()) {
       toast.error("Designation name is required");
       return;
     }
+    setSavingDesignation(true);
     try {
       if (editingDesig) {
         await updateDesignation(editingDesig.id, { ...desigForm, organizationId });
@@ -461,11 +476,13 @@ const loadOrganization = async () => {
         toast.success("Designation created");
       }
       setIsDesigDialogOpen(false);
-      setDesigForm({ name: "", code: "" });
+      setDesigForm({ departmentId: "", name: "", code: "" });
       setEditingDesig(null);
       loadDesignations();
     } catch (error) {
-      toast.error("Failed to save designation");
+      toast.error(settingsError(error, "Failed to save designation"));
+    } finally {
+      setSavingDesignation(false);
     }
   };
 
@@ -476,7 +493,7 @@ const loadOrganization = async () => {
       toast.success("Department deleted");
       loadDepartments();
     } catch (error) {
-      toast.error("Failed to delete department");
+      toast.error(settingsError(error, "Failed to delete department"));
     }
   };
 
@@ -487,7 +504,7 @@ const loadOrganization = async () => {
       toast.success("Designation deleted");
       loadDesignations();
     } catch (error) {
-      toast.error("Failed to delete designation");
+      toast.error(settingsError(error, "Failed to delete designation"));
     }
   };
 
@@ -1471,7 +1488,7 @@ const loadOrganization = async () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Designations</CardTitle>
-              <Button onClick={() => { setEditingDesig(null); setDesigForm({ name: "", code: "" }); setIsDesigDialogOpen(true); }}>
+              <Button onClick={() => { setEditingDesig(null); setDesigForm({ departmentId: "", name: "", code: "" }); setIsDesigDialogOpen(true); }}>
                 <Plus className="w-4 h-4 mr-2" /> Add Designation
               </Button>
             </CardHeader>
@@ -1480,6 +1497,7 @@ const loadOrganization = async () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Sl#</TableHead>
+                    <TableHead>Department</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -1489,10 +1507,11 @@ const loadOrganization = async () => {
                   {designations.map((desig, index) => (
                     <TableRow key={desig.id}>
                       <TableCell className="font-medium">{index + 1}</TableCell>
+                      <TableCell>{departments.find((department) => department.id === desig.departmentId)?.name || desig.department?.name || "Not linked"}</TableCell>
                       <TableCell>{desig.name}</TableCell>
                       <TableCell>{desig.code}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingDesig(desig); setDesigForm({ name: desig.name, code: desig.code }); setIsDesigDialogOpen(true); }}>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingDesig(desig); setDesigForm({ departmentId: desig.departmentId || "", name: desig.name, code: desig.code || "" }); setIsDesigDialogOpen(true); }}>
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button variant="ghost" size="sm" onClick={() => handleDeleteDesignation(desig.id)}>
@@ -1714,18 +1733,28 @@ const loadOrganization = async () => {
             <DialogTitle>{editingDesig ? "Edit" : "Add"} Designation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Name</Label>
-              <Input value={desigForm.name} onChange={(e) => setDesigForm({ ...desigForm, name: e.target.value })} />
+            <div className="space-y-2">
+              <Label htmlFor="designation-department">Department *</Label>
+              <Select value={desigForm.departmentId} onValueChange={(departmentId) => setDesigForm({ ...desigForm, departmentId })} disabled={savingDesignation || departments.length === 0}>
+                <SelectTrigger id="designation-department"><SelectValue placeholder="Select department" /></SelectTrigger>
+                <SelectContent>
+                  {departments.map((department) => <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {departments.length === 0 && <p className="text-sm text-muted-foreground">Add a department in Departments before creating a designation.</p>}
             </div>
             <div>
-              <Label>Code</Label>
-              <Input value={desigForm.code} onChange={(e) => setDesigForm({ ...desigForm, code: e.target.value })} />
+              <Label htmlFor="designation-name">Designation *</Label>
+              <Input id="designation-name" disabled={savingDesignation} value={desigForm.name} onChange={(e) => setDesigForm({ ...desigForm, name: e.target.value })} />
+            </div>
+            <div>
+              <Label htmlFor="designation-code">Code</Label>
+              <Input id="designation-code" disabled={savingDesignation} value={desigForm.code} onChange={(e) => setDesigForm({ ...desigForm, code: e.target.value })} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDesigDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveDesignation}>Save</Button>
+            <Button variant="outline" disabled={savingDesignation} onClick={() => setIsDesigDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveDesignation} disabled={savingDesignation || !desigForm.departmentId || !desigForm.name.trim()}>{savingDesignation ? "Saving..." : "Save"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

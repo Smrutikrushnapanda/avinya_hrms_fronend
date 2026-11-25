@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useState, useEffect } from "react";
 import {
   Plus,
@@ -105,6 +106,7 @@ interface Employee {
 export default function WorkflowManagement() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const employeeFilters = useEmployeeSearchFilters(employees, undefined, true);
   const [loading, setLoading] = useState(true);
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [organizationId, setOrganizationId] = useState("");
@@ -692,6 +694,7 @@ const handleSaveApprovers = async () => {
             </div>
           ) : (
             <div className="space-y-3">
+              {employeeFilters.controls}
               {/* Employee selection area with proper scrolling */}
               <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2 bg-gray-50 dark:bg-gray-900">
 
@@ -703,7 +706,7 @@ const handleSaveApprovers = async () => {
                     <p>No employees found</p>
                   </div>
                 ) : (
-                  employees.map((employee) => (
+                  employeeFilters.filteredEmployees.map((employee) => (
                     <label
                       key={employee.id}
                       className={`flex items-center space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg border cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors ${selectedApprovers.includes(employee.id) ? 'ring-2 ring-blue-500 bg-blue-50' : ''

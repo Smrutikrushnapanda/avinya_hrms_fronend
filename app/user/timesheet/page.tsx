@@ -16,6 +16,8 @@ type DirectReport = {
   middleName?: string;
   lastName?: string;
   employeeCode?: string;
+  department?: { id: string; name: string };
+  designation?: { id: string; name: string };
 };
 
 const ADMIN_ROLE_NAMES = new Set(["admin", "super_admin", "organization_admin"]);
@@ -88,6 +90,8 @@ export default function TimesheetPage() {
     userId: r.userId,
     name: [r.firstName, r.middleName, r.lastName].filter(Boolean).join(" "),
     employeeCode: r.employeeCode,
+    department: r.department,
+    designation: r.designation,
   }));
 
   if (loading) {

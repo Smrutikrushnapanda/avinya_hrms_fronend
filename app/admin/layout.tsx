@@ -40,7 +40,7 @@ function AdminLayoutContent({ children }: { children: ReactNode }) {
       <Topbar />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 bg-background overflow-y-auto scrollbar-hide p-4">
+        <main className="flex-1 min-w-0 bg-background overflow-y-auto scrollbar-hide p-4">
           {children}
         </main>
       </div>

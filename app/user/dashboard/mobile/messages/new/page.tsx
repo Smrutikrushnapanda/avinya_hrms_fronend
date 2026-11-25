@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
@@ -13,6 +14,7 @@ export default function NewChatPage() {
 
   const [search, setSearch] = useState("");
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const employeeFilters = useEmployeeSearchFilters(employees);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -48,15 +50,15 @@ export default function NewChatPage() {
   }, []);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return employees;
+    if (!search.trim()) return employeeFilters.filteredEmployees;
     const query = search.toLowerCase();
 
-    return employees.filter((employee) => {
+    return employeeFilters.filteredEmployees.filter((employee) => {
       const name = `${employee.firstName || ""} ${employee.lastName || ""}`.toLowerCase();
       const designation = `${employee.designation?.name || employee.designationName || ""}`.toLowerCase();
       return name.includes(query) || designation.includes(query);
     });
-  }, [employees, search]);
+  }, [employeeFilters.filteredEmployees, search]);
 
   const startChatWith = async (employee: Employee) => {
     try {
@@ -112,6 +114,8 @@ export default function NewChatPage() {
             </button>
           ) : null}
         </div>
+
+        <div className="px-4 pt-3">{employeeFilters.controls}</div>
 
         {/* Section label */}
         {!loading && filtered.length > 0 ? (

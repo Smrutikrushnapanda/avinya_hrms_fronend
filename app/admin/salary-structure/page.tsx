@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { getFullName } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -64,8 +65,9 @@ const formatCurrency = (v: number) =>
 export default function SalaryStructurePage() {
   const router = useRouter();
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
+  const createEmployeeFilters = useEmployeeSearchFilters(employees, undefined, true);
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
-  const [designations, setDesignations] = useState<{ id: string; name: string }[]>([]);
+  const [designations, setDesignations] = useState<{ id: string; name: string; departmentId?: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -198,7 +200,7 @@ export default function SalaryStructurePage() {
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Search by name, code, or email..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pl-8" />
             </div>
-            <Select value={deptFilter} onValueChange={(v) => { setDeptFilter(v); setPage(1); }}>
+            <Select value={deptFilter} onValueChange={(v) => { setDeptFilter(v); setDesigFilter("all"); setPage(1); }}>
               <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Department" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
@@ -209,7 +211,7 @@ export default function SalaryStructurePage() {
               <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Designation" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Designations</SelectItem>
-                {designations.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                {designations.filter((designation) => deptFilter === "all" || designation.departmentId === deptFilter).map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
               </SelectContent>
             </Select>
             {hasFilters && (
@@ -320,8 +322,9 @@ export default function SalaryStructurePage() {
             <DialogTitle>Create Salary Structure</DialogTitle>
             <DialogDescription>Select an employee to configure their salary structure.</DialogDescription>
           </DialogHeader>
+          {createEmployeeFilters.controls}
           <div className="space-y-3 max-h-[400px] overflow-y-auto">
-            {employees.map((emp) => (
+            {createEmployeeFilters.filteredEmployees.map((emp) => (
               <button
                 key={emp.id}
                 onClick={() => {
@@ -338,7 +341,7 @@ export default function SalaryStructurePage() {
                 </div>
               </button>
             ))}
-            {employees.length === 0 && (
+            {createEmployeeFilters.filteredEmployees.length === 0 && (
               <div className="text-center py-4 text-sm text-muted-foreground">No employees found.</div>
             )}
           </div>

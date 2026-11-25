@@ -1,5 +1,6 @@
 "use client";
 
+import { useOrganizationEmployeeFilterOptions } from "@/components/employee-search-filters";
 import { getFullName } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,9 @@ export default function PayrollPage() {
   const [to, setTo] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState<string>("");
+  const [departmentId, setDepartmentId] = useState("all");
+  const [designationId, setDesignationId] = useState("all");
+  const employeeFilterOptions = useOrganizationEmployeeFilterOptions(organizationId);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PayrollRecord | null>(null);
@@ -174,6 +178,8 @@ export default function PayrollPage() {
         organizationId,
         status: statusFilter,
         search: search.trim(),
+        departmentId: departmentId !== "all" ? departmentId : undefined,
+        designationId: designationId !== "all" ? designationId : undefined,
         page: 1,
         limit: 200,
       };
@@ -453,15 +459,55 @@ export default function PayrollPage() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                <div className="md:col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>Search</Label>
                   <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name or code" />
                 </div>
-                <div>
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select
+                    value={departmentId}
+                    onValueChange={(value) => {
+                      setDepartmentId(value);
+                      setDesignationId("all");
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All Departments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Departments</SelectItem>
+                      {employeeFilterOptions.departments.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Designation</Label>
+                  <Select key={departmentId} value={designationId} onValueChange={setDesignationId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="All Designations" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Designations</SelectItem>
+                      {employeeFilterOptions.designations
+                        .filter((d) => departmentId === "all" || d.departmentId === departmentId)
+                        .map((d) => (
+                          <SelectItem key={d.id} value={d.id}>
+                            {d.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label>Status</Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="All" />
                     </SelectTrigger>
                     <SelectContent>
@@ -472,22 +518,22 @@ export default function PayrollPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
+                <div className="space-y-2">
                   <Label>Mode</Label>
-                <Select value={mode} onValueChange={(v: any) => setMode(v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Monthly" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="range">Date Range</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {mode === "monthly" ? (
-                <>
-                    <div>
+                  <Select value={mode} onValueChange={(v: any) => setMode(v)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Monthly" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="range">Date Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {mode === "monthly" ? (
+                  <>
+                    <div className="space-y-2">
                       <Label>Month</Label>
                       <Input
                         type="text"
@@ -501,7 +547,7 @@ export default function PayrollPage() {
                         }}
                       />
                     </div>
-                    <div>
+                    <div className="space-y-2">
                       <Label>Year</Label>
                       <Input
                         type="text"
@@ -518,11 +564,11 @@ export default function PayrollPage() {
                   </>
                 ) : (
                   <>
-                    <div>
+                    <div className="space-y-2">
                       <Label>From</Label>
                       <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
                     </div>
-                    <div>
+                    <div className="space-y-2">
                       <Label>To</Label>
                       <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
                     </div>
@@ -540,75 +586,77 @@ export default function PayrollPage() {
               <CardTitle>Payroll Records</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Sl#</TableHead>
-                    {payrollLayoutConfig.tableColumns.map((column) => (
-                      <TableHead key={column.key}>{column.label}</TableHead>
-                    ))}
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {records.map((r, index) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-medium">{index + 1}</TableCell>
-                      <TableCell>{[r.employee?.firstName, r.employee?.middleName, r.employee?.lastName].filter(Boolean).join(" ") || "—"}</TableCell>
-                      <TableCell>{r.employee?.employeeCode || "-"}</TableCell>
-                      <TableCell>{formatPayPeriod(r.payPeriod)}</TableCell>
-                      <TableCell className="font-semibold">{formatCurrency(r.netPay)}</TableCell>
-                      <TableCell className="capitalize">{r.status}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDownload(r.id)} disabled={downloadingId === r.id}>
-                          {downloadingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => openBankDetails(r)} title="Bank Details">
-                          <Landmark className="w-4 h-4" />
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              loading={sendingId === r.id}
-                            >
-                              <Send className="w-4 h-4" />
-                              <ChevronDown className="w-3 h-3 ml-1" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleSend(r, 'both')}>
-                              <Send className="w-4 h-4 mr-2" /> Send Both (Email + App)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSend(r, 'email')}>
-                              <Mail className="w-4 h-4 mr-2" /> Send via Email
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSend(r, 'in_app')}>
-                              <Smartphone className="w-4 h-4 mr-2" /> Send to App Only
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {records.length === 0 && (
+              <div className="rounded-md border max-h-[600px] overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10 shadow-xs">
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        <div className="flex flex-col items-center gap-2 py-6">
-                          <div>No payroll records found for the selected filters.</div>
-                          <Button variant="outline" onClick={openCreate}>
-                            <Plus className="w-4 h-4 mr-2" /> Add Payroll
-                          </Button>
-                        </div>
-                      </TableCell>
+                      <TableHead>Sl#</TableHead>
+                      {payrollLayoutConfig.tableColumns.map((column) => (
+                        <TableHead key={column.key}>{column.label}</TableHead>
+                      ))}
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {records.map((r, index) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell>{[r.employee?.firstName, r.employee?.middleName, r.employee?.lastName].filter(Boolean).join(" ") || "—"}</TableCell>
+                        <TableCell>{r.employee?.employeeCode || "-"}</TableCell>
+                        <TableCell>{formatPayPeriod(r.payPeriod)}</TableCell>
+                        <TableCell className="font-semibold">{formatCurrency(r.netPay)}</TableCell>
+                        <TableCell className="capitalize">{r.status}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDownload(r.id)} disabled={downloadingId === r.id}>
+                            {downloadingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => openBankDetails(r)} title="Bank Details">
+                            <Landmark className="w-4 h-4" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                loading={sendingId === r.id}
+                              >
+                                <Send className="w-4 h-4" />
+                                <ChevronDown className="w-3 h-3 ml-1" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleSend(r, 'both')}>
+                                <Send className="w-4 h-4 mr-2" /> Send Both (Email + App)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleSend(r, 'email')}>
+                                <Mail className="w-4 h-4 mr-2" /> Send via Email
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleSend(r, 'in_app')}>
+                                <Smartphone className="w-4 h-4 mr-2" /> Send to App Only
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {records.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground">
+                          <div className="flex flex-col items-center gap-2 py-6">
+                            <div>No payroll records found for the selected filters.</div>
+                            <Button variant="outline" onClick={openCreate}>
+                              <Plus className="w-4 h-4 mr-2" /> Add Payroll
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -710,7 +758,7 @@ export default function PayrollPage() {
       </Tabs>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[900px]">
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Payroll" : "Add Payroll"}</DialogTitle>
           </DialogHeader>

@@ -1,5 +1,7 @@
 "use client";
 
+import EmployeeSelector from "@/components/employee-selector";
+
 import { formatEmploymentType, getFullName } from "@/lib/utils";
 import { useState } from "react";
 import {
@@ -206,6 +208,9 @@ export default function EmployeeDialogs({
   
   const departments = employeeData?.filters?.departments || [];
   const designations = employeeData?.filters?.designations || [];
+  const createDesignations: { id: string; name: string; departmentId: string }[] = newEmployee.departmentId
+    ? designations.filter((designation: { departmentId?: string | null }) => designation.departmentId === newEmployee.departmentId)
+    : [];
   const managers = employeeData?.filters?.managers || [];
   const branches = employeeData?.filters?.branches || [];
   const shifts = employeeData?.filters?.shifts || [];
@@ -615,9 +620,9 @@ export default function EmployeeDialogs({
                     <Label htmlFor="departmentId">Department</Label>
                     <Select
                       value={newEmployee.departmentId}
-                      onValueChange={(value) => setNewEmployee({ ...newEmployee, departmentId: value })}
+                      onValueChange={(value) => setNewEmployee({ ...newEmployee, departmentId: value, designationId: "" })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="departmentId">
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
@@ -630,18 +635,23 @@ export default function EmployeeDialogs({
                   <div className="grid gap-2">
                     <Label htmlFor="designationId">Designation</Label>
                     <Select
+                      key={newEmployee.departmentId || "no-department"}
                       value={newEmployee.designationId}
                       onValueChange={(value) => setNewEmployee({ ...newEmployee, designationId: value })}
+                      disabled={!newEmployee.departmentId || createDesignations.length === 0}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select designation" />
+                      <SelectTrigger id="designationId">
+                        <SelectValue placeholder={!newEmployee.departmentId ? "Select department first" : createDesignations.length === 0 ? "No designations available" : "Select designation"} />
                       </SelectTrigger>
                       <SelectContent>
-                        {designations.map((desig: any) => (
+                        {createDesignations.map((desig) => (
                           <SelectItem key={desig.id} value={desig.id}>{desig.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {newEmployee.departmentId && createDesignations.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Add or link designations to this department in Settings.</p>
+                    )}
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="branchId">Branch</Label>
@@ -683,23 +693,7 @@ export default function EmployeeDialogs({
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="reportingTo">Reporting Manager (Optional)</Label>
-                    <Select
-                      value={newEmployee.reportingTo}
-                      onValueChange={(value) => setNewEmployee({ ...newEmployee, reportingTo: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={managers.length === 0 ? "No managers available" : "Select manager"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {managers.length === 0 ? (
-                          <SelectItem value="none" disabled>No managers available yet</SelectItem>
-                        ) : (
-                          managers.map((mgr: any) => (
-                            <SelectItem key={mgr.id} value={mgr.id}>{getFullName(mgr)}</SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                    <EmployeeSelector options={managers} valueKey="id" value={newEmployee.reportingTo} onChange={(value) => setNewEmployee({ ...newEmployee, reportingTo: value })} placeholder="Search manager..." />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -1346,28 +1340,7 @@ export default function EmployeeDialogs({
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="editReportingTo">Reporting Manager (Optional)</Label>
-                    <Select
-                      value={editEmployee.reportingTo}
-                      onValueChange={(value) => setEditEmployee({ ...editEmployee, reportingTo: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={managers.length === 0 ? "No managers available" : "Select manager"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(() => {
-                          const filtered = managers.filter((mgr: any) => mgr.id !== selectedEmployee?.id);
-                          return filtered.length === 0 ? (
-                            <SelectItem value="none" disabled>No managers available yet</SelectItem>
-                          ) : (
-                            filtered.map((mgr: any) => (
-                              <SelectItem key={mgr.id} value={mgr.id}>
-                                {getFullName(mgr)}
-                              </SelectItem>
-                            ))
-                          );
-                        })()}
-                      </SelectContent>
-                    </Select>
+                    <EmployeeSelector options={managers.filter((manager: { id: string }) => manager.id !== selectedEmployee?.id)} valueKey="id" value={editEmployee.reportingTo} onChange={(value) => setEditEmployee({ ...editEmployee, reportingTo: value })} placeholder="Search manager..." />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -2060,22 +2033,7 @@ export default function EmployeeDialogs({
             </div>
             <div className="grid gap-2">
               <Label>Manager</Label>
-              <Select
-                value={bulkAssignData.managerId || undefined}
-                onValueChange={(value) => setBulkAssignData({ ...bulkAssignData, managerId: value || "" })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select manager" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no-change">No change</SelectItem>
-                  {managers.map((mgr: any) => (
-                    <SelectItem key={mgr.id} value={mgr.id}>
-                      {getFullName(mgr)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EmployeeSelector options={managers} valueKey="id" value={bulkAssignData.managerId || undefined} onChange={(value) => setBulkAssignData({ ...bulkAssignData, managerId: value || "" })} allLabel="No change" allValue="no-change" placeholder="Search manager..." />
             </div>
             <div className="grid gap-2">
               <Label>Employment Type</Label>
@@ -2552,31 +2510,14 @@ export default function EmployeeDialogs({
                 {/* Manager Selector */}
                 <div className="space-y-1.5">
                   <Label className="text-xs">Project Manager (Active)</Label>
-                  <Select
-                    value={assignmentForm.managerId || "none"}
-                    onValueChange={(val) => {
+                  <EmployeeSelector options={managers
+                        .filter((m: any) => m.id !== projectAssignEmployee?.id && (m.status || "active") === "active")} valueKey="id" value={assignmentForm.managerId || "none"} onChange={(val) => {
                       setAssignmentForm({
                         ...assignmentForm,
                         managerId: val === "none" ? "" : val,
                       });
                       setAssignmentError("");
-                    }}
-                  >
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Select active manager" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-56">
-                      <SelectItem value="none">No Manager Assigned</SelectItem>
-                      {managers
-                        .filter((m: any) => m.id !== projectAssignEmployee?.id && (m.status || "active") === "active")
-                        .map((m: any) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {getFullName(m)}
-                            {m.designation?.name ? ` (${m.designation.name})` : ""}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                    }} allLabel="No Manager Assigned" allValue="none" placeholder="Search manager..." />
                 </div>
 
                 {/* Manager Type (Shown if a manager is selected) */}

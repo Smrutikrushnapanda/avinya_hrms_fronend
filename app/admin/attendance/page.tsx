@@ -1,5 +1,6 @@
 "use client";
 
+import { EmployeeDepartmentFilters, useOrganizationEmployeeFilterOptions } from "@/components/employee-search-filters";
 import { useEffect, useState, useMemo } from "react";
 import { format, isBefore, parse } from "date-fns";
 import { ColumnDef, SortingState } from "@tanstack/react-table";
@@ -527,6 +528,9 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [organizationId, setOrganizationId] = useState<string>("");
+  const employeeFilterOptions = useOrganizationEmployeeFilterOptions(organizationId);
+  const [departmentId, setDepartmentId] = useState("all");
+  const [designationId, setDesignationId] = useState("all");
   const [shiftStart, setShiftStart] = useState("09:00");
   const [shiftEnd, setShiftEnd] = useState("18:00");
   const [graceMinutes, setGraceMinutes] = useState(15);
@@ -571,7 +575,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (!organizationId) return;
-
+    let active = true;
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -585,6 +589,8 @@ export default function AttendancePage() {
             page: state.page + 1,
             limit: state.pageSize,
             search: state.search,
+            departmentId: departmentId !== "all" ? departmentId : undefined,
+            designationId: designationId !== "all" ? designationId : undefined,
             status: "all",
             sortBy: state.sorting[0]?.id,
             sortOrder: state.sorting[0]?.desc ? "desc" : "asc",
@@ -632,6 +638,7 @@ export default function AttendancePage() {
           }),
         );
 
+        if (!active) return;
         setData(hydrated);
         setTotalPages(res.data.pagination?.totalPages || 1);
 
@@ -643,16 +650,17 @@ export default function AttendancePage() {
           },
         });
 
-        setStats(statsRes.data);
+        if (active) setStats(statsRes.data);
       } catch (error) {
-        console.error("Error fetching attendance data:", error);
+        if (active) console.error("Error fetching attendance data:", error);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
 
     fetchData();
-  }, [date, state, organizationId]);
+    return () => { active = false; };
+  }, [date, state, organizationId, departmentId, designationId]);
 
   const handlePrevDate = () => {
     setDate((prev) => {
@@ -673,7 +681,7 @@ export default function AttendancePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-5">
           <h1 className="text-2xl font-bold border-r pr-5">Attendance</h1>
           <div className="flex items-center gap-2">
@@ -844,17 +852,18 @@ export default function AttendancePage() {
       {/* Data Table */}
       <Card className="transition-all hover:shadow-md">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle>Attendance Records</CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Input
                 placeholder="Search employees..."
                 value={state.search}
                 onChange={(e) =>
                   setState((prev) => ({ ...prev, search: e.target.value, page: 0 }))
                 }
-                className="w-64"
+                className="w-full sm:w-64"
               />
+              <EmployeeDepartmentFilters {...employeeFilterOptions} departmentId={departmentId} designationId={designationId} onDepartmentChange={(id) => { setDepartmentId(id); setState((prev) => ({ ...prev, page: 0 })); }} onDesignationChange={(id) => { setDesignationId(id); setState((prev) => ({ ...prev, page: 0 })); }} />
             </div>
           </div>
         </CardHeader>

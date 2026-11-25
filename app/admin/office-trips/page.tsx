@@ -1,5 +1,8 @@
 "use client";
 
+import { EmployeeDepartmentFilters, useOrganizationEmployeeFilterOptions } from "@/components/employee-search-filters";
+import EmployeeSelector from "@/components/employee-selector";
+
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Plane,
@@ -173,6 +176,8 @@ export default function AdminOfficeTripsPage() {
   // Filters (server-side)
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [designationFilter, setDesignationFilter] = useState("all");
+  const employeeFilterOptions = useOrganizationEmployeeFilterOptions(profile?.organizationId);
   const [tripTypeFilter, setTripTypeFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -214,6 +219,7 @@ export default function AdminOfficeTripsPage() {
         const data = Array.isArray(res.data) ? res.data : [];
         setEmployees(
           data.map((e: any) => ({
+            ...e,
             userId: e.userId ?? e.user?.id,
             name: [e.firstName, e.middleName, e.lastName].filter(Boolean).join(" ") || e.workEmail || "Employee",
           }))
@@ -237,6 +243,7 @@ export default function AdminOfficeTripsPage() {
       const res = await getAllOfficeTrips(profile.organizationId, {
         employeeId: employeeFilter !== "all" ? employeeFilter : undefined,
         departmentId: departmentFilter !== "all" ? departmentFilter : undefined,
+        designationId: designationFilter !== "all" ? designationFilter : undefined,
         tripType: tripTypeFilter !== "all" ? tripTypeFilter : undefined,
         status: activeTab !== "all" ? activeTab.toUpperCase() : undefined,
         dateFrom: dateFrom || undefined,
@@ -248,7 +255,7 @@ export default function AdminOfficeTripsPage() {
     } finally {
       setTripsLoading(false);
     }
-  }, [profile?.organizationId, employeeFilter, departmentFilter, tripTypeFilter, activeTab, dateFrom, dateTo]);
+  }, [profile?.organizationId, employeeFilter, departmentFilter, designationFilter, tripTypeFilter, activeTab, dateFrom, dateTo]);
 
   useEffect(() => {
     if (profile) fetchTrips();
@@ -357,29 +364,9 @@ export default function AdminOfficeTripsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
 
-            <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Employee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Employees</SelectItem>
-                {employees.map((e) => (
-                  <SelectItem key={e.userId} value={e.userId}>{e.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EmployeeSelector options={employees} valueKey="userId" value={employeeFilter} onChange={setEmployeeFilter} allLabel="All Employees" allValue="all" placeholder="Search employee..." />
 
-            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="w-[170px]">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {departments.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <EmployeeDepartmentFilters {...employeeFilterOptions} departmentId={departmentFilter} designationId={designationFilter} onDepartmentChange={setDepartmentFilter} onDesignationChange={setDesignationFilter} />
 
             <Select value={tripTypeFilter} onValueChange={setTripTypeFilter}>
               <SelectTrigger className="w-[150px]">
@@ -413,7 +400,7 @@ export default function AdminOfficeTripsPage() {
             </div>
 
             {(employeeFilter !== "all" ||
-              departmentFilter !== "all" ||
+              departmentFilter !== "all" || designationFilter !== "all" ||
               tripTypeFilter !== "all" ||
               dateFrom ||
               dateTo) && (
@@ -422,7 +409,7 @@ export default function AdminOfficeTripsPage() {
                 size="sm"
                 onClick={() => {
                   setEmployeeFilter("all");
-                  setDepartmentFilter("all");
+                  setDepartmentFilter("all"); setDesignationFilter("all");
                   setTripTypeFilter("all");
                   setDateFrom("");
                   setDateTo("");

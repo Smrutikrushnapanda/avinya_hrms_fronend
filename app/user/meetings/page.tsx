@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useEffect, useState, useCallback } from "react";
 import {
   Calendar1,
@@ -182,6 +183,7 @@ export default function MyMeetingsPage() {
 
   // ─── Schedule meeting state ──────────────────────────────────────────────
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const employeeFilters = useEmployeeSearchFilters(employees, undefined, true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [meetingForm, setMeetingForm] = useState({
@@ -634,13 +636,14 @@ export default function MyMeetingsPage() {
 
             <div className="space-y-2">
               <Label>Invite Colleagues</Label>
+              {employeeFilters.controls}
               <div className="border rounded-md max-h-48 overflow-y-auto p-2 space-y-1">
                 {employees.length === 0 ? (
                   <p className="text-sm text-muted-foreground p-2">
                     No employees found in your organization
                   </p>
                 ) : (
-                  employees
+                  employeeFilters.filteredEmployees
                     .filter((emp) => emp.userId !== userId)
                     .map((emp) => (
                       <div

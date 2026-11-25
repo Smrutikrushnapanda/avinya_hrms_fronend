@@ -1,12 +1,14 @@
 "use client";
 
+import EmployeeSelector from "@/components/employee-selector";
+
 import { getFullName } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { DataTable } from "@/components/ui/data-table";
 import { Switch } from "@/components/ui/switch";
 import { Download, RotateCcw } from "lucide-react";
@@ -208,19 +210,7 @@ export default function LogReportPage() {
               </div>
               <div className="space-y-2">
                 <Label>User</Label>
-                <Select value={filters.userId} onValueChange={(v) => setFilters({ ...filters, userId: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Users" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {employees.map((emp: any) => (
-                      <SelectItem key={emp.userId} value={emp.userId}>
-                        {getFullName(emp)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <EmployeeSelector options={employees} valueKey="userId" value={filters.userId} onChange={(v) => setFilters({ ...filters, userId: v })} allLabel="All" allValue="all" placeholder="Search employee..." />
               </div>
               <div className="space-y-2">
                 <Label>Action Type</Label>

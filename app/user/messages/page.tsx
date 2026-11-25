@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   createDirectChat,
@@ -276,15 +277,16 @@ export default function MessagesPage() {
     [selectedConversationId],
   );
 
+  const employeeFilters = useEmployeeSearchFilters(selectableEmployees);
   const filteredEmployees = useMemo(() => {
     const term = participantFilter.trim().toLowerCase();
-    if (!term) return selectableEmployees;
-    return selectableEmployees.filter((employee) => {
+    if (!term) return employeeFilters.filteredEmployees;
+    return employeeFilters.filteredEmployees.filter((employee) => {
       const name = `${employee.firstName || ""} ${employee.lastName || ""}`.toLowerCase();
       const email = (employee.workEmail || "").toLowerCase();
       return name.includes(term) || email.includes(term);
     });
-  }, [selectableEmployees, participantFilter]);
+  }, [employeeFilters.filteredEmployees, participantFilter]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     const container = messageContainerRef.current;
@@ -1941,6 +1943,7 @@ export default function MessagesPage() {
                 placeholder="Search employees"
                 className="mb-3 w-full rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-3 py-2 text-sm outline-none focus:border-messages-primary"
               />
+              {employeeFilters.controls}
               <div className="max-h-72 space-y-2 overflow-y-auto">
                 {filteredEmployees.map((employee) => (
                   <button
@@ -2096,6 +2099,7 @@ export default function MessagesPage() {
                 placeholder="Search members"
                 className="mb-3 w-full rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 px-3 py-2 text-sm outline-none focus:border-messages-primary"
               />
+              {employeeFilters.controls}
 
               <div className="max-h-64 space-y-2 overflow-y-auto">
                 {filteredEmployees.map((employee) => {

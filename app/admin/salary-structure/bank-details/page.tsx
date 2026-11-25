@@ -1,5 +1,6 @@
 "use client";
 
+import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import { getFullName } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -49,6 +50,7 @@ const emptyBankForm: BankDetail = {
 export default function BankDetailsPage() {
   const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const employeeFilters = useEmployeeSearchFilters(employees, undefined, false, () => setPage(1));
   const [selectedEmpId, setSelectedEmpId] = useState("");
   const [bankForm, setBankForm] = useState<BankDetail>({ ...emptyBankForm });
   const [bankLoaded, setBankLoaded] = useState(false);
@@ -118,7 +120,7 @@ export default function BankDetailsPage() {
 
   const selectedEmployee = employees.find((e) => e.id === selectedEmpId);
 
-  const filteredEmployees = employees.filter((e) => {
+  const filteredEmployees = employeeFilters.filteredEmployees.filter((e) => {
     if (!search.trim()) return true;
     const t = search.toLowerCase();
     return (
@@ -189,6 +191,7 @@ export default function BankDetailsPage() {
               setPage(1);
             }}
           />
+              {employeeFilters.controls}
           {loadingEmployees ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading employees...
