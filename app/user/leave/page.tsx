@@ -532,6 +532,11 @@ export default function UserLeavePage() {
       toast.error("End date must be on or after the start date.");
       return;
     }
+    const reason = applyForm.reason.trim();
+    if (!reason) {
+      toast.error("Leave reason is required.");
+      return;
+    }
     setApplySubmitting(true);
     try {
       const res = await applyLeave(userId, {
@@ -539,7 +544,7 @@ export default function UserLeavePage() {
         leaveTypeId: applyForm.leaveTypeId,
         startDate: applyForm.startDate,
         endDate: applyForm.endDate,
-        reason: applyForm.reason.trim(),
+        reason,
         duration: applyForm.duration,
       });
       const unpaidDays = Number(res?.data?.unpaidDays ?? 0);
@@ -950,13 +955,10 @@ export default function UserLeavePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>
-                Reason{" "}
-                <span className="text-muted-foreground text-xs">
-                  (optional)
-                </span>
-              </Label>
+              <Label htmlFor="leave-application-reason">Reason (required)</Label>
               <Textarea
+                id="leave-application-reason"
+                required
                 rows={3}
                 placeholder="Enter reason for leave..."
                 value={applyForm.reason}
@@ -987,7 +989,7 @@ export default function UserLeavePage() {
             <Button
               onClick={handleApplySubmit}
               loading={applySubmitting}
-              disabled={!email.ready}
+              disabled={!email.ready || !applyForm.reason.trim()}
               className="gap-2"
             >
               <Send className="h-4 w-4" />

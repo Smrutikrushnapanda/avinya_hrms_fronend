@@ -1,6 +1,7 @@
 "use client";
 
 import { RequestEmailConfiguration } from "@/components/request-email-configuration";
+import { LeaveRejectionDialog } from "@/components/leave-rejection-dialog";
 import { RequestEmailDeliveryDetails } from "@/components/request-email-delivery-details";
 import { useEmployeeSearchFilters } from "@/components/employee-search-filters";
 import EmployeeSelector from "@/components/employee-selector";
@@ -237,9 +238,7 @@ export default function LeaveManagementPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Reject dialog state
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<LeaveRequest | null>(null);
-  const [rejectRemarks, setRejectRemarks] = useState("");
 
   // Leave detail dialog state
   const [leaveDetailOpen, setLeaveDetailOpen] = useState(false);
@@ -480,8 +479,6 @@ export default function LeaveManagementPage() {
 
   const openRejectDialog = (req: LeaveRequest) => {
     setRejectTarget(req);
-    setRejectRemarks("");
-    setRejectDialogOpen(true);
   };
 
   const openLeaveDetailDialog = (req: LeaveRequest) => {
@@ -489,16 +486,15 @@ export default function LeaveManagementPage() {
     setLeaveDetailOpen(true);
   };
 
-  const handleReject = async () => {
+  const handleReject = async (remarks: string) => {
     if (!rejectTarget || !profile?.userId) return;
     setActionLoading(rejectTarget.id);
     try {
       await approveLeave(rejectTarget.id, profile.userId, {
         approve: false,
-        remarks: rejectRemarks || "Rejected",
+        remarks,
       });
       toast.success("Leave request rejected");
-      setRejectDialogOpen(false);
       setRejectTarget(null);
       fetchLeaveRequests();
     } catch (error: any) {
@@ -1490,37 +1486,14 @@ export default function LeaveManagementPage() {
         )}
       </Tabs>
 
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Leave Request</DialogTitle>
-            <DialogDescription>
-              Add a remark for rejecting this request (optional).
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="remarks">Remarks</Label>
-            <Input
-              id="remarks"
-              value={rejectRemarks}
-              onChange={(e) => setRejectRemarks(e.target.value)}
-              placeholder="Reason for rejection"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              loading={actionLoading === rejectTarget?.id}
-            >
-              Reject
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {rejectTarget && (
+        <LeaveRejectionDialog
+          key={rejectTarget.id}
+          loading={actionLoading === rejectTarget.id}
+          onClose={() => setRejectTarget(null)}
+          onReject={handleReject}
+        />
+      )}
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent>

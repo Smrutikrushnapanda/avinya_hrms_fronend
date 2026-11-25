@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { LeaveRejectionDialog } from "@/components/leave-rejection-dialog";
 import {
   getProfile,
   getPendingLeaves,
@@ -13,6 +14,7 @@ import MobileTabHeader from "../../components/MobileTabHeader";
 
 interface PendingLeave {
   id: string;
+  leaveRequest?: PendingLeave;
   leaveType?: {
     name?: string;
   };
@@ -45,6 +47,7 @@ export default function MobileLeaveApprovePage() {
   const [approverUserId, setApproverUserId] = useState("");
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[]>([]);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<PendingLeave | null>(null);
 
   const fetchPending = useCallback(async (userId: string) => {
     try {
@@ -91,15 +94,16 @@ export default function MobileLeaveApprovePage() {
     init();
   }, [init]);
 
-  const handleAction = async (row: PendingLeave, approve: boolean) => {
+  const handleAction = async (row: PendingLeave, approve: boolean, remarks: string) => {
     if (!approverUserId) return;
     setActionLoadingId(row.id);
     try {
-      await approveLeave(row.id, approverUserId, {
+      await approveLeave(row.leaveRequest?.id ?? row.id, approverUserId, {
         approve,
-        remarks: approve ? "Approved" : "Rejected",
+        remarks,
       });
       toast.success(approve ? "Leave approved" : "Leave rejected");
+      if (!approve) setRejectTarget(null);
       await fetchPending(approverUserId);
     } catch (error) {
       console.error("Leave action failed:", error);
@@ -163,15 +167,16 @@ export default function MobileLeaveApprovePage() {
             </div>
           ) : (
             pendingLeaves.map((leave) => {
-              const requester = leave.user || leave.employee;
+              const request = leave.leaveRequest ?? leave;
+              const requester = request.user || request.employee;
               const requesterName = requester
                 ? [requester.firstName, requester.middleName, requester.lastName]
                     .filter(Boolean)
                     .join(" ")
                 : "Employee";
-              const leaveType = leave.leaveType?.name || leave.leaveTypeName || "Leave";
+              const leaveType = request.leaveType?.name || request.leaveTypeName || "Leave";
               const totalDays =
-                leave.numberOfDays ?? leave.totalDays ?? leave.days ?? leave.duration ?? "-";
+                request.numberOfDays ?? request.totalDays ?? request.days ?? request.duration ?? "-";
 
               return (
                 <div key={leave.id} className="bg-card rounded-xl p-4 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] border border-border">
@@ -185,14 +190,14 @@ export default function MobileLeaveApprovePage() {
 
                   <div className="flex justify-between text-xs text-muted-foreground mb-3">
                     <span>
-                      {formatDate(leave.startDate)} - {formatDate(leave.endDate)}
+                      {formatDate(request.startDate)} - {formatDate(request.endDate)}
                     </span>
                     <span>Total: {totalDays}</span>
                   </div>
 
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleAction(leave, true)}
+                      onClick={() => handleAction(leave, true, "Approved")}
                       disabled={actionLoadingId === leave.id}
                       className="flex-1 flex items-center justify-center gap-2 bg-green-500 text-white text-sm font-semibold py-2 rounded-lg disabled:opacity-60"
                     >
@@ -200,7 +205,7 @@ export default function MobileLeaveApprovePage() {
                       Approve
                     </button>
                     <button
-                      onClick={() => handleAction(leave, false)}
+                      onClick={() => setRejectTarget(leave)}
                       disabled={actionLoadingId === leave.id}
                       className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white text-sm font-semibold py-2 rounded-lg disabled:opacity-60"
                     >
@@ -214,6 +219,14 @@ export default function MobileLeaveApprovePage() {
           )}
         </div>
       </div>
+      {rejectTarget && (
+        <LeaveRejectionDialog
+          key={rejectTarget.id}
+          loading={actionLoadingId === rejectTarget.id}
+          onClose={() => setRejectTarget(null)}
+          onReject={(reason) => handleAction(rejectTarget, false, reason)}
+        />
+      )}
     </div>
   );
 }

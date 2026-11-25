@@ -89,6 +89,11 @@ export default function MobileApplyLeavePage() {
       return;
     }
 
+    const reason = form.reason.trim();
+    if (!reason) {
+      toast.error("Leave reason is required.");
+      return;
+    }
     setSubmitting(true);
     try {
       const response = await applyLeave(userId, {
@@ -96,7 +101,7 @@ export default function MobileApplyLeavePage() {
         leaveTypeId: form.leaveTypeId,
         startDate: form.startDate,
         endDate: form.endDate,
-        reason: form.reason.trim(),
+        reason,
       });
       if (response.data?.emailDelivery?.status === "failed") toast.warning(response.data.emailDelivery.message, { duration: 10000 });
       toast.success("Leave request submitted.");
@@ -191,10 +196,14 @@ export default function MobileApplyLeavePage() {
             </div>
 
             <div>
-              <Label className="text-sm font-medium text-foreground">Reason</Label>
+              <Label htmlFor="leave-reason" className="text-sm font-medium text-foreground">
+                Reason (required)
+              </Label>
               <Textarea
+                id="leave-reason"
+                required
                 rows={4}
-                placeholder="Enter reason for leave...(optional)"
+                placeholder="Enter reason for leave"
                 value={form.reason}
                 className="mt-2 border-border bg-muted"
                 onChange={(e) =>
@@ -207,7 +216,7 @@ export default function MobileApplyLeavePage() {
             <Button
               onClick={handleSubmit}
               loading={submitting}
-              disabled={!email.ready}
+              disabled={!email.ready || !form.reason.trim()}
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
             >
               <Send className="h-4 w-4" />

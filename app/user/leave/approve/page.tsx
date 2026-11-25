@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, CalendarDays, ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LeaveRejectionDialog } from "@/components/leave-rejection-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -19,6 +20,7 @@ import { format } from "date-fns";
 
 interface PendingLeave {
   id: string;
+  leaveRequest?: PendingLeave;
   leaveType?: { name?: string } | string;
   leaveTypeName?: string;
   startDate?: string;
@@ -58,6 +60,7 @@ export default function UserLeaveApprovePage() {
   const [approverUserId, setApproverUserId] = useState("");
   const [pendingLeaves, setPendingLeaves] = useState<PendingLeave[]>([]);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<PendingLeave | null>(null);
 
   const fetchPending = useCallback(async (userId: string) => {
     try {
@@ -97,15 +100,16 @@ export default function UserLeaveApprovePage() {
     init();
   }, [fetchPending, router]);
 
-  const handleAction = async (leave: PendingLeave, approve: boolean) => {
+  const handleAction = async (leave: PendingLeave, approve: boolean, remarks: string) => {
     if (!approverUserId) return;
     setActionLoadingId(leave.id);
     try {
-      await approveLeave(leave.id, approverUserId, {
+      await approveLeave(leave.leaveRequest?.id ?? leave.id, approverUserId, {
         approve,
-        remarks: approve ? "Approved" : "Rejected",
+        remarks,
       });
       toast.success(approve ? "Leave approved" : "Leave rejected");
+      if (!approve) setRejectTarget(null);
       await fetchPending(approverUserId);
     } catch {
       toast.error("Failed to update leave");
@@ -189,7 +193,8 @@ export default function UserLeaveApprovePage() {
           ) : (
             <div className="space-y-4">
               {pendingLeaves.map((leave) => {
-                const requester = leave.user || leave.employee;
+                const request = leave.leaveRequest ?? leave;
+                const requester = request.user || request.employee;
                 const requesterName = requester
                   ? [
                       requester.firstName,
@@ -200,16 +205,16 @@ export default function UserLeaveApprovePage() {
                       .join(" ")
                   : "Employee";
                 const leaveTypeName =
-                  typeof leave.leaveType === "string"
-                    ? leave.leaveType
-                    : leave.leaveType?.name || leave.leaveTypeName || "Leave";
+                  typeof request.leaveType === "string"
+                    ? request.leaveType
+                    : request.leaveType?.name || request.leaveTypeName || "Leave";
                 const totalDays =
-                  leave.numberOfDays ??
-                  leave.totalDays ??
-                  leave.days ??
-                  leave.duration ??
+                  request.numberOfDays ??
+                  request.totalDays ??
+                  request.days ??
+                  request.duration ??
                   "-";
-                const isHalfDay = leave.duration === 0.5;
+                const isHalfDay = request.duration === 0.5;
                 const durationLabel = isHalfDay ? "Half Day" : "Full Day";
                 const isActing = actionLoadingId === leave.id;
 
@@ -233,8 +238,8 @@ export default function UserLeaveApprovePage() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(leave.startDate)} –{" "}
-                        {formatDate(leave.endDate)}
+                        {formatDate(request.startDate)} –{" "}
+                        {formatDate(request.endDate)}
                         {totalDays !== "-" && (
                           <span className="ml-2 font-medium">
                             ({totalDays} day{Number(totalDays) !== 1 ? "s" : ""}, {durationLabel})
@@ -248,7 +253,7 @@ export default function UserLeaveApprovePage() {
                         variant="outline"
                         className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                         loading={isActing}
-                        onClick={() => handleAction(leave, false)}
+                        onClick={() => setRejectTarget(leave)}
                       >
                         <XCircle className="h-4 w-4" />
                         Reject
@@ -257,7 +262,7 @@ export default function UserLeaveApprovePage() {
                         size="sm"
                         className="gap-1.5 bg-green-600 hover:bg-green-700"
                         loading={isActing}
-                        onClick={() => handleAction(leave, true)}
+                        onClick={() => handleAction(leave, true, "Approved")}
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         Approve
@@ -270,6 +275,14 @@ export default function UserLeaveApprovePage() {
           )}
         </CardContent>
       </Card>
+      {rejectTarget && (
+        <LeaveRejectionDialog
+          key={rejectTarget.id}
+          loading={actionLoadingId === rejectTarget.id}
+          onClose={() => setRejectTarget(null)}
+          onReject={(reason) => handleAction(rejectTarget, false, reason)}
+        />
+      )}
     </div>
   );
 }
