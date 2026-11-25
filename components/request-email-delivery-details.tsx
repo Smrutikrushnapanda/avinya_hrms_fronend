@@ -63,7 +63,7 @@ export function RequestEmailDeliveryDetails({
         <dt className="text-muted-foreground">Status</dt>
         <dd>
           {statusLabels[delivery.status]}
-          {delivery.sentAt && ` · ${new Date(delivery.sentAt).toLocaleString()}`}
+          {delivery.sentAt && ` · ${new Date(delivery.sentAt).toLocaleString("en-GB")}`}
         </dd>
         <dt className="text-muted-foreground">To</dt>
         <dd className="break-words">{delivery.recipients.join(", ")}</dd>

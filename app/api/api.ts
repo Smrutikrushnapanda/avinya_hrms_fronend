@@ -1328,7 +1328,9 @@ export default api;
 export const getRequestEmailConfiguration = (kind: import("@/types/request-email").RequestEmailKind) =>
   api.get<{ templates: import("@/types/request-email").RequestEmailTemplate[]; placeholders: string[] }>(`/${kind}/email-configuration`);
 export const saveRequestEmailTemplate = (kind: import("@/types/request-email").RequestEmailKind, data: import("@/types/request-email").SaveRequestEmailTemplate, id?: string) =>
-  id ? api.put(`/${kind}/email-configuration/${id}`, data) : api.post(`/${kind}/email-configuration`, data);
+  id
+    ? api.put<import("@/types/request-email").RequestEmailTemplate>(`/${kind}/email-configuration/${id}`, data)
+    : api.post<import("@/types/request-email").RequestEmailTemplate>(`/${kind}/email-configuration`, data);
 export const sendTestRequestEmail = (
   kind: import("@/types/request-email").RequestEmailKind,
   data: { leaveTypeId?: string; recipients: string[]; subjectTemplate: string; bodyTemplate: string },

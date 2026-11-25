@@ -62,6 +62,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getFullName } from "@/lib/utils";
+import {
+  DEFAULT_BUSINESS_TIMEZONE,
+  formatInTimezone,
+  isValidTimezone,
+} from "@/utils/timezone";
 
 const ALL_LEAVE_TYPES = "__ALL__";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -195,11 +200,34 @@ export function RequestEmailConfiguration({
   const [myName, setMyName] = useState("");
   const [hrEmail, setHrEmail] = useState("");
   const [orgName, setOrgName] = useState("");
+  const [timezone, setTimezone] = useState(DEFAULT_BUSINESS_TIMEZONE);
   const [teamPickerKey, setTeamPickerKey] = useState(0);
 
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const requestRef = useRef(0);
+  const bulkSaved = useRef(new Map<string, RequestEmailTemplate>());
+  const selectionKey = `request-email-template:${kind}`;
+
+  const openTemplate = useCallback((template: RequestEmailTemplate | null) => {
+    bulkSaved.current.clear();
+    setEditing(template);
+    setForm(template ? {
+      name: template.name,
+      leaveTypeId: template.leaveTypeId || "",
+      recipients: template.recipients.join(", "),
+      subjectTemplate: template.subjectTemplate,
+      bodyTemplate: template.bodyTemplate,
+      enabled: template.enabled,
+      isDefault: template.isDefault,
+    } : blankForm(kind, kind === "leave" ? ALL_LEAVE_TYPES : ""));
+    try {
+      if (template) sessionStorage.setItem(selectionKey, template.id);
+      else sessionStorage.removeItem(selectionKey);
+    } catch {
+      // The server still holds all saved templates when browser storage is unavailable.
+    }
+  }, [kind, selectionKey]);
 
   useEffect(() => {
     let active = true;
@@ -208,6 +236,9 @@ export function RequestEmailConfiguration({
         const profileRes = await getProfile();
         if (!active) return;
         const p = profileRes.data || {};
+        if (p.organizationTimezone && isValidTimezone(p.organizationTimezone)) {
+          setTimezone(p.organizationTimezone);
+        }
         const userEmail = (p.email || p.employee?.workEmail || "").trim().toLowerCase();
         const fullName = getFullName(p) || p.userName || "";
         if (userEmail) setMyEmail(userEmail);
@@ -261,7 +292,8 @@ export function RequestEmailConfiguration({
     };
   }, []);
 
-  const load = useCallback(async (silent = false) => {
+  const load = useCallback(async (mode: "restore" | "refresh" | "poll" = "refresh") => {
+    const silent = mode === "poll";
     const request = ++requestRef.current;
     if (!silent) setLoading(true);
     const [configuration, delivery] = await Promise.allSettled([
@@ -270,9 +302,22 @@ export function RequestEmailConfiguration({
     ]);
     if (request !== requestRef.current) return;
     if (configuration.status === "fulfilled") {
-      setTemplates(configuration.value.data.templates);
+      const savedTemplates = configuration.value.data.templates;
+      setTemplates(savedTemplates);
       setPlaceholders(configuration.value.data.placeholders);
       setError("");
+      if (mode === "restore") {
+        let selectedId: string | null = null;
+        try {
+          selectedId = sessionStorage.getItem(selectionKey);
+        } catch {
+          // Fall back to the server's default template.
+        }
+        const selected = savedTemplates.find((template) => template.id === selectedId)
+          ?? savedTemplates.find((template) => template.isDefault && template.enabled)
+          ?? savedTemplates[0];
+        openTemplate(selected ?? null);
+      }
     } else {
       setError(
         errorMessage(
@@ -290,11 +335,11 @@ export function RequestEmailConfiguration({
       );
     }
     if (!silent) setLoading(false);
-  }, [kind]);
+  }, [kind, openTemplate, selectionKey]);
 
   useEffect(() => {
     const requests = requestRef;
-    void load();
+    void load("restore");
     return () => {
       ++requests.current;
     };
@@ -304,12 +349,12 @@ export function RequestEmailConfiguration({
     (d) => d.status === "pending" || d.status === "sending",
   );
   useEffect(() => {
-    if (!hasInFlightDeliveries) return;
+    if (!hasInFlightDeliveries || loading || saving) return;
     const timer = setInterval(() => {
-      void load(true);
+      void load("poll");
     }, 4000);
     return () => clearInterval(timer);
-  }, [hasInFlightDeliveries, load]);
+  }, [hasInFlightDeliveries, load, loading, saving]);
 
   const parsedRecipients = useMemo(
     () => parseRecipientList(form.recipients),
@@ -323,23 +368,17 @@ export function RequestEmailConfiguration({
   const addRecipientEmail = (address: string) => {
     const normalized = address.trim().toLowerCase();
     if (!normalized || !EMAIL_PATTERN.test(normalized)) return;
-    const next = [...new Set([...parsedRecipients, normalized])];
-    setForm((prev) => ({ ...prev, recipients: next.join(", ") }));
+    setForm((prev) => ({
+      ...prev,
+      recipients: [...new Set([...parseRecipientList(prev.recipients), normalized])].join(", "),
+    }));
   };
 
   const removeRecipientEmail = (address: string) => {
-    const next = parsedRecipients.filter((entry) => entry !== address);
-    setForm((prev) => ({ ...prev, recipients: next.join(", ") }));
-  };
-
-  const reset = () => {
-    setEditing(null);
-    setForm(
-      blankForm(
-        kind,
-        kind === "leave" && leaveTypes.length ? ALL_LEAVE_TYPES : "",
-      ),
-    );
+    setForm((prev) => ({
+      ...prev,
+      recipients: parseRecipientList(prev.recipients).filter((entry) => entry !== address).join(", "),
+    }));
   };
 
   const validateDraft = () => {
@@ -372,61 +411,67 @@ export function RequestEmailConfiguration({
 
     setSaving(true);
     try {
+      const data = {
+        name: form.name.trim(),
+        recipients,
+        subjectTemplate: form.subjectTemplate,
+        bodyTemplate: form.bodyTemplate,
+        enabled: form.enabled,
+        isDefault: form.enabled && form.isDefault,
+      };
       if (kind === "leave" && !editing && form.leaveTypeId === ALL_LEAVE_TYPES) {
         if (!leaveTypes.length) {
           toast.error("No leave types found. Add a leave type first.");
           return;
         }
         const results = await Promise.allSettled(
-          leaveTypes.map((lt) =>
-            saveRequestEmailTemplate(kind, {
+          leaveTypes.map(async (lt) => {
+            const previous = bulkSaved.current.get(lt.id);
+            const { data: saved } = await saveRequestEmailTemplate(kind, {
+              ...data,
               name:
                 leaveTypes.length === 1
-                  ? form.name.trim()
-                  : `${form.name.trim()} - ${lt.name}`.slice(0, 100),
+                  ? data.name
+                  : `${data.name} - ${lt.name}`.slice(0, 100),
               leaveTypeId: lt.id,
-              recipients,
-              subjectTemplate: form.subjectTemplate,
-              bodyTemplate: form.bodyTemplate,
-              enabled: form.enabled,
-              isDefault: form.enabled ? form.isDefault : false,
-            }),
-          ),
+              ...(previous ? { version: previous.version } : {}),
+            }, previous?.id);
+            bulkSaved.current.set(lt.id, saved);
+            return saved;
+          }),
         );
         const succeeded = results.filter((r) => r.status === "fulfilled").length;
         const firstRejected = results.find(
           (r): r is PromiseRejectedResult => r.status === "rejected",
         );
-        if (succeeded === 0 && firstRejected) {
+        if (firstRejected) {
           toast.error(
             errorMessage(
               firstRejected.reason,
-              "Email configuration could not be saved.",
+              "Email configuration could not be saved. Retry to finish saving all leave types.",
             ),
           );
+          if (succeeded) await load();
           return;
         }
+        const firstSaved = results[0];
+        if (firstSaved?.status === "fulfilled") openTemplate(firstSaved.value);
         toast.success(
           `Saved email template for ${succeeded} of ${leaveTypes.length} leave type(s).`,
         );
       } else {
-        await saveRequestEmailTemplate(
+        const { data: saved } = await saveRequestEmailTemplate(
           kind,
           {
-            name: form.name.trim(),
+            ...data,
             ...(kind === "leave" ? { leaveTypeId: form.leaveTypeId } : {}),
-            recipients,
-            subjectTemplate: form.subjectTemplate,
-            bodyTemplate: form.bodyTemplate,
-            enabled: form.enabled,
-            isDefault: form.enabled ? form.isDefault : false,
             ...(editing ? { version: editing.version } : {}),
           },
           editing?.id,
         );
+        openTemplate(saved);
         toast.success("Email template saved");
       }
-      reset();
       await load();
     } catch (saveError) {
       toast.error(
@@ -474,8 +519,9 @@ export function RequestEmailConfiguration({
     setSaving(true);
     try {
       await deleteRequestEmailTemplate(kind, template.id);
-      if (editing?.id === template.id) reset();
-      await load();
+      const removedActiveTemplate = editing?.id === template.id;
+      if (removedActiveTemplate) openTemplate(null);
+      await load(removedActiveTemplate ? "restore" : "refresh");
       toast.success("Email template deleted");
     } catch (deleteError) {
       toast.error(errorMessage(deleteError));
@@ -501,7 +547,7 @@ export function RequestEmailConfiguration({
     });
   };
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const today = formatInTimezone(new Date(), timezone, "dd/MM/yyyy");
   const selectedLeaveTypeName =
     form.leaveTypeId === ALL_LEAVE_TYPES
       ? leaveTypes[0]?.name || "Casual Leave"
@@ -517,13 +563,13 @@ export function RequestEmailConfiguration({
     designation: "Software Engineer",
     leave_type: kind === "leave" ? selectedLeaveTypeName : "Work from Home",
     request_type: kind === "leave" ? "Leave" : "Work from Home",
-    start_date: todayIso,
-    end_date: todayIso,
+    start_date: today,
+    end_date: today,
     duration: "1",
     total_days: "1 day",
     reason: "Personal work",
     organization_name: orgName || "Your Company",
-    application_date: todayIso,
+    application_date: today,
     manager_name: "Priya Nair",
   };
   const sampleSubject = renderSampleTemplate(
@@ -574,7 +620,7 @@ export function RequestEmailConfiguration({
           </div>
           <Button
             variant="outline"
-            onClick={() => void load()}
+            onClick={() => void load(editing || !templates.length ? "restore" : "refresh")}
             disabled={loading || saving}
           >
             Refresh
@@ -641,18 +687,7 @@ export function RequestEmailConfiguration({
                             variant="outline"
                             size="sm"
                             disabled={saving}
-                            onClick={() => {
-                              setEditing(template);
-                              setForm({
-                                name: template.name,
-                                leaveTypeId: template.leaveTypeId || "",
-                                recipients: template.recipients.join(", "),
-                                subjectTemplate: template.subjectTemplate,
-                                bodyTemplate: template.bodyTemplate,
-                                enabled: template.enabled,
-                                isDefault: template.isDefault,
-                              });
-                            }}
+                            onClick={() => openTemplate(template)}
                           >
                             Edit
                           </Button>
@@ -792,7 +827,7 @@ export function RequestEmailConfiguration({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={saving || testing}
+                    disabled={saving || testing || loading}
                     onClick={() => addRecipientEmail(myEmail)}
                     className="h-7 text-xs gap-1"
                   >
@@ -807,7 +842,7 @@ export function RequestEmailConfiguration({
                       type="button"
                       variant="outline"
                       size="sm"
-                      disabled={saving || testing}
+                      disabled={saving || testing || loading}
                       onClick={() => addRecipientEmail(hrEmail)}
                       className="h-7 text-xs gap-1"
                     >
@@ -828,7 +863,7 @@ export function RequestEmailConfiguration({
                     addRecipientEmail(email);
                     setTeamPickerKey((k) => k + 1);
                   }}
-                  disabled={saving || testing}
+                  disabled={saving || testing || loading}
                 >
                   <SelectTrigger className="w-full sm:max-w-md bg-background">
                     <SelectValue placeholder="Pick a team member (HR / Manager) to add..." />
@@ -848,11 +883,11 @@ export function RequestEmailConfiguration({
               id={`${kind}-recipients`}
               value={form.recipients}
               onChange={(event) =>
-                setForm({ ...form, recipients: event.target.value })
+                setForm((prev) => ({ ...prev, recipients: event.target.value }))
               }
               placeholder="Type or paste email addresses (e.g., hr@company.com, manager@company.com)"
               rows={2}
-              disabled={saving || testing}
+              disabled={saving || testing || loading}
               className="bg-background"
             />
 
@@ -869,6 +904,7 @@ export function RequestEmailConfiguration({
                       <span>{address}</span>
                       <button
                         type="button"
+                        disabled={saving || testing || loading}
                         onClick={() => removeRecipientEmail(address)}
                         className="rounded-full p-0.5 hover:bg-black/10"
                         aria-label={`Remove ${address}`}
@@ -1030,9 +1066,9 @@ export function RequestEmailConfiguration({
               <Button
                 variant="ghost"
                 disabled={saving || testing}
-                onClick={reset}
+                onClick={() => openTemplate(null)}
               >
-                Cancel edit
+                New template
               </Button>
             )}
           </div>
@@ -1083,7 +1119,7 @@ export function RequestEmailConfiguration({
                       {delivery.subject || "—"}
                     </TableCell>
                     <TableCell className="text-xs whitespace-nowrap">
-                      {new Date(delivery.createdAt).toLocaleString()}
+                      {new Date(delivery.createdAt).toLocaleString("en-GB")}
                     </TableCell>
                     <TableCell>{deliveryStatusBadge(delivery.status)}</TableCell>
                     <TableCell>{delivery.attempts}</TableCell>
