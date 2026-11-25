@@ -1336,8 +1336,8 @@ export const sendTestRequestEmail = (
   data: { leaveTypeId?: string; recipients: string[]; subjectTemplate: string; bodyTemplate: string },
 ) => api.post<{ sent: boolean; recipients: string[]; subject: string }>(`/${kind}/email-configuration/test`, data);
 export const deleteRequestEmailTemplate = (kind: import("@/types/request-email").RequestEmailKind, id: string) => api.delete(`/${kind}/email-configuration/${id}`);
-export const previewRequestEmail = (kind: import("@/types/request-email").RequestEmailKind, userId: string, data: import("@/types/request-email").ApplicationEmailFields & { templateId?: string }) =>
-  api.post<import("@/types/request-email").RequestEmailPreview>(`/${kind}/email-preview/${userId}`, data);
+export const previewRequestEmail = (kind: import("@/types/request-email").RequestEmailKind, userId: string, data: import("@/types/request-email").ApplicationEmailFields & { templateId?: string }, signal?: AbortSignal) =>
+  api.post<import("@/types/request-email").RequestEmailPreview>(`/${kind}/email-preview/${userId}`, data, { signal });
 export const getRequestEmailDeliveries = (kind: import("@/types/request-email").RequestEmailKind) => api.get<import("@/types/request-email").RequestEmailDelivery[]>(`/${kind}/email-deliveries`);
 export const getRequestEmailDeliveryForRequest = (kind: import("@/types/request-email").RequestEmailKind, requestId: string, signal: AbortSignal) =>
   api.get<{ delivery: import("@/types/request-email").RequestEmailDeliveryDetail | null }>(`/${kind}/email-deliveries/by-request/${requestId}`, { signal });

@@ -8,6 +8,16 @@ import type {
   RequestEmailPreview,
 } from "@/types/request-email";
 
+const emptyDraft = {
+  key: "",
+  scope: "",
+  preview: null as RequestEmailPreview | null,
+  subject: "",
+  body: "",
+  error: "",
+  refreshed: false,
+};
+
 export function useRequestEmail(
   kind: RequestEmailKind,
   userId: string | undefined,
@@ -18,27 +28,10 @@ export function useRequestEmail(
   const [choice, setChoice] = useState({ scope: "", id: "" });
   const templateId = choice.scope === scope ? choice.id : "";
   const fieldsKey = JSON.stringify(fields);
-  const key = `${scope}:${templateId}:${fieldsKey}`;
   const [revision, setRevision] = useState(0);
-  const [state, setState] = useState<{
-    key: string;
-    preview: RequestEmailPreview | null;
-    subject: string;
-    body: string;
-    loading: boolean;
-    error: string;
-    edited: boolean;
-    refreshed: boolean;
-  }>({
-    key: "",
-    preview: null,
-    subject: "",
-    body: "",
-    loading: false,
-    error: "",
-    edited: false,
-    refreshed: false,
-  });
+  const key = `${scope}:${templateId}:${revision}:${fieldsKey}`;
+  const [state, setState] = useState(emptyDraft);
+  const [fetchingKey, setFetchingKey] = useState("");
   const canPreview =
     enabled &&
     Boolean(userId) &&
@@ -49,72 +42,88 @@ export function useRequestEmail(
     );
 
   useEffect(() => {
-    if (!canPreview || !userId) return;
-    let active = true;
-    setState((previous) => ({
-      ...previous,
-      loading: true,
-      error: "",
-      refreshed: previous.edited && previous.key !== key,
-    }));
+    if (!canPreview || !userId) {
+      setState(emptyDraft);
+      setFetchingKey("");
+      return;
+    }
+    const controller = new AbortController();
     const timer = setTimeout(() => {
-      void previewRequestEmail(kind, userId, {
-        ...(JSON.parse(fieldsKey) as ApplicationEmailFields),
-        ...(templateId ? { templateId } : {}),
-      })
+      setFetchingKey(key);
+      void previewRequestEmail(
+        kind,
+        userId,
+        {
+          ...(JSON.parse(fieldsKey) as ApplicationEmailFields),
+          ...(templateId ? { templateId } : {}),
+        },
+        controller.signal,
+      )
         .then(({ data }) => {
-          if (!active) return;
-          setState((previous) => ({
-            key,
-            preview: data,
-            subject: data.subject || "",
-            body: data.body || "",
-            loading: false,
-            error: "",
-            edited: false,
-            refreshed: previous.refreshed,
-          }));
+          if (controller.signal.aborted) return;
+          setState((previous) => {
+            const sameTemplate =
+              previous.scope === scope &&
+              previous.preview?.configured &&
+              data.configured &&
+              previous.preview.templateId === data.templateId;
+            const keepSubject =
+              sameTemplate && previous.subject !== previous.preview?.subject;
+            const keepBody =
+              sameTemplate && previous.body !== previous.preview?.body;
+            return {
+              key,
+              scope,
+              preview: data,
+              subject: keepSubject ? previous.subject : data.subject || "",
+              body: keepBody ? previous.body : data.body || "",
+              error: "",
+              refreshed: Boolean(keepSubject || keepBody),
+            };
+          });
         })
         .catch((error: unknown) => {
-          if (!active) return;
+          if (controller.signal.aborted) return;
           const message: unknown = isAxiosError(error)
             ? error.response?.data?.message
             : null;
           setState((previous) => ({
             ...previous,
             key,
-            loading: false,
-            preview: null,
             error:
               typeof message === "string"
                 ? message
                 : "Email preview could not be loaded. Retry before submitting.",
           }));
         });
-    }, 300);
+    }, 650);
     return () => {
-      active = false;
       clearTimeout(timer);
+      controller.abort();
     };
-  }, [canPreview, userId, kind, key, fieldsKey, templateId, revision]);
+  }, [canPreview, userId, kind, key, fieldsKey, templateId, scope]);
 
+  const preview =
+    state.scope === scope &&
+    (!templateId || state.preview?.templateId === templateId)
+      ? state.preview
+      : null;
+  const current = state.key === key;
+  const error = current ? state.error : "";
   const ready =
     !canPreview ||
-    (state.key === key &&
-      state.preview !== null &&
-      !state.loading &&
-      !state.error &&
-      (!state.preview.configured ||
+    (current &&
+      preview !== null &&
+      !error &&
+      (!preview.configured ||
         Boolean(state.subject.trim() && state.body.trim())));
   const getDraft = (): RequestEmailDraft | undefined => {
     if (!ready)
-      throw new Error(
-        state.error || "Wait for the email preview before submitting.",
-      );
-    if (!state.preview?.configured || !canPreview) return undefined;
+      throw new Error(error || "Wait for the email preview before submitting.");
+    if (!preview?.configured || !canPreview) return undefined;
     return {
-      templateId: state.preview.templateId!,
-      fingerprint: state.preview.fingerprint!,
+      templateId: preview.templateId!,
+      fingerprint: preview.fingerprint!,
       subject: state.subject,
       body: state.body,
     };
@@ -122,19 +131,18 @@ export function useRequestEmail(
   return {
     visible: canPreview,
     ready,
-    loading: canPreview && (state.loading || state.key !== key),
-    preview: state.preview,
-    error: state.error,
+    loading: canPreview && !current && !preview && fetchingKey === key,
+    preview,
+    error,
     subject: state.subject,
     body: state.body,
     refreshed: state.refreshed,
     setSubject: (subject: string) =>
-      setState((previous) => ({ ...previous, subject, edited: true })),
-    setBody: (body: string) =>
-      setState((previous) => ({ ...previous, body, edited: true })),
+      setState((previous) => ({ ...previous, subject })),
+    setBody: (body: string) => setState((previous) => ({ ...previous, body })),
     selectTemplate: (id: string) => setChoice({ scope, id }),
     retry: () => {
-      setChoice({ scope, id: "" });
+      if (error) setChoice({ scope, id: "" });
       setRevision((value) => value + 1);
     },
     getDraft,

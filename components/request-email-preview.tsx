@@ -40,7 +40,7 @@ export function RequestEmailPreview({
           Refresh preview
         </Button>
       </div>
-      {email.error ? (
+      {email.error && (
         <div role="alert" className="space-y-2 text-sm text-destructive">
           <p>{email.error}</p>
           <Button
@@ -53,21 +53,23 @@ export function RequestEmailPreview({
             Retry preview
           </Button>
         </div>
-      ) : email.loading ? (
+      )}
+      {email.loading && (
         <p role="status" className="text-sm text-muted-foreground">
           Preparing email preview...
         </p>
-      ) : !email.preview?.configured ? (
+      )}
+      {!email.error && email.preview && !email.preview.configured && (
         <p className="text-sm text-muted-foreground">
           No application email is configured. Your request can still be
           submitted.
         </p>
-      ) : (
+      )}
+      {email.preview?.configured && (
         <>
           {email.refreshed && (
             <p role="status" className="text-sm text-amber-700">
-              Request details changed. Email was refreshed; review your edits
-              before submitting.
+              Preview updated. Review your edits before submitting.
             </p>
           )}
           {email.preview.templates.length > 1 && (
